@@ -1,0 +1,6 @@
+﻿{
+    "pi":  {
+               "reviewer":  "deepseek/deepseek-v4-flash",
+               "test":  "deepseek/deepseek-v4-pro"
+           }
+}

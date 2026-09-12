@@ -226,3 +226,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Pandino kit: project-local pi runtime + downloaded installer + staging
+.pi/npm/
+.pandino/merge/
+install.ps1
