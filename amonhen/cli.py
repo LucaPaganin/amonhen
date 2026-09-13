@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     category_add.add_argument("name")
 
     rule_add = sub.add_parser("rule-add", help="add or change a rule")
-    rule_add.add_argument("pattern", help="text the description contains")
+    rule_add.add_argument("pattern", help="text the description contains, or /an expression/")
     rule_add.add_argument("category")
 
     rule_remove = sub.add_parser("rule-remove", help="drop a rule and release its movements")

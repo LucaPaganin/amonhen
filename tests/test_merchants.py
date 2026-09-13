@@ -122,6 +122,82 @@ def test_two_patterns_of_the_same_length_keep_the_answer_the_same():
     assert matching_rule("PAGAMENTO CARTA VERDE 12", reversed(rules)).category == "Uno"
 
 
+def test_an_expression_covers_a_family_the_bank_spells_in_many_ways(ledger):
+    """`/amazon (eu|payments)/` is one rule where plain texts would be a list
+    that grows with every spelling the bank invents."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    eu = ledger.record(
+        make_txn(ledger, account, "2026-08-03", "-4.99", "AMAZON EU SARL | CARD_PAYMENT")
+    )[0]
+    payments = ledger.record(
+        make_txn(ledger, account, "2026-08-04", "-12.00", "Amazon Payments Europe 12/03")
+    )[0]
+    prime = ledger.record(make_txn(ledger, account, "2026-08-05", "-4.99", "AMAZON PRIME VIDEO"))[0]
+    book = RuleBook(ledger.conn)
+
+    count = book.set_rule("/amazon (eu|payments)/", "Shopping", ledger)
+
+    assert count == 2
+    assert ledger.category_of(eu) == "Shopping"
+    assert ledger.category_of(payments) == "Shopping"
+    assert ledger.category_of(prime) == "Uncategorized"
+
+
+def test_an_expression_that_names_a_family_takes_the_movements_of_the_words(ledger):
+    """`/amazon (eu|payments)/` says more than `amazon`, so it is the narrower
+    claim and decides — which is why one expression can replace a pile of words."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    eu = ledger.record(make_txn(ledger, account, "2026-08-03", "-4.99", "AMAZON EU SARL"))[0]
+    prime = ledger.record(make_txn(ledger, account, "2026-08-04", "-4.99", "AMAZON PRIME EUROPE"))[0]
+    book = RuleBook(ledger.conn)
+    book.set_rule("amazon", "Bollette", ledger)
+
+    book.set_rule("/amazon (eu|prime)/", "Shopping", ledger)
+
+    assert ledger.category_of(eu) == "Shopping"
+    assert ledger.category_of(prime) == "Shopping"
+
+
+def test_a_broader_expression_does_not_steal_from_a_narrower_text(ledger):
+    """An expression is a pattern like any other: the narrower claim keeps the
+    movement, so writing `/amazon/` later cannot take what `amazon prime` holds."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    movement = ledger.record(make_txn(ledger, account, "2026-08-03", "-4.99", "AMAZON PRIME"))[0]
+    book = RuleBook(ledger.conn)
+    book.set_rule("amazon prime", "Bollette", ledger)
+
+    book.set_rule("/amazon/", "Shopping", ledger)
+
+    assert ledger.category_of(movement) == "Bollette"
+
+
+def test_a_pattern_that_merely_holds_a_slash_is_still_plain_text(ledger):
+    """Descriptions carry dates, so a rule for one must not become an expression:
+    only slashes around the whole pattern make one."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    movement = ledger.record(make_txn(ledger, account, "2026-08-03", "-9.00", "ACME 12/03"))[0]
+    book = RuleBook(ledger.conn)
+
+    count = book.set_rule("acme 12/03", "Casa", ledger)
+
+    assert count == 1
+    assert ledger.category_of(movement) == "Casa"
+    assert book.rules()[0].expression is None
+
+
+def test_an_expression_that_does_not_compile_is_refused(ledger):
+    """A rule that could never match must not reach the ledger, and the reason
+    has to say what is wrong with it."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    ledger.record(make_txn(ledger, account, "2026-08-03", "-42.50", "EKOM"))
+    book = RuleBook(ledger.conn)
+
+    with pytest.raises(ValueError, match="espressione"):
+        book.set_rule("/ekom(/", "Groceries", ledger)
+
+    assert book.rules() == []
+
+
 def test_a_new_narrower_rule_takes_what_the_broader_one_held(ledger):
     """A rule change cannot leave a movement under a rule that no longer decides it."""
     account = ledger.ensure_account(Account(name="Revolut", type="real"))

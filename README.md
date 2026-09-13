@@ -128,9 +128,13 @@ what a category is and what falls into it are the same decision: thirty patterns
 are thirty decisions while eight categories are a budget. One rule covers a family of
 movements (`addebito sdd`, `ipercoop`, `amazon prime`) instead of one merchant
 name, and each row shows how many movements the rule holds right now, so a rule
-that reaches nothing shows itself. Where two patterns match, the longer one
-decides — it is the narrower claim — and a movement holding a category no
-matching rule would give it is left alone: that one is a person's decision.
+that reaches nothing shows itself. A pattern written between slashes is a regular
+expression instead — `/amazon (eu|payments)/`, one rule for a family the bank
+spells in too many ways to list — and it matches the same text the plain rules
+see: spaces collapsed, case ignored. Where two patterns match, the longer one
+decides — it is the narrower claim, whether it is written as a text or as an
+expression — and a movement holding a category no matching rule would give it is
+left alone: that one is a person's decision.
 Creating a rule categorizes what was waiting, correcting one moves the movements
 it held, removing it passes them to the broader rule
 that still matches, or back to the queue — so the list and the ledger never

@@ -2,15 +2,16 @@
 
 Desiderata 5.5 steps 1 and 2: reduce the raw description to the merchant it
 names, then apply the rules. A rule is a piece of text the description contains,
-so one rule covers a family of movements the bank spells differently — the
-merchant name being just one of the texts a rule may hold. Both steps are
-deterministic, so they run inside ingest without making it fail when something
-is unknown.
+or a regular expression written between slashes, so one rule covers a family of
+movements the bank spells differently — the merchant name being just one of the
+texts a rule may hold. Both steps are deterministic, so they run inside ingest
+without making it fail when something is unknown.
 """
 import re
 import sqlite3
 from dataclasses import dataclass
 from decimal import Decimal
+from functools import lru_cache
 from typing import Iterable, Sequence
 
 from amonhen.ledger import UNCATEGORIZED_WHERE, Ledger
@@ -18,6 +19,9 @@ from amonhen.models import parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
 SEPARATOR = " | "
+
+# The slashes that make a pattern an expression instead of a piece of text.
+_REGEX_DELIMITER = "/"
 
 # Trailing text the bank appends after the merchant: card payments, SEPA
 # details, dates, references. Anything from one of these on is not the merchant.
@@ -43,11 +47,20 @@ _WHITESPACE = re.compile(r"\s+")
 
 @dataclass(frozen=True)
 class Rule:
-    """A text the description contains, and the category that follows from it."""
+    """A text the description contains, and the category that follows from it.
+
+    A pattern written between slashes is a regular expression instead: one rule
+    for a family the bank spells in too many ways to list (`/amazon (eu|payments)/`).
+    """
 
     key: str
     pattern: str
     category: str
+
+    @property
+    def expression(self) -> str | None:
+        """The expression this rule matches with, or None when it is plain text."""
+        return _expression_of(self.pattern)
 
 
 def merchant_name(description: str) -> str:
@@ -79,22 +92,77 @@ def rule_key(text: str) -> str:
     return _WHITESPACE.sub(" ", text.strip()).lower()
 
 
+def rule_pattern(text: str) -> tuple[str, str | None]:
+    """The key that identifies a rule, and the expression it matches with.
+
+    A pattern written between slashes -- `/amazon (eu|payments)/` -- is a
+    regular expression, one rule for a family the bank spells in too many ways
+    to list; anything else is the piece of text it looks like. The key of plain
+    text is the text lower case, because that is how it is compared; the key of
+    an expression is the pattern as typed, because inside one the case is part
+    of it -- `\\D` is not `\\d`.
+    """
+    typed = _WHITESPACE.sub(" ", text.strip())
+    expression = _expression_of(typed)
+    if expression is None:
+        return typed.lower(), None
+    return typed, expression
+
+
+def _expression_of(pattern: str) -> str | None:
+    """What is between the slashes of a pattern, or None when it is plain text.
+
+    A lone slash and `//` are text: an empty expression matches everything, and
+    a pattern that merely holds a slash must not become one by accident.
+    """
+    if (
+        len(pattern) > 2
+        and pattern.startswith(_REGEX_DELIMITER)
+        and pattern.endswith(_REGEX_DELIMITER)
+    ):
+        return pattern[1:-1]
+    return None
+
+
+@lru_cache(maxsize=None)
+def _expression(source: str) -> re.Pattern[str]:
+    """The compiled expression for a rule's source, once per source.
+
+    Compiling at every match would recompile the whole book for every movement,
+    and a sync runs it against every description in the ledger.
+    """
+    return re.compile(source, re.IGNORECASE)
+
+
+def _matches(rule: Rule, text: str) -> bool:
+    """Whether the rule claims a description, as the rules compare texts."""
+    source = rule.expression
+    if source is None:
+        return bool(rule.key) and rule.key in text
+    return _expression(source).search(text) is not None
+
+
 def matching_rule(description: str, rules: Iterable[Rule]) -> Rule | None:
     """The rule that decides for this description, or None when no rule does.
 
     The description is compared as the bank writes it, so a rule can hold text
     the merchant name drops — `"addebito sdd"`, a card's metadata — and not only
-    the name reduced from it.
+    the name reduced from it. An expression sees the same text: spaces collapsed
+    and lower case.
 
-    The longest pattern wins. `"amazon prime"` is a statement about fewer
+    The longest pattern wins, counted on what it says: the text, or the
+    expression between the slashes. `"amazon prime"` is a statement about fewer
     descriptions than `"amazon"`, so where both match the narrower one speaks;
     between two patterns of the same length the alphabetical order keeps the
-    answer the same between two runs.
+    answer the same between two runs. An expression is no exception: one written
+    to name a family (`/amazon (eu|payments)/`) is longer than the words it
+    replaces and takes their movements, while a broader one steals nothing from a
+    narrower text that still matches.
     """
     candidates = _candidate_rules(description, rules)
     if not candidates:
         return None
-    return min(candidates, key=lambda rule: (-len(rule.key), rule.key))
+    return min(candidates, key=lambda rule: (-len(rule.expression or rule.key), rule.key))
 
 
 @dataclass(frozen=True)
@@ -159,30 +227,38 @@ class RuleBook:
         was waiting in the queue or another rule used to hold it: that is what
         lets one broad rule replace a pile of merchant rules. A category no rule
         matching the description would assign is a person's decision and stays.
+        An expression that does not compile is refused here, with the reason: a
+        rule that could never match must not reach the ledger.
         Returns how many movements the rule holds afterwards.
         """
         if category == UNCATEGORIZED:
             raise ValueError("a rule cannot point at the review bucket: it would categorize nothing")
-        key = rule_key(pattern)
+        key, expression = rule_pattern(pattern)
         if not key:
             raise ValueError("a rule needs a text to look for")
+        if expression is not None:
+            try:
+                _expression(expression)
+            except re.error as exc:
+                raise ValueError(f"espressione non valida: {exc}") from exc
         ledger.category(category)
+        rule = Rule(key, _WHITESPACE.sub(" ", pattern.strip()), category)
         before = self.rules()
         with self.conn:
             self.conn.execute(
                 """INSERT INTO rules (key, pattern, category) VALUES (?, ?, ?)
                    ON CONFLICT (key) DO UPDATE SET
                        pattern = excluded.pattern, category = excluded.category""",
-                (key, _WHITESPACE.sub(" ", pattern.strip()), category),
+                (rule.key, rule.pattern, category),
             )
         after = self.rules()
         _apply_rules(ledger, before, after)
         # A pending proposal this rule has just answered: leaving it would leave
         # the queue asking about a movement the rule has already decided.
         for row in ledger.suggestions("pending"):
-            if key in rule_key(row["merchant"]):
+            if _matches(rule, rule_key(row["merchant"])):
                 ledger.decide_suggestion(row["merchant"], "dismissed")
-        return rule_usage(ledger, after).get(key, 0)
+        return rule_usage(ledger, after).get(rule.key, 0)
 
     def remove_rule(self, pattern: str, ledger: Ledger) -> int | None:
         """Drop a rule, and let the rules that still match take its movements.
@@ -190,7 +266,7 @@ class RuleBook:
         Returns how many movements it held, or None when there was no rule. A
         movement no remaining rule explains goes back to the queue.
         """
-        key = rule_key(pattern)
+        key = rule_pattern(pattern)[0]
         before = self.rules()
         if not any(rule.key == key for rule in before):
             return None
@@ -224,9 +300,10 @@ def categorize(ledger: Ledger, book: RuleBook) -> int:
 
 
 def _candidate_rules(description: str, rules: Sequence[Rule]) -> list[Rule]:
-    """Every rule whose text the description contains."""
+    """Every rule that claims the description: the text it contains, or the
+    expression that matches it."""
     text = rule_key(description)
-    return [rule for rule in rules if rule.key and rule.key in text]
+    return [rule for rule in rules if _matches(rule, text)]
 
 
 def _categorized_transactions(ledger: Ledger) -> list[tuple[int, str, str]]:

@@ -38,6 +38,10 @@ export function CategoryRulesScreen({
   const [pending, setPending] = useState<number[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingFor, setSavingFor] = useState<string | null>(null);
+  // The form's own failure — a pattern the ledger refuses — belongs where the
+  // text was typed: the shared box sits at the top of a screen the reader has
+  // scrolled past to write the rule.
+  const [failedFor, setFailedFor] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -121,17 +125,21 @@ export function CategoryRulesScreen({
     if (text === "" || savingFor !== null) return;
     setSavingFor(item.name);
     setNotice(null);
+    setFailedFor(null);
     const saved = await rules.add(text, item.name);
     setSavingFor(null);
+    setFailedFor(saved ? null : item.name);
     if (saved) setDrafts((current) => ({ ...current, [item.name]: "" }));
   };
 
   const changeCategory = (rule: Rule, next: string) => {
     setNotice(null);
+    setFailedFor(null);
     void rules.add(rule.pattern, next);
   };
 
   const confirmRemove = async (rule: Rule) => {
+    setFailedFor(null);
     const held = await rules.remove(rule.pattern);
     setConfirming(null);
     if (held !== null) {
@@ -171,7 +179,7 @@ export function CategoryRulesScreen({
         </div>
       ) : null}
 
-      {rules.operationError ? (
+      {rules.operationError !== null && failedFor === null ? (
         <div className="state state--error" role="alert">
           <p>{rules.operationError}</p>
         </div>
@@ -367,7 +375,7 @@ export function CategoryRulesScreen({
                         className="input"
                         type="text"
                         autoComplete="off"
-                        placeholder="Nuova regola: testo nella descrizione"
+                        placeholder="Nuova regola: testo, o /espressione/"
                         value={drafts[name] ?? ""}
                         onChange={(event) =>
                           setDrafts((current) => ({ ...current, [name]: event.target.value }))
@@ -381,6 +389,11 @@ export function CategoryRulesScreen({
                         {savingFor === name ? "Salvo…" : "Aggiungi"}
                       </button>
                     </form>
+                    {failedFor === name && rules.operationError !== null ? (
+                      <p className="rule-add__error" role="alert">
+                        {rules.operationError}
+                      </p>
+                    ) : null}
                   </>
                 ) : null}
               </li>
@@ -392,8 +405,10 @@ export function CategoryRulesScreen({
       <p className="chart-note">
         Una regola vale per ogni movimento la cui descrizione contiene il suo testo, senza badare
         alle maiuscole: «addebito sdd» li prende tutti, «amazon prime» solo quelli, e se due testi
-        combaciano vince il più lungo. Correggere una regola sposta i movimenti che teneva;
-        rimuoverla li lascia alla regola più ampia che combacia ancora, o in coda.
+        combaciano vince il più lungo, testo o espressione che sia. Fra barre è invece
+        un'espressione regolare — /amazon (eu|payments)/ prende una famiglia che la banca scrive in
+        troppi modi. Correggere una regola sposta i movimenti che teneva; rimuoverla li lascia alla
+        regola più ampia che combacia ancora, o in coda.
       </p>
 
     </section>

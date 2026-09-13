@@ -89,7 +89,10 @@ The bundle is read from disk on every request while the Python process can still
 older code, so the app asks `GET /api/health` for its `api_version` on start. If the server is
 older than `REQUIRED_API_VERSION` in `src/App.tsx` it shows a single screen saying so, with the
 command to restart it, instead of rendering against response shapes it cannot read. Bump both
-constants together whenever an endpoint's payload changes.
+constants together whenever an endpoint's payload changes — or the meaning of a request field does,
+as when `POST /api/rules` learned that a pattern between slashes is an expression: a server that
+stored it as text would answer 201 and hold nothing, which is the silent misbehaviour the handshake
+exists to prevent.
 
 ```bash
 npm run preview   # serve the built bundle locally
@@ -258,8 +261,19 @@ assigns the category whose head was opened, so the form is one text and one butt
 applies it to the ledger immediately: it categorizes the movements already imported that were waiting
 in the queue, and dismisses the proposal it has just answered.
 
-Where two patterns match, the longer one decides — it is the narrower claim — and a movement holding
-a category no matching rule would give it is left alone: that one is a person's decision. Correcting
+A pattern written between slashes is a regular expression (`/amazon (eu|payments)/`): one rule for a
+family the bank spells in too many ways to list, matched with `re.search` against the same text the
+plain rules see — spaces collapsed, case ignored — so an expression and a written word describe the
+same descriptions. The kind is not a column: the pattern itself says it, and `rule_pattern()` is the
+only place that reads the slashes. An expression that does not compile is refused by `POST
+/api/rules` with a 422 and the reason, which the screen shows as it is, so a rule that could never
+match does not reach the ledger; a lone slash and `//` stay plain text, so a pattern that merely
+holds a slash is not read as one by accident.
+
+Where two patterns match, the longer pattern decides — the narrower claim — and an expression is no
+exception: one written to name a family is longer than the words it replaces, while a broader one
+steals nothing from a narrower text that still matches. A movement holding a category no matching rule
+would give it is left alone: that one is a person's decision. Correcting
 a rule moves the movements it held, removing it passes them to the broader rule that still matches,
 or back to the queue. A search keeps the categories it matched and, inside them, only the rules that
 matched; a category with no rule yet is still on the screen, saying so, with the field to give it

@@ -1652,6 +1652,15 @@ button.txn {
   min-height: var(--tap);
 }
 
+/* The one thing that can go wrong from the form is a pattern the ledger
+   refuses, and its reason has to be next to the text that caused it. */
+.rule-add__error {
+  flex: 1 1 100%;
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
 .rule-group__rules {
   display: flex;
   flex-direction: column;

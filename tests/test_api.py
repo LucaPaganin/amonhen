@@ -880,6 +880,28 @@ def test_a_rule_matches_a_fragment_of_the_description(api):
     assert movement["category"] == "Groceries"
 
 
+def test_a_rule_can_be_an_expression(api):
+    """`/^(ekom|bar)/` is one rule where two written texts would be two."""
+    client, _ = api
+
+    created = client.post("/api/rules", json={"pattern": "/^(ekom|bar)/", "category": "Spesa"})
+
+    assert created.status_code == 201
+    assert created.json()["count"] == 2
+    assert client.get("/api/transactions", params={"category": "Spesa"}).json()["total"] == 2
+
+
+def test_an_expression_that_does_not_compile_is_refused(api):
+    """The UI shows the `detail` as it is: it has to say what is wrong."""
+    client, _ = api
+
+    refused = client.post("/api/rules", json={"pattern": "/^ekom(/", "category": "Spesa"})
+
+    assert refused.status_code == 422
+    assert "espressione" in refused.json()["detail"]
+    assert client.get("/api/rules").json() == []
+
+
 def test_creating_a_rule_takes_its_movements_out_of_the_queue(api):
     client, _ = api
 

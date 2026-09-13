@@ -460,6 +460,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   fragment, so the figure on a proposal cannot contradict the list under it. A proposal
   is per merchant, so a stake is a total, a count and a span — never one amount.
 
+- **A rule's kind is in its pattern, not in a column.** A pattern written between slashes is a regular expression (§5.5), matched with `re.search(..., re.IGNORECASE)` against the same collapsed, lower-cased description the plain rules compare, compiled once per source through an `lru_cache` because a sync runs the whole book against every description. `Rule.expression` and `rule_pattern()` are the only readers of the slashes, so the store, the API and the CLI carry no new field. The longest pattern wins, counted on what it says (the text, or the expression inside the slashes), so an expression that names a family is longer than the words it replaces while a broader one steals nothing from a narrower text; `set_rule` refuses an expression that does not compile (`ValueError`, which the app's handler turns into a 422), so a rule that could never match is never stored.
+
 ## Ledger schema
 
 One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB`), eleven tables. The
@@ -473,7 +475,7 @@ by construction.
 |`transactions`|15|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`|
 |`postings`|5|The double-entry legs: `transaction_id`, `account_id`, `amount`, `note`. A spend is one leg on the real account and one on a category account; a transfer is one leg on each real account, or on the virtual clearing account when only one side is in the ledger; a split is several category legs on one transaction|
 |`transfer_links`|5|A pairing, proposed or confirmed: the two legs, `confidence`, `method`, `confirmed_by_human`|
-|`rules`|3|`key` (the text as matched: spaces collapsed, lower-cased), `pattern` (what a person typed), `category`|
+|`rules`|3|`key` (what the upsert conflicts on: the text lower-cased, or the expression as typed — case is part of an expression, `\D` is not `\d`), `pattern` (what a person typed: a text, or `/an expression/`), `category`|
 |`account_balances`|4|What a bank declared, one row per `(account, date, source)`: the available and booked figures coexist so the 5.4 assertion can check each|
 |`budgets`|3|`category_id` → `amount`, `updated_at`|
 |`merchant_suggestions`|5|A merchant → category proposal with its `source` and `decision` (`pending` / `accepted` / `dismissed`)|
@@ -503,7 +505,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Regenerate parsing fixtures|`uv run python tools/dump_raw.py` then `uv run python tools/anonymize_dump.py dumps`|
 |Connect a new bank|Open `http://<host>:8000/connect?bank=Revolut&country=IT`, complete the bank login, then `uv run amonhen sync`|
-|Add or change a categorization rule|The **Categorie e regole** section of the app, under the category it assigns, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
+|Add or change a categorization rule|The **Categorie e regole** section of the app, under the category it assigns, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
 |Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|
 |Run the UI locally|`uv run amonhen serve` and `npm --prefix web run dev` (Vite proxies `/api`)|
 |Build the PWA|`npm --prefix web run build` — the API serves `web/dist`|

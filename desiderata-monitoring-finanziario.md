@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.0 — settembre 2026
+Versione 1.1 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -34,7 +34,11 @@ vecchia punta ad asset che un rilascio ha già sostituito.
 1.0 · le categorie e le regole sono una sezione sola: una voce per categoria, con
 i suoi flag e le regole che la riempiono, e la riga per scriverne una dentro il
 gruppo — una regola assegna la categoria sotto cui sta, quindi non c'è niente da
-scegliere. Conti e budget resta i conti e i budget del mese.*
+scegliere. Conti e budget resta i conti e i budget del mese.
+1.1 · una regola può essere un'espressione regolare, scritta fra barre: copre una
+famiglia che la banca scrive in troppi modi per elencarli, vede lo stesso testo
+delle regole — spazi collassati, maiuscole ignorate — e vince su un testo;
+un'espressione che non compila si rifiuta invece di restare lì a non combaciare.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -138,7 +142,7 @@ Questa è la quantità conservata del sistema. Va verificata a ogni sync e l'esi
 Pipeline a cascata, dal deterministico al probabilistico:
 
 1. Normalizzazione del merchant (stringa grezza → nome pulito), usata dalle proposte e dal classificatore; le regole lavorano sulla descrizione.
-2. Regole su un testo contenuto nella descrizione del movimento — una regola copre una famiglia di movimenti, non un solo nome. Copertura attesa 80-90%.
+2. Regole su un testo contenuto nella descrizione del movimento, o su un'espressione regolare scritta fra barre — una regola copre una famiglia di movimenti, non un solo nome; l'espressione copre le famiglie che la banca scrive in troppi modi per elencarli. Copertura attesa 80-90%.
 3. Classificatore statistico leggero (logistica su char n-gram) sulla parte restante.
 4. LLM solo sulla coda: transazioni mai viste, in batch asincrono, output sempre marcato "da confermare".
 
@@ -149,6 +153,8 @@ Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno
 **La proposta si corregge.** La categoria proposta è un punto di partenza, non un verdetto: si cambia prima di accettare, e accettare scrive la regola — e quindi i movimenti — con la categoria *scelta*. Non sceglierne nessuna è il rifiuto, perché è lo stesso gesto con l'esito opposto: una proposta che non merita una categoria non deve restare in coda per sempre. Il modello e il classificatore sbagliano su merchant che non hanno mai visto — misurato: il classificatore indovina l'86% dei merchant tenuti fuori dall'addestramento contro il 47% della categoria più frequente, e il 92% di ciò che propone sopra la soglia di confidenza — quindi la correzione è il modo in cui la coda resta utile mentre i due proponenti migliorano con quello che la persona decide.
 
 **Categorie e regole sono una sezione sola.** Ciò che una categoria è e ciò che ci finisce sono la stessa decisione vista dai due capi, e stanno in un elenco solo: una voce per categoria, con i due flag che le metriche leggono — episodica, incomprimibile — e quante regole e quanti movimenti tiene. Sotto si aprono i testi che le assegnano, e in fondo al gruppo la riga che ne scrive uno: una regola assegna la categoria sotto cui sta, quindi non c'è niente da scegliere. Trenta pattern sono trenta decisioni, otto categorie sono un budget. Cercare apre i gruppi che hanno trovato qualcosa, e una categoria la cui regola si corregge si sposta da sola. Una categoria si crea qui, dove si guarda, e dalla tendina con cui una proposta si corregge: una categoria non categorizza niente da sola, è il posto dove i movimenti possono finire, e ci arrivano da una proposta, da una regola o da un movimento aperto.
+
+**Una regola è un testo, o un'espressione.** Scritta fra barre — `/amazon (eu|payments)/` — la regola è un'espressione regolare: una sola regola per la famiglia che la banca scrive in troppi modi per elencarli. L'espressione vede lo stesso testo che vedono le regole — spazi collassati, maiuscole ignorate — perché una parola e un'espressione devono descrivere gli stessi movimenti. Il tipo di una regola sta nel suo pattern, non in una colonna: quel che si è scritto è quel che si rilegge, nell'elenco come nella rimozione. Un'espressione che non compila si rifiuta quando la si scrive — l'API risponde 422 con il motivo, e la riga in fondo al gruppo lo mostra — perché una regola che non potrà mai combaciare non deve arrivare al ledger. Dove due pattern combaciano vince il più lungo — la più stretta — che sia un testo o un'espressione: un'espressione scritta per nominare una famiglia è più lunga delle parole che sostituisce e ne prende i movimenti, una più larga non ruba niente a un testo più stretto che combacia ancora. Una barra sola e `//` restano testo, così un pattern che contiene una barra non diventa un'espressione per sbaglio.
 
 ### 5.6 Metriche esposte
 
@@ -278,7 +284,7 @@ La sezione di §5.9: una lettura in prosa delle serie e dei budget già calcolat
 
 Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la successiva esista per avere senso.
 
-**Stato (settembre 2026).** Fasi 0-4 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Regole nell'app, le regole sul testo contenuto nella descrizione, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. Lavoro aperto, tracciato nel backlog: l'immagine da provare sul NAS e il consenso di Fineco da rinnovare.
+**Stato (settembre 2026).** Fasi 0-4 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. Lavoro aperto, tracciato nel backlog: l'immagine da provare sul NAS e il consenso di Fineco da rinnovare.
 
 ## 10. Rischi
 

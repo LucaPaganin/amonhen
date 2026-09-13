@@ -54,7 +54,7 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
 # Python process keeps running its old code, so the two can drift.
-API_VERSION = 10
+API_VERSION = 11
 
 # Where an in-flight authorization waits between /connect and /callback.
 PENDING_OAUTH = "pending_oauth"
