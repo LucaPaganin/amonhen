@@ -1259,6 +1259,11 @@ def _mount_pwa(app: FastAPI, web_dist: Path) -> None:
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str) -> FileResponse:
         candidate = (web_dist / path).resolve()
+        # The shell names the assets, and a deploy replaces them with new names:
+        # a document served from a cache points at files that no longer exist and
+        # the app comes up blank. `no-cache` is "ask before using", so the
+        # revalidation still answers 304 when nothing changed.
+        headers = {"Cache-Control": "no-cache"}
         if path and candidate.is_file() and web_dist.resolve() in candidate.parents:
-            return FileResponse(candidate)
-        return FileResponse(web_dist / "index.html")
+            return FileResponse(candidate, headers=headers)
+        return FileResponse(web_dist / "index.html", headers=headers)
