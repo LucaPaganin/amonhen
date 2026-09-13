@@ -460,6 +460,34 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   fragment, so the figure on a proposal cannot contradict the list under it. A proposal
   is per merchant, so a stake is a total, a count and a span — never one amount.
 
+## Ledger schema
+
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB`), eleven tables. The
+ledger's shape is the first four, and **a transaction has no category column**: the
+category lives on a posting, which is what makes an internal transfer not spending
+by construction.
+
+|Table|Columns|Holds|
+|---|---|---|
+|`accounts`|12|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `investment` is what makes a transfer into an account savings instead of spending|
+|`transactions`|15|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`|
+|`postings`|5|The double-entry legs: `transaction_id`, `account_id`, `amount`, `note`. A spend is one leg on the real account and one on a category account; a transfer is one leg on each real account, or on the virtual clearing account when only one side is in the ledger; a split is several category legs on one transaction|
+|`transfer_links`|5|A pairing, proposed or confirmed: the two legs, `confidence`, `method`, `confirmed_by_human`|
+|`rules`|3|`key` (the text as matched: spaces collapsed, lower-cased), `pattern` (what a person typed), `category`|
+|`account_balances`|4|What a bank declared, one row per `(account, date, source)`: the available and booked figures coexist so the 5.4 assertion can check each|
+|`budgets`|3|`category_id` → `amount`, `updated_at`|
+|`merchant_suggestions`|5|A merchant → category proposal with its `source` and `decision` (`pending` / `accepted` / `dismissed`)|
+|`budget_proposals`|5|The assistant's budget proposals, decided the same way|
+|`assistant_readings`|7|A reading, the model that wrote it, the fingerprint of the data it read, and `refused` when a guard rejected it|
+|`settings`|2|Key/value odds and ends|
+
+Three shapes wrap the same movement: `IncomingTransaction` (`models.py`, 13 fields)
+is what a source reports before the ledger assigns ids, the balancing posting and
+the hash; the row above is what is stored; `Transaction` (`web/src/types.ts`,
+14 keys) is what the API returns — `category` is the posting's category (null when
+there are several), `merchant` is the normalized name, and `review_state` /
+`proposed_category` exist only in the queue.
+
 ## Common tasks
 
 |Task|Where to look|
@@ -470,12 +498,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |Reset an account|Delete its rows / the database file, then `sync` and `import` again|
 |Re-derive the opening balance|`uv run amonhen balances` then `uv run amonhen anchor`|
 |Check duplicates or gaps|`uv run amonhen validate`, `uv run amonhen balance-check`|
-|Inspect the ledger|`sqlite3 amonhen.db` — accounts, transactions, postings, transfer_links|
+|Inspect the ledger|`sqlite3 amonhen.db` — accounts, transactions, postings, transfer_links (see *Ledger schema* above)|
 |See the balances behind the net worth|`sqlite3 amonhen.db "select * from account_balances"` — written by `sync`, `balances` and `anchor`|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Regenerate parsing fixtures|`uv run python tools/dump_raw.py` then `uv run python tools/anonymize_dump.py dumps`|
 |Connect a new bank|Open `http://<host>:8000/connect?bank=Revolut&country=IT`, complete the bank login, then `uv run amonhen sync`|
-|Add or change a categorization rule|The **Regole** section of the app, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
+|Add or change a categorization rule|The **Categorie e regole** section of the app, under the category it assigns, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
+|Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|
 |Run the UI locally|`uv run amonhen serve` and `npm --prefix web run dev` (Vite proxies `/api`)|
 |Build the PWA|`npm --prefix web run build` — the API serves `web/dist`|
 

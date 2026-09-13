@@ -10,22 +10,16 @@ import type {
   AccountVerification,
   AssistantContext,
   Budget,
-  Category,
   DeclaredBalanceCheck,
   Declaration,
   NewAccount,
 } from "../types";
-import type { CategoryFlags } from "../useCategories";
 import { useAccounts } from "../useAccounts";
 import { categoryText } from "../category";
 
 interface AccountsScreenProps {
-  categories: Category[];
-  categoriesError: string | null;
-  onReloadCategories: () => void;
   /** Opens the assistant on one budget: the question is born at that row. */
   onAskAssistant: (context: AssistantContext) => void;
-  updateCategoryFlags: (id: number, flags: CategoryFlags) => Promise<string | null>;
 }
 
 /** The two figures a bank reports, in the words the form offers. */
@@ -406,13 +400,7 @@ function NewAccountSheet({ open, onClose, onCreate }: NewAccountSheetProps) {
   );
 }
 
-export function AccountsScreen({
-  categories,
-  categoriesError,
-  onReloadCategories,
-  onAskAssistant,
-  updateCategoryFlags,
-}: AccountsScreenProps) {
+export function AccountsScreen({ onAskAssistant }: AccountsScreenProps) {
   const {
     accounts,
     error: accountsError,
@@ -436,10 +424,6 @@ export function AccountsScreen({
   const [editingBudget, setEditingBudget] = useState<number | null>(null);
   const [budgetDraft, setBudgetDraft] = useState("");
   const [pendingBudget, setPendingBudget] = useState<number | null>(null);
-
-  const [pendingCategories, setPendingCategories] = useState<number[]>([]);
-  const [newCategory, setNewCategory] = useState("");
-  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const loadBudgets = useCallback(async (value: string, signal?: AbortSignal) => {
     setBudgetsLoading(true);
@@ -524,39 +508,6 @@ export function AccountsScreen({
     if (message !== null) return message;
     setNotice("Conto creato");
     return null;
-  };
-
-  const toggleCategoryFlag = async (
-    category: Category,
-    flag: "episodic" | "essential",
-    next: boolean,
-  ) => {
-    if (pendingCategories.includes(category.id)) return;
-    setPendingCategories((current) => [...current, category.id]);
-    const message = await updateCategoryFlags(
-      category.id,
-      flag === "episodic" ? { episodic: next } : { essential: next },
-    );
-    setPendingCategories((current) => current.filter((id) => id !== category.id));
-    if (message !== null) setNotice(`Categoria non aggiornata: ${message}`);
-  };
-
-  // Creating a category categorizes nothing by itself: it is a place movements
-  // can be pointed at, and they get there through a proposal, a rule or a hand.
-  const createCategory = async () => {
-    const name = newCategory.trim();
-    if (name === "" || creatingCategory) return;
-    setCreatingCategory(true);
-    try {
-      await api.createCategory(name);
-      setNewCategory("");
-      onReloadCategories();
-      setNotice(`Categoria creata: ${name}`);
-    } catch (caught) {
-      setNotice(`Categoria non creata: ${errorMessage(caught)}`);
-    } finally {
-      setCreatingCategory(false);
-    }
   };
 
   return (
@@ -811,76 +762,6 @@ export function AccountsScreen({
               })}
             </ul>
           </>
-        )}
-      </section>
-
-      <section className="panel">
-        <h2 className="section-title">Categorie</h2>
-        <form
-          className="filters"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void createCategory();
-          }}
-        >
-          <div className="field">
-            <label htmlFor="new-category">Nuova categoria</label>
-            <input
-              id="new-category"
-              className="input"
-              type="text"
-              autoComplete="off"
-              placeholder="es. Salute, Animali, Regali"
-              value={newCategory}
-              onChange={(event) => setNewCategory(event.target.value)}
-            />
-          </div>
-          <button
-            type="submit"
-            className="button button--primary"
-            disabled={newCategory.trim() === "" || creatingCategory}
-          >
-            {creatingCategory ? "Creo…" : "Aggiungi"}
-          </button>
-        </form>
-        <p className="chart-note">
-          Creare una categoria non categorizza niente da sola: è il posto dove i movimenti possono
-          finire, e ci arrivano da una proposta, da una regola o da un movimento aperto. Qui sotto
-          decidi se è episodica e se è incomprimibile, che è quello che le metriche leggono.
-        </p>
-        {categoriesError !== null ? (
-          <div className="state state--error" role="alert">
-            <p>Impossibile caricare le categorie: {categoriesError}</p>
-            <button type="button" className="button" onClick={onReloadCategories}>
-              Riprova
-            </button>
-          </div>
-        ) : categories.length === 0 ? (
-          <p className="state">Nessuna categoria.</p>
-        ) : (
-          <ul className="flag-list">
-            {categories.map((category) => (
-              <li className="flag-row" key={category.id}>
-                <span className="flag-row__name">{categoryText(category.name)}</span>
-                <div className="flag-row__toggles">
-                  <Toggle
-                    label="Episodica"
-                    ariaLabel={`Episodica ${category.name}`}
-                    checked={category.episodic}
-                    disabled={pendingCategories.includes(category.id)}
-                    onChange={(next) => void toggleCategoryFlag(category, "episodic", next)}
-                  />
-                  <Toggle
-                    label="Incomprimibile"
-                    ariaLabel={`Incomprimibile ${category.name}`}
-                    checked={category.essential}
-                    disabled={pendingCategories.includes(category.id)}
-                    onChange={(next) => void toggleCategoryFlag(category, "essential", next)}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
         )}
       </section>
 

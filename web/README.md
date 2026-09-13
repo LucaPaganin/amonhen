@@ -17,13 +17,14 @@ the bottom bar or from the hamburger in the top bar:
   runway stressato, quota incomprimibile, quota discrezionale, flusso di risparmio) and the
   explained spending anomalies.
 - **Conti** — the management section: every real account with its balance, its opening figure and
-  the 5.4 outcome, where you declare a balance, align the opening, add an account by hand, set a
-  category's monthly budget and flag a category as episodic or incompressible.
-- **Regole** — the rules, grouped by the category they assign: the category is the top-level
-  entry (with how many rules and how many movements it holds) and the texts that assign it open
-  underneath. Each rule row shows the text it looks for, how many movements it holds right now and
-  a *Rimuovi*, plus the form to add or correct one. Writing a rule applies it to the ledger
-  immediately, and a search opens the groups that matched.
+  the 5.4 outcome, where you declare a balance, align the opening, add an account by hand and set a
+  category's monthly budget.
+- **Categorie e regole** — one entry per category: the name, how many rules and movements it holds
+  and the two flags the metrics read, with the texts that assign it opening underneath. Each rule row
+  shows the text it looks for, how many movements it holds right now, a category select and a
+  *Rimuovi*; the group's last row writes a new one, and a rule assigns the category whose head was
+  opened, so there is no category to choose. The bar at the top creates a category, and a search
+  opens the groups that matched.
 
 The category picker also offers to create a rule that looks for that merchant's text in the
 description (`POST /api/rules`), and *È un giroconto* hands the row to the transfer sheet below.
@@ -112,9 +113,9 @@ When the response marks the history as partial (`partial` or `episodic_partial`)
 the affected cards say so — for example *"storico parziale: 5 mesi su 6"* — instead of
 presenting the number as final.
 
-The **Categorie** and **Conti** blocks of the **Conti** screen are optimistic: the switch flips
-before the request, a failed `PATCH /api/categories/{id}` or `PATCH /api/accounts/{id}` rolls it
-back and raises a toast. The flags feed straight back into the metrics list, which is refetched
+The switch blocks of the **Categorie e regole** and **Conti** screens are optimistic: the switch
+flips before the request, a failed `PATCH /api/categories/{id}` or `PATCH /api/accounts/{id}` rolls
+it back and raises a toast. The flags feed straight back into the metrics list, which is refetched
 after a successful change.
 
 ### Filtri
@@ -217,11 +218,6 @@ was judged against. An empty state appears when nothing was flagged.
 
 The **Conti** screen holds what manages the ledger's shape rather than reading it.
 
-The **Categorie** panel at the bottom lists every category with the two flags the metrics read, and
-it is where one is created: a name in *Nuova categoria*, then *Aggiungi* (`POST /api/categories`).
-Creating a category categorizes nothing by itself — it is a place movements can be pointed at, and
-they arrive from a proposal, from a rule or from a row you open.
-
 **Conti** — one row per real account: name, balance, the opening figure and date when it has one,
 the 5.4 chip (*verificato al 12 set*, *non torna sui sospesi*, *non torna sul contabile*,
 *discrepanza …*, or *saldo non verificato*) and the *Investimento* switch. Two actions per row:
@@ -241,9 +237,33 @@ a cash account: name, institution, currency, and an opening figure with the date
 instead of quietly handing back the existing account. An account cannot be renamed or deleted
 from the app — that would mean deleting postings, and it stays a command-line operation.
 
-**Categorie** — the two flags the metrics read, *Episodica* (a rare event the accrual spreads over
-24 months) and *Incomprimibile* (the part of spending that could not be cut), one row per
-category, via `PATCH /api/categories/{id}`.
+## Categorie e regole
+
+The screen holds what a category *is* and what falls into it, because those are the same decision
+seen from its two ends.
+
+The bar at the top creates a category (`POST /api/categories`): a name in *Nuova categoria*, then
+*Aggiungi*. Creating a category categorizes nothing by itself — it is a place movements can be
+pointed at, and they arrive from a proposal, from a rule or from a row you open.
+
+Below it, one entry per category. The head carries the name, how many rules and movements the
+category holds, and the two flags the metrics read via `PATCH /api/categories/{id}`: *Episodica* (a
+rare event the accrual spreads over 24 months) and *Incomprimibile* (the part of spending that could
+not be cut). The flags sit on the head that opens the rules, so a category and what fills it are read
+— and decided — in one place; the switch flips before the request and rolls back on failure.
+
+Opening an entry shows the rules that assign it — the text it looks for, how many movements it holds
+right now, a category select and a *Rimuovi* — and under them the field that writes a new one. A rule
+assigns the category whose head was opened, so the form is one text and one button. Writing a rule
+applies it to the ledger immediately: it categorizes the movements already imported that were waiting
+in the queue, and dismisses the proposal it has just answered.
+
+Where two patterns match, the longer one decides — it is the narrower claim — and a movement holding
+a category no matching rule would give it is left alone: that one is a person's decision. Correcting
+a rule moves the movements it held, removing it passes them to the broader rule that still matches,
+or back to the queue. A search keeps the categories it matched and, inside them, only the rules that
+matched; a category with no rule yet is still on the screen, saying so, with the field to give it
+one.
 
 ## La coda
 

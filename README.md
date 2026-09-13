@@ -116,14 +116,16 @@ on and narrowable to the transfers alone, where opening a row confirms, undoes o
 makes a pairing by hand, **Conti** the management section — every real account
 with its balance, its opening figure and the 5.4 outcome, where you declare a
 balance read off the bank, align the opening so the invariant holds again, add an
-account by hand (the broker, or a bank that is not connected here), create a
-category, set the monthly budget of one and flag it episodic or incompressible —
-and **Regole** the rules: a rule is a text the description
-contains, plus the category that follows from it. They are listed under the
-category they assign — that category is the entry, closed by default, with how
-many rules and how many movements it holds — and the texts that assign it open
-underneath, because thirty patterns are thirty decisions while eight categories
-are a budget. One rule covers a family of
+account by hand (the broker, or a bank that is not connected here) and set a
+category's monthly budget — and **Categorie e regole**, where a category is
+defined and what falls into it is decided. A rule is a text the description
+contains, plus the category that follows from it, and the two are one list: each
+category is an entry, with the two flags the metrics read and how many rules and
+how many movements it holds, the texts that assign it opening underneath and the
+row that writes a new one inside the group — a rule assigns the category it sits
+under, so there is nothing to choose. A new category is created here too, because
+what a category is and what falls into it are the same decision: thirty patterns
+are thirty decisions while eight categories are a budget. One rule covers a family of
 movements (`addebito sdd`, `ipercoop`, `amazon prime`) instead of one merchant
 name, and each row shows how many movements the rule holds right now, so a rule
 that reaches nothing shows itself. Where two patterns match, the longer one

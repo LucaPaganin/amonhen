@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
-export type TabId = "dashboard" | "review" | "movements" | "accounts" | "rules" | "assistant";
+export type TabId =
+  | "dashboard"
+  | "review"
+  | "movements"
+  | "accounts"
+  | "categories"
+  | "assistant";
 
 interface Section {
   id: TabId;
@@ -50,10 +56,10 @@ const SECTIONS: Section[] = [
     Icon: WalletIcon,
   },
   {
-    id: "rules",
-    label: "Regole",
-    short: "Regole",
-    hint: "Testo nella descrizione, categoria",
+    id: "categories",
+    label: "Categorie e regole",
+    short: "Categorie",
+    hint: "Le categorie, i loro flag e cosa ci finisce",
     inBar: true,
     Icon: RulesIcon,
   },

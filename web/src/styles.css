@@ -421,6 +421,22 @@ button.txn {
   gap: 8px;
 }
 
+/* An input and its button on one line: a form of two is a row, not a column. */
+.filters--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filters--row .field {
+  flex: 1 1 auto;
+  min-width: 8rem;
+}
+
+.filters--row .button {
+  flex: 0 0 auto;
+}
+
 .filters__chips {
   display: flex;
   flex-wrap: wrap;
@@ -1560,9 +1576,18 @@ button.txn {
 
 .rule-group__head {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+}
+
+/* The chevron, the name and the counts: one target for the whole head. */
+.rule-group__toggle {
+  display: flex;
+  flex: 1 1 auto;
   align-items: baseline;
   gap: 8px;
-  width: 100%;
+  min-width: 0;
   min-height: var(--tap);
   padding: 0;
   border: 0;
@@ -1571,6 +1596,15 @@ button.txn {
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* The category's own flags, on the row that names it: what a category is and
+   what falls into it are read and decided in the same place. */
+.rule-group__flags {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 
 .rule-group__chevron {
@@ -1592,6 +1626,30 @@ button.txn {
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.rule-group__empty {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* A rule assigns the category it sits under, so the group is the form: the
+   text goes where the rules it will join are, and no category needs choosing. */
+.rule-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.rule-add .input {
+  flex: 1 1 auto;
+  min-width: 8rem;
+  min-height: var(--tap);
 }
 
 .rule-group__rules {

@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 0.9 — settembre 2026
+Versione 1.0 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -30,7 +30,11 @@ scelta, non con quella proposta.
 0.9 · le categorie si creano da dove si guardano — Conti e budget — e da dove
 servono, la tendina di una proposta; il cruscotto mette i grafici prima e compatta
 filtri e metriche; il documento dell'app non si mette in cache, perché una copia
-vecchia punta ad asset che un rilascio ha già sostituito.*
+vecchia punta ad asset che un rilascio ha già sostituito.
+1.0 · le categorie e le regole sono una sezione sola: una voce per categoria, con
+i suoi flag e le regole che la riempiono, e la riga per scriverne una dentro il
+gruppo — una regola assegna la categoria sotto cui sta, quindi non c'è niente da
+scegliere. Conti e budget resta i conti e i budget del mese.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -144,7 +148,7 @@ Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno
 
 **La proposta si corregge.** La categoria proposta è un punto di partenza, non un verdetto: si cambia prima di accettare, e accettare scrive la regola — e quindi i movimenti — con la categoria *scelta*. Non sceglierne nessuna è il rifiuto, perché è lo stesso gesto con l'esito opposto: una proposta che non merita una categoria non deve restare in coda per sempre. Il modello e il classificatore sbagliano su merchant che non hanno mai visto — misurato: il classificatore indovina l'86% dei merchant tenuti fuori dall'addestramento contro il 47% della categoria più frequente, e il 92% di ciò che propone sopra la soglia di confidenza — quindi la correzione è il modo in cui la coda resta utile mentre i due proponenti migliorano con quello che la persona decide.
 
-**Le regole si presentano per categoria.** La sezione Regole elenca come voci di primo livello le categorie che le regole assegnano, ciascuna con quante regole e quanti movimenti tiene, e apre sotto i testi che le assegnano: trenta pattern sono trenta decisioni, otto categorie sono un budget. Cercare apre i gruppi che hanno trovato qualcosa, e una categoria la cui regola si corregge si sposta da sola.
+**Categorie e regole sono una sezione sola.** Ciò che una categoria è e ciò che ci finisce sono la stessa decisione vista dai due capi, e stanno in un elenco solo: una voce per categoria, con i due flag che le metriche leggono — episodica, incomprimibile — e quante regole e quanti movimenti tiene. Sotto si aprono i testi che le assegnano, e in fondo al gruppo la riga che ne scrive uno: una regola assegna la categoria sotto cui sta, quindi non c'è niente da scegliere. Trenta pattern sono trenta decisioni, otto categorie sono un budget. Cercare apre i gruppi che hanno trovato qualcosa, e una categoria la cui regola si corregge si sposta da sola. Una categoria si crea qui, dove si guarda, e dalla tendina con cui una proposta si corregge: una categoria non categorizza niente da sola, è il posto dove i movimenti possono finire, e ci arrivano da una proposta, da una regola o da un movimento aperto.
 
 ### 5.6 Metriche esposte
 
@@ -161,7 +165,7 @@ Il cruscotto mostra tre serie osservate — spesa per categoria (con la fetta "s
 
 Le card di §5.6 non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista, e ogni card dichiara la finestra che ha usato. Un filtro si applica nel backend, mai nel browser.
 
-Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con saldo, figura iniziale ed esito della verifica, la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante di §5.4 torni a valere, la creazione di un conto reale a mano (il broker, o una banca non collegata), il budget mensile di ogni categoria e i flag delle categorie. Le categorie si creano da lì, dove si guardano, e dalla tendina con cui una proposta si corregge: una categoria non categorizza niente da sola — è il posto dove i movimenti possono finire, e ci arrivano da una proposta, da una regola o da un movimento aperto.
+Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con saldo, figura iniziale ed esito della verifica, la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante di §5.4 torni a valere, la creazione di un conto reale a mano (il broker, o una banca non collegata), il budget mensile di ogni categoria. I flag delle categorie e la loro creazione stanno invece nella sezione che le categorie le definisce insieme alle regole che le riempiono (§5.5).
 
 Esplicitamente escluse perché decorative: patrimonio a frequenza giornaliera, medie su singolo mese, rendimenti calcolati internamente.
 

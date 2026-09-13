@@ -10,7 +10,7 @@ import { AssistantScreen } from "./screens/Assistant";
 import { DashboardScreen } from "./screens/Dashboard";
 import { MovementsScreen } from "./screens/Movements";
 import { ReviewQueueScreen } from "./screens/ReviewQueue";
-import { RulesScreen } from "./screens/Rules";
+import { CategoryRulesScreen } from "./screens/CategoryRules";
 import type { AssistantContext } from "./types";
 import { useCategories } from "./useCategories";
 import { useReviewQueue } from "./useReviewQueue";
@@ -22,7 +22,7 @@ import { useRules } from "./useRules";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 9;
+const REQUIRED_API_VERSION = 10;
 
 export default function App() {
   const [tab, setTab] = useState<TabId>("dashboard");
@@ -55,10 +55,14 @@ export default function App() {
   }, []);
 
   // Accepting a proposal writes a rule without going through the section, so
-  // opening it refetches instead of showing a list from minutes ago.
+  // opening it refetches instead of showing a list from minutes ago. The
+  // categories go with it: a category can be created from the queue too.
   useEffect(() => {
-    if (tab === "rules") rules.reload();
-  }, [tab, rules.reload]);
+    if (tab === "categories") {
+      rules.reload();
+      reloadCategories();
+    }
+  }, [tab, rules.reload, reloadCategories]);
 
   const openAssistant = useCallback((context: AssistantContext) => {
     setAssistantContext(context);
@@ -117,27 +121,20 @@ export default function App() {
           />
         ) : null}
         {tab === "dashboard" ? <DashboardScreen categories={categories} /> : null}
-        {tab === "accounts" ? (
-          <AccountsScreen
-            categories={categories}
-            categoriesError={categoriesError}
-            onReloadCategories={reloadCategories}
-            updateCategoryFlags={updateCategoryFlags}
-            onAskAssistant={openAssistant}
-          />
-        ) : null}
+        {tab === "accounts" ? <AccountsScreen onAskAssistant={openAssistant} /> : null}
         {tab === "assistant" ? (
           <AssistantScreen
             context={assistantContext}
             onContextUsed={clearAssistantContext}
           />
         ) : null}
-        {tab === "rules" ? (
-          <RulesScreen
+        {tab === "categories" ? (
+          <CategoryRulesScreen
             rules={rules}
             categories={categories}
             categoriesError={categoriesError}
             onReloadCategories={reloadCategories}
+            updateCategoryFlags={updateCategoryFlags}
           />
         ) : null}
         <p className="app__epigraph">
