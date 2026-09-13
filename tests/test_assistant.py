@@ -208,6 +208,14 @@ def test_the_numbers_rule_reads_the_separators_the_italian_way():
     assert assistant.unsupported_numbers("Sono 3.000 €.", allowed) == ["3.000"]
 
 
+def test_the_numbers_rule_reads_a_comparison_as_the_figures_it_is_made_of():
+    """A model writes "entrate/uscite", and both halves were in the packet."""
+    allowed = assistant.allowed_numbers({"entrate": "1200.00", "uscite": "40.00"})
+
+    assert assistant.unsupported_numbers("Il mese: 1.200,00/40,00.", allowed) == []
+    assert assistant.unsupported_numbers("Il mese: 1.200,00/40,00, cioè 9.", allowed) == ["9"]
+
+
 # -- proposing and deciding -------------------------------------------------
 
 

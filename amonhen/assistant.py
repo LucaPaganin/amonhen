@@ -104,6 +104,10 @@ class AssistantReading:
 _WORD = re.compile(r"\S+")
 _DIGITS = re.compile(r"\d+")
 _DATE = re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b")
+# A figure as a model writes it: digits and the separators a person uses. A token
+# can hold more than one of them — "611,00/1124,52" is two figures of the packet
+# and a slash, not a figure of its own.
+_FIGURE = re.compile(r"[\d.,]+")
 
 
 def _figure(value: Decimal | None) -> str | None:
@@ -279,15 +283,21 @@ def unsupported_numbers(text: str, allowed: set[str]) -> list[str]:
 
     Italian dates are folded to the ISO the packet uses first, because a day
     written 30/06/2026 is the same day as 2026-06-30 and not a made-up number.
+    Each token is then read as every figure it holds, so a comparison the model
+    wrote as "611,00/1124,52" is checked as the two figures it is made of.
     """
     folded = _DATE.sub(
         lambda match: f"{match.group(3)}-{match.group(2).zfill(2)}-{match.group(1).zfill(2)}", text
     )
     missing = []
     for token in _WORD.findall(folded):
-        digits = re.sub(r"\D", "", token)
-        if digits and digits not in allowed:
-            missing.append(token)
+        for figure in _FIGURE.findall(token):
+            # A separator at the edge is the sentence's punctuation, not part of
+            # the figure: "9." is nine.
+            figure = figure.strip(".,")
+            digits = re.sub(r"\D", "", figure)
+            if digits and digits not in allowed:
+                missing.append(figure)
     return missing
 
 

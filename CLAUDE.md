@@ -51,7 +51,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 |File|Role|
 |---|---|
-|`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`|
+|`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
 |`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, budgets, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
@@ -441,6 +441,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   rejected on the live ledger: pairing a credit with the debit it compensates
   (no such pair exists) and a refund category (a category posting on a credit
   leaves it in income).
+
+- **`.env` is loaded at import, and the shell wins.** `settings._load_env_file` reads
+  the `KEY=VALUE` lines before any tunable is read, so `uv run amonhen serve` and
+  docker compose see the same file — the class of bug where the key is in `.env` and
+  the process is not. A variable already in the environment is left alone, and the
+  parsing is ours because `python-dotenv` only arrives as a transitive extra of
+  `uvicorn[standard]`.
 
 ## Common tasks
 

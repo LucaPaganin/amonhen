@@ -216,9 +216,11 @@ AMONHEN_LLM_MODEL=deepseek-v4-flash
 AMONHEN_LLM_API_KEY=sk-…
 ```
 
-`.env` carries these for docker compose; a plain `uv run` needs them in the shell,
-or the `.vscode/launch.json` entry *monitor llm-suggest*, which sets the URL and
-the model and takes the key from your environment. The request is a chat
+`.env` is read at startup, by a plain `uv run` and by docker compose alike, so a
+secret lives in that one file instead of in every shell; a variable already in the
+environment wins, which is what compose does with one the shell exports. The
+`.vscode/launch.json` entry *monitor llm-suggest* sets the URL and the model and
+takes the key from the same file. The request is a chat
 completion with `temperature: 0` and `response_format: {"type": "json_object"}`,
 which DeepSeek and OpenAI honour only when the prompt contains the word *json* —
 the system prompt does — and the answer is accepted only for the merchants that

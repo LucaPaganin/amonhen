@@ -5,6 +5,32 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _load_env_file(path: Path) -> None:
+    """Read the `KEY=VALUE` lines of `.env` into the environment.
+
+    `.env` is the file docker compose interpolates. A plain `uv run` reading the
+    same file is the same convention rather than a second one, and it is where a
+    secret can live without being exported in every shell. A name already in the
+    environment wins, which is what compose does with a variable the shell
+    exports. The parsing is here rather than in `python-dotenv`, which only
+    arrives as a transitive extra of uvicorn.
+    """
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = line.strip()
+        if not entry or entry.startswith("#") or "=" not in entry:
+            continue
+        name, _, value = entry.partition("=")
+        name = name.strip()
+        if name and name not in os.environ:
+            os.environ[name] = value.strip().strip("'\"")
+
+
+# Before anything reads a value: the file fills in what the shell did not set.
+_load_env_file(ROOT / ".env")
+
+
 def _env_path(name: str, default: Path) -> Path:
     raw = os.getenv(f"AMONHEN_{name}")
     return Path(raw) if raw else default
