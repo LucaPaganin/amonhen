@@ -83,15 +83,21 @@ The PWA source lives in `web/`: `npm --prefix web install`,
 `npm --prefix web run dev` (proxies `/api` to `127.0.0.1:8000`) and
 `npm --prefix web run build`. The API serves the built `web/dist`.
 
+The document is served `no-cache` and the service worker caches only the hashed
+`/assets/`, so reloading after a rebuild loads the new bundle. A cached shell points
+at files that rebuild has replaced: that is a blank screen, and it is the one way an
+update can look like it never happened.
+
 The app has five sections, reachable from the bottom bar or from the hamburger in the top bar. The
 bar switches in one tap; the drawer it opens names each section in full, says what the section
 holds and carries the count of what is waiting, which is more than a fifth of the screen can.
 
-The app opens on the **Dashboard**: three charts first (spending per category,
-income against expenses per month, tracked net worth over the balances the banks
-reported) and the metric cards of section 5.6, with a filter bar deciding what the
-charts show — the period (two month pickers, or a 3/6/12/24-month chip), the
-accounts, and one category. The period moves the charts; the accounts restrict
+The app opens on the **Dashboard**, which is built around one priority: the charts
+come first. The period — a 3/6/12/24-month chip — sits on a bar with a *Filtri*
+button, and the exact months, the accounts and one category open behind that
+button, so five fields no longer push the donut below the fold. The metric tiles of
+section 5.6 are compact — label and figure — and what each one means waits behind a
+single *Come si calcolano*. The period moves the charts; the accounts restrict
 everything that is an account fact (spending by the account that paid it,
 liquidity, savings, net worth); the category restricts the spending alone, because
 a category says nothing about the money coming in. The cards keep the 6- and
@@ -110,8 +116,8 @@ on and narrowable to the transfers alone, where opening a row confirms, undoes o
 makes a pairing by hand, **Conti** the management section — every real account
 with its balance, its opening figure and the 5.4 outcome, where you declare a
 balance read off the bank, align the opening so the invariant holds again, add an
-account by hand (the broker, or a bank that is not connected here), set the
-monthly budget of a category and flag a category as episodic or incompressible —
+account by hand (the broker, or a bank that is not connected here), create a
+category, set the monthly budget of one and flag it episodic or incompressible —
 and **Regole** the rules: a rule is a text the description
 contains, plus the category that follows from it. They are listed under the
 category they assign — that category is the entry, closed by default, with how

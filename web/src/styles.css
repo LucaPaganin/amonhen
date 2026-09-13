@@ -403,6 +403,18 @@ button.txn {
   font-weight: 600;
 }
 
+/* The filter bar: the period always visible, everything else one tap away. */
+.filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterbar__toggle {
+  margin-left: auto;
+}
+
 .filters {
   display: flex;
   flex-direction: column;
@@ -507,6 +519,24 @@ button.txn {
 }
 
 .proposal .card__actions .button {
+  flex: 0 0 auto;
+}
+
+/* Making a category from a proposal: the field appears under the gesture that
+   asked for it, and the new name arrives already chosen. */
+.proposal__new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.proposal__new .input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.proposal__new .button {
   flex: 0 0 auto;
 }
 
@@ -1014,9 +1044,11 @@ button.txn {
   color: var(--warning);
 }
 
+/* The metrics are tiles, not a column of cards: eight of them stacked were
+   most of a screen of scrolling before anything else on the page. */
 .metrics {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -1026,26 +1058,22 @@ button.txn {
 .metric {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 2px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
-.metric__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 .metric__label {
   margin: 0;
-  font-size: 0.95rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 
 .metric__value {
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
@@ -1057,10 +1085,27 @@ button.txn {
   font-weight: 500;
 }
 
-.metric__note {
-  margin: 0;
-  color: var(--muted);
+/* What each figure means, one tap away instead of three lines under every tile. */
+.metric-help {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
   font-size: 0.82rem;
+}
+
+.metric-help summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.metric-help__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0 0 0 16px;
+  color: var(--muted);
 }
 
 .metric__warning {

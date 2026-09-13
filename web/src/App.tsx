@@ -116,9 +116,7 @@ export default function App() {
             onReviewReload={review.reload}
           />
         ) : null}
-        {tab === "dashboard" ? (
-          <DashboardScreen categories={categories} onAskAssistant={openAssistant} />
-        ) : null}
+        {tab === "dashboard" ? <DashboardScreen categories={categories} /> : null}
         {tab === "accounts" ? (
           <AccountsScreen
             categories={categories}

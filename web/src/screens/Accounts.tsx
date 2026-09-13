@@ -438,6 +438,8 @@ export function AccountsScreen({
   const [pendingBudget, setPendingBudget] = useState<number | null>(null);
 
   const [pendingCategories, setPendingCategories] = useState<number[]>([]);
+  const [newCategory, setNewCategory] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const loadBudgets = useCallback(async (value: string, signal?: AbortSignal) => {
     setBudgetsLoading(true);
@@ -537,6 +539,24 @@ export function AccountsScreen({
     );
     setPendingCategories((current) => current.filter((id) => id !== category.id));
     if (message !== null) setNotice(`Categoria non aggiornata: ${message}`);
+  };
+
+  // Creating a category categorizes nothing by itself: it is a place movements
+  // can be pointed at, and they get there through a proposal, a rule or a hand.
+  const createCategory = async () => {
+    const name = newCategory.trim();
+    if (name === "" || creatingCategory) return;
+    setCreatingCategory(true);
+    try {
+      await api.createCategory(name);
+      setNewCategory("");
+      onReloadCategories();
+      setNotice(`Categoria creata: ${name}`);
+    } catch (caught) {
+      setNotice(`Categoria non creata: ${errorMessage(caught)}`);
+    } finally {
+      setCreatingCategory(false);
+    }
   };
 
   return (
@@ -796,6 +816,38 @@ export function AccountsScreen({
 
       <section className="panel">
         <h2 className="section-title">Categorie</h2>
+        <form
+          className="filters"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void createCategory();
+          }}
+        >
+          <div className="field">
+            <label htmlFor="new-category">Nuova categoria</label>
+            <input
+              id="new-category"
+              className="input"
+              type="text"
+              autoComplete="off"
+              placeholder="es. Salute, Animali, Regali"
+              value={newCategory}
+              onChange={(event) => setNewCategory(event.target.value)}
+            />
+          </div>
+          <button
+            type="submit"
+            className="button button--primary"
+            disabled={newCategory.trim() === "" || creatingCategory}
+          >
+            {creatingCategory ? "Creo…" : "Aggiungi"}
+          </button>
+        </form>
+        <p className="chart-note">
+          Creare una categoria non categorizza niente da sola: è il posto dove i movimenti possono
+          finire, e ci arrivano da una proposta, da una regola o da un movimento aperto. Qui sotto
+          decidi se è episodica e se è incomprimibile, che è quello che le metriche leggono.
+        </p>
         {categoriesError !== null ? (
           <div className="state state--error" role="alert">
             <p>Impossibile caricare le categorie: {categoriesError}</p>

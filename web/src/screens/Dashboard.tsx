@@ -14,7 +14,6 @@ import {
 import type {
   AccountRef,
   Anomaly,
-  AssistantContext,
   Category,
   DashboardFilters,
   Flows,
@@ -31,8 +30,6 @@ const PERIODS = [3, 6, 12, 24];
 
 interface DashboardScreenProps {
   categories: Category[];
-  /** Opens the assistant on this reading: the question is born at the chart. */
-  onAskAssistant: (context: AssistantContext) => void;
 }
 
 interface MetricCard {
@@ -44,7 +41,7 @@ interface MetricCard {
   warning: string | null;
 }
 
-export function DashboardScreen({ categories, onAskAssistant }: DashboardScreenProps) {
+export function DashboardScreen({ categories }: DashboardScreenProps) {
   const [fromMonth, setFromMonth] = useState(() => shiftMonth(currentMonth(), -(DEFAULT_MONTHS - 1)));
   const [toMonth, setToMonth] = useState(currentMonth);
   const [scopedAccounts, setScopedAccounts] = useState<string[]>([]);
@@ -62,6 +59,7 @@ export function DashboardScreen({ categories, onAskAssistant }: DashboardScreenP
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [anomaliesLoading, setAnomaliesLoading] = useState(true);
   const [anomaliesError, setAnomaliesError] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const filters = useMemo<DashboardFilters>(
     () => ({
@@ -278,6 +276,9 @@ export function DashboardScreen({ categories, onAskAssistant }: DashboardScreenP
       ? formatMonth(fromMonth)
       : `${formatMonth(fromMonth)} – ${formatMonth(toMonth)}`;
 
+  // What the period chips do not say: the filters that narrow the numbers.
+  const activeFilters = scopedAccounts.length + (scopedCategory === "" ? 0 : 1);
+
   const subtitle = metrics
     ? `${periodChip} · burn su ${metrics.months_of_history} ${
         metrics.months_of_history === 1 ? "mese" : "mesi"
@@ -292,113 +293,113 @@ export function DashboardScreen({ categories, onAskAssistant }: DashboardScreenP
           <p className="screen__subtitle">{subtitle}</p>
         </div>
         <div className="screen__actions">
-          <button
-            type="button"
-            className="button"
-            onClick={() => onAskAssistant({ kind: "cruscotto" })}
-          >
-            Cosa è cambiato?
-          </button>
           <button type="button" className="button" onClick={refreshAll} disabled={loading}>
             Aggiorna
           </button>
         </div>
       </header>
 
-      <section className="panel">
-        <h2 className="section-title">
-          Filtri{" "}
-          <span className="count">
-            {scopedAccounts.length === 0 && scopedCategory === "" ? "tutto il ledger" : periodChip}
-          </span>
-        </h2>
-        <div className="filters">
-          <div className="field">
-            <label htmlFor="filter-from">Dal mese</label>
-            <input
-              id="filter-from"
-              className="input"
-              type="month"
-              value={fromMonth}
-              onChange={(event) => event.target.value && setFromMonth(event.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="filter-to">Al mese</label>
-            <input
-              id="filter-to"
-              className="input"
-              type="month"
-              value={toMonth}
-              onChange={(event) => event.target.value && setToMonth(event.target.value)}
-            />
-          </div>
-          <div className="field">
-            <span className="filters__caption">Periodo rapido</span>
-            <div className="filters__chips" role="group" aria-label="Scegli il periodo">
-              {PERIODS.map((months) => (
-                <button
-                  key={months}
-                  type="button"
-                  className={presetActive(months) ? "chip chip--toggle chip--on" : "chip chip--toggle"}
-                  aria-pressed={presetActive(months)}
-                  onClick={() => applyPeriod(months)}
-                >
-                  {months} mesi
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="field">
-            <span className="filters__caption">Conti</span>
-            <div className="filters__chips" role="group" aria-label="Filtra per conto">
-              <button
-                type="button"
-                className={
-                  scopedAccounts.length === 0 ? "chip chip--toggle chip--on" : "chip chip--toggle"
-                }
-                aria-pressed={scopedAccounts.length === 0}
-                onClick={() => setScopedAccounts([])}
-              >
-                Tutti
-              </button>
-              {accounts.map((account) => {
-                const on = scopedAccounts.includes(account.name);
-                return (
-                  <button
-                    key={account.id}
-                    type="button"
-                    className={on ? "chip chip--toggle chip--on" : "chip chip--toggle"}
-                    aria-pressed={on}
-                    onClick={() => toggleAccount(account.name)}
-                  >
-                    {account.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="field">
-            <label htmlFor="filter-category">Categoria</label>
-            <select
-              id="filter-category"
-              value={scopedCategory}
-              onChange={(event) => setScopedCategory(event.target.value)}
+      {/* The period is what most readings need, so it stays on the bar; the rest
+          is one tap away: a panel of five fields is what pushed the charts below
+          the fold. */}
+      <div className="filterbar">
+        <div className="filters__chips" role="group" aria-label="Scegli il periodo">
+          {PERIODS.map((months) => (
+            <button
+              key={months}
+              type="button"
+              className={presetActive(months) ? "chip chip--toggle chip--on" : "chip chip--toggle"}
+              aria-pressed={presetActive(months)}
+              onClick={() => applyPeriod(months)}
             >
-              <option value="">Tutte le categorie</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {categoryText(category.name)}
-                </option>
-              ))}
-            </select>
-          </div>
+              {months} mesi
+            </button>
+          ))}
         </div>
-        <p className="chart-note">
-          Il periodo decide i grafici; i conti restringono tutto ciò che è di conto, la categoria
-          solo le spese. Le card delle metriche tengono le loro finestre di 6 e 24 mesi.
-        </p>
-      </section>
+        <button
+          type="button"
+          className="button filterbar__toggle"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen(!filtersOpen)}
+        >
+          {activeFilters === 0 ? "Filtri" : `Filtri · ${activeFilters}`}
+        </button>
+      </div>
+
+      {filtersOpen ? (
+        <section className="panel">
+          <div className="filters">
+            <div className="field">
+              <label htmlFor="filter-from">Dal mese</label>
+              <input
+                id="filter-from"
+                className="input"
+                type="month"
+                value={fromMonth}
+                onChange={(event) => event.target.value && setFromMonth(event.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="filter-to">Al mese</label>
+              <input
+                id="filter-to"
+                className="input"
+                type="month"
+                value={toMonth}
+                onChange={(event) => event.target.value && setToMonth(event.target.value)}
+              />
+            </div>
+            <div className="field">
+              <span className="filters__caption">Conti</span>
+              <div className="filters__chips" role="group" aria-label="Filtra per conto">
+                <button
+                  type="button"
+                  className={
+                    scopedAccounts.length === 0 ? "chip chip--toggle chip--on" : "chip chip--toggle"
+                  }
+                  aria-pressed={scopedAccounts.length === 0}
+                  onClick={() => setScopedAccounts([])}
+                >
+                  Tutti
+                </button>
+                {accounts.map((account) => {
+                  const on = scopedAccounts.includes(account.name);
+                  return (
+                    <button
+                      key={account.id}
+                      type="button"
+                      className={on ? "chip chip--toggle chip--on" : "chip chip--toggle"}
+                      aria-pressed={on}
+                      onClick={() => toggleAccount(account.name)}
+                    >
+                      {account.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="filter-category">Categoria</label>
+              <select
+                id="filter-category"
+                value={scopedCategory}
+                onChange={(event) => setScopedCategory(event.target.value)}
+              >
+                <option value="">Tutte le categorie</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.name}>
+                    {categoryText(category.name)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="chart-note">
+            Il periodo decide i grafici; i conti restringono tutto ciò che è di conto, la categoria
+            solo le spese. Le metriche in fondo tengono le loro finestre di 6 e 24 mesi.
+          </p>
+        </section>
+      ) : null}
 
       {loadError ? (
         <div className="state state--error" role="alert">
@@ -525,24 +526,33 @@ export function DashboardScreen({ categories, onAskAssistant }: DashboardScreenP
       ) : null}
 
       {metrics ? (
-        <ul className="metrics">
-          {cards.map((card) => (
-            <li className="metric" key={card.key}>
-              <div className="metric__head">
+        <>
+          <ul className="metrics">
+            {cards.map((card) => (
+              <li className="metric" key={card.key}>
                 <h2 className="metric__label">{card.label}</h2>
                 <span className={card.value === null ? "metric__value metric__value--empty" : "metric__value"}>
                   {card.value ?? card.empty}
                 </span>
-              </div>
-              <p className="metric__note">{card.explanation}</p>
-              {card.warning ? (
-                <p className="metric__warning" role="note">
-                  {card.warning}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+                {card.warning ? (
+                  <p className="metric__warning" role="note">
+                    {card.warning}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          <details className="metric-help">
+            <summary>Come si calcolano: burn su 6 mesi, accantonamento su 24</summary>
+            <ul className="metric-help__list">
+              {cards.map((card) => (
+                <li key={card.key}>
+                  <strong>{card.label}</strong>: {card.explanation}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
       ) : null}
 
       <section className="panel">

@@ -34,6 +34,9 @@ function reviewFlag(transaction: Transaction): { label: string; warning?: boolea
   return undefined;
 }
 
+/** The select's last option: it opens the field that makes a category. */
+const NEW_CATEGORY = "__new__";
+
 /**
  * What a yes would settle. A proposal is about a merchant, not about one
  * movement, so there is no single amount to show: the queue says how much is
@@ -65,6 +68,9 @@ export function ReviewQueueScreen({
   // category a rule may point at, so it is not a choice here.
   const categoryOptions = categories.filter((item) => item.name !== bucketName());
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  const [newFor, setNewFor] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   // What needs a decision: an automatic pass produced something and waits for a
   // yes or a no. The rest is backlog to work through, not a queue of decisions.
@@ -135,6 +141,25 @@ export function ReviewQueueScreen({
       await review.reload();
     } else {
       review.notify(`Proposta rifiutata: ${suggestion.merchant}`);
+    }
+  };
+
+  // The right answer for a merchant may be a category that does not exist yet.
+  // Making it here leaves it already chosen for that proposal.
+  const createCategory = async (suggestion: Suggestion) => {
+    const name = newName.trim();
+    if (name === "" || creating) return;
+    setCreating(true);
+    try {
+      await api.createCategory(name);
+      await onReloadCategories();
+      setChosen((current) => ({ ...current, [suggestion.merchant]: name }));
+      setNewFor(null);
+      setNewName("");
+    } catch (error) {
+      review.notify(`Categoria non creata: ${errorMessage(error)}`);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -243,7 +268,9 @@ export function ReviewQueueScreen({
                       value={choice}
                       disabled={categoryOptions.length === 0}
                       onChange={(event) =>
-                        setChosen({ ...chosen, [suggestion.merchant]: event.target.value })
+                        event.target.value === NEW_CATEGORY
+                          ? setNewFor(suggestion.merchant)
+                          : setChosen({ ...chosen, [suggestion.merchant]: event.target.value })
                       }
                     >
                       {categoryOptions.map((item) => (
@@ -252,6 +279,7 @@ export function ReviewQueueScreen({
                         </option>
                       ))}
                       <option value="">Nessuna categoria: rifiuta la proposta</option>
+                      <option value={NEW_CATEGORY}>Nuova categoria…</option>
                     </select>
                     <button
                       type="button"
@@ -267,6 +295,36 @@ export function ReviewQueueScreen({
                       {rejecting ? "Rifiuta" : "Accetta"}
                     </button>
                   </div>
+                  {newFor === suggestion.merchant ? (
+                    <form
+                      className="proposal__new"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void createCategory(suggestion);
+                      }}
+                    >
+                      <label className="visually-hidden" htmlFor={`new-${suggestion.merchant}`}>
+                        Nome della nuova categoria
+                      </label>
+                      <input
+                        id={`new-${suggestion.merchant}`}
+                        className="input"
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Nome della categoria"
+                        value={newName}
+                        onChange={(event) => setNewName(event.target.value)}
+                        autoFocus
+                      />
+                      <button
+                        type="submit"
+                        className="button button--primary"
+                        disabled={newName.trim() === "" || creating}
+                      >
+                        {creating ? "Creo…" : "Crea"}
+                      </button>
+                    </form>
+                  ) : null}
                 </li>
               );
             })}

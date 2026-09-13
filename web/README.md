@@ -96,8 +96,10 @@ npm run preview   # serve the built bundle locally
 
 ## Dashboard
 
-The dashboard is the default tab: the charts first, then the cards with the partial-history
-banner, then budgets, anomalies, the category flags and the tracked accounts.
+The dashboard is the default tab and is built around the charts being the first thing on it: the
+spending donut, the monthly flows and the net-worth curve, then the metric tiles, then budgets,
+anomalies, the category flags and the tracked accounts. The tiles are a grid of label and figure,
+and what each one means sits behind one *Come si calcolano*.
 
 ### Cards
 
@@ -117,8 +119,9 @@ after a successful change.
 
 ### Filtri
 
-The filter bar above the charts decides what they show, and the API applies all of it — the
-client never filters or sums:
+The bar above the charts carries the period chips and a *Filtri* button; the exact months, the
+accounts and one category open behind it, so the charts stay where they belong. The API applies all
+of it — the client never filters or sums:
 
 - **period** — *Dal mese* / *Al mese* plus 3/6/12/24-month chips (the default is the last twelve
   months). It moves the charts and the series only: the metric cards keep the 6- and 24-month
@@ -214,6 +217,11 @@ was judged against. An empty state appears when nothing was flagged.
 
 The **Conti** screen holds what manages the ledger's shape rather than reading it.
 
+The **Categorie** panel at the bottom lists every category with the two flags the metrics read, and
+it is where one is created: a name in *Nuova categoria*, then *Aggiungi* (`POST /api/categories`).
+Creating a category categorizes nothing by itself — it is a place movements can be pointed at, and
+they arrive from a proposal, from a rule or from a row you open.
+
 **Conti** — one row per real account: name, balance, the opening figure and date when it has one,
 the 5.4 chip (*verificato al 12 set*, *non torna sui sospesi*, *non torna sul contabile*,
 *discrepanza …*, or *saldo non verificato*) and the *Investimento* switch. Two actions per row:
@@ -282,6 +290,10 @@ proposta"*: with it the button becomes *Rifiuta* and the same call sends `dismis
 outcomes are one gesture apart. The review bucket is never offered — a rule may not point at it — and
 the app learns its name from the handshake instead of assuming it.
 
+The select's last option, *Nuova categoria…*, opens a name field on the card: the category is created
+(`POST /api/categories`) and arrives already chosen for that proposal, so the gesture that needed it
+is one tap away.
+
 Two buttons fill the block. **Proponi categorie** runs `POST /api/propose` (the statistical
 classifier) and **Chiedi al modello** runs `POST /api/llm-suggest` (the optional LLM). Both are
 disabled with a busy label while running and refresh the suggestions afterwards. If no model is
@@ -292,9 +304,13 @@ the operator learns `AMONHEN_LLM_URL` / `AMONHEN_LLM_MODEL` are missing.
 
 - `public/manifest.webmanifest` — standalone display, theme/background `#0b1220`, 192 px and
   512 px icons.
-- `public/sw.js` — precaches the app shell (`/`, `/index.html`, manifest, icons), serves
-  navigations network-first with a cached `index.html` fallback, and caches hashed
-  `/assets/*` on first fetch. `/api/*` is never cached: ledger data is live.
+- `public/sw.js` — caches the hashed `/assets/*` on first fetch and nothing else. The document is
+  deliberately not cached: it names the assets, so a stale copy points at files a rebuild has
+  replaced, which is a blank screen and the one way an update can look like it never happened.
+  `/api/*` is never cached either, so an offline shell would have nothing to show.
+- The API serves `index.html` (and everything else the catch-all answers) with `Cache-Control:
+  no-cache`, for the same reason: the browser must ask before using the shell, and the revalidation
+  still answers 304 when nothing changed.
 - `index.html` carries the manifest link, the theme colour and the `apple-mobile-web-app-*` meta
   tags. The service worker is registered in production only (`src/main.tsx`).
 

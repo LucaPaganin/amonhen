@@ -448,6 +448,12 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   the process is not. A variable already in the environment is left alone, and the
   parsing is ours because `python-dotenv` only arrives as a transitive extra of
   `uvicorn[standard]`.
+- **The document is never cached; the assets always are.** The API serves `index.html`
+  with `Cache-Control: no-cache` and `web/public/sw.js` caches only `/assets/*`, whose
+  names come from their content. A cached document points at files a rebuild has
+  replaced: the page loads a 404 script and comes up blank, which is also the one way
+  an update can look like it never happened. `API_VERSION` catches the other
+  direction — a stale bundle against a newer server.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

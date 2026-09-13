@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 0.8 — settembre 2026
+Versione 0.9 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -26,7 +26,11 @@ Il modello di §5.9 è configurato e ha risposto alla sua prima domanda vera: `.
 viene letto all'avvio, da `uv run` e da docker compose allo stesso modo.
 0.8 · la categoria di una proposta si corregge prima di accettarla, e non
 sceglierne nessuna è il rifiuto: accettare scrive la regola con la categoria
-scelta, non con quella proposta.*
+scelta, non con quella proposta.
+0.9 · le categorie si creano da dove si guardano — Conti e budget — e da dove
+servono, la tendina di una proposta; il cruscotto mette i grafici prima e compatta
+filtri e metriche; il documento dell'app non si mette in cache, perché una copia
+vecchia punta ad asset che un rilascio ha già sostituito.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -153,9 +157,11 @@ Solo queste, in ordine di priorità:
 - **Quota incomprimibile vs discrezionale**: quanto sarebbe tagliabile se servisse.
 - **Flusso di risparmio**: trasferimenti verso conti di investimento. È l'unico ponte tra monitoring delle spese e monitoring del patrimonio. PAC, contributi al fondo pensione e TFR non sono spese.
 
-Il cruscotto mostra tre serie osservate — spesa per categoria (con la fetta "senza categoria" in evidenza), entrate e uscite per mese, patrimonio osservato — e i grafici non fanno aritmetica: ogni serie si calcola nel backend, così una torta non può risultare più piccola del denaro che è uscito. Il cruscotto si filtra per periodo, per conti e per categoria, e i tre filtri non pesano uguale: il **periodo** decide cosa mostrano grafici e serie; i **conti** restringono tutto ciò che è di conto — le spese attribuite al conto che le ha pagate, la liquidità, il risparmio, il patrimonio; la **categoria** restringe solo le spese, perché una categoria non descrive il denaro che entra né quello che i conti valgono. Le card di §5.6 non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista, e ogni card dichiara la finestra che ha usato. Un filtro si applica nel backend, mai nel browser.
+Il cruscotto mostra tre serie osservate — spesa per categoria (con la fetta "senza categoria" in evidenza), entrate e uscite per mese, patrimonio osservato — e i grafici non fanno aritmetica: ogni serie si calcola nel backend, così una torta non può risultare più piccola del denaro che è uscito. Il cruscotto si filtra per periodo, per conti e per categoria, e i tre filtri non pesano uguale: il **periodo** decide cosa mostrano grafici e serie; i **conti** restringono tutto ciò che è di conto — le spese attribuite al conto che le ha pagate, la liquidità, il risparmio, il patrimonio; la **categoria** restringe solo le spese, perché una categoria non descrive il denaro che entra né quello che i conti valgono. Il cruscotto si legge dall'alto: prima i grafici, con il solo periodo sempre in vista e il resto dei filtri a un tocco di distanza, poi le metriche in griglia — etichetta e cifra, con quello che significano dietro un solo *Come si calcolano*. Un pannello di cinque campi sopra i grafici li spingeva fuori dalla schermata, che è il contrario di quello per cui la schermata esiste.
 
-Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con saldo, figura iniziale ed esito della verifica, la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante di §5.4 torni a valere, la creazione di un conto reale a mano (il broker, o una banca non collegata), il budget mensile di ogni categoria e i flag delle categorie.
+Le card di §5.6 non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista, e ogni card dichiara la finestra che ha usato. Un filtro si applica nel backend, mai nel browser.
+
+Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con saldo, figura iniziale ed esito della verifica, la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante di §5.4 torni a valere, la creazione di un conto reale a mano (il broker, o una banca non collegata), il budget mensile di ogni categoria e i flag delle categorie. Le categorie si creano da lì, dove si guardano, e dalla tendina con cui una proposta si corregge: una categoria non categorizza niente da sola — è il posto dove i movimenti possono finire, e ci arrivano da una proposta, da una regola o da un movimento aperto.
 
 Esplicitamente escluse perché decorative: patrimonio a frequenza giornaliera, medie su singolo mese, rendimenti calcolati internamente.
 
@@ -185,7 +191,7 @@ Una sezione dell'app che discute i numeri che il backend ha già calcolato — s
 
 **Come si controlla.** Il modello è configurazione, non codice: endpoint, nome e chiave stanno nell'ambiente, e la specifica non fissa un fornitore. Ogni chiamata ha un tetto: la domanda è limitata (i merchant sono al massimo venti, le serie sono quelle del cruscotto), le chiamate sono contate, la stessa domanda sugli stessi dati non si ripete, e l'impronta che lo decide è quella delle figure — non dell'elenco dei merchant già proposti, che cambia proprio perché l'assistente ha risposto, e un rifiuto o un timeout sono un messaggio per la persona — nessuna funzione dell'app dipende dall'assistente, e senza configurazione la sezione dice che è spenta invece di fallire. Ciò che si chiede e ciò che torna si registra, con il modello usato e l'impronta dei dati passati, così una lettura si può rileggere fra sei mesi sapendo su cosa era basata.
 
-**Dove sta.** Una sezione propria, e i punti di ingresso dove la domanda nasce da sola: una card del cruscotto, una riga della coda, un budget sforato. L'ingresso contestuale passa *quella* serie o *quel* movimento, invece di chiedere alla persona di ricomporre il contesto in una frase.
+**Dove sta.** Una sezione propria, raggiungibile dal menu, e i punti di ingresso dove la domanda nasce da sola: la riga di un budget che sta per saltare, che passa *quel* budget invece di chiedere alla persona di ricomporre il contesto in una frase. Un ingresso generico dal cruscotto c'è stato e non serve: una domanda senza contesto è una domanda che nessuno fa, e la sezione basta a sé.
 
 *Fatto quando*: davanti a un mese strano si ottiene in una schermata una spiegazione che cita solo cifre già calcolate e almeno una proposta confermabile con un gesto; e la stessa domanda sugli stessi dati non viene richiesta due volte.
 
