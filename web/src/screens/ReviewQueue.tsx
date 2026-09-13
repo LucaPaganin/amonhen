@@ -4,6 +4,7 @@ import { api, errorMessage } from "../api";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferCard } from "../components/TransferCard";
+import { bucketName } from "../category";
 import { formatAmount, formatDate } from "../format";
 import type { Category, ReviewState, Suggestion, SuggestionDecision, Transaction } from "../types";
 import type { ReviewQueueController } from "../useReviewQueue";
@@ -60,6 +61,11 @@ export function ReviewQueueScreen({
   const [proposing, setProposing] = useState<"classifier" | "llm" | null>(null);
   const suggestions = useSuggestions();
 
+  // What a person may pick instead of the proposal. The review bucket is not a
+  // category a rule may point at, so it is not a choice here.
+  const categoryOptions = categories.filter((item) => item.name !== bucketName());
+  const [chosen, setChosen] = useState<Record<string, string>>({});
+
   // What needs a decision: an automatic pass produced something and waits for a
   // yes or a no. The rest is backlog to work through, not a queue of decisions.
   const decisions = review.proposalsTotal + review.transfersTotal;
@@ -113,14 +119,18 @@ export function ReviewQueueScreen({
     }
   };
 
-  const decideSuggestion = async (suggestion: Suggestion, decision: SuggestionDecision) => {
-    const error = await suggestions.decide(suggestion, decision);
+  const decideSuggestion = async (
+    suggestion: Suggestion,
+    decision: SuggestionDecision,
+    category?: string,
+  ) => {
+    const error = await suggestions.decide(suggestion, decision, category);
     if (error) {
       review.notify(`Proposta non registrata: ${error}`);
       return;
     }
     if (decision === "accept") {
-      review.notify(`Regola salvata: ${suggestion.merchant} → ${suggestion.category}`);
+      review.notify(`Regola salvata: ${suggestion.merchant} → ${category ?? suggestion.category}`);
       // The rule just categorized matching transactions, so the queue shrank.
       await review.reload();
     } else {
@@ -211,34 +221,55 @@ export function ReviewQueueScreen({
           </p>
         ) : (
           <ul className="card-list">
-            {suggestions.suggestions.map((suggestion) => (
-              <li className="card proposal" key={suggestion.merchant}>
-                <div className="proposal__head">
-                  <span className="proposal__merchant">{suggestion.merchant}</span>
-                  <span className="chip">{suggestion.category}</span>
-                  <span className="proposal__source">
-                    {suggestion.source === "llm" ? "modello" : "classificatore"}
-                  </span>
-                </div>
-                <p className="chart-note">{stakeText(suggestion.stake)}</p>
-                <div className="card__actions">
-                  <button
-                    type="button"
-                    className="button button--primary"
-                    onClick={() => void decideSuggestion(suggestion, "accept")}
-                  >
-                    Accetta
-                  </button>
-                  <button
-                    type="button"
-                    className="button button--danger"
-                    onClick={() => void decideSuggestion(suggestion, "dismiss")}
-                  >
-                    Rifiuta
-                  </button>
-                </div>
-              </li>
-            ))}
+            {suggestions.suggestions.map((suggestion) => {
+              // The proposal is a starting point, not a verdict: the category is
+              // editable, and choosing none is what rejecting it means.
+              const choice = chosen[suggestion.merchant] ?? suggestion.category;
+              const rejecting = choice === "";
+              return (
+                <li className="card proposal" key={suggestion.merchant}>
+                  <div className="proposal__head">
+                    <span className="proposal__merchant">{suggestion.merchant}</span>
+                    <span className="chip">{suggestion.category}</span>
+                    <span className="proposal__source">
+                      {suggestion.source === "llm" ? "modello" : "classificatore"}
+                    </span>
+                  </div>
+                  <p className="chart-note">{stakeText(suggestion.stake)}</p>
+                  <div className="card__actions">
+                    <select
+                      className="input"
+                      aria-label={`Categoria per ${suggestion.merchant}`}
+                      value={choice}
+                      disabled={categoryOptions.length === 0}
+                      onChange={(event) =>
+                        setChosen({ ...chosen, [suggestion.merchant]: event.target.value })
+                      }
+                    >
+                      {categoryOptions.map((item) => (
+                        <option key={item.id} value={item.name}>
+                          {item.name}
+                        </option>
+                      ))}
+                      <option value="">Nessuna categoria: rifiuta la proposta</option>
+                    </select>
+                    <button
+                      type="button"
+                      className={rejecting ? "button button--danger" : "button button--primary"}
+                      onClick={() =>
+                        void decideSuggestion(
+                          suggestion,
+                          rejecting ? "dismiss" : "accept",
+                          rejecting ? undefined : choice,
+                        )
+                      }
+                    >
+                      {rejecting ? "Rifiuta" : "Accetta"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

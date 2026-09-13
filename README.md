@@ -101,7 +101,9 @@ review queue — proposals and transfer candidates to decide, then the
 uncategorized backlog with a filter and an amber flag on the movements that no
 rule, proposal or transfer pairing claimed. Each proposal card carries what the
 decision is about, because a proposal covers a merchant and not one movement: how
-much is waiting, over how many movements, and when they ran — **Movimenti** the
+much is waiting, over how many movements, and when they ran. The proposed category
+is a starting point: it is editable, accepting writes the rule with the category
+you chose, and choosing none is what rejecting the proposal means — **Movimenti** the
 filterable
 transaction list, each transfer row marked with the account its other half sits
 on and narrowable to the transfers alone, where opening a row confirms, undoes or

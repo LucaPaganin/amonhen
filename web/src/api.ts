@@ -203,11 +203,13 @@ export const api = {
     ),
   anomalies: (days = 31, signal?: AbortSignal) => get<Anomaly[]>(`/anomalies?days=${days}`, signal),
   suggestions: (signal?: AbortSignal) => get<Suggestion[]>("/suggestions", signal),
-  decideSuggestion: (merchant: string, decision: SuggestionDecision) =>
-    // The merchant travels in the body: names routinely contain a slash.
+  decideSuggestion: (merchant: string, decision: SuggestionDecision, category?: string) =>
+    // The merchant travels in the body: names routinely contain a slash. The
+    // category travels with it because a person may correct the proposal.
     send<{ merchant: string; decision: SuggestionDecision }>("POST", "/suggestions/decision", {
       merchant,
       decision,
+      category: category ?? null,
     }),
   propose: () => send<{ considered: number; recorded: number }>("POST", "/propose", {}),
   llmSuggest: () => send<{ recorded: number }>("POST", "/llm-suggest", {}),

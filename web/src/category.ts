@@ -15,6 +15,14 @@ export function rememberBucket(name: string | undefined): void {
   if (name) bucket = name;
 }
 
+/**
+ * The name a rule may not point at and the one the app must never offer as a
+ * choice, as opposed to what to show a person in its place.
+ */
+export function bucketName(): string {
+  return bucket;
+}
+
 /** What to show where a category name is read. */
 export function categoryText(name: string | null | undefined): string {
   if (!name) return "Senza categoria";

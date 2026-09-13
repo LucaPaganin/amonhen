@@ -587,6 +587,50 @@ def test_suggestions_can_be_reviewed_and_accepting_creates_a_rule(api):
     assert client.get("/api/transactions", params={"category": "Groceries"}).json()["total"] == 1
 
 
+def test_a_proposal_can_be_accepted_with_a_category_that_corrects_it(api):
+    """The proposal is a starting point: a person may correct it, and the rule
+    that is written carries the category that was chosen, not the proposed one."""
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    Ledger(conn).record_suggestion("EKOM", "Groceries", "classifier")
+    conn.close()
+
+    accepted = client.post(
+        "/api/suggestions/decision",
+        json={"merchant": "EKOM", "decision": "accept", "category": "Trasporti"},
+    )
+
+    assert accepted.status_code == 200
+    assert client.get("/api/rules").json() == [
+        {"pattern": "EKOM", "category": "Trasporti", "count": 1}
+    ]
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    assert movement["category"] == "Trasporti"
+
+
+def test_a_proposal_cannot_be_accepted_into_the_review_bucket(api):
+    """A rule pointing at the bucket would take movements out of the queue
+    without categorizing them: the ledger refuses it, whichever route asks."""
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    Ledger(conn).record_suggestion("EKOM", "Groceries", "classifier")
+    conn.close()
+
+    refused = client.post(
+        "/api/suggestions/decision",
+        json={"merchant": "EKOM", "decision": "accept", "category": "Uncategorized"},
+    )
+
+    assert refused.status_code == 422
+    assert client.get("/api/rules").json() == []
+
+
 def test_a_proposal_for_a_merchant_with_nothing_waiting_has_a_zero_stake(api):
     """A proposal can outlive its movements: a rule that answered them, or a
     person's own decision, leaves the queue with nothing left to weigh."""

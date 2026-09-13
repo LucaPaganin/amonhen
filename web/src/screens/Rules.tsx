@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { bucketName } from "../category";
 import type { Category, Rule } from "../types";
 import type { RulesController } from "../useRules";
 
@@ -71,7 +72,7 @@ export function RulesScreen({
 
   // A rule that points at the review bucket would take movements out of the
   // queue without categorizing them; the API refuses it too.
-  const options = categories.filter((item) => item.name !== "Uncategorized");
+  const options = categories.filter((item) => item.name !== bucketName());
 
   const submit = async () => {
     if (!canAdd) return;

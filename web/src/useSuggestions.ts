@@ -8,8 +8,15 @@ export interface SuggestionController {
   loading: boolean;
   loadError: string | null;
   reload: () => Promise<void>;
-  /** Optimistic: the proposal leaves the list, a failed decision puts it back. */
-  decide: (suggestion: Suggestion, decision: SuggestionDecision) => Promise<string | null>;
+  /**
+   * Optimistic: the proposal leaves the list, a failed decision puts it back.
+   * `category` corrects the proposal before accepting it.
+   */
+  decide: (
+    suggestion: Suggestion,
+    decision: SuggestionDecision,
+    category?: string,
+  ) => Promise<string | null>;
 }
 
 export function useSuggestions(): SuggestionController {
@@ -39,10 +46,14 @@ export function useSuggestions(): SuggestionController {
   const reload = useCallback(() => load(), [load]);
 
   const decide = useCallback(
-    async (suggestion: Suggestion, decision: SuggestionDecision): Promise<string | null> => {
+    async (
+      suggestion: Suggestion,
+      decision: SuggestionDecision,
+      category?: string,
+    ): Promise<string | null> => {
       setSuggestions((current) => current.filter((item) => item.merchant !== suggestion.merchant));
       try {
-        await api.decideSuggestion(suggestion.merchant, decision);
+        await api.decideSuggestion(suggestion.merchant, decision, category);
         void load();
         return null;
       } catch (error) {

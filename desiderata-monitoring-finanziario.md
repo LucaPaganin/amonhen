@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 0.7 — settembre 2026
+Versione 0.8 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -23,7 +23,10 @@ pacchetto `amonhen`, variabili `AMONHEN_*`, database `amonhen.db`.
 0.7 · la coda dice cosa una proposta decide — quanto denaro, su quanti movimenti e
 quando — e le regole si presentano raggruppate per la categoria che assegnano.
 Il modello di §5.9 è configurato e ha risposto alla sua prima domanda vera: `.env`
-viene letto all'avvio, da `uv run` e da docker compose allo stesso modo.*
+viene letto all'avvio, da `uv run` e da docker compose allo stesso modo.
+0.8 · la categoria di una proposta si corregge prima di accettarla, e non
+sceglierne nessuna è il rifiuto: accettare scrive la regola con la categoria
+scelta, non con quella proposta.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -134,6 +137,8 @@ Pipeline a cascata, dal deterministico al probabilistico:
 Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno stadio è bloccante per il sync.
 
 **La coda dice cosa una proposta decide.** Le proposte — del classificatore e del modello — sono per *merchant*, non per movimento: un sì copre tutti i movimenti di quel merchant. Accanto alla categoria proposta, quindi, la coda porta quanto denaro aspetta, su quanti movimenti e quando sono passati, letto con lo stesso predicato della coda stessa: la cifra di una proposta non può contraddire la lista che le sta sotto. Una proposta i cui movimenti sono già stati decisi — da una regola o da una persona — resta senza niente da pesare, e lo dice invece di mostrare uno zero.
+
+**La proposta si corregge.** La categoria proposta è un punto di partenza, non un verdetto: si cambia prima di accettare, e accettare scrive la regola — e quindi i movimenti — con la categoria *scelta*. Non sceglierne nessuna è il rifiuto, perché è lo stesso gesto con l'esito opposto: una proposta che non merita una categoria non deve restare in coda per sempre. Il modello e il classificatore sbagliano su merchant che non hanno mai visto — misurato: il classificatore indovina l'86% dei merchant tenuti fuori dall'addestramento contro il 47% della categoria più frequente, e il 92% di ciò che propone sopra la soglia di confidenza — quindi la correzione è il modo in cui la coda resta utile mentre i due proponenti migliorano con quello che la persona decide.
 
 **Le regole si presentano per categoria.** La sezione Regole elenca come voci di primo livello le categorie che le regole assegnano, ciascuna con quante regole e quanti movimenti tiene, e apre sotto i testi che le assegnano: trenta pattern sono trenta decisioni, otto categorie sono un budget. Cercare apre i gruppi che hanno trovato qualcosa, e una categoria la cui regola si corregge si sposta da sola.
 

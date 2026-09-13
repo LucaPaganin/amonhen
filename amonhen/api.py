@@ -54,7 +54,7 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
 # Python process keeps running its old code, so the two can drift.
-API_VERSION = 9
+API_VERSION = 10
 
 # Where an in-flight authorization waits between /connect and /callback.
 PENDING_OAUTH = "pending_oauth"
@@ -156,6 +156,9 @@ class BudgetRequest(BaseModel):
 class SuggestionDecisionRequest(BaseModel):
     merchant: str
     decision: Literal["accept", "dismiss"]
+    # The category a person chose instead of the proposed one. Absent (or empty)
+    # means the proposal was right; on a dismissal it is not read at all.
+    category: str | None = None
 
 
 def create_app(
@@ -545,7 +548,11 @@ def create_app(
                     ).fetchone()
                     if suggestion is None:
                         raise KeyError(f"no suggestion for {merchant!r}")
-                    RuleBook(ledger.conn).set_rule(merchant, suggestion["category"], ledger)
+                    # A proposal is a starting point: the rule carries the category
+                    # that was chosen, and the ledger refuses one that is not a
+                    # category of its own.
+                    chosen = (body.category or suggestion["category"]).strip()
+                    RuleBook(ledger.conn).set_rule(merchant, chosen, ledger)
                 ledger.decide_suggestion(merchant, "accepted" if body.decision == "accept" else "dismissed")
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc

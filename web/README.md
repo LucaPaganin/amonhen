@@ -275,6 +275,13 @@ exactly one movement is waiting. A proposal covers a merchant, not a movement, s
 would settle; when nothing is waiting any more the card says so instead of showing a zero. The stake
 is read with the queue's own predicate, so it cannot contradict the list underneath.
 
+The category on a card is an editable select, pre-filled with the proposal, and *Accetta*
+(`POST /api/suggestions/decision` with a `category`) writes the rule with the category that was
+chosen rather than the one proposed. The select's last option is *"Nessuna categoria: rifiuta la
+proposta"*: with it the button becomes *Rifiuta* and the same call sends `dismiss`, because the two
+outcomes are one gesture apart. The review bucket is never offered — a rule may not point at it — and
+the app learns its name from the handshake instead of assuming it.
+
 Two buttons fill the block. **Proponi categorie** runs `POST /api/propose` (the statistical
 classifier) and **Chiedi al modello** runs `POST /api/llm-suggest` (the optional LLM). Both are
 disabled with a busy label while running and refresh the suggestions afterwards. If no model is

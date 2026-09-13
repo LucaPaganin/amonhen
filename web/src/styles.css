@@ -499,6 +499,17 @@ button.txn {
   flex: 1;
 }
 
+/* In a proposal the category is chosen first and confirmed after, so the select
+   takes the room and the button only what its label needs. */
+.card__actions .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proposal .card__actions .button {
+  flex: 0 0 auto;
+}
+
 /* States */
 
 .state {
