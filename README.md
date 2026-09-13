@@ -347,6 +347,13 @@ mode: on a Linux NAS make it writable by 10001 (`chown 10001:10001 accounts.json
 or `chmod 664` with the container's group), or `/callback` will fail with a
 permission error while everything else works.
 
+The image defaults the two state paths (`/data/amonhen.db`, `/config/accounts.json`),
+so a bare `docker run` with nothing but the config mount comes up instead of dying on
+a root-owned `/app`. It does **not** default the bind address: `settings.py` keeps
+`127.0.0.1` because the API has no authentication, and a published port is a
+decision. compose sets `AMONHEN_HOST=0.0.0.0` for you; a bare run needs it too, or
+the port answers nothing.
+
 ## Layout
 
 |Path|Role|

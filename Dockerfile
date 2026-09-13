@@ -36,6 +36,12 @@ COPY --from=web /web/dist ./web/dist
 USER amonhen
 EXPOSE 8000
 
+# The image's own defaults. compose overrides both with the same values, but a
+# bare `docker run` must not fall back to /app — that directory belongs to root,
+# so the process would die with "unable to open database file".
+ENV AMONHEN_DB_PATH=/data/amonhen.db \
+    AMONHEN_CONFIG_FILE=/config/accounts.json
+
 # /api/health answers without touching the ledger or accounts.json, so it says
 # whether the process is up and nothing else. curl is not in the slim image.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
