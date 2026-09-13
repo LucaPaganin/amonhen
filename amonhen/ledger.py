@@ -27,6 +27,22 @@ from amonhen.settings import UNCATEGORIZED
 PENDING_WINDOW_DAYS = 3
 TRANSFER_CLEARING = "Transfer clearing"
 
+# Settled spending still waiting in the review bucket: a real outflow, a posting
+# on the `Uncategorized` category, and no leg of a transfer — linking a pair
+# moves a leg's posting to the clearing account, which is virtual. The queue
+# counts its rows and a proposal's stake is read with this same fragment, so the
+# two can never disagree about what is still undecided.
+UNCATEGORIZED_WHERE = """
+    WHERE t.status = 'BOOK' AND CAST(t.amount AS REAL) < 0
+    AND EXISTS (
+        SELECT 1 FROM postings p JOIN accounts a ON a.id = p.account_id
+        WHERE p.transaction_id = t.id AND a.type = 'category' AND a.name = ?
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM postings p JOIN accounts a ON a.id = p.account_id
+        WHERE p.transaction_id = t.id AND a.type = 'virtual'
+    )"""
+
 _TRANSACTION_COLUMNS = (
     "account_id", "date", "amount", "description", "status", "external_id",
     "content_hash", "source", "source_file", "raw_payload", "counterparty",

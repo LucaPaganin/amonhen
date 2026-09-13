@@ -99,7 +99,10 @@ a category says nothing about the money coming in. The cards keep the 6- and
 period, and each card says which window it used. **Da confermare** is the
 review queue — proposals and transfer candidates to decide, then the
 uncategorized backlog with a filter and an amber flag on the movements that no
-rule, proposal or transfer pairing claimed — **Movimenti** the filterable
+rule, proposal or transfer pairing claimed. Each proposal card carries what the
+decision is about, because a proposal covers a merchant and not one movement: how
+much is waiting, over how many movements, and when they ran — **Movimenti** the
+filterable
 transaction list, each transfer row marked with the account its other half sits
 on and narrowable to the transfers alone, where opening a row confirms, undoes or
 makes a pairing by hand, **Conti** the management section — every real account
@@ -108,7 +111,11 @@ balance read off the bank, align the opening so the invariant holds again, add a
 account by hand (the broker, or a bank that is not connected here), set the
 monthly budget of a category and flag a category as episodic or incompressible —
 and **Regole** the rules: a rule is a text the description
-contains, plus the category that follows from it. One rule covers a family of
+contains, plus the category that follows from it. They are listed under the
+category they assign — that category is the entry, closed by default, with how
+many rules and how many movements it holds — and the texts that assign it open
+underneath, because thirty patterns are thirty decisions while eight categories
+are a budget. One rule covers a family of
 movements (`addebito sdd`, `ipercoop`, `amazon prime`) instead of one merchant
 name, and each row shows how many movements the rule holds right now, so a rule
 that reaches nothing shows itself. Where two patterns match, the longer one

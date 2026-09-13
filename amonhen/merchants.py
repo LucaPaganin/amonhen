@@ -10,9 +10,11 @@ is unknown.
 import re
 import sqlite3
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Iterable, Sequence
 
-from amonhen.ledger import Ledger
+from amonhen.ledger import UNCATEGORIZED_WHERE, Ledger
+from amonhen.models import parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
 SEPARATOR = " | "
@@ -93,6 +95,47 @@ def matching_rule(description: str, rules: Iterable[Rule]) -> Rule | None:
     if not candidates:
         return None
     return min(candidates, key=lambda rule: (-len(rule.key), rule.key))
+
+
+@dataclass(frozen=True)
+class Stake:
+    """What a merchant's waiting movements are worth, for one decision.
+
+    A proposal is about a merchant, not about one movement: the queue cannot
+    show "the amount" of it, so it shows what a yes would settle.
+    """
+
+    total: Decimal
+    movements: int
+    first_date: str
+    last_date: str
+
+
+def uncovered_spending(ledger: Ledger) -> dict[str, Stake]:
+    """Per merchant, the spending the queue is still holding, keyed by name.
+
+    The rows are the queue's own — settled outflows in the review bucket — so a
+    figure shown on a proposal never disagrees with the list underneath it. A
+    merchant with nothing left waiting is absent: the proposal is then a
+    decision about nothing, and the queue says so instead of showing a zero.
+    """
+    stakes: dict[str, Stake] = {}
+    for row in ledger.conn.execute(
+        f"SELECT t.description, t.date, t.amount FROM transactions t {UNCATEGORIZED_WHERE}"
+        " ORDER BY t.date",
+        (UNCATEGORIZED,),
+    ):
+        merchant = merchant_name(row["description"])
+        # Spending, so the sign is dropped: the queue holds outflows only.
+        total = abs(parse_decimal(row["amount"]))
+        stake = stakes.get(merchant)
+        if stake is None:
+            stakes[merchant] = Stake(total, 1, row["date"], row["date"])
+        else:
+            stakes[merchant] = Stake(
+                stake.total + total, stake.movements + 1, stake.first_date, row["date"]
+            )
+    return stakes
 
 
 class RuleBook:

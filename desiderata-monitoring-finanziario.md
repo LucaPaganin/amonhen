@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 0.6 — settembre 2026
+Versione 0.7 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -19,7 +19,11 @@ una seconda.
 0.6 · l'assistente di §5.9 è costruito, con i suoi guardiani in codice; il denaro
 che non è né spesa né entrata si dichiara invece di indovinarlo (§5.3), comprese
 le quote della cointestata e i rimborsi; i confini rimasti sono rinominati —
-pacchetto `amonhen`, variabili `AMONHEN_*`, database `amonhen.db`.*
+pacchetto `amonhen`, variabili `AMONHEN_*`, database `amonhen.db`.
+0.7 · la coda dice cosa una proposta decide — quanto denaro, su quanti movimenti e
+quando — e le regole si presentano raggruppate per la categoria che assegnano.
+Il modello di §5.9 è configurato e ha risposto alla sua prima domanda vera: `.env`
+viene letto all'avvio, da `uv run` e da docker compose allo stesso modo.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -128,6 +132,10 @@ Pipeline a cascata, dal deterministico al probabilistico:
 4. LLM solo sulla coda: transazioni mai viste, in batch asincrono, output sempre marcato "da confermare".
 
 Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno stadio è bloccante per il sync.
+
+**La coda dice cosa una proposta decide.** Le proposte — del classificatore e del modello — sono per *merchant*, non per movimento: un sì copre tutti i movimenti di quel merchant. Accanto alla categoria proposta, quindi, la coda porta quanto denaro aspetta, su quanti movimenti e quando sono passati, letto con lo stesso predicato della coda stessa: la cifra di una proposta non può contraddire la lista che le sta sotto. Una proposta i cui movimenti sono già stati decisi — da una regola o da una persona — resta senza niente da pesare, e lo dice invece di mostrare uno zero.
+
+**Le regole si presentano per categoria.** La sezione Regole elenca come voci di primo livello le categorie che le regole assegnano, ciascuna con quante regole e quanti movimenti tiene, e apre sotto i testi che le assegnano: trenta pattern sono trenta decisioni, otto categorie sono un budget. Cercare apre i gruppi che hanno trovato qualcosa, e una categoria la cui regola si corregge si sposta da sola.
 
 ### 5.6 Metriche esposte
 
@@ -255,7 +263,7 @@ La sezione di §5.9: una lettura in prosa delle serie e dei budget già calcolat
 
 Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la successiva esista per avere senso.
 
-**Stato (settembre 2026).** Fasi 0-4 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Regole nell'app, le regole sul testo contenuto nella descrizione, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. Lavoro aperto, tracciato nel backlog: la prima chiamata vera al modello (la chiave è dell'utente, e senza quella la sezione resta spenta), l'immagine da provare sul NAS, e il branch da portare su `main`.
+**Stato (settembre 2026).** Fasi 0-4 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Regole nell'app, le regole sul testo contenuto nella descrizione, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. Lavoro aperto, tracciato nel backlog: l'immagine da provare sul NAS e il consenso di Fineco da rinnovare.
 
 ## 10. Rischi
 

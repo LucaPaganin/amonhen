@@ -24,13 +24,15 @@ from amonhen import assistant, db
 from amonhen.anomalies import detect_anomalies
 from amonhen.classifier import apply_proposals, propose_categories
 from amonhen.config import load_config, save_account
-from amonhen.ledger import Ledger
+from amonhen.ledger import UNCATEGORIZED_WHERE, Ledger
 from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
     RuleBook,
+    Stake,
     categorize,
     merchant_name,
     rule_usage,
+    uncovered_spending,
 )
 from amonhen.metrics import (
     LedgerScope,
@@ -52,7 +54,7 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
 # Python process keeps running its old code, so the two can drift.
-API_VERSION = 8
+API_VERSION = 9
 
 # Where an in-flight authorization waits between /connect and /callback.
 PENDING_OAUTH = "pending_oauth"
@@ -515,12 +517,17 @@ def create_app(
     @app.get("/api/suggestions")
     def suggestions() -> list[dict]:
         with ledger_scope() as ledger:
+            stakes = uncovered_spending(ledger)
             return [
                 {
                     "merchant": row["merchant"],
                     "category": row["category"],
                     "source": row["source"],
                     "created_at": row["created_at"],
+                    # What the decision is about. A proposal covers a merchant,
+                    # not one movement, so the queue answers with how much is
+                    # waiting, how many movements, and the span they cover.
+                    "stake": _stake(stakes.get(row["merchant"])),
                 }
                 for row in ledger.suggestions()
             ]
@@ -674,16 +681,6 @@ def create_app(
         decision, one without it fell through every automatic pass and is manual
         work — that is the state the UI flags.
         """
-        uncategorized_where = """
-            WHERE t.status = 'BOOK' AND CAST(t.amount AS REAL) < 0
-            AND EXISTS (
-                SELECT 1 FROM postings p JOIN accounts a ON a.id = p.account_id
-                WHERE p.transaction_id = t.id AND a.type = 'category' AND a.name = ?
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM postings p JOIN accounts a ON a.id = p.account_id
-                WHERE p.transaction_id = t.id AND a.type = 'virtual'
-            )"""
         with ledger_scope() as ledger:
             pending = {
                 row["merchant"]: row["category"] for row in ledger.suggestions("pending")
@@ -691,7 +688,7 @@ def create_app(
             # Three columns only: a long uncategorized history must not drag
             # every raw payload into memory just to be counted.
             backlog = ledger.conn.execute(
-                f"SELECT t.id, t.description, t.account_id FROM transactions t {uncategorized_where}"
+                f"SELECT t.id, t.description, t.account_id FROM transactions t {UNCATEGORIZED_WHERE}"
                 " ORDER BY t.date DESC, t.id DESC",
                 (UNCATEGORIZED,),
             ).fetchall()
@@ -710,7 +707,7 @@ def create_app(
                     if needle in (by_id[row_id]["description"] or "").casefold()
                 ]
 
-            uncategorized = _review_page(ledger, selected[:limit], uncategorized_where)
+            uncategorized = _review_page(ledger, selected[:limit], UNCATEGORIZED_WHERE)
             transfers_total = ledger.conn.execute(
                 "SELECT COUNT(*) AS c FROM transfer_links WHERE confirmed_by_human = 0"
             ).fetchone()["c"]
@@ -737,7 +734,7 @@ def create_app(
                 {"id": row["id"], "name": row["name"]}
                 for row in ledger.conn.execute(
                     f"""SELECT DISTINCT a.id, a.name FROM transactions t
-                        JOIN accounts a ON a.id = t.account_id {uncategorized_where}
+                        JOIN accounts a ON a.id = t.account_id {UNCATEGORIZED_WHERE}
                         ORDER BY a.name""",
                     (UNCATEGORIZED,),
                 )
@@ -1207,6 +1204,18 @@ def _review_transaction(row: sqlite3.Row, ledger: Ledger, pending: dict[str, str
     payload["proposed_category"] = proposed
     payload["review_state"] = "proposed" if proposed else "unhandled"
     return payload
+
+
+def _stake(stake: Stake | None) -> dict:
+    """A proposal's stake as the queue reads it. Nothing waiting is a zero."""
+    if stake is None:
+        return {"movements": 0, "total": "0.00", "first_date": None, "last_date": None}
+    return {
+        "movements": stake.movements,
+        "total": format_decimal(stake.total),
+        "first_date": stake.first_date,
+        "last_date": stake.last_date,
+    }
 
 
 def _transaction(row: sqlite3.Row, ledger: Ledger) -> dict:

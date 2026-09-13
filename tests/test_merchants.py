@@ -4,7 +4,15 @@ from decimal import Decimal
 
 import pytest
 
-from amonhen.merchants import Rule, RuleBook, categorize, matching_rule, merchant_name, rule_usage
+from amonhen.merchants import (
+    Rule,
+    RuleBook,
+    categorize,
+    matching_rule,
+    merchant_name,
+    rule_usage,
+    uncovered_spending,
+)
 from amonhen.models import Account, IncomingTransaction
 
 
@@ -43,6 +51,36 @@ def make_txn(ledger, account_id, date, amount, description):
         balancing_account_id=ledger.uncategorized(),
         raw={},
     )
+
+
+def test_the_stake_of_a_merchant_is_the_spending_still_waiting(ledger):
+    """A proposal decides a merchant, not one movement, so the queue answers
+    with how much is waiting, how many movements, and when they ran."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    ledger.record(make_txn(ledger, account, "2026-08-03", "-12.34", "EKOM | CARD_PAYMENT | VISA 7883"))
+    ledger.record(make_txn(ledger, account, "2026-08-05", "-7.66", "EKOM | CARD_PAYMENT | VISA 4455"))
+    ledger.record(make_txn(ledger, account, "2026-08-06", "-3.00", "EKOM | Cart"))
+    # A month earlier, so the span is not the same day twice.
+    ledger.record(make_txn(ledger, account, "2026-07-30", "-1.00", "EKOM | Cart"))
+    # Money in is not spending the proposal would settle.
+    ledger.record(make_txn(ledger, account, "2026-08-08", "120.00", "EKOM | Rimborso"))
+    decided, _ = ledger.record(make_txn(ledger, account, "2026-08-04", "-50.00", "EKOM | Cart"))
+    ledger.set_category(decided, ledger.category("Shopping"))
+
+    stake = uncovered_spending(ledger)["EKOM"]
+
+    assert stake.movements == 4
+    assert stake.total == Decimal("24.00")
+    assert stake.first_date == "2026-07-30"
+    assert stake.last_date == "2026-08-06"
+
+
+def test_a_merchant_with_nothing_waiting_has_no_stake(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(make_txn(ledger, account, "2026-08-03", "-12.34", "EKOM | Cart"))
+    ledger.set_category(transaction_id, ledger.category("Shopping"))
+
+    assert uncovered_spending(ledger) == {}
 
 
 def test_a_rule_catches_every_description_that_contains_it(ledger):

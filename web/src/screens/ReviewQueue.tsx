@@ -4,6 +4,7 @@ import { api, errorMessage } from "../api";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferCard } from "../components/TransferCard";
+import { formatAmount, formatDate } from "../format";
 import type { Category, ReviewState, Suggestion, SuggestionDecision, Transaction } from "../types";
 import type { ReviewQueueController } from "../useReviewQueue";
 import { useSuggestions } from "../useSuggestions";
@@ -30,6 +31,22 @@ function reviewFlag(transaction: Transaction): { label: string; warning?: boolea
     return { label: `proposta: ${transaction.proposed_category}` };
   }
   return undefined;
+}
+
+/**
+ * What a yes would settle. A proposal is about a merchant, not about one
+ * movement, so there is no single amount to show: the queue says how much is
+ * waiting, over how many movements, and when they ran — which is what tells a
+ * habit from the tail of something already decided.
+ */
+function stakeText(stake: Suggestion["stake"]): string {
+  const { movements, total, first_date: first, last_date: last } = stake;
+  if (movements === 0 || first === null || last === null) {
+    return "Nessun movimento in attesa: per questo merchant la coda non ha più niente da decidere.";
+  }
+  if (movements === 1) return `${formatAmount(total)} · speso il ${formatDate(last)}`;
+  const span = first === last ? `il ${formatDate(last)}` : `dal ${formatDate(first)} al ${formatDate(last)}`;
+  return `${formatAmount(total)} in ${movements} movimenti · ${span}`;
 }
 
 export function ReviewQueueScreen({
@@ -203,6 +220,7 @@ export function ReviewQueueScreen({
                     {suggestion.source === "llm" ? "modello" : "classificatore"}
                   </span>
                 </div>
+                <p className="chart-note">{stakeText(suggestion.stake)}</p>
                 <div className="card__actions">
                   <button
                     type="button"

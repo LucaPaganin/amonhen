@@ -566,6 +566,14 @@ def test_suggestions_can_be_reviewed_and_accepting_creates_a_rule(api):
     assert listed[0]["merchant"] == "EKOM"
     assert listed[0]["category"] == "Groceries"
     assert listed[0]["source"] == "classifier"
+    # The fixture's EKOM movement is one movement of 42,50 on one day: the queue
+    # has to say what a yes decides, not just whose decision it is.
+    assert listed[0]["stake"] == {
+        "movements": 1,
+        "total": "42.50",
+        "first_date": "2026-08-03",
+        "last_date": "2026-08-03",
+    }
 
     accepted = client.post(
         "/api/suggestions/decision", json={"merchant": "EKOM", "decision": "accept"}
@@ -577,6 +585,22 @@ def test_suggestions_can_be_reviewed_and_accepting_creates_a_rule(api):
         {"pattern": "EKOM", "category": "Groceries", "count": 1}
     ]
     assert client.get("/api/transactions", params={"category": "Groceries"}).json()["total"] == 1
+
+
+def test_a_proposal_for_a_merchant_with_nothing_waiting_has_a_zero_stake(api):
+    """A proposal can outlive its movements: a rule that answered them, or a
+    person's own decision, leaves the queue with nothing left to weigh."""
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    Ledger(conn).record_suggestion("MAI VISTO", "Groceries", "classifier")
+    conn.close()
+
+    stake = client.get("/api/suggestions").json()[0]["stake"]
+
+    assert stake == {"movements": 0, "total": "0.00", "first_date": None, "last_date": None}
 
 
 def test_dismissing_a_suggestion_leaves_no_rule(api):

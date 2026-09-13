@@ -448,6 +448,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   the process is not. A variable already in the environment is left alone, and the
   parsing is ours because `python-dotenv` only arrives as a transitive extra of
   `uvicorn[standard]`.
+- **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
+  outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
+  with it and `merchants.uncovered_spending` measures a proposal's stake with the same
+  fragment, so the figure on a proposal cannot contradict the list under it. A proposal
+  is per merchant, so a stake is a total, a count and a span — never one amount.
 
 ## Common tasks
 

@@ -1497,6 +1497,72 @@ button.txn {
 
 /* Rules on the description: a category is edited in place, removal confirms in place */
 
+.rule-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.rule-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rule-group__chevron {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.rule-group__category {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-group__count {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rule-group__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.rule-group__rules .rule-row {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+/* Inside a group the category is not in question — the entry above it says
+   which one — so the text and the button share the line instead of each taking
+   one: eight rules should read as eight lines, not twenty-four. */
+.rule-group__rules .rule-row__controls .input {
+  flex: 1 1 auto;
+  min-width: 7rem;
+}
+
 .rule-row {
   display: flex;
   flex-direction: column;

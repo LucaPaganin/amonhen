@@ -48,6 +48,27 @@ export function RulesScreen({
 
   const canAdd = pattern.trim() !== "" && category !== "" && !saving;
 
+  // A list of thirty patterns is a list of thirty decisions; a list of eight
+  // categories is a budget. The category is the entry, the texts that assign it
+  // the detail, and a search opens what it matched.
+  const groups = useMemo(() => {
+    const byCategory = new Map<string, Rule[]>();
+    for (const rule of visible) {
+      const found = byCategory.get(rule.category);
+      if (found === undefined) byCategory.set(rule.category, [rule]);
+      else found.push(rule);
+    }
+    return [...byCategory.entries()]
+      .sort(([left], [right]) => left.localeCompare(right, "it"))
+      .map(([name, rules]) => ({
+        name,
+        rules,
+        movements: rules.reduce((sum, rule) => sum + rule.count, 0),
+      }));
+  }, [visible]);
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
   // A rule that points at the review bucket would take movements out of the
   // queue without categorizing them; the API refuses it too.
   const options = categories.filter((item) => item.name !== "Uncategorized");
@@ -197,53 +218,86 @@ export function RulesScreen({
         <p className="state">Nessuna regola per questa ricerca.</p>
       ) : (
         <ul className="card-list">
-          {visible.map((rule) => (
-            <li className="card rule-row" key={rule.pattern}>
-              <div className="rule-row__head">
-                <span className="rule-row__pattern">{rule.pattern}</span>
-                <span className="rule-row__count">{plural(rule.count, "movimento", "movimenti")}</span>
-              </div>
-              <div className="rule-row__controls">
-                <select
-                  className="input"
-                  aria-label={`Categoria per ${rule.pattern}`}
-                  value={rule.category}
-                  disabled={options.length === 0}
-                  onChange={(event) => changeCategory(rule, event.target.value)}
+          {groups.map((group) => {
+            const open = expanded[group.name] ?? needle !== "";
+            return (
+              <li className="card rule-group" key={group.name}>
+                <button
+                  type="button"
+                  className="rule-group__head"
+                  aria-expanded={open}
+                  onClick={() => setExpanded({ ...expanded, [group.name]: !open })}
                 >
-                  {options.map((item) => (
-                    <option key={item.id} value={item.name}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
+                  <span className="rule-group__chevron" aria-hidden="true">
+                    {open ? "▾" : "▸"}
+                  </span>
+                  <span className="rule-group__category">{group.name}</span>
+                  <span className="rule-group__count">
+                    {plural(group.rules.length, "regola", "regole")} ·{" "}
+                    {plural(group.movements, "movimento", "movimenti")}
+                  </span>
+                </button>
 
-                {confirming === rule.pattern ? (
-                  <div className="rule-row__confirm">
-                    <p>Sicuro? La regola lascia {plural(rule.count, "movimento", "movimenti")} alle altre regole, o in coda</p>
-                    <button
-                      type="button"
-                      className="button button--danger"
-                      onClick={() => void confirmRemove(rule)}
-                    >
-                      Rimuovi
-                    </button>
-                    <button type="button" className="button" onClick={() => setConfirming(null)}>
-                      Annulla
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="button button--danger"
-                    onClick={() => setConfirming(rule.pattern)}
-                  >
-                    Rimuovi
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
+                {open ? (
+                  <ul className="rule-group__rules">
+                    {group.rules.map((rule) => (
+                      <li className="rule-row" key={rule.pattern}>
+                        <div className="rule-row__head">
+                          <span className="rule-row__pattern">{rule.pattern}</span>
+                          <span className="rule-row__count">
+                            {plural(rule.count, "movimento", "movimenti")}
+                          </span>
+                        </div>
+                        <div className="rule-row__controls">
+                          <select
+                            className="input"
+                            aria-label={`Categoria per ${rule.pattern}`}
+                            value={rule.category}
+                            disabled={options.length === 0}
+                            onChange={(event) => changeCategory(rule, event.target.value)}
+                          >
+                            {options.map((item) => (
+                              <option key={item.id} value={item.name}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          {confirming === rule.pattern ? (
+                            <div className="rule-row__confirm">
+                              <p>Sicuro? La regola lascia {plural(rule.count, "movimento", "movimenti")} alle altre regole, o in coda</p>
+                              <button
+                                type="button"
+                                className="button button--danger"
+                                onClick={() => void confirmRemove(rule)}
+                              >
+                                Rimuovi
+                              </button>
+                              <button
+                                type="button"
+                                className="button"
+                                onClick={() => setConfirming(null)}
+                              >
+                                Annulla
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button button--danger"
+                              onClick={() => setConfirming(rule.pattern)}
+                            >
+                              Rimuovi
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
 

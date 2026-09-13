@@ -22,7 +22,7 @@ import { useRules } from "./useRules";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 8;
+const REQUIRED_API_VERSION = 9;
 
 export default function App() {
   const [tab, setTab] = useState<TabId>("dashboard");

@@ -317,11 +317,22 @@ export interface Anomaly {
   sentence: string;
 }
 
+/** What a proposal would settle: a merchant's waiting movements, and their span. */
+export interface SuggestionStake {
+  movements: number;
+  total: string;
+  /** Null when nothing is waiting for this merchant any more. */
+  first_date: string | null;
+  last_date: string | null;
+}
+
 export interface Suggestion {
   merchant: string;
   category: string;
   source: "classifier" | "llm";
   created_at: string;
+  /** What accepting or rejecting decides: usually more than one movement. */
+  stake: SuggestionStake;
 }
 
 export type SuggestionDecision = "accept" | "dismiss";

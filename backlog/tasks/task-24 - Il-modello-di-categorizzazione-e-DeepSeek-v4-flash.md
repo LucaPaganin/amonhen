@@ -1,10 +1,10 @@
 ---
 id: TASK-24
 title: Il modello di categorizzazione e' DeepSeek v4 flash
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-13 12:59'
-updated_date: '2026-09-13 13:00'
+updated_date: '2026-09-13 16:39'
 labels: []
 dependencies: []
 ordinal: 23500
@@ -34,10 +34,16 @@ Fatti veri su DeepSeek: il modello si chiama deepseek-v4-flash, l'endpoint e' ht
 MONITOR_LLM_URL e' l'endpoint intero: il client fa requests.post sulla URL data senza aggiungere percorsi, quindi la base URL del fornitore non basta. Verificato con uno stub locale compatibile: percorso, bearer, model, temperature 0, response_format json_object, ruoli system e user; dalla richiesta non escono date, importi, IBAN ne' payload grezzo. Una categoria inventata viene scartata e il movimento resta Uncategorized.
 
 Resta solo la chiave, da creare su platform.deepseek.com/api_keys e incollare in .env (gitignorato). Poi il comando e' uv run amonhen llm-suggest, oppure il pulsante Chiedi al modello nella coda. Nell'ambiente non c'era nessuna chiave API, quindi la chiamata vera non e' stata provata.
+
+Il difetto vero era a monte della chiave: .env lo leggeva solo docker compose, quindi un uv run partiva senza e la sezione restava spenta senza dire perché. Ora settings carica il file prima di leggere qualunque variabile, con quella già nell'ambiente che vince, e il server avviato senza nessuna variabile a mano risulta configurato.
+
+La prima chiamata vera ha anche trovato un falso positivo della regola sulle cifre: il modello scrive due cifre del pacchetto come confronto (entrate/uscite separate da una barra) e la regola leggeva tutto il token come una cifra sola, rifiutando una lettura che non violava niente. Ora un token si legge come tutte le cifre che contiene, e un separatore al bordo è punteggiatura della frase. Due test tengono le due metà: il confronto passa, la cifra inventata no.
+
+Verificato dal vivo il 13 settembre 2026, su una copia della contabilità vera: il modello configurato risponde con una lettura in italiano che cita le cifre del pacchetto, le proposte di categoria nominano merchant che erano nella richiesta e categorie che esistono, la seconda domanda identica arriva dalla cache senza raggiungere il modello, e la chiamata è contata sul tetto giornaliero. Le prime letture ripetevano i nomi dei campi (burn_atteso, runway_mesi): il pacchetto ora usa parole, e la lettura dice il burn atteso e il runway.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Il modello di categorizzazione e' configurato per DeepSeek v4 flash: la URL all'endpoint intero, il modello, la chiave in .env (gitignorato, da riempire) e la stessa coppia URL piu' modello nel profilo di debug locale, senza segreti nel repo. Il prompt ora contiene la parola json e l'esempio del formato, che DeepSeek pretende per la modalita' JSON. Il percorso e' provato contro uno stub compatibile: forma della richiesta corretta, categoria inventata scartata, movimento non toccato, nessun dato identificativo nella richiesta. Manca la chiamata vera, che ha bisogno della chiave.
+Il modello di categorizzazione e DeepSeek sono configurati e ora funzionano davvero: .env viene letto all'avvio sia da uv run sia da docker compose, con la variabile dell'ambiente che vince, quindi la chiave scritta nel file basta. La prima chiamata vera ha fatto il suo lavoro di verifica: ha confermato che il percorso regge end to end e ha trovato due difetti, la regola sulle cifre troppo stretta sui confronti e i nomi dei campi che finivano nella prosa. Restano il tetto di venti chiamate al giorno, il conteggio visibile nella sezione, le proposte che aspettano un gesto e la registrazione di domanda, risposta e impronta dei dati.
 <!-- SECTION:FINAL_SUMMARY:END -->

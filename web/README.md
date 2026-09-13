@@ -3,7 +3,8 @@
 Mobile-first React PWA over the `amonhen` FastAPI backend. Five screens, reachable from
 the bottom bar or from the hamburger in the top bar:
 
-- **Da confermare** — the review queue: the merchant proposals to accept or dismiss, the candidate
+- **Da confermare** — the review queue: the merchant proposals to accept or dismiss, each with the
+  spending it would settle (amount, movements, span), the candidate
   transfer links with *Conferma* / *Rifiuta*, and the uncategorized movements with a category
   picker, a filter (state, free text, account) and an amber flag on the ones no automatic pass
   claimed. Rows leave the queue optimistically and come back if the request fails.
@@ -18,9 +19,11 @@ the bottom bar or from the hamburger in the top bar:
 - **Conti** — the management section: every real account with its balance, its opening figure and
   the 5.4 outcome, where you declare a balance, align the opening, add an account by hand, set a
   category's monthly budget and flag a category as episodic or incompressible.
-- **Regole** — the rules: the text each one looks for in the description, the category it assigns,
-  how many movements it holds right now and a *Rimuovi* per row, plus the form to add or correct
-  one. Writing a rule applies it to the ledger immediately.
+- **Regole** — the rules, grouped by the category they assign: the category is the top-level
+  entry (with how many rules and how many movements it holds) and the texts that assign it open
+  underneath. Each rule row shows the text it looks for, how many movements it holds right now and
+  a *Rimuovi*, plus the form to add or correct one. Writing a rule applies it to the ledger
+  immediately, and a search opens the groups that matched.
 
 The category picker also offers to create a rule that looks for that merchant's text in the
 description (`POST /api/rules`), and *È un giroconto* hands the row to the transfer sheet below.
@@ -265,6 +268,12 @@ body). Accepting creates
 a rule whose pattern is that merchant name, which categorizes matching transactions, so the block
 and the queue are both refetched afterwards; dismissing only drops the proposal. Both decisions are
 optimistic.
+
+Every card carries the **stake** of the decision (`stake` in the response): the total waiting for
+that merchant, how many movements it is, and the span they cover — one amount and one date when
+exactly one movement is waiting. A proposal covers a merchant, not a movement, so this is what a yes
+would settle; when nothing is waiting any more the card says so instead of showing a zero. The stake
+is read with the queue's own predicate, so it cannot contradict the list underneath.
 
 Two buttons fill the block. **Proponi categorie** runs `POST /api/propose` (the statistical
 classifier) and **Chiedi al modello** runs `POST /api/llm-suggest` (the optional LLM). Both are
