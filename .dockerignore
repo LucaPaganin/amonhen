@@ -14,7 +14,10 @@ __pycache__
 *.crt
 .env
 accounts.json
-state.json
-actual-cache
+amonhen.db
+dumps
+mytest*
+web/node_modules
+web/dist
 htmlcov
 coverage.xml

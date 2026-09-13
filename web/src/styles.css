@@ -1,0 +1,1611 @@
+:root {
+  --bg: #0b1220;
+  --surface: #121b2c;
+  --surface-raised: #1a2439;
+  --text: #e9eefb;
+  --muted: #93a3c4;
+  --accent: #34d399;
+  --accent-ink: #04281c;
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --border: #253148;
+  --radius: 14px;
+  --tap: 44px;
+  --tabbar: 62px;
+  --appbar: 52px;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Layout */
+
+.app__main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: calc(var(--appbar) + env(safe-area-inset-top, 0px) + 14px) 14px
+    calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 28px);
+}
+
+/* The stale-server screen renders no navigation, so it must not leave its room. */
+.app__main--plain {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
+}
+
+.state__command {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  overflow-x: auto;
+  font-size: 0.8rem;
+}
+
+.app__epigraph {
+  max-width: 720px;
+  margin: 26px auto 0;
+  padding: 14px 14px 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-style: italic;
+  text-align: center;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.screen__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.screen__title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.screen__subtitle {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.screen__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.section-title .count {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 24px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 0.8rem;
+  letter-spacing: normal;
+}
+
+/* Controls */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.button--danger {
+  border-color: var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.button--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.button--block {
+  width: 100%;
+}
+
+.month-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-picker__input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field--wide {
+  grid-column: 1 / -1;
+}
+
+.field > label {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.field select,
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+/* Transaction rows */
+
+.txn-list,
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-list {
+  gap: 10px;
+}
+
+.txn {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+}
+
+button.txn {
+  cursor: pointer;
+}
+
+.txn__date {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.txn__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.txn__title {
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.txn__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.txn__figures {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.txn__running {
+  color: var(--muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.amount--in {
+  color: var(--accent);
+}
+
+/* The outlined states: the border carries the state, so it has to be seen. Each
+   colour below clears the 3:1 contrast WCAG 1.4.11 asks of a non-text cue
+   against the raised surface it sits on — measured, because the values before
+   these sat between 1.7:1 and 2.5:1. */
+.chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 0.72rem;
+}
+
+.chip--pending {
+  border-color: #8a6f14;
+  background: transparent;
+  color: var(--warning);
+}
+
+.chip--split {
+  border-color: #4a7fab;
+  background: transparent;
+  color: #7dd3fc;
+}
+
+/* What the queue already tried on a row: a proposal waiting, or nothing at all. */
+.chip--proposal {
+  border-color: #348f6d;
+  background: transparent;
+  color: var(--accent);
+}
+
+.chip--warning {
+  border-color: #8a6f14;
+  background: transparent;
+  color: var(--warning);
+}
+
+/* The 5.4 invariant per account: the ledger and the bank agreed on the balance. */
+.chip--verified {
+  border-color: #348f6d;
+  background: transparent;
+  color: var(--accent);
+}
+
+/* A leg that is neither spending nor income: money moved between accounts of
+   your own, or money that arrives because somebody else is paying their share.
+   It used to look like a row nobody had decided about yet. */
+.chip--transfer {
+  border-color: #8271b0;
+  background: transparent;
+  color: #c4b5fd;
+}
+
+/* The list filter: chips you press, not chips you read. */
+.chip--toggle {
+  min-height: 32px;
+  padding: 4px 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.chip--toggle.chip--on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filters__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filters__caption {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.filters .input {
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+}
+
+/* Transfer candidates */
+
+.card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.card__caption {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* A reading from the model: prose, so it wraps, and it never borrows the
+   monospace a computed figure is allowed to wear. */
+.assistant__answer {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.legs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.leg__description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leg__meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.leg__amount {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.card__actions .button {
+  flex: 1;
+}
+
+/* States */
+
+.state {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.state--empty {
+  text-align: center;
+}
+
+.state--error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.state--error p {
+  margin: 0;
+}
+
+/* Category picker sheet */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.sheet[open] {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet::backdrop {
+  background: rgba(4, 8, 18, 0.68);
+}
+
+.sheet__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 82dvh;
+  overflow-y: auto;
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  background: var(--surface);
+  animation: sheet-in 160ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(14px);
+    opacity: 0.6;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.sheet__rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.sheet__rule input {
+  width: 22px;
+  height: 22px;
+}
+
+.sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet__option {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* New category: the picker must not require a CLI command first */
+
+.sheet__new {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sheet__new-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.sheet__new-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sheet__new-row .input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.sheet__new-row .button {
+  min-height: 48px;
+}
+
+/* The transfer panel: what a leg is attached to, and the way back out */
+
+.transfer__subject {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.transfer__description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer__state,
+.transfer__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.transfer__subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The candidate the panel is about to pair with: pressed, not merely hovered. */
+.sheet__option--on {
+  border-color: var(--accent);
+  background: rgba(52, 211, 153, 0.12);
+}
+
+/* Navigation: the app bar and the drawer it opens, above the bottom bar */
+
+.appbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 12;
+  display: flex;
+  justify-content: center;
+  height: calc(var(--appbar) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  border-bottom: 1px solid var(--border);
+  background: rgba(11, 18, 32, 0.96);
+  backdrop-filter: blur(10px);
+}
+
+.appbar__inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  padding: 0 14px 0 6px;
+}
+
+.appbar__menu {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.appbar__menu[aria-expanded="true"] {
+  color: var(--accent);
+}
+
+.appbar__menu .navicon {
+  width: 26px;
+  height: 26px;
+}
+
+.appbar__brand {
+  color: var(--muted);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  /* Shut, the wrapper covers the screen: it must not swallow a tap. */
+  pointer-events: none;
+}
+
+.drawer--open {
+  pointer-events: auto;
+}
+
+.drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 7, 15, 0.62);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease-out, visibility 0.18s;
+}
+
+.drawer--open .drawer__backdrop {
+  opacity: 1;
+  visibility: visible;
+}
+
+.drawer__panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(82vw, 320px);
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px
+    calc(env(safe-area-inset-bottom, 0px) + 12px);
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  transform: translateX(-102%);
+  transition: transform 0.18s ease-out;
+}
+
+.drawer--open .drawer__panel {
+  transform: none;
+}
+
+.drawer__panel:focus {
+  outline: none;
+}
+
+.drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.drawer__title {
+  margin: 0 0 0 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.drawer__close {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.drawer__close .navicon {
+  width: 20px;
+  height: 20px;
+}
+
+.drawer__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drawer__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drawer__item[aria-current="page"] {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.drawer__item .navicon {
+  width: 20px;
+  height: 20px;
+}
+
+.drawer__text {
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer__label {
+  font-size: 0.95rem;
+}
+
+.drawer__hint {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.drawer__count {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+/* Tab bar and toast */
+
+.tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--border);
+  background: rgba(11, 18, 32, 0.96);
+  backdrop-filter: blur(10px);
+}
+
+.tabbar__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tabbar);
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.tabbar__item[aria-current="page"] {
+  color: var(--accent);
+}
+
+.tabbar__item .navicon {
+  width: 22px;
+  height: 22px;
+}
+
+.tabbar__label {
+  max-width: 100%;
+  font-size: 0.68rem;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.tabbar__badge {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  min-width: 18px;
+  margin-left: 8px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.toast {
+  position: fixed;
+  right: 12px;
+  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 12px);
+  left: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 696px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.toast__message {
+  flex: 1;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+/* Phase 3: metrics, flags and split editing */
+
+.banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+}
+
+.banner--warning {
+  border: 1px solid #8a6f14;
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--warning);
+}
+
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.metric__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metric__label {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.metric__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.metric__value--empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.metric__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.metric__warning {
+  margin: 0;
+  color: var(--warning);
+  font-size: 0.8rem;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.flag-row__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flag-row__balance {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.flag-row__check {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.flag-row__toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.toggle__track {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+
+.toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 120ms ease-out, background 120ms ease-out;
+}
+
+.toggle input:checked + .toggle__track {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.toggle input:checked + .toggle__track .toggle__thumb {
+  background: var(--accent-ink);
+  transform: translateX(16px);
+}
+
+.toggle input:checked ~ .toggle__label {
+  color: var(--text);
+}
+
+.toggle input:focus-visible + .toggle__track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toggle input:disabled + .toggle__track {
+  opacity: 0.55;
+}
+
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.split__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.split__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.split__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.5rem auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.split__category,
+.split__amount {
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+}
+
+.split__amount {
+  text-align: right;
+}
+
+.split__remove {
+  min-width: var(--tap);
+}
+
+.split__total {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.split__total--ok {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.split__total--off {
+  border-color: #8a6f14;
+  color: var(--warning);
+}
+
+.split__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.split__actions .button {
+  flex: 1;
+}
+
+/* Phase 4: budgets, anomalies and merchant proposals */
+
+.proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.proposal-actions .button {
+  flex: 1;
+}
+
+.proposal__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.proposal__merchant {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal__source {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.budget-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.budget-row--over {
+  border-color: var(--danger);
+}
+
+.budget-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.budget-row__name {
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-row__spent {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-row__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.budget-row__over {
+  color: var(--danger);
+}
+
+.budget-row__actions {
+  display: flex;
+}
+
+.budget-row__actions .button {
+  min-height: var(--tap);
+}
+
+.budget-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.budget-editor .input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+}
+
+.budget-editor .button {
+  min-height: var(--tap);
+}
+
+.anomaly-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.anomaly {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.anomaly__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.anomaly__merchant {
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.anomaly__amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.anomaly__meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.anomaly__sentence {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+}
+
+.chart {
+  position: relative;
+  height: 210px;
+  margin-top: 4px;
+}
+
+.chart--pie {
+  height: 190px;
+}
+
+.chart__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.chart__center-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.chart__center-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chart-legend__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.chart-legend__swatch {
+  flex: none;
+  align-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.chart-legend__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-legend__share {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-legend__value {
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chart-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* Rules on the description: a category is edited in place, removal confirms in place */
+
+.rule-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rule-row__pattern {
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-row__count {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rule-row__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-row__controls .input {
+  flex: 1 1 100%;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+}
+
+.rule-row__confirm {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-row__confirm p {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Conti e budget */
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Under the row it belongs to: the flag row wraps, so it takes a full line. */
+.account-row__actions {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-row__actions .button {
+  min-height: var(--tap);
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.account-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-form__actions .button {
+  min-height: var(--tap);
+}
+
+.account-form__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.82rem;
+}

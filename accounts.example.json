@@ -3,11 +3,24 @@
   "pem_path": "./private.pem",
   "redirect_url": "https://your-public-host.example/callback",
   "account_holder_name": "Your Name",
-  "actual": {
-    "url": "https://your-actual-server.example:5006",
-    "password": "your-actual-budget-password",
-    "encryption_password": null,
-    "sync_id": "your-budget-sync-id"
-  },
-  "accounts": []
+  "passthrough": [
+    {
+      "destination": "Conto deposito senza vincoli",
+      "labels": ["Conto deposito senza vincoli"]
+    },
+    {
+      "destination": "Rimborsi e quote",
+      "labels": ["Nome di chi condivide il conto", "Nome di chi rimborsa"],
+      "incoming_only": true
+    }
+  ],
+  "accounts": [
+    {
+      "session_id": "session-uuid-returned-by-the-oauth-callback",
+      "account_uid": "account-uuid-from-the-session",
+      "bank_name": "Revolut",
+      "notes": "Revolut personale",
+      "start_sync_date": "2026-01-01"
+    }
+  ]
 }

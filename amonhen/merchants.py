@@ -1,0 +1,230 @@
+"""Merchant normalization and the rules built on top of it.
+
+Desiderata 5.5 steps 1 and 2: reduce the raw description to the merchant it
+names, then apply the rules. A rule is a piece of text the description contains,
+so one rule covers a family of movements the bank spells differently — the
+merchant name being just one of the texts a rule may hold. Both steps are
+deterministic, so they run inside ingest without making it fail when something
+is unknown.
+"""
+import re
+import sqlite3
+from dataclasses import dataclass
+from typing import Iterable, Sequence
+
+from amonhen.ledger import Ledger
+from amonhen.settings import UNCATEGORIZED
+
+SEPARATOR = " | "
+
+# Trailing text the bank appends after the merchant: card payments, SEPA
+# details, dates, references. Anything from one of these on is not the merchant.
+_TRAILING = (
+    "Carta N.",
+    "Addebito SDD",
+    "Dt-ord:",
+    "Data operazione",
+    "Data inserimento",
+    "Info-Cli:",
+    "Banca Ord:",
+    "Mand ",
+    "Causale:",
+)
+# Whole segments that carry no merchant information when joined with " | ".
+_METADATA_SEGMENT = re.compile(
+    r"^(CARD_PAYMENT|TRANSFER|ATM|TOPUP|FEE|SEPA[ _A-Z]*|VISA \d+|MASTERCARD \d+|"
+    r"IBAN:.*|MCC:.*|Ref:.*|Currency:.*|\d{2}/\d{2}/\d{4}.*)$",
+    re.IGNORECASE,
+)
+_WHITESPACE = re.compile(r"\s+")
+
+
+@dataclass(frozen=True)
+class Rule:
+    """A text the description contains, and the category that follows from it."""
+
+    key: str
+    pattern: str
+    category: str
+
+
+def merchant_name(description: str) -> str:
+    """Reduce a raw description to the merchant it names.
+
+    `"L Ortobello S.n.c. Di Ah | CARD_PAYMENT | VISA 7883"` becomes
+    `"L Ortobello S.n.c. Di Ah"`; a description with no merchant part is
+    returned as it is, so an unknown row still gets a stable name.
+    """
+    text = description or ""
+    for marker in _TRAILING:
+        position = text.find(marker)
+        if position > 0:
+            text = text[:position]
+    for segment in text.split(SEPARATOR):
+        candidate = _WHITESPACE.sub(" ", segment).strip()
+        if candidate and not _METADATA_SEGMENT.match(candidate):
+            return candidate
+    return _WHITESPACE.sub(" ", text).strip() or "Unknown"
+
+
+def rule_key(text: str) -> str:
+    """The text as the rules compare it: trimmed, spaces collapsed, lower case.
+
+    A pattern typed by a human can carry stray runs of spaces while the
+    descriptions only ever produce single ones, and a pattern that never comes
+    back would silently match nothing.
+    """
+    return _WHITESPACE.sub(" ", text.strip()).lower()
+
+
+def matching_rule(description: str, rules: Iterable[Rule]) -> Rule | None:
+    """The rule that decides for this description, or None when no rule does.
+
+    The description is compared as the bank writes it, so a rule can hold text
+    the merchant name drops — `"addebito sdd"`, a card's metadata — and not only
+    the name reduced from it.
+
+    The longest pattern wins. `"amazon prime"` is a statement about fewer
+    descriptions than `"amazon"`, so where both match the narrower one speaks;
+    between two patterns of the same length the alphabetical order keeps the
+    answer the same between two runs.
+    """
+    candidates = _candidate_rules(description, rules)
+    if not candidates:
+        return None
+    return min(candidates, key=lambda rule: (-len(rule.key), rule.key))
+
+
+class RuleBook:
+    """The `rules` table: which text belongs to which category."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self.conn = conn
+
+    def rules(self) -> list[Rule]:
+        return [
+            Rule(row["key"], row["pattern"], row["category"])
+            for row in self.conn.execute(
+                "SELECT key, pattern, category FROM rules ORDER BY category, pattern"
+            )
+        ]
+
+    def set_rule(self, pattern: str, category: str, ledger: Ledger) -> int:
+        """Create or change a rule, and make the movements agree with it now.
+
+        Everything the rule explains carries its category afterwards, whether it
+        was waiting in the queue or another rule used to hold it: that is what
+        lets one broad rule replace a pile of merchant rules. A category no rule
+        matching the description would assign is a person's decision and stays.
+        Returns how many movements the rule holds afterwards.
+        """
+        if category == UNCATEGORIZED:
+            raise ValueError("a rule cannot point at the review bucket: it would categorize nothing")
+        key = rule_key(pattern)
+        if not key:
+            raise ValueError("a rule needs a text to look for")
+        ledger.category(category)
+        before = self.rules()
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO rules (key, pattern, category) VALUES (?, ?, ?)
+                   ON CONFLICT (key) DO UPDATE SET
+                       pattern = excluded.pattern, category = excluded.category""",
+                (key, _WHITESPACE.sub(" ", pattern.strip()), category),
+            )
+        after = self.rules()
+        _apply_rules(ledger, before, after)
+        # A pending proposal this rule has just answered: leaving it would leave
+        # the queue asking about a movement the rule has already decided.
+        for row in ledger.suggestions("pending"):
+            if key in rule_key(row["merchant"]):
+                ledger.decide_suggestion(row["merchant"], "dismissed")
+        return rule_usage(ledger, after).get(key, 0)
+
+    def remove_rule(self, pattern: str, ledger: Ledger) -> int | None:
+        """Drop a rule, and let the rules that still match take its movements.
+
+        Returns how many movements it held, or None when there was no rule. A
+        movement no remaining rule explains goes back to the queue.
+        """
+        key = rule_key(pattern)
+        before = self.rules()
+        if not any(rule.key == key for rule in before):
+            return None
+        held = rule_usage(ledger, before).get(key, 0)
+        with self.conn:
+            self.conn.execute("DELETE FROM rules WHERE key = ?", (key,))
+        _apply_rules(ledger, before, self.rules())
+        return held
+
+
+def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[str, int]:
+    """How many movements each rule holds right now, by the rule's key."""
+    usage: dict[str, int] = {}
+    for _, description, category in _categorized_transactions(ledger):
+        rule = matching_rule(description, rules)
+        if rule is None or rule.category != category:
+            continue
+        usage[rule.key] = usage.get(rule.key, 0) + 1
+    return usage
+
+
+def categorize(ledger: Ledger, book: RuleBook) -> int:
+    """Apply the rules to the movements nobody has decided yet.
+
+    The rules have not changed, so nothing moves: what waited in `Uncategorized`
+    takes the category of the rule that explains it, and a merchant no rule
+    knows is left there rather than guessed.
+    """
+    rules = book.rules()
+    return _apply_rules(ledger, rules, rules)
+
+
+def _candidate_rules(description: str, rules: Sequence[Rule]) -> list[Rule]:
+    """Every rule whose text the description contains."""
+    text = rule_key(description)
+    return [rule for rule in rules if rule.key and rule.key in text]
+
+
+def _categorized_transactions(ledger: Ledger) -> list[tuple[int, str, str]]:
+    """(transaction id, description, category) for every movement holding exactly one.
+
+    A split carries several category postings and a transfer leg none, so the
+    join keeps exactly one and both shapes stay out of a rule's reach: neither
+    is a rule's work, and neither should a rule move.
+    """
+    rows = ledger.conn.execute(
+        """SELECT t.id AS id, t.description AS description, a.name AS category
+           FROM transactions t
+           JOIN postings p ON p.transaction_id = t.id
+           JOIN accounts a ON a.id = p.account_id
+           WHERE a.type = 'category'
+           GROUP BY t.id
+           HAVING COUNT(*) = 1"""
+    ).fetchall()
+    return [(row["id"], row["description"], row["category"]) for row in rows]
+
+
+def _apply_rules(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) -> int:
+    """Make the movements say what the rules say, and answer how many changed.
+
+    A movement the rules decided carries the category of the rule that decides
+    it now; one still waiting in the queue is decided for the first time; one
+    whose rule is gone goes back to the queue. A category that no rule matching
+    the description would assign it is a person's decision: the rules fill the
+    empty, follow their own changes, and never overrule that.
+    """
+    changed = 0
+    for transaction_id, description, category in _categorized_transactions(ledger):
+        # Whose work it was, not who decides it now: a legacy rule shadowed by a
+        # longer text still held this movement, and it must follow the winner.
+        theirs = any(rule.category == category for rule in _candidate_rules(description, before))
+        if category != UNCATEGORIZED and not theirs:
+            continue
+        winner = matching_rule(description, after)
+        wanted = winner.category if winner else UNCATEGORIZED
+        if wanted == category:
+            continue
+        ledger.set_category(transaction_id, ledger.category(wanted))
+        changed += 1
+    return changed

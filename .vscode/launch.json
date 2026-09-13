@@ -5,11 +5,27 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "connector.py",
+            "name": "monitor sync",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/connector.py",
+            "module": "amonhen",
+            "args": ["sync"],
             "console": "integratedTerminal"
+        },
+        {
+            // The model lives in the environment, not in the repo: the key is
+            // taken from your own shell (set AMONHEN_LLM_API_KEY) and never
+            // written here.
+            "name": "monitor llm-suggest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "amonhen",
+            "args": ["llm-suggest"],
+            "console": "integratedTerminal",
+            "env": {
+                "AMONHEN_LLM_URL": "https://api.deepseek.com/chat/completions",
+                "AMONHEN_LLM_MODEL": "deepseek-v4-flash"
+            }
         }
     ]
 }

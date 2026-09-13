@@ -110,6 +110,21 @@ A shipping change is complete when its behavior satisfies the requirement, the i
      session continuity IDs, infra conventions. Keep them short; the principles
      above do not change per project. -->
 
+## Product spec is the source of truth
+
+`desiderata-monitoring-finanziario.md` is the product definition: what the system
+must do, its constraints, its non-goals, the order of work and the status of each
+phase (§9). Read the sections a slice touches before implementing it, not after.
+
+Keep it true. When a decision adds, removes or changes a requirement, edit the
+spec **in the same change as the code**, bump its version line and say what
+changed. A spec that trails the code stops being the source of truth and the next
+slice implements the old product. If a change contradicts a statement, fix the
+statement rather than leaving both versions standing.
+
+The spec answers *what* and *why*; `CLAUDE.md` answers *how* (architecture,
+invariants, commands). A decision recorded in neither did not happen.
+
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.51.0 -->
 <CRITICAL_INSTRUCTION>

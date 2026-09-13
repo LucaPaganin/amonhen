@@ -1,43 +1,50 @@
 services:
-  bank-connector:
+  amonhen:
     build:
       context: .
-    container_name: bank-connector
+    container_name: amonhen
     restart: unless-stopped
     init: true
     security_opt:
       - no-new-privileges:true
     ports:
-      - "${BANK_CONN_BIND_ADDRESS:-127.0.0.1}:3000:3000"
-    extra_hosts:
-      # Tailscale DNS is not available inside Docker's default bridge network.
-      # Preserve the TLS hostname while routing it to this NAS host gateway.
-      - "${ACTUAL_HOSTNAME:?set the Actual TLS hostname in .env}:host-gateway"
+      # Reachable through Tailscale only; nothing is exposed publicly.
+      - "${AMONHEN_BIND_ADDRESS:-127.0.0.1}:8000:8000"
     environment:
-      BANK_CONN_HOST: 0.0.0.0
-      BANK_CONN_PORT: "3000"
-      BANK_CONN_SYNC_ENABLED: "1"
-      BANK_CONN_SYNC_INTERVAL_HOURS: "6"
-      BANK_CONN_SYNC_TOKEN: "${BANK_CONN_SYNC_TOKEN:?set a long random secret in .env}"
-      # Actual Budget already runs on the NAS with HTTPS. Keep it external;
-      # do not create a second, empty Actual instance in this project.
-      BANK_CONN_ACTUAL_URL: "${ACTUAL_URL:?set the existing Actual HTTPS URL in .env}"
-      BANK_CONN_ACTUAL_PASSWORD: "${ACTUAL_PASSWORD:?set the Actual password in .env}"
-      BANK_CONN_ACTUAL_ENCRYPTION_PASSWORD: "${ACTUAL_ENCRYPTION_PASSWORD:-}"
-      BANK_CONN_APPLICATION_ID: "${ENABLE_BANKING_APPLICATION_ID:?set the Enable Banking application ID in .env}"
-      BANK_CONN_PEM_PATH: /run/secrets/enable_banking_private_key
-      BANK_CONN_BASE_URL: "${BANK_CONN_BASE_URL:?set the public HTTPS URL in .env}"
-      BANK_CONN_REDIRECT_URL: "${BANK_CONN_REDIRECT_URL:?set the registered OAuth callback URL in .env}"
-      BANK_CONN_STATE_FILE: /data/state.json
-      BANK_CONN_CONFIG_FILE: /config/accounts.json
-      BANK_CONN_ACTUAL_DATA_DIR: /data/actual-cache
+      AMONHEN_DB_PATH: /data/amonhen.db
+      AMONHEN_CONFIG_FILE: /config/accounts.json
+      AMONHEN_HOST: 0.0.0.0
+      AMONHEN_PORT: "8000"
+      # Documented tunables: without these entries the container never sees the
+      # values the operator puts in .env.
+      AMONHEN_SYNC_INTERVAL_HOURS: "${AMONHEN_SYNC_INTERVAL_HOURS:-6}"
+      AMONHEN_EB_API: "${AMONHEN_EB_API:-https://api.enablebanking.com}"
+      AMONHEN_UNCATEGORIZED: "${AMONHEN_UNCATEGORIZED:-Uncategorized}"
+      AMONHEN_LLM_URL: "${AMONHEN_LLM_URL:-}"
+      AMONHEN_LLM_API_KEY: "${AMONHEN_LLM_API_KEY:-}"
+      AMONHEN_LLM_MODEL: "${AMONHEN_LLM_MODEL:-}"
+    # Let .env decide the cadence instead of baking it into the image.
+    command:
+      - uv
+      - run
+      - --no-sync
+      - python
+      - -m
+      - amonhen
+      - serve
+      - --sync-interval-hours
+      - "${AMONHEN_SYNC_INTERVAL_HOURS:-6}"
     volumes:
-      - bank-state:/data
-      # Must be writable: /callback saves newly authorized bank accounts here.
+      - amonhen-data:/data
+      # Writable: /callback refreshes or adds a newly authorized account here.
+      # pem_path in accounts.json is resolved relative to that file, so it finds
+      # the key at /config/private.pem. Both files must exist before `up`.
       - ./accounts.json:/config/accounts.json
-      - ./private.pem:/run/secrets/enable_banking_private_key:ro
+      - ./private.pem:/config/private.pem:ro
 
   # Optional, read-only-by-default MCP bridge to the existing Actual server.
+  # Actual Budget is no longer a dependency of this app; the bridge stays for
+  # direct use of the budget itself.
   actual-mcp:
     image: sstefanov/actual-mcp:1.11.3
     container_name: actual-mcp
@@ -47,13 +54,13 @@ services:
     ports:
       - "127.0.0.1:3001:3001"
     extra_hosts:
-      - "${ACTUAL_HOSTNAME:?set the Actual TLS hostname in .env}:host-gateway"
+      - "${ACTUAL_HOSTNAME:-actual.example.ts.net}:host-gateway"
     environment:
-      ACTUAL_SERVER_URL: "${ACTUAL_URL:?set the existing Actual HTTPS URL in .env}"
-      ACTUAL_PASSWORD: "${ACTUAL_PASSWORD:?set the Actual password in .env}"
+      ACTUAL_SERVER_URL: "${ACTUAL_URL:-}"
+      ACTUAL_PASSWORD: "${ACTUAL_PASSWORD:-}"
       ACTUAL_BUDGET_ENCRYPTION_PASSWORD: "${ACTUAL_ENCRYPTION_PASSWORD:-}"
       ACTUAL_BUDGET_SYNC_ID: "${ACTUAL_BUDGET_SYNC_ID:-}"
       BEARER_TOKEN: "${ACTUAL_MCP_TOKEN:-}"
 
 volumes:
-  bank-state:
+  amonhen-data:

@@ -1,0 +1,4 @@
+Account,Date,Payee,Notes,Category_Group,Category,Amount,Split_Amount,Cleared
+Checking,2026-05-17,ACME Srl,CARD_PAYMENT | VISA 7883,Spese correnti,Cibo/Spesa,-3.94,0,Cleared
+Checking,2026-05-16,ACME Srl,Invoice 42,Spese correnti,Servizi,-120.00,0,Cleared
+Checking,2026-05-15,ACME Srl,Refund,Spese correnti,Rimborsi,45.50,0,Cleared

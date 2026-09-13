@@ -1,0 +1,175 @@
+{
+  "account": {
+    "bank_name": "Fineco",
+    "account_uid": null,
+    "label": null
+  },
+  "source_file": "mytestfineco.json",
+  "date_from": "2025-09-22",
+  "date_to": "2025-10-06",
+  "count": 4,
+  "transactions": [
+    {
+      "entry_reference": "anon-d91cdf9eddfb1766",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.71"
+      },
+      "creditor": null,
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": null,
+      "debtor_account": {
+        "iban": "IT504861404007486303843951",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "W43-Pagamento Visa Debit",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-06",
+      "value_date": "2025-10-04",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "MICROSOFTG544303150 MSBILL.INFO IE Carta N. ***** 654 Data operazione 04/10/2025"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6ae90d12a6d55e0f",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "168.60"
+      },
+      "creditor": null,
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": null,
+      "debtor_account": {
+        "iban": "IT504861404007486303843951",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "D41-SEPA Direct Debit",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-24",
+      "value_date": "2025-09-24",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Scalable Capital Bank GmbH Addebito SDD fattura a Vs carico da DE6384930102205295 Mand BKPC3IYCCKXETWEUHXSLKQ Per Scalable Capital Broker pi"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d8031861f9fbb8f6",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1386.00"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": null,
+      "debtor_account": {
+        "iban": "IT504861404007486303843951",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "V26-Bonifico Istantaneo",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-23",
+      "value_date": "2025-09-23",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "ricarica revolut",
+        "Data inserimento: 23/09/2025 08:07:52 Da: PHONE/VOICE P. Causale: ricarica revolut"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-4740f53bf14012ad",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1217.01"
+      },
+      "creditor": null,
+      "creditor_account": {
+        "iban": "IT504861404007486303843951",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": null,
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "027-Stipendio",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-22",
+      "value_date": "2025-09-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Ord: Paola Corallo Ben: Ivan Marroni Dt-ord: 22/09/2025 Banca Ord: UNICREDIT Porpora Info-Cli: ST78833326 18/09/2025"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    }
+  ]
+}

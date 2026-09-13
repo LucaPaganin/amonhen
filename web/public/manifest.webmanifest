@@ -1,0 +1,26 @@
+{
+  "name": "AmonHen — \u201cThe Eye of Sauron the Terrible few could endure\u201d",
+  "short_name": "AmonHen",
+  "description": "AmonHen — monitoraggio finanziario personale: cruscotto, coda di conferma e movimenti.",
+  "lang": "it",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0b1220",
+  "background_color": "#0b1220",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

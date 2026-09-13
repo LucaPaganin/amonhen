@@ -1,9 +1,13 @@
 accounts.json
 mytest*
 *.pem
-sukuna*.crt
-sukuna*.key
+*.crt
+*.key
 actual-cache
+amonhen.db
+amonhen.db-journal
+amonhen.db-wal
+amonhen.db-shm
 node_modules
 
 # Byte-compiled / optimized / DLL files
@@ -231,3 +235,6 @@ __marimo__/
 .pi/npm/
 .pandino/merge/
 install.ps1
+
+# Phase 0 raw Enable Banking dumps (personal data, never committed)
+dumps/

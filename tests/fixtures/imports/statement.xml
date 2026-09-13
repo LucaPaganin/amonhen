@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?OFX OFXHEADER="200" VERSION="211" SECURITY="NONE" OLDFILEUID="NONE" NEWFILEUID="NONE"?>
+<OFX>
+  <BANKMSGSRSV1>
+    <STMTTRNRS>
+      <TRNUID>1</TRNUID>
+      <STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>
+      <STMTRS>
+        <CURDEF>EUR</CURDEF>
+        <BANKACCTFROM>
+          <BANKID>IT00X0000000000000000000000</BANKID>
+          <ACCTID>0001</ACCTID>
+          <ACCTTYPE>CHECKING</ACCTTYPE>
+        </BANKACCTFROM>
+        <BANKTRANLIST>
+          <DTSTART>20260501</DTSTART>
+          <DTEND>20260517</DTEND>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260514120000[0:GMT]</DTPOSTED>
+            <TRNAMT>-42.50</TRNAMT>
+            <FITID>XML0001</FITID>
+            <NAME>ACME Srl</NAME>
+            <MEMO>Utility bill</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT</TRNTYPE>
+            <DTPOSTED>20260513120000[0:GMT]</DTPOSTED>
+            <TRNAMT>800.00</TRNAMT>
+            <FITID>XML0002</FITID>
+            <NAME>ACME Srl</NAME>
+            <MEMO>Invoice settlement</MEMO>
+          </STMTTRN>
+        </BANKTRANLIST>
+        <LEDGERBAL><BALAMT>500.00</BALAMT><DTASOF>20260517</DTASOF></LEDGERBAL>
+      </STMTRS>
+    </STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>

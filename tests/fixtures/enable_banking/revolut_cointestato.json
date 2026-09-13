@@ -1,0 +1,3177 @@
+{
+  "account": {
+    "bank_name": "Revolut",
+    "account_uid": "anon-6dc08ef8cd0e7761",
+    "label": "Revolut cointestato"
+  },
+  "source_file": "Revolut revolut-cointestato.json",
+  "date_from": "2025-09-07",
+  "date_to": "2025-12-03",
+  "count": 60,
+  "transactions": [
+    {
+      "entry_reference": "anon-0112a7155297a4cf",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.72"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-22",
+      "value_date": "2025-09-24",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-049f4e9afa4e0877",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "6.05"
+      },
+      "creditor": {
+        "name": "Carla Gialli",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-21",
+      "value_date": "2025-09-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Carla Gialli"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e389236693690bff",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.00"
+      },
+      "creditor": {
+        "name": "Dario Blu",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-21",
+      "value_date": "2025-09-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Dario Blu"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-da12c54b0685dbed",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "7.70"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-20",
+      "value_date": "2025-09-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-9488c09b911066b0",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "4.71"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-19",
+      "value_date": "2025-09-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-89b1b763ecf4cc74",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "36.23"
+      },
+      "creditor": {
+        "name": "Fulvio Grigi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-19",
+      "value_date": "2025-09-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Fulvio Grigi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-5feb34c4524c1cc4",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "15.03"
+      },
+      "creditor": {
+        "name": "Giorgia Viola",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-18",
+      "value_date": "2025-09-19",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Giorgia Viola"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-2fc21e6c1fa0bb61",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "11.69"
+      },
+      "creditor": {
+        "name": "Fulvio Grigi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-16",
+      "value_date": "2025-09-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Fulvio Grigi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-737e5fe03e0e77d0",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "17.53"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-16",
+      "value_date": "2025-09-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-859efffa73fdea1a",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2.81"
+      },
+      "creditor": {
+        "name": "Ivan Marroni",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-14",
+      "value_date": "2025-09-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Ivan Marroni"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-fb36681982bdd38f",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "3.70"
+      },
+      "creditor": {
+        "name": "Livia Azzurra",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-14",
+      "value_date": "2025-09-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Livia Azzurra"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-2c750d0932fd8efd",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "19.47"
+      },
+      "creditor": {
+        "name": "Mario Rossi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-14",
+      "value_date": "2025-09-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Mario Rossi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-0cf16dabde9b8fcd",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "4.71"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Titolare P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-59c2ca987c5a22b9",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "7.94"
+      },
+      "creditor": {
+        "name": "Oscar Argento",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Oscar Argento"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e11fba6d360adc83",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "8.84"
+      },
+      "creditor": {
+        "name": "Paola Corallo",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Paola Corallo"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6799cb642262a9d7",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "13.24"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6d5e3d827c6479f3",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "6.71"
+      },
+      "creditor": {
+        "name": "Quirino Verde",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Quirino Verde"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6c3efdaa6e4643f7",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2.97"
+      },
+      "creditor": {
+        "name": "Rita Turchese",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Rita Turchese"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-f52f1b93aeb0ba50",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "33.36"
+      },
+      "creditor": {
+        "name": "Sandro Indaco",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-11",
+      "value_date": "2025-09-12",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Sandro Indaco"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d492347f0cd9d003",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2.71"
+      },
+      "creditor": {
+        "name": "Teresa Ambra",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-10",
+      "value_date": "2025-09-11",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Teresa Ambra"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-7934c4cb48d0af1b",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "8.68"
+      },
+      "creditor": {
+        "name": "Fulvio Grigi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-09",
+      "value_date": "2025-09-10",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Fulvio Grigi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-53d3d9e55340609e",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "7.63"
+      },
+      "creditor": {
+        "name": "Fulvio Grigi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-08",
+      "value_date": "2025-09-09",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Fulvio Grigi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6757086c1517098b",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "243.40"
+      },
+      "creditor": {
+        "name": "Ugo Porpora",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-07",
+      "value_date": "2025-09-08",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Ugo Porpora"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-3e8f7138bd6f96da",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "192.60"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-07",
+      "value_date": "2025-09-07",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Titolare P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-0646617e881cf01f",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "154.80"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-07",
+      "value_date": "2025-09-07",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d41541e5680f3209",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "44.15"
+      },
+      "creditor": {
+        "name": "Vera Lilla",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-07",
+      "value_date": "2025-09-08",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Vera Lilla"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-a1e5790cc18403e3",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "6.14"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-22",
+      "value_date": "2025-10-23",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e9bf297d49acf665",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "10.71"
+      },
+      "creditor": {
+        "name": "Fulvio Grigi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-21",
+      "value_date": "2025-10-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Fulvio Grigi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6dd1eae531808448",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "197.75"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-21",
+      "value_date": "2025-10-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-4af78b67da36b0fa",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "3.18"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-b5ad63b62dac660c",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "32.15"
+      },
+      "creditor": {
+        "name": "Giorgia Viola",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Giorgia Viola"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-503cff9acd515d37",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "197.40"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Titolare P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d56fae266d4604cc",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "11.20"
+      },
+      "creditor": {
+        "name": "Walter Ciano",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-19",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Walter Ciano"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6f882c0378f2297b",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "3.53"
+      },
+      "creditor": {
+        "name": "Fulvio Grigi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-19",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Fulvio Grigi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d3503c386662d06f",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "4.97"
+      },
+      "creditor": {
+        "name": "Fulvio Grigi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-17",
+      "value_date": "2025-10-18",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Fulvio Grigi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-6ec65363de980f7b",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "5.48"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-17",
+      "value_date": "2025-10-18",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-f86eaf25b5803adc",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "84.48"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-15",
+      "value_date": "2025-10-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "TARI seconda rata",
+        "To Titolare Conto"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-9aee6d811b67f2aa",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "35.87"
+      },
+      "creditor": {
+        "name": "Rita Turchese",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-15",
+      "value_date": "2025-10-16",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Rita Turchese"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-3583d9062cbf1f46",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "6.00"
+      },
+      "creditor": {
+        "name": "Mario Rossi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-14",
+      "value_date": "2025-10-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Mario Rossi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-bb4cdc26444e5a6a",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "54.23"
+      },
+      "creditor": {
+        "name": "Giorgia Viola",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-13",
+      "value_date": "2025-10-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Giorgia Viola"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-0578e8c2f1af8f8d",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "3.95"
+      },
+      "creditor": {
+        "name": "Alice Verdi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-13",
+      "value_date": "2025-10-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Alice Verdi"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-fbd2eb1e8436f6d7",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "4.95"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-12",
+      "value_date": "2025-10-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e2006052ff74d14c",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2.25"
+      },
+      "creditor": {
+        "name": "Livia Azzurra",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-12",
+      "value_date": "2025-10-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Livia Azzurra"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-329515e42874fce2",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.97"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-12",
+      "value_date": "2025-10-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e3f397f2897e2798",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "3.66"
+      },
+      "creditor": {
+        "name": "Bruno Neri",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-12",
+      "value_date": "2025-10-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bruno Neri"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0272",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-b0bf25d3358f1bcb",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "32.95"
+      },
+      "creditor": {
+        "name": "Carla Gialli",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-11",
+      "value_date": "2025-10-12",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Carla Gialli"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "5134",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e14fe99869ff5084",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "142.80"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-02",
+      "value_date": "2025-10-02",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Titolare P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-3ad1849649a45f95",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "86.45"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-02",
+      "value_date": "2025-10-02",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Bonifico mese Luglio 4403",
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-73e1cb6b89258e80",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "87.14"
+      },
+      "creditor": {
+        "name": "Livia Azzurra",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-02",
+      "value_date": "2025-10-02",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "PAG. 129852278 RIF.PROT.N. 8385691500619387 CC. 11041485",
+        "Livia Azzurra"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-a7f4f0b0e1514f87",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "129.56"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT990600611101232832257161",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-23",
+      "value_date": "2025-09-23",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "FATTURA PER INTERVENTO DI ASSISTENZA E \r\nRIPARAZIONE VS IMPIANTO DI CONDIZIONAMENTO - \r\nRIFERIMENTO NS O.L. N. 444236 DEL 23/09/2025",
+        "To Nadia Beige"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-9558dd520980621a",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "70.80"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-23",
+      "value_date": "2025-09-23",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Titolare P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-048c532c695b0e7e",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "243.60"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-23",
+      "value_date": "2025-09-23",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-3b694c2b32cd0e6e",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "76.03"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-11-20",
+      "value_date": "2025-11-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Per pagamento terza rata TARI 4403",
+        "To Titolare Conto"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-7a6064c0c7801c01",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "109.90"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-11-10",
+      "value_date": "2025-11-10",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-7a0f65b884f93c94",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "95.90"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-11-10",
+      "value_date": "2025-11-10",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Titolare P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d3c9bf950b53381e",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "6.80"
+      },
+      "creditor": {
+        "name": "Ugo Porpora",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-29",
+      "value_date": "2025-10-29",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "PAG. 1784529023 RIF.PROT.N. 9412032385213284 CC. 17384906",
+        "Livia Azzurra Porpora"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-9b3a19e794c5ceb1",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "309.46"
+      },
+      "creditor": {
+        "name": "Alice Verdi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT660620877745415079026259",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-12-03",
+      "value_date": "2025-12-03",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Saldo prima rata esercizio ordinario 26/27 da Conto Rosa interno 33",
+        "To Alice Verdi"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-5b6528ad5dfd4bd9",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "114.03"
+      },
+      "creditor": {
+        "name": "Livia Azzurra",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-12-01",
+      "value_date": "2025-12-01",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "PAG. 2905463553 RIF.PROT.N. 5755379501542300 CC. 11041485",
+        "Livia Azzurra"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-055e64953291327e",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "246.05"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-11-30",
+      "value_date": "2025-11-30",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Titolare P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-18fc51f61403d024",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "238.70"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-11-30",
+      "value_date": "2025-11-30",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    }
+  ]
+}

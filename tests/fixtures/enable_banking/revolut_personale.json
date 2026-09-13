@@ -1,0 +1,2915 @@
+{
+  "account": {
+    "bank_name": "Revolut",
+    "account_uid": "anon-0184eb35c9d7f3d9",
+    "label": "Revolut personale"
+  },
+  "source_file": "Revolut revolut-personale.json",
+  "date_from": "2025-09-07",
+  "date_to": "2025-12-06",
+  "count": 60,
+  "transactions": [
+    {
+      "entry_reference": "anon-3355fee8bf50bd67",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "271.00"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-22",
+      "value_date": "2025-09-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-72545a59e029d352",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.55"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-21",
+      "value_date": "2025-09-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-7a90d7189e2c5289",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "42.43"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-21",
+      "value_date": "2025-09-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-ade2285a96d7fbd7",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.50"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-21",
+      "value_date": "2025-09-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e4480a9cb0c261e9",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.27"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-21",
+      "value_date": "2025-09-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-3fa21925636d1686",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.52"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-21",
+      "value_date": "2025-09-21",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-f4804de598a8483d",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.98"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-20",
+      "value_date": "2025-09-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-23c1cd07b1382734",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2190.45"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-19",
+      "value_date": "2025-09-19",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-c58c97e5f1097780",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2142.40"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Ivan Marroni",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT504861404007486303843951",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TOPUP",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-19",
+      "value_date": "2025-09-19",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "ricarica revolut da stipendio",
+        "Payment from Ivan Marroni"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-bde7efa433f3a20c",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "49.20"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT504861404007486303843951",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-19",
+      "value_date": "2025-09-19",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Per sicurezza fondi per PAC da scalable",
+        "To Titolare Conto"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-ad8672e7c6b52301",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "51.75"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-19",
+      "value_date": "2025-09-19",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-8c8b97aebc4f1fde",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.02"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-18",
+      "value_date": "2025-09-18",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d8670f50f1fbd969",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "217.89"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-18",
+      "value_date": "2025-09-18",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-c98dc4b397e39c56",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "25.10"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-17",
+      "value_date": "2025-09-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-03367ee71f6108b8",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.24"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-17",
+      "value_date": "2025-09-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-765e97e322debe3d",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.33"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-16",
+      "value_date": "2025-09-16",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-31fae8f74f6776fa",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.23"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-15",
+      "value_date": "2025-09-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-e3899bee152eb24f",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "276.66"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-15",
+      "value_date": "2025-09-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-b8b5d0a4204353f1",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.84"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-14",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d549e0cc51076c6b",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "24.25"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-14",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-df3ce6ada543f894",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.75"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-14",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-924aa7788cab6347",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.78"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-14",
+      "value_date": "2025-09-14",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-cf191ed99fe233dd",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "11.80"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Titolare Conto & Elena Rosa"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-4ec66142c1bfb45f",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "39.15"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-29c3f4713748791e",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.92"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-639df9ff816dadd3",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.52"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-981442845829f671",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.02"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-13",
+      "value_date": "2025-09-13",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-899e6a03e5112e59",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.48"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-11",
+      "value_date": "2025-09-11",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-8cc1d39a6bf9ef22",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "8.93"
+      },
+      "creditor": {
+        "name": "Walter Ciano",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-10",
+      "value_date": "2025-09-10",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Walter Ciano-B98VZ0-3",
+        "Walter Ciano"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-00ab800268c4c74d",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "145.32"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-09",
+      "value_date": "2025-09-09",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-b72ef220b712657a",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "273.91"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Alice Verdi",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT131545149144206345432020",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TOPUP",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-09",
+      "value_date": "2025-09-09",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "GADMALAT-DAN:531-4403-920194934,POL:322247455Ivan Marroni",
+        "Payment from Alice Verdi"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-c838f491799eded9",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.39"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-09",
+      "value_date": "2025-09-09",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-3cfce23859d58b21",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.62"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-09",
+      "value_date": "2025-09-09",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-048eff67d176b6a9",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.19"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-09",
+      "value_date": "2025-09-09",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-9ae2205a45b2c36b",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "48.20"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-08",
+      "value_date": "2025-09-08",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-64dabaa41f6c8b47",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.48"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-08",
+      "value_date": "2025-09-08",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-138dbb7385b51fc9",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "103.20"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-09-07",
+      "value_date": "2025-09-07",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Titolare Conto & Elena Rosa"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-aaf5b8dddf4ae8a5",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "171.90"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-09-07",
+      "value_date": "2025-09-07",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-0d9a206957471725",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.53"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-22",
+      "value_date": "2025-10-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-a1ae5d29a37f9030",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.27"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-22",
+      "value_date": "2025-10-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-c4acfd53c601661a",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.13"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-22",
+      "value_date": "2025-10-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-cf928163286e9792",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.23"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-22",
+      "value_date": "2025-10-22",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-d7ed0b188738e0c4",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "13.93"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-24fcd12af1b16f22",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.59"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-f9a4304e3fa52b54",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "183.05"
+      },
+      "creditor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Titolare Conto & Elena Rosa"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-750a679ead5e7aca",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "164.85"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-47b21488d76fc23e",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1419.75"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-3c30c74bd852a082",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "532.75"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Ivan Marroni",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT504861404007486303843951",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TOPUP",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-20",
+      "value_date": "2025-10-20",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "ricarica revolut",
+        "Payment from Ivan Marroni"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-58f383b267e3b01d",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2.85"
+      },
+      "creditor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-17",
+      "value_date": "2025-10-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Krapfen di mamma",
+        "To Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-8635ed2fa2cfe756",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "8.52"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-17",
+      "value_date": "2025-10-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Per Acquisto Ivan Dia",
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-bfc4cdd1d56051c0",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "1.79"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-17",
+      "value_date": "2025-10-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-824cf9e8ba6de986",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.43"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-17",
+      "value_date": "2025-10-17",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-98295f116045a284",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.76"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-16",
+      "value_date": "2025-10-16",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-eb5e9d434e89f6e8",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "0.45"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-16",
+      "value_date": "2025-10-16",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "To Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-b8da1d1c032cc9f0",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "6.15"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Elena Rosa",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT006953046520321233922244",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-15",
+      "value_date": "2025-10-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Cinema all’aperto",
+        "From Elena P"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-cf69086912dcc278",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "78.26"
+      },
+      "creditor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": {
+        "iban": "IT956033223284257341353449",
+        "other": null
+      },
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Nadia Beige",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": {
+        "iban": "IT551985157831234458235320",
+        "other": null
+      },
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-15",
+      "value_date": "2025-10-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "TARI seconda rata",
+        "From Titolare Conto & Elena Rosa"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-b849f9759c894a89",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "75.32"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "BOOK",
+      "booking_date": "2025-10-15",
+      "value_date": "2025-10-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Notice number: 304819081758630412\nReason: TARI 4403",
+        "To Comune di Porpora"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-a7f6b0f9de00f222",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "35.10"
+      },
+      "creditor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": null,
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "TRANSFER",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "CRDT",
+      "status": "BOOK",
+      "booking_date": "2025-10-15",
+      "value_date": "2025-10-15",
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "From Conto deposito senza vincoli"
+      ],
+      "debtor_account_additional_identification": null,
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-5edaaf78a47cbb77",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "8.17"
+      },
+      "creditor": {
+        "name": "Carla Gialli",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "PDNG",
+      "booking_date": "2025-12-06",
+      "value_date": null,
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Carla Gialli"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "0357",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    },
+    {
+      "entry_reference": "anon-7f437fe2a193b552",
+      "merchant_category_code": null,
+      "transaction_amount": {
+        "currency": "EUR",
+        "amount": "2.40"
+      },
+      "creditor": {
+        "name": "Ugo Porpora",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "creditor_account": null,
+      "creditor_agent": null,
+      "debtor": {
+        "name": "Titolare Conto",
+        "postal_address": null,
+        "organisation_id": null,
+        "private_id": null,
+        "contact_details": null
+      },
+      "debtor_account": null,
+      "debtor_agent": null,
+      "bank_transaction_code": {
+        "description": null,
+        "code": "CARD_PAYMENT",
+        "sub_code": null
+      },
+      "credit_debit_indicator": "DBIT",
+      "status": "PDNG",
+      "booking_date": "2025-12-06",
+      "value_date": null,
+      "transaction_date": null,
+      "balance_after_transaction": null,
+      "reference_number": null,
+      "reference_number_schema": null,
+      "remittance_information": [
+        "Ugo Porpora"
+      ],
+      "debtor_account_additional_identification": [
+        {
+          "identification": "2132",
+          "scheme_name": "CPAN",
+          "issuer": "VISA"
+        }
+      ],
+      "creditor_account_additional_identification": null,
+      "exchange_rate": null,
+      "note": null,
+      "transaction_id": null
+    }
+  ]
+}
