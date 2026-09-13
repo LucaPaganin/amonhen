@@ -205,17 +205,19 @@ def data_packet(
     packet = {
         "oggi": today.isoformat(),
         "periodo": {"dal": start.isoformat(), "al": today.isoformat()},
+        # The keys are words a model can repeat in a sentence: an identifier
+        # comes back verbatim, and the reading ends up saying "il burn_atteso è".
         "metriche": {
-            "mesi_di_storico": metrics.months_of_history,
+            "mesi di storico": metrics.months_of_history,
             "parziale": metrics.partial,
-            "burn_ricorrente": _figure(metrics.recurring_burn),
-            "accantonamento_episodico": _figure(metrics.episodic_accrual),
-            "burn_atteso": _figure(metrics.expected_burn),
-            "runway_mesi": _figure(metrics.runway_months),
-            "liquidita": _figure(metrics.liquidity),
-            "quota_incomprimibile": _figure(metrics.essential_monthly),
-            "quota_discrezionale": _figure(metrics.discretionary_monthly),
-            "flusso_di_risparmio": _figure(metrics.savings_flow),
+            "burn ricorrente": _figure(metrics.recurring_burn),
+            "accantonamento episodico": _figure(metrics.episodic_accrual),
+            "burn atteso": _figure(metrics.expected_burn),
+            "runway mesi": _figure(metrics.runway_months),
+            "liquidità": _figure(metrics.liquidity),
+            "quota incomprimibile": _figure(metrics.essential_monthly),
+            "quota discrezionale": _figure(metrics.discretionary_monthly),
+            "flusso di risparmio": _figure(metrics.savings_flow),
         },
         "flussi_mensili": [
             {
@@ -230,7 +232,15 @@ def data_packet(
             {"categoria": item.category, "importo": _figure(item.amount)}
             for item in spend_by_category(ledger, start, today, scope)
         ],
-        "budget": ledger.budget_status(*_month_of(today)),
+        "budget": [
+            {
+                "categoria": row["category"],
+                "budget": row["budget"],
+                "speso": row["spent"],
+                "rimasto": row["remaining"],
+            }
+            for row in ledger.budget_status(*_month_of(today))
+        ],
         "saldi": [
             {"conto": balance.account, "saldo": _figure(balance.balance)}
             for balance in latest_balances(ledger, scope)

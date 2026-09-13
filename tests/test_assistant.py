@@ -128,8 +128,10 @@ def test_a_context_hands_over_a_figure_not_a_row(ledger):
 
     # A budget enters as the three figures it is made of, not as a row: the
     # month it answers for is the one running, which is what a monthly budget is.
-    budget = next(item for item in packet["budget"] if item["category"] == "Groceries")
-    packet = assistant.data_packet(ledger, TODAY, context={"kind": "budget", "id": budget["id"]})
+    # The id stays here — it is how the row is found, not something to send.
+    groceries = ledger.find_account(name="Groceries")
+    assert groceries is not None
+    packet = assistant.data_packet(ledger, TODAY, context={"kind": "budget", "id": groceries["id"]})
     assert packet["contesto"] == {
         "tipo": "budget",
         "categoria": "Groceries",
@@ -137,6 +139,7 @@ def test_a_context_hands_over_a_figure_not_a_row(ledger):
         "speso": "30.00",
         "rimasto": None,
     }
+    assert set(packet["budget"][0]) == {"categoria", "budget", "speso", "rimasto"}
 
 
 # -- the numbers rule -------------------------------------------------------
