@@ -336,8 +336,8 @@ the operator learns `AMONHEN_LLM_URL` / `AMONHEN_LLM_MODEL` are missing.
 
 ## PWA
 
-- `public/manifest.webmanifest` — standalone display, theme/background `#0b1220`, 192 px and
-  512 px icons.
+- `public/manifest.webmanifest` — standalone display, theme/background `#0e1013`, 192 px and
+  512 px icons, drawn from the bar-chart glyph in the app palette (brass on the ground).
 - `public/sw.js` — caches the hashed `/assets/*` on first fetch and nothing else. The document is
   deliberately not cached: it names the assets, so a stale copy points at files a rebuild has
   replaced, which is a blank screen and the one way an update can look like it never happened.
@@ -351,7 +351,45 @@ the operator learns `AMONHEN_LLM_URL` / `AMONHEN_LLM_MODEL` are missing.
 Icons are plain PNGs generated from the same bar-chart glyph; regenerate them with any 192/512
 rasterizer if the artwork changes.
 
+## Design
+
+The app has one visual identity, and it lives in the `:root` block of `src/styles.css`:
+colours, the type scale, the radii, the two line weights and the two motion durations are
+tokens there. A component that needs a colour reads a token, never a value.
+
+- **Materials.** A cold graphite ground, warm paper-white ink, and one brass that carries
+  everything the app itself says: the filled primary action, the thing that wants
+  attention, the tracked net worth, the marker on the open section. The data adds the only
+  other hues — money in, money out and errors, a transfer, a split — so a green on this
+  screen is always money arriving and never a brand accent. The app icon is the same
+  palette: brass bars on the ground.
+- **Two weights of line.** `--border` separates things that belong together (a list's rows,
+  the sections of a panel); `--border-strong` draws the edge of something you can touch (a
+  control, an input, the sheet). Only the second has to clear the 3:1 contrast WCAG 1.4.11
+  asks of a non-text cue, and the pairs were measured rather than chosen by eye:
+  `--border-strong` on the raised surface 3.01, `--faint` on a surface 4.81, `--out` on a
+  surface 5.68, `--accent` on the ground 8.08, `--text` on the ground 15.96.
+- **Lists are ruled, not framed.** `.txn-list`, `.card-list`, `.flag-list`, `.budget-list`
+  and `.anomaly-list` are one surface each, with hairline separators between rows; a list
+  inside something that is already a surface (the sheet, a rule group, the legs of a
+  transfer) draws the rules and no frame. The dashboard's eight metrics are a grid whose
+  1 px gaps over a `--border` background are the separators between the cells.
+- **Type.** IBM Plex Sans variable 100–700, Latin subset, 45.7 kB, kept in `src/assets/` so
+  that Vite emits it into the hashed `/assets/` directory the service worker caches — a
+  font in `public/` would never be cached and would come back from the network on every
+  offline start. `OFL.txt` sits beside it because the licence requires it. Every figure the
+  app prints is tabular, so a column of amounts lines up on the comma.
+- **Motion.** One entrance per screen: `.screen > *` is staged 40 ms apart, and it answers a
+  change of section rather than a background refresh. A press is answered under the finger
+  with a 0.985 scale. There is no `will-change`: asking the compositor for a layer per row
+  of a long list costs more than the scale saves. `prefers-reduced-motion: reduce` zeroes
+  the delays as well as the durations, because a zero-length animation that still waits
+  200 ms holds its block invisible for 200 ms.
+- There is no preloader and no entrance outside that stagger: an app that has data to show
+  shows it.
+
 ## Layout
 
 Safe-area insets are respected (notch, home indicator), the layout works from 360 px up without
-horizontal scrolling, and every control has a tap target of at least 44 px.
+horizontal scrolling, and every control has a tap target of at least 44 px — measured at 390 px on
+a copy of the ledger: no control below 44 px, and the document width equal to the viewport.

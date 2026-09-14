@@ -454,6 +454,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   replaced: the page loads a 404 script and comes up blank, which is also the one way
   an update can look like it never happened. `API_VERSION` catches the other
   direction — a stale bundle against a newer server.
+- **A colour is named once, in `web/src/styles.css`.** The `:root` block holds the palette,
+  the type scale, the radii and the motion durations; a component reads a token. Two line
+  weights carry two meanings: `--border` separates things that belong together, and
+  `--border-strong` draws the edge of a control or an input, which is why only the second is
+  held to the 3:1 WCAG 1.4.11 asks of a non-text cue. The font is a Latin-subset IBM Plex
+  Sans variable file in `web/src/assets/` rather than `web/public/`: Vite emits it into the
+  hashed `/assets/` directory the service worker caches, so an offline start does not wait
+  on the network, and the licence file ships beside it.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same
@@ -503,6 +511,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Inspect the ledger|`sqlite3 amonhen.db` — accounts, transactions, postings, transfer_links (see *Ledger schema* above)|
 |See the balances behind the net worth|`sqlite3 amonhen.db "select * from account_balances"` — written by `sync`, `balances` and `anchor`|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
+|Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|
 |Regenerate parsing fixtures|`uv run python tools/dump_raw.py` then `uv run python tools/anonymize_dump.py dumps`|
 |Connect a new bank|Open `http://<host>:8000/connect?bank=Revolut&country=IT`, complete the bank login, then `uv run amonhen sync`|
 |Add or change a categorization rule|The **Categorie e regole** section of the app, under the category it assigns, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|

@@ -25,14 +25,14 @@ import type { CategorySpend, MonthlyFlow, NetWorthPoint } from "../types";
 import { categoryText } from "../category";
 
 const PALETTE = [
-  "#34d399",
-  "#60a5fa",
-  "#c084fc",
-  "#fbbf24",
-  "#fb7185",
-  "#2dd4bf",
-  "#fb923c",
-  "#818cf8",
+  "#d2a13f",
+  "#6fa8dc",
+  "#c98b6b",
+  "#7fc8a9",
+  "#d98ca8",
+  "#b3c46a",
+  "#a99bf0",
+  "#8fa3b8",
 ];
 
 const AXIS = {
@@ -41,17 +41,17 @@ const AXIS = {
   tickLine: false,
 } as const;
 
-const GRID = { stroke: "var(--border)", strokeDasharray: "3 3", vertical: false } as const;
+const GRID = { stroke: "var(--border)", vertical: false } as const;
 
 const TOOLTIP = {
   background: "var(--surface-raised)",
-  border: "1px solid var(--border)",
-  borderRadius: "10px",
+  border: "1px solid var(--border-strong)",
+  borderRadius: "3px",
   color: "var(--text)",
   fontSize: "13px",
 } as const;
 
-const CURSOR = { fill: "rgba(255, 255, 255, 0.05)" } as const;
+const CURSOR = { fill: "rgba(236, 235, 230, 0.06)" } as const;
 
 function money(value: unknown): string {
   return formatAmount(Number(value ?? 0));
@@ -164,13 +164,13 @@ export function FlowsChart({ months }: { months: MonthlyFlow[] }) {
             formatter={money}
             labelFormatter={(_label, payload) => labelFrom(payload, "month")}
           />
-          <Bar dataKey="Entrate" fill="var(--accent)" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="Entrate" fill="var(--in)" radius={[2, 2, 0, 0]} isAnimationActive={false}>
             {data.map((row) => (
               // The month still running is dimmed: it is short, not cheap.
               <Cell key={row.month} fillOpacity={row.partial ? 0.45 : 1} />
             ))}
           </Bar>
-          <Bar dataKey="Uscite" fill="var(--danger)" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="Uscite" fill="var(--out)" radius={[2, 2, 0, 0]} isAnimationActive={false}>
             {data.map((row) => (
               <Cell key={row.month} fillOpacity={row.partial ? 0.45 : 1} />
             ))}
