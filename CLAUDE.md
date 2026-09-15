@@ -454,14 +454,17 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   replaced: the page loads a 404 script and comes up blank, which is also the one way
   an update can look like it never happened. `API_VERSION` catches the other
   direction — a stale bundle against a newer server.
-- **A colour is named once, in `web/src/styles.css`.** The `:root` block holds the palette,
-  the type scale, the radii and the motion durations; a component reads a token. Two line
-  weights carry two meanings: `--border` separates things that belong together, and
+- **A colour is named once, in `web/src/styles.css`.** The `:root` block holds the field's
+  three glows, the two glass levels, the palette, the type scale, the radii and the two
+  motion curves; a component reads a token. Text colours are chosen against the lightest
+  patch the glows can produce rather than against the base colour, and the two line weights
+  carry two meanings: `--hairline` separates things that belong together, while
   `--border-strong` draws the edge of a control or an input, which is why only the second is
-  held to the 3:1 WCAG 1.4.11 asks of a non-text cue. The font is a Latin-subset IBM Plex
-  Sans variable file in `web/src/assets/` rather than `web/public/`: Vite emits it into the
-  hashed `/assets/` directory the service worker caches, so an offline start does not wait
-  on the network, and the licence file ships beside it.
+  held to the 3:1 WCAG 1.4.11 asks of a non-text cue. The font is a Latin-subset Plus
+  Jakarta Sans variable file in `web/src/assets/` rather than `web/public/`: Vite emits it
+  into the hashed `/assets/` directory the service worker caches, so an offline start does
+  not wait on the network, and the licence file ships beside it. Figures stay tabular — a
+  face whose digits are proportional breaks every column of amounts.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

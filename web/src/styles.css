@@ -1,62 +1,96 @@
-/* AmonHen — the ledger's own materials.
-   The ground is a cold graphite, the ink on it is warm paper-white, and a single
-   brass carries everything the app itself says: the action to take, the thing
-   that wants attention, the tracked total. The money colours are the only hues
-   the data adds, so a green on this screen is always money arriving. */
+/* AmonHen — fluido.
+
+   Il fondo è un campo profondo con tre bagliori (ambra in alto a sinistra, viola
+   in alto a destra, acqua in basso) e le superfici ci galleggiano sopra: vetro
+   appena latteo, un filo di luce sul bordo alto, angoli generosi. Niente spigoli
+   vivi e nessun bordo dritto: dove prima c'era una riga c'è una curva, dove c'era
+   un riquadro c'è una lastra.
+
+   I colori del testo sono scelti sul punto *peggiore* che il fondo può produrre,
+   non sul colore base: un bagliore da solo al suo centro, due che si sovrappongono
+   a metà forza. Su quel punto — e sul vetro e sul rialzato sopra di esso — il
+   bianco sta a 13.0, il tenue a 5.10, l'ottone a 8.04, il bordo dei controlli a
+   5.30. Misurato, non scelto a occhio. */
 
 @font-face {
-  font-family: "IBM Plex Sans";
+  font-family: "Plus Jakarta Sans";
   font-style: normal;
-  font-weight: 100 700;
+  font-weight: 200 800;
   font-display: swap;
-  src: url("./assets/IBMPlexSansVar-latin.woff2") format("woff2");
+  src: url("./assets/PlusJakartaSansVar-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
     U+FEFF, U+FFFD;
 }
 
 :root {
-  --bg: #0e1013;
-  --surface: #14171c;
-  --surface-raised: #1b1f25;
-  --text: #ecebe6;
-  --muted: #99a2ac;
-  --faint: #7d858e;
+  --bg: #0d0f1a;
 
-  --accent: #d2a13f;
-  --accent-ink: #17120a;
-  --in: #5ec98d;
-  --out: #e0705c;
-  --transfer: #a99bf0;
-  --split: #74b6d4;
+  /* I tre bagliori del fondo, e le due lastre che ci stanno sopra. */
+  --glow-amber: rgba(210, 161, 63, 0.18);
+  --glow-violet: rgba(139, 92, 246, 0.24);
+  --glow-teal: rgba(45, 212, 191, 0.16);
+  --glass: rgba(255, 255, 255, 0.04);
+  --glass-raised: rgba(255, 255, 255, 0.07);
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01));
 
-  /* Two weights of line, and the difference is what they carry: `--border`
-     separates things that belong together, `--border-strong` draws the edge of
-     something you can touch. Only the second has to clear the 3:1 contrast WCAG
-     1.4.11 asks of a non-text cue against the surface behind it. */
-  --border: #262b31;
-  --border-strong: #616a74;
+  --text: #f4f5f9;
+  --muted: #b4bdd0;
+  --faint: #a9b2c4;
 
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --accent: #f0c97a;
+  --accent-light: #e8bd63;
+  --accent-deep: #c8912c;
+  --accent-ink: #17110a;
+  --in: #6ee7a8;
+  --in-light: #8ff0bd;
+  --in-deep: #3fbf87;
+  --out: #ff9f9f;
+  --out-light: #ffb3b3;
+  --out-deep: #d96a6a;
+  --transfer: #c0b2ff;
+  --split: #8ed3f0;
+
+  /* Due pesi di linea, e il secondo è l'unico che deve vedersi: `--hairline`
+     separa cose che stanno insieme, `--border-strong` disegna il bordo di ciò
+     che si tocca, ed è tenuto ai 3:1 che WCAG 1.4.11 chiede a un segno non
+     testuale. */
+  --hairline: rgba(255, 255, 255, 0.1);
+  --border-strong: #8d97ac;
+
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --text-xs: 0.75rem;
   --text-sm: 0.85rem;
   --text-ui: 0.95rem;
-  --text-title: clamp(1.3rem, 1.15rem + 0.6vw, 1.45rem);
+  --text-title: clamp(1.35rem, 1.2rem + 0.6vw, 1.5rem);
 
-  /* The corner is a joint, not a pillow: surfaces and controls share one small
-     radius, tags a smaller one, and only the sheet rises. */
-  --radius-sm: 2px;
-  --radius: 3px;
-  --radius-lg: 8px;
+  /* Nessun angolo vivo: ogni raggio è una curva, e la pillola è il default dei
+     controlli. */
+  --radius-xs: 12px;
+  --radius-sm: 16px;
+  --radius: 20px;
+  --radius-lg: 26px;
+  --radius-xl: 32px;
+  --pill: 999px;
 
   --tap: 44px;
-  --tabbar: 62px;
-  --appbar: 52px;
+  --tabbar: 92px;
+  --appbar: 64px;
 
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 120ms;
-  --base: 200ms;
+  /* L'ombra di una lastra è un filo di luce sul bordo alto più un alone basso:
+     un'ombra grigia uguale sotto ogni riquadro è il modo più rapido per
+     sembrare un template. */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 34px -22px rgba(3, 5, 14, 0.95);
+  --shadow-glow: 0 16px 34px -16px rgba(232, 189, 99, 0.5);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px -18px rgba(3, 5, 14, 0.9);
+  --chrome: rgba(22, 24, 42, 0.72);
+
+  --ease: cubic-bezier(0.22, 0.8, 0.3, 1);
+  --spring: cubic-bezier(0.34, 1.45, 0.5, 1);
+  --fast: 140ms;
+  --base: 240ms;
+  --slow: 380ms;
 
   color-scheme: dark;
 }
@@ -79,25 +113,25 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 16px;
-  line-height: 1.45;
+  line-height: 1.5;
   overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* The ground is not a flat fill. A grain at a whisper of an opacity keeps a
-   screen of dark surfaces from reading as a void; it sits under the content, so
-   it never touches the edge of a glyph. */
+/* Il campo di luce. Sta su un livello suo, fissato: si dipinge una volta e poi
+   si compone, invece di ripetersi a ogni scorrimento. */
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: -12%;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
-  background-size: 160px 160px;
+  background-image:
+    radial-gradient(58% 38% at 12% 2%, var(--glow-amber), transparent 70%),
+    radial-gradient(52% 36% at 96% -2%, var(--glow-violet), transparent 72%),
+    radial-gradient(78% 46% at 50% 106%, var(--glow-teal), transparent 76%);
 }
 
 button,
@@ -113,7 +147,8 @@ button {
 
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 3px;
+  border-radius: var(--radius-xs);
 }
 
 .visually-hidden {
@@ -128,8 +163,8 @@ button {
   border: 0;
 }
 
-/* Figures are read down a column and compared with the one above, so every
-   figure the app prints is tabular: the amounts line up on the comma. */
+/* Le cifre si leggono in colonna e si confrontano con quella sopra: ogni numero
+   che l'app stampa è tabellare. */
 .amount,
 .metric__value,
 .txn__date,
@@ -152,32 +187,35 @@ button {
 .app__main {
   max-width: 720px;
   margin: 0 auto;
-  padding: calc(var(--appbar) + env(safe-area-inset-top, 0px) + 16px) 14px
-    calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 28px);
+  padding: calc(var(--appbar) + env(safe-area-inset-top, 0px) + 14px) 16px
+    calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 36px);
 }
 
-/* The stale-server screen renders no navigation, so it must not leave its room. */
+/* La schermata del server vecchio non disegna la navigazione, quindi non deve
+   lasciarle il posto. */
 .app__main--plain {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 18px);
 }
 
 .state__command {
   margin: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
+  padding: 10px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--glass-raised);
   overflow-x: auto;
   font-size: var(--text-xs);
 }
 
-/* The inscription at the foot of the page, in the voice of the place the app is
-   named after. Roman, not italic: the app ships one upright family. */
+/* L'iscrizione in fondo alla pagina, nella voce del luogo da cui l'app prende il
+   nome. Tonda anche lei: una capsula con il testo dentro. */
 .app__epigraph {
   max-width: 720px;
-  margin: 28px auto 0;
-  padding: 16px 16px 0;
-  border-top: 1px solid var(--border);
+  margin: 30px auto 0;
+  padding: 14px 18px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--pill);
+  background: var(--glass);
   color: var(--faint);
   font-size: var(--text-xs);
   letter-spacing: 0.02em;
@@ -187,7 +225,7 @@ button {
 .screen {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .screen__header {
@@ -201,8 +239,8 @@ button {
 .screen__title {
   margin: 0;
   font-size: var(--text-title);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   line-height: 1.15;
 }
 
@@ -218,35 +256,38 @@ button {
   gap: 8px;
 }
 
-/* A section is a rule across the page with its name under it: the device says
-   where a section starts, which is information and not decoration. */
+/* Il nome di una sezione, con la riga che si spegne ai due capi invece di
+   tagliare il foglio da un bordo all'altro. */
 .section-title {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin: 4px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  margin: 6px 0 0;
+  padding-top: 12px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent)
+    top / 100% 1px no-repeat;
   color: var(--text);
   font-size: var(--text-sm);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .section-title .count {
   display: inline-flex;
   justify-content: center;
-  min-width: 22px;
-  padding: 1px 7px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
+  min-width: 24px;
+  padding: 2px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--pill);
+  background: var(--glass-raised);
   color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: normal;
 }
 
-/* Navigation: the app bar and the drawer it opens, above the bottom bar */
+/* Navigazione: la barra in alto e il cassetto che apre, sopra la barra in basso.
+   Sono due capsule di vetro che galleggiano, non due fasce incollate ai bordi. */
 
 .appbar {
   position: fixed;
@@ -256,11 +297,9 @@ button {
   z-index: 12;
   display: flex;
   justify-content: center;
-  height: calc(var(--appbar) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
-  border-bottom: 1px solid var(--border);
-  background: rgba(14, 16, 19, 0.9);
-  backdrop-filter: blur(12px);
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 10px 0;
+  /* Spento, il guscio copre la fascia alta: non deve fermare un tocco. */
+  pointer-events: none;
 }
 
 .appbar__inner {
@@ -268,8 +307,15 @@ button {
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 720px;
-  padding: 0 14px 0 6px;
+  max-width: 700px;
+  height: 54px;
+  padding: 0 12px 0 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--pill);
+  background: var(--chrome);
+  backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
 }
 
 .appbar__menu {
@@ -278,34 +324,35 @@ button {
   width: var(--tap);
   height: var(--tap);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--pill);
   background: none;
   color: var(--text);
   cursor: pointer;
-  transition: background var(--fast) var(--ease);
+  transition: background var(--fast) var(--ease), transform var(--fast) var(--spring);
 }
 
 .appbar__menu[aria-expanded="true"] {
+  background: var(--glass-raised);
   color: var(--accent);
 }
 
 .appbar__menu .navicon {
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
 }
 
 .appbar__brand {
   color: var(--text);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .drawer {
   position: fixed;
   inset: 0;
   z-index: 15;
-  /* Shut, the wrapper covers the screen: it must not swallow a tap. */
+  /* Spento, il guscio copre lo schermo: non deve inghiottire un tocco. */
   pointer-events: none;
 }
 
@@ -316,7 +363,8 @@ button {
 .drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(6, 7, 9, 0.66);
+  background: rgba(6, 7, 14, 0.66);
+  backdrop-filter: blur(3px);
   opacity: 0;
   visibility: hidden;
   transition: opacity var(--base) var(--ease), visibility var(--base) var(--ease);
@@ -327,6 +375,8 @@ button {
   visibility: visible;
 }
 
+/* Il cassetto entra dal fianco con il bordo destro arrotondato: è una lastra che
+   scorre sopra la pagina, non una parete che si apre. */
 .drawer__panel {
   position: absolute;
   top: 0;
@@ -334,14 +384,18 @@ button {
   left: 0;
   display: flex;
   flex-direction: column;
-  width: min(82vw, 320px);
-  padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px
-    calc(env(safe-area-inset-bottom, 0px) + 12px);
+  width: min(84vw, 330px);
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px
+    calc(env(safe-area-inset-bottom, 0px) + 16px);
   overflow-y: auto;
-  border-right: 1px solid var(--border-strong);
-  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-left: 0;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  background: rgba(20, 22, 38, 0.92);
+  backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow: var(--shadow-float);
   transform: translateX(-102%);
-  transition: transform var(--base) var(--ease);
+  transition: transform var(--base) var(--spring);
 }
 
 .drawer--open .drawer__panel {
@@ -360,10 +414,10 @@ button {
 }
 
 .drawer__title {
-  margin: 0 0 0 8px;
+  margin: 0 0 0 10px;
   color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.02em;
 }
 
@@ -373,7 +427,7 @@ button {
   width: var(--tap);
   height: var(--tap);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--pill);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -387,22 +441,21 @@ button {
 .drawer__list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 6px 0 0;
+  gap: 4px;
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .drawer__item {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   min-height: var(--tap);
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   font: inherit;
@@ -411,22 +464,11 @@ button {
   transition: background var(--fast) var(--ease);
 }
 
-/* The open section is marked by a brass rule in the margin, the way a hand marks
-   a page — not by a filled block that reads as a button. */
+/* La sezione aperta è una pillola piena di luce d'ottone, non un blocco grigio. */
 .drawer__item[aria-current="page"] {
-  background: var(--surface-raised);
+  background: linear-gradient(135deg, rgba(232, 189, 99, 0.24), rgba(232, 189, 99, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(232, 189, 99, 0.28);
   color: var(--text);
-}
-
-.drawer__item[aria-current="page"]::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--accent);
 }
 
 .drawer__item[aria-current="page"] .navicon {
@@ -445,41 +487,46 @@ button {
 
 .drawer__label {
   font-size: var(--text-ui);
+  font-weight: 600;
 }
 
 .drawer__hint {
   color: var(--muted);
   font-size: var(--text-xs);
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .drawer__count {
   margin-left: auto;
-  min-width: 22px;
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
+  min-width: 24px;
+  padding: 2px 8px;
+  border-radius: var(--pill);
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 18px;
   text-align: center;
 }
 
-/* Tab bar and toast */
+/* La barra in basso: una capsula che galleggia sopra il contenuto. */
 
 .tabbar {
   position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  right: 10px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  left: 10px;
   z-index: 10;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  border-top: 1px solid var(--border);
-  background: rgba(14, 16, 19, 0.9);
-  backdrop-filter: blur(12px);
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 7px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-xl);
+  background: var(--chrome);
+  backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: var(--shadow-float);
 }
 
 .tabbar__item {
@@ -489,31 +536,24 @@ button {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  min-height: var(--tabbar);
-  padding: 8px 4px 6px;
+  /* L'altezza della voce non si ricava dal token della capsula: il token dice
+     quanto spazio occupa la capsula dal fondo, e se la voce lo inseguisse la
+     capsula crescerebbe con lui. 66 px e l'etichetta su due righe. */
+  min-height: 66px;
+  padding: 8px 4px;
   border: 0;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   font-size: var(--text-xs);
   cursor: pointer;
-  transition: color var(--fast) var(--ease);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
 }
 
 .tabbar__item[aria-current="page"] {
+  background: linear-gradient(160deg, rgba(232, 189, 99, 0.24), rgba(232, 189, 99, 0.07));
+  box-shadow: inset 0 0 0 1px rgba(232, 189, 99, 0.26);
   color: var(--accent);
-}
-
-/* The bar's own pointer, over the label rather than around the whole column. */
-.tabbar__item[aria-current="page"]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 24px;
-  height: 2px;
-  border-radius: 0 0 2px 2px;
-  background: var(--accent);
-  transform: translateX(-50%);
 }
 
 .tabbar__item .navicon {
@@ -524,42 +564,45 @@ button {
 .tabbar__label {
   max-width: 100%;
   font-size: var(--text-xs);
+  font-weight: 600;
   line-height: 1.05;
   text-align: center;
 }
 
 .tabbar__badge {
   position: absolute;
-  top: 6px;
+  top: 4px;
   left: 50%;
-  min-width: 18px;
-  margin-left: 8px;
-  padding: 0 5px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
+  min-width: 20px;
+  margin-left: 9px;
+  padding: 0 6px;
+  border-radius: var(--pill);
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
   font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: 18px;
+  font-weight: 700;
+  line-height: 19px;
   text-align: center;
 }
 
 .toast {
   position: fixed;
-  right: 12px;
+  right: 14px;
   bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 12px);
-  left: 12px;
+  left: 14px;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: 696px;
+  gap: 10px;
+  max-width: 690px;
   margin: 0 auto;
-  padding: 10px 12px;
-  border: 1px solid var(--border-strong);
+  padding: 12px 16px;
+  border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  background: var(--surface-raised);
-  animation: toast-in var(--base) var(--ease);
+  background: rgba(28, 30, 50, 0.92);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-float);
+  animation: toast-in var(--base) var(--spring);
 }
 
 .toast__message {
@@ -568,46 +611,53 @@ button {
   font-size: var(--text-sm);
 }
 
-/* Controls */
+/* Controlli */
 
+/* Il contorno è l'unica cosa che identifica un pulsante secondario su una lastra
+   di vetro, quindi è `--border-strong` e non un filo: è l'unico posto in cui il
+   bordo deve vedersi. */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   min-width: var(--tap);
   min-height: var(--tap);
-  padding: 8px 14px;
+  padding: 10px 18px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: transparent;
+  border-radius: var(--pill);
+  background: var(--glass);
   color: var(--text);
   font-size: var(--text-ui);
+  font-weight: 600;
   cursor: pointer;
   transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+    transform var(--fast) var(--spring), box-shadow var(--fast) var(--ease);
 }
 
 .button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
 }
 
-/* The one filled control on a screen: brass, with the ink of the ground on it. */
+/* L'unico controllo pieno di una schermata: ottone sfumato, inchiostro scuro
+   sopra, e un alone che lo stacca dal fondo. */
 .button--primary {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
-  font-weight: 600;
+  box-shadow: var(--shadow-glow);
 }
 
 .button--danger {
   border-color: var(--out);
+  background: transparent;
   color: var(--out);
 }
 
 .button--ghost {
-  border-color: transparent;
+  border-color: var(--hairline);
+  background: transparent;
   color: var(--muted);
   font-size: 1.1rem;
 }
@@ -616,25 +666,25 @@ button {
   width: 100%;
 }
 
-/* A press is answered under the finger. No `will-change`: a scale on a control
-   is cheap, and asking the compositor to keep a layer for every row of a list is
-   what actually costs. */
+/* La pressione risponde sotto il dito, con la molla che la riporta. Niente
+   `will-change`: chiedere un livello al compositore per ogni riga di una lista
+   lunga costa più di quanto la scala renda. */
 .button:active:not(:disabled) {
-  transform: scale(0.985);
+  transform: scale(0.96);
+  box-shadow: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .button:hover:not(:disabled) {
-    background: var(--surface-raised);
+    background: var(--glass-raised);
   }
 
   .button--primary:hover:not(:disabled) {
-    border-color: #dcae52;
-    background: #dcae52;
+    box-shadow: 0 20px 40px -16px rgba(232, 189, 99, 0.62);
   }
 
   .button--danger:hover:not(:disabled) {
-    background: rgba(224, 112, 92, 0.12);
+    background: rgba(255, 159, 159, 0.12);
   }
 }
 
@@ -648,10 +698,10 @@ button {
   width: 100%;
   min-width: 0;
   min-height: var(--tap);
-  padding: 8px 10px;
+  padding: 10px 14px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
   color: var(--text);
   font-size: 1rem;
 }
@@ -672,7 +722,7 @@ button {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -683,22 +733,24 @@ button {
 .field > label {
   color: var(--muted);
   font-size: var(--text-sm);
+  font-weight: 600;
 }
 
-/* A chip says one thing: what it is, or the state it is in. A state is carried
-   by its colour, so those clear the 3:1 WCAG 1.4.11 asks of a non-text cue
-   against the surface behind them — measured, not chosen by eye. */
+/* Un chip dice una cosa sola: quello che è, o lo stato in cui sta. Lo stato lo
+   porta il colore, quindi quei colori sono tenuti ai 3:1 di WCAG 1.4.11 contro
+   la lastra che li regge — misurati sul punto peggiore del fondo. */
 .chip {
-  padding: 2px 7px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
+  padding: 3px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--pill);
+  background: var(--glass);
   color: var(--text);
   font-size: var(--text-xs);
+  font-weight: 600;
   white-space: nowrap;
 }
 
-/* What the app itself is waiting to hear about. */
+/* Quello che l'app aspetta di sentire da te. */
 .chip--pending,
 .chip--warning,
 .chip--proposal {
@@ -716,30 +768,34 @@ button {
   color: var(--transfer);
 }
 
-/* The 5.4 invariant per account: the ledger and the bank agreed. */
+/* L'invariante 5.4 per conto: il registro e la banca si sono trovati. */
 .chip--verified {
   border-color: var(--in);
   color: var(--in);
 }
 
-/* The list filter: chips you press, not chips you read. */
+/* Il filtro della lista: un chip che si preme, non che si legge. */
 .chip--toggle {
   min-height: var(--tap);
-  padding: 6px 10px;
+  padding: 8px 16px;
   cursor: pointer;
   touch-action: manipulation;
   transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    color var(--fast) var(--ease), transform var(--fast) var(--spring);
 }
 
 .chip--toggle.chip--on {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
-  font-weight: 600;
+  box-shadow: var(--shadow-glow);
 }
 
-/* The filter bar: the period always visible, everything else one tap away. */
+.chip--toggle:active {
+  transform: scale(0.96);
+}
+
+/* La barra dei filtri: il periodo sempre visibile, il resto a un tocco. */
 .filterbar {
   display: flex;
   flex-wrap: wrap;
@@ -754,11 +810,11 @@ button {
 .filters {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
-/* An input and its button on one line: a form of two is a row, not a column.
-   Declared after `.filters`, whose rows are a column at the same specificity. */
+/* Un campo e il suo pulsante su una riga: un modulo di due è una riga, non una
+   colonna. Dichiarata dopo `.filters`, che è una colonna alla stessa specificità. */
 .filters--row {
   flex-direction: row;
   flex-wrap: wrap;
@@ -777,7 +833,7 @@ button {
 .filters__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .filters__caption {
@@ -785,12 +841,11 @@ button {
   font-size: var(--text-sm);
 }
 
-/* Lists
+/* Lastre
 
-   A list is one surface and its rows are ruled, the way a ledger page is. The
-   line between two rows is the only thing that has to be drawn, so a screen of
-   these carries no frame per row, and the eye reads down the column instead of
-   counting boxes. */
+   Una lista è una lastra di vetro sola, con i fili che separano le righe. Il
+   filo è l'unica cosa che deve essere disegnata, quindi una schermata di liste
+   non porta una cornice per riga. */
 .txn-list,
 .card-list,
 .flag-list,
@@ -801,9 +856,11 @@ button {
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  background-image: var(--sheen);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
@@ -812,11 +869,11 @@ button {
 .flag-list > * + *,
 .budget-list > * + *,
 .anomaly-list > * + * {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--hairline);
 }
 
-/* A list inside something that is already a surface draws its rules and no
-   frame: a box in a box is a corner that says nothing. */
+/* Una lista dentro qualcosa che è già una lastra disegna i fili e nessuna
+   cornice: un riquadro dentro un riquadro è un angolo che non dice niente. */
 .sheet__list,
 .rule-group__rules,
 .legs {
@@ -830,19 +887,19 @@ button {
 .sheet__list > * + *,
 .rule-group__rules > * + *,
 .legs > * + * {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--hairline);
 }
 
-/* Transaction rows */
+/* Righe dei movimenti */
 
 .txn {
   display: grid;
-  grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+  grid-template-columns: 3.4rem minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 64px;
-  padding: 10px 12px;
+  min-height: 66px;
+  padding: 12px 14px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -856,12 +913,12 @@ button.txn {
 }
 
 button.txn:active {
-  background: var(--surface-raised);
+  background: var(--glass-raised);
 }
 
 @media (hover: hover) and (pointer: fine) {
   button.txn:hover {
-    background: var(--surface-raised);
+    background: var(--glass-raised);
   }
 }
 
@@ -873,13 +930,13 @@ button.txn:active {
 .txn__body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
 .txn__title {
   overflow: hidden;
-  font-weight: 500;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -897,7 +954,7 @@ button.txn:active {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  gap: 3px;
 }
 
 .txn__running {
@@ -907,7 +964,7 @@ button.txn:active {
 }
 
 .amount {
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -915,19 +972,23 @@ button.txn:active {
   color: var(--in);
 }
 
-/* Cards: a reading, a proposal, a thing that is whole on its own */
+/* Lastre intere: una lettura, una proposta, una cosa che sta in piedi da sola */
 
 .card {
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  background-image: var(--sheen);
+  box-shadow: var(--shadow-card);
 }
 
 .card-list > .card {
   border: 0;
   border-radius: 0;
   background: transparent;
+  background-image: none;
+  box-shadow: none;
 }
 
 .card__caption {
@@ -936,8 +997,8 @@ button.txn:active {
   font-size: var(--text-xs);
 }
 
-/* A reading from the model: prose, so it wraps, and it never borrows the
-   monospace a computed figure is allowed to wear. */
+/* Una lettura del modello: prosa, quindi va a capo, e non prende in prestito il
+   monospazio che spetta a una cifra calcolata. */
 .assistant__answer {
   margin: 0;
   white-space: pre-wrap;
@@ -946,9 +1007,9 @@ button.txn:active {
 .leg {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 10px;
+  gap: 3px 12px;
   margin: 0;
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
 .leg__description {
@@ -971,16 +1032,16 @@ button.txn:active {
 
 .card__actions {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .card__actions .button {
   flex: 1;
 }
 
-/* In a proposal the category is chosen first and confirmed after, so the select
-   takes the room and the button only what its label needs. */
+/* In una proposta la categoria si sceglie prima e si conferma dopo, quindi la
+   tendina prende lo spazio e il pulsante solo quello che serve alla sua parola. */
 .card__actions .input {
   flex: 1 1 auto;
   min-width: 0;
@@ -1001,7 +1062,7 @@ button.txn:active {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: 500;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1011,13 +1072,13 @@ button.txn:active {
   font-size: var(--text-xs);
 }
 
-/* Making a category from a proposal: the field appears under the gesture that
-   asked for it, and the new name arrives already chosen. */
+/* Fare una categoria da una proposta: il campo compare sotto il gesto che l'ha
+   chiesto, e il nome nuovo arriva già scelto. */
 .proposal__new {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .proposal__new .input {
@@ -1032,20 +1093,21 @@ button.txn:active {
 .proposal-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .proposal-actions .button {
   flex: 1;
 }
 
-/* States */
+/* Stati */
 
 .state {
   margin: 0;
-  padding: 14px;
+  padding: 18px;
   border: 1px dashed var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
   color: var(--muted);
   font-size: var(--text-ui);
 }
@@ -1058,7 +1120,7 @@ button.txn:active {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   border-style: solid;
   border-color: var(--out);
   color: var(--out);
@@ -1068,7 +1130,7 @@ button.txn:active {
   margin: 0;
 }
 
-/* Category picker sheet */
+/* Il foglio delle categorie */
 
 .sheet {
   position: fixed;
@@ -1091,35 +1153,40 @@ button.txn:active {
 }
 
 .sheet::backdrop {
-  background: rgba(6, 7, 9, 0.7);
+  background: rgba(6, 7, 14, 0.7);
+  backdrop-filter: blur(4px);
 }
 
 .sheet__panel {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   width: 100%;
   max-width: 720px;
-  max-height: 82dvh;
+  max-height: 84dvh;
   overflow-y: auto;
-  padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  background: var(--surface);
-  animation: sheet-in var(--base) var(--ease);
+  padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--hairline);
+  border-bottom: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: rgba(20, 22, 38, 0.94);
+  backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow: var(--shadow-float);
+  animation: sheet-in var(--base) var(--spring);
 }
 
-/* The sheet says how it is dismissed before it is touched. `flex: none`, or the
-   column shrinks the rule to nothing once the list inside it overflows. */
+/* Il foglio dice come si chiude prima che lo si tocchi. `flex: none`, o la
+   colonna comprime la maniglia a zero appena la lista dentro trabocca. */
 .sheet__panel::before {
   content: "";
   flex: none;
   align-self: center;
-  width: 36px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--faint);
+  width: 42px;
+  height: 4px;
+  border-radius: var(--pill);
+  background: var(--border-strong);
+  opacity: 0.7;
 }
 
 .sheet__header {
@@ -1131,14 +1198,14 @@ button.txn:active {
 
 .sheet__title {
   margin: 0;
-  font-size: var(--text-ui);
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .sheet__rule {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-height: var(--tap);
   color: var(--muted);
   font-size: var(--text-ui);
@@ -1147,52 +1214,69 @@ button.txn:active {
 .sheet__rule input {
   width: 22px;
   height: 22px;
+  accent-color: var(--accent);
+}
+
+/* Le scelte del foglio sono pillole separate, non righe di un elenco: sono
+   bottoni, e un bottone ha la sua forma. */
+.sheet__list {
+  gap: 8px;
+}
+
+.sheet__list > * + * {
+  border-top: 0;
 }
 
 .sheet__option {
   width: 100%;
-  min-height: 48px;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  min-height: 50px;
+  padding: 12px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
   text-align: left;
+  font-weight: 500;
   cursor: pointer;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease),
+    transform var(--fast) var(--spring);
 }
 
 .sheet__option:active {
-  background: var(--surface-raised);
+  transform: scale(0.98);
+  background: var(--glass-raised);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sheet__option:hover {
-    background: var(--surface-raised);
+    background: var(--glass-raised);
   }
 }
 
-/* The candidate the panel is about to pair with: chosen, and it says so in the
-   app's own colour. */
+/* La candidata che il pannello sta per abbinare: scelta, e lo dice con il
+   gradiente dell'app. */
 .sheet__option--on {
-  background: var(--surface-raised);
+  border-color: transparent;
+  background: linear-gradient(135deg, rgba(232, 189, 99, 0.26), rgba(232, 189, 99, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(232, 189, 99, 0.3);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-/* New category: the picker must not require a CLI command first */
+/* Categoria nuova: il selettore non deve pretendere prima un comando da terminale */
 
 .sheet__new {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
 }
 
 .sheet__new-label {
   color: var(--muted);
   font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .sheet__new-row {
@@ -1204,12 +1288,12 @@ button.txn:active {
   min-height: var(--tap);
 }
 
-/* A transfer panel: what a leg is attached to, and the way back out */
+/* Un pannello di giroconto: a cosa è attaccata una gamba, e la via d'uscita */
 
 .transfer__subject {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   margin: 0;
 }
 
@@ -1227,108 +1311,113 @@ button.txn:active {
 }
 
 .transfer__subtitle {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   color: var(--text);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-/* Phase 3: metrics, flags and split editing */
+/* Fase 3: metriche, flag e modifica degli split */
 
 .banner {
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
+  padding: 12px 16px;
+  border: 1px solid var(--hairline);
   border-radius: var(--radius);
+  background: var(--glass);
   font-size: var(--text-sm);
 }
 
 .banner--warning {
-  border-color: var(--accent);
+  border-color: rgba(240, 201, 122, 0.4);
+  background: linear-gradient(135deg, rgba(232, 189, 99, 0.18), rgba(232, 189, 99, 0.04));
   color: var(--accent);
 }
 
-/* The eight readings are one panel divided by rules rather than eight cards:
-   stacked, they were most of a screen of scrolling before anything else, and
-   eight frames read as eight unrelated things. The columns are a fixed count and not
-   `auto-fit`, because the gaps *are* the rules: a track no cell fills would paint the
-   border colour as a stray block. */
+/* Le otto letture sono tessere di vetro su una griglia, non un pannello diviso
+   da righe: con gli angoli tondi, il filo che separa due celle è un bordo che
+   nessuno vuole vedere. */
 .metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
+  gap: 10px;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--border);
-  overflow: hidden;
   list-style: none;
 }
 
 .metric {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
-  background: var(--surface);
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--glass);
+  background-image: var(--sheen);
+  box-shadow: var(--shadow-card);
 }
 
 .metric__label {
   margin: 0;
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .metric__value {
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .metric__value--empty {
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .metric__warning {
   margin: 0;
   color: var(--accent);
   font-size: var(--text-sm);
+  font-weight: 600;
 }
 
-/* What each figure means, one tap away instead of three lines under every tile. */
+/* Cosa vuol dire ogni cifra, a un tocco invece che in tre righe sotto ogni
+   tessera. */
 .metric-help {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  background-image: var(--sheen);
+  box-shadow: var(--shadow-card);
   font-size: var(--text-sm);
 }
 
-/* The disclosure is a control and is as tall as one. The height comes from
-   padding, not from a flex box, so the browser keeps its own marker. */
+/* La divulgazione è un controllo ed è alta come uno. L'altezza viene dal
+   padding, non da un flex, così il browser si tiene il suo marcatore. */
 .metric-help summary {
   padding: 12px 0;
   color: var(--muted);
+  font-weight: 600;
   cursor: pointer;
 }
 
 .metric-help__list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 10px 0 0;
-  padding: 0 0 0 16px;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0 0 0 18px;
   color: var(--muted);
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 @media (min-width: 640px) {
@@ -1342,22 +1431,25 @@ button.txn:active {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px 12px;
-  padding: 10px 12px;
+  gap: 8px 14px;
+  padding: 14px 16px;
 }
 
 .flag-row__name {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 
 .flag-row__balance {
   color: var(--muted);
   font-size: var(--text-sm);
+  font-weight: 400;
 }
 
 .flag-row__check {
@@ -1368,49 +1460,51 @@ button.txn:active {
 .flag-row__toggles {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 4px 14px;
 }
 
 .toggle {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-height: var(--tap);
   color: var(--muted);
   font-size: var(--text-sm);
+  font-weight: 600;
   cursor: pointer;
 }
 
 .toggle__track {
   position: relative;
   flex: none;
-  width: 40px;
-  height: 24px;
+  width: 46px;
+  height: 28px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: transparent;
-  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  border-radius: var(--pill);
+  background: var(--glass);
+  transition: background var(--base) var(--ease), border-color var(--base) var(--ease);
 }
 
 .toggle__thumb {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--muted);
-  transition: transform var(--fast) var(--ease), background var(--fast) var(--ease);
+  box-shadow: 0 2px 6px rgba(3, 5, 14, 0.5);
+  transition: transform var(--base) var(--spring), background var(--base) var(--ease);
 }
 
 .toggle input:checked + .toggle__track {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
 }
 
 .toggle input:checked + .toggle__track .toggle__thumb {
-  background: var(--accent-ink);
-  transform: translateX(16px);
+  background: #fffaf0;
+  transform: translateX(18px);
 }
 
 .toggle input:checked ~ .toggle__label {
@@ -1419,17 +1513,17 @@ button.txn:active {
 
 .toggle input:focus-visible + .toggle__track {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 .toggle input:disabled + .toggle__track {
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .split {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .split__hint {
@@ -1441,7 +1535,7 @@ button.txn:active {
 .split__rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1451,7 +1545,7 @@ button.txn:active {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 6.5rem auto;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .split__amount {
@@ -1464,55 +1558,58 @@ button.txn:active {
 
 .split__total {
   margin: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
+  padding: 10px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--pill);
+  background: var(--glass-raised);
   font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .split__total--ok {
-  border-color: var(--in);
+  border-color: rgba(110, 231, 168, 0.45);
   color: var(--in);
 }
 
 .split__total--off {
-  border-color: var(--accent);
+  border-color: rgba(240, 201, 122, 0.45);
   color: var(--accent);
 }
 
 .split__actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .split__actions .button {
   flex: 1;
 }
 
-/* Phase 4: budgets and anomalies */
+/* Fase 4: budget e anomalie */
 
 .budget-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 14px 16px;
 }
 
+/* Sforato: la riga si accende dal lato del testo invece di portare un bordo
+   dritto sul fianco. */
 .budget-row--over {
-  border-left: 2px solid var(--out);
+  background-image: linear-gradient(120deg, rgba(255, 159, 159, 0.16), transparent 70%);
 }
 
 .budget-row__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .budget-row__name {
   overflow: hidden;
-  font-weight: 500;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1531,6 +1628,7 @@ button.txn:active {
 
 .budget-row__over {
   color: var(--out);
+  font-weight: 600;
 }
 
 .budget-row__actions {
@@ -1555,26 +1653,26 @@ button.txn:active {
 .anomaly {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
+  gap: 4px;
+  padding: 14px 16px;
 }
 
 .anomaly__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .anomaly__merchant {
   overflow: hidden;
-  font-weight: 500;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .anomaly__amount {
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -1585,20 +1683,20 @@ button.txn:active {
 }
 
 .anomaly__sentence {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
   font-size: var(--text-sm);
 }
 
-/* Charts */
+/* Grafici */
 
 .chart {
   position: relative;
-  height: 210px;
-  margin-top: 4px;
+  height: 220px;
+  margin-top: 6px;
 }
 
 .chart--pie {
-  height: 190px;
+  height: 200px;
 }
 
 .chart__center {
@@ -1615,20 +1713,21 @@ button.txn:active {
 .chart__center-label {
   color: var(--muted);
   font-size: var(--text-xs);
+  font-weight: 600;
 }
 
-/* The one figure on the dashboard allowed to be loud: it is the total every
-   slice above it adds up to. */
+/* L'unica cifra del cruscotto a cui è concesso di essere forte: è il totale a
+   cui sommano tutte le fette sopra di lei. */
 .chart__center-value {
   font-size: clamp(1.05rem, 4.6vw, 1.3rem);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .chart-legend {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 8px 0 0;
+  gap: 8px;
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -1636,15 +1735,15 @@ button.txn:active {
 .chart-legend__row {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 10px;
 }
 
 .chart-legend__swatch {
   flex: none;
   align-self: center;
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-sm);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
 }
 
 .chart-legend__name {
@@ -1661,17 +1760,18 @@ button.txn:active {
 }
 
 .chart-legend__value {
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .chart-note {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
   font-size: var(--text-sm);
 }
 
-/* Rules on the description: a category is edited in place, removal confirms in place */
+/* Regole sulla descrizione: una categoria si modifica sul posto, la rimozione si
+   conferma sul posto */
 
 .rule-group {
   display: flex;
@@ -1682,10 +1782,10 @@ button.txn:active {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 8px;
+  gap: 0 10px;
 }
 
-/* The chevron, the name and the counts: one target for the whole head. */
+/* La freccia, il nome e i conteggi: un bersaglio solo per tutta la testata. */
 .rule-group__toggle {
   display: flex;
   flex: 1 1 auto;
@@ -1702,17 +1802,17 @@ button.txn:active {
   cursor: pointer;
 }
 
-/* The category's own flags, on the row that names it: what a category is and
-   what falls into it are read and decided in the same place. */
+/* I flag della categoria, sulla riga che la nomina: cosa è una categoria e cosa
+   ci finisce dentro si leggono e si decidono nello stesso posto. */
 .rule-group__flags {
   display: flex;
   flex: 0 1 auto;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 4px 14px;
 }
 
 .rule-group__chevron {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--text-sm);
 }
 
@@ -1720,7 +1820,7 @@ button.txn:active {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1732,34 +1832,34 @@ button.txn:active {
 }
 
 .rule-group__empty {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: var(--muted);
   font-size: var(--text-sm);
 }
 
 .rule-group__rules {
-  margin: 10px 0 0;
-  padding: 10px 0 0;
-  border-top: 1px solid var(--border);
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--hairline);
 }
 
 .rule-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 10px;
+  padding: 10px 0;
 }
 
 .rule-row__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .rule-row__pattern {
   overflow: hidden;
-  font-weight: 500;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1782,9 +1882,10 @@ button.txn:active {
   min-width: 0;
 }
 
-/* Inside a group the category is not in question — the entry above it says
-   which one — so the text and the button share the line instead of each taking
-   one: eight rules should read as eight lines, not twenty-four. */
+/* Dentro un gruppo la categoria non è in discussione — la voce sopra di esso dice
+   quale sia — quindi il testo e il pulsante stanno sulla stessa riga invece di
+   prendersene una a testa: otto regole devono leggersi come otto righe, non
+   ventiquattro. */
 .rule-group__rules .rule-row__controls .input {
   flex: 1 1 auto;
   min-width: 7rem;
@@ -1805,16 +1906,17 @@ button.txn:active {
   font-size: var(--text-sm);
 }
 
-/* A rule assigns the category it sits under, so the group is the form: the
-   text goes where the rules it will join are, and no category needs choosing. */
+/* Una regola assegna la categoria sotto cui sta, quindi il gruppo è il modulo: il
+   testo va dove stanno le regole che andrà a raggiungere, e non c'è nessuna
+   categoria da scegliere. */
 .rule-add {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: 10px 0 0;
-  padding: 10px 0 0;
-  border-top: 1px solid var(--border);
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--hairline);
 }
 
 .rule-add .input {
@@ -1823,8 +1925,8 @@ button.txn:active {
   min-height: var(--tap);
 }
 
-/* The one thing that can go wrong from the form is a pattern the ledger
-   refuses, and its reason has to be next to the text that caused it. */
+/* L'unica cosa che può andare storta da questo modulo è un pattern che il
+   registro rifiuta, e il motivo deve stare accanto al testo che l'ha causato. */
 .rule-add__error {
   flex: 1 1 100%;
   margin: 6px 0 0;
@@ -1837,10 +1939,11 @@ button.txn:active {
 .account-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
-/* Under the row it belongs to: the flag row wraps, so it takes a full line. */
+/* Sotto la riga a cui appartiene: la riga dei flag va a capo, quindi prende una
+   riga intera. */
 .account-row__actions {
   display: flex;
   flex: 1 1 100%;
@@ -1855,13 +1958,13 @@ button.txn:active {
 .account-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .account-form__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .account-form__actions .button {
@@ -1874,16 +1977,17 @@ button.txn:active {
   font-size: var(--text-sm);
 }
 
-/* Motion
+/* Movimento
 
-   One entrance per screen, staged by position: the page assembles in a single
-   gesture instead of every block fading in on its own. Motion answers the tap
-   that changed the screen, and nothing moves on its own afterwards. */
+   Un'entrata per schermata, cadenzata per posizione: la pagina si compone in un
+   gesto solo, e la molla la lascia assestare invece di fermarla di colpo. Il
+   movimento risponde al tocco che ha cambiato schermata, e dopo non si muove più
+   niente da solo. */
 
 @keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(18px) scale(0.985);
   }
 
   to {
@@ -1894,8 +1998,8 @@ button.txn:active {
 
 @keyframes sheet-in {
   from {
-    opacity: 0.6;
-    transform: translateY(14px);
+    opacity: 0.5;
+    transform: translateY(30px) scale(0.97);
   }
 
   to {
@@ -1907,7 +2011,7 @@ button.txn:active {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(16px) scale(0.96);
   }
 
   to {
@@ -1917,7 +2021,7 @@ button.txn:active {
 }
 
 .screen > * {
-  animation: screen-in 300ms var(--ease) backwards;
+  animation: screen-in var(--slow) var(--spring) backwards;
 }
 
 .screen > :nth-child(2) {
@@ -1940,8 +2044,8 @@ button.txn:active {
   animation-delay: 200ms;
 }
 
-/* The delays are dropped as well as the durations: a zero-length animation that
-   still waits 200 ms holds its block invisible for 200 ms. */
+/* I ritardi si azzerano insieme alle durate: un'animazione di durata zero che
+   aspetta ancora 200 ms tiene il suo blocco invisibile per 200 ms. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

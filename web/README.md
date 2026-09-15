@@ -336,8 +336,9 @@ the operator learns `AMONHEN_LLM_URL` / `AMONHEN_LLM_MODEL` are missing.
 
 ## PWA
 
-- `public/manifest.webmanifest` — standalone display, theme/background `#0e1013`, 192 px and
-  512 px icons, drawn from the bar-chart glyph in the app palette (brass on the ground).
+- `public/manifest.webmanifest` — standalone display, theme/background `#0d0f1a`, 192 px and
+  512 px icons, drawn from the bar-chart glyph over the app palette: gradient brass bars on the
+  same three glows the page paints behind them.
 - `public/sw.js` — caches the hashed `/assets/*` on first fetch and nothing else. The document is
   deliberately not cached: it names the assets, so a stale copy points at files a rebuild has
   replaced, which is a blank screen and the one way an update can look like it never happened.
@@ -353,43 +354,57 @@ rasterizer if the artwork changes.
 
 ## Design
 
-The app has one visual identity, and it lives in the `:root` block of `src/styles.css`:
-colours, the type scale, the radii, the two line weights and the two motion durations are
-tokens there. A component that needs a colour reads a token, never a value.
+The app has one visual identity, and it lives in the `:root` block of `src/styles.css`: the
+colours, the three background glows, the two glass levels, the radii, the type scale and the
+two motion curves are tokens there. A component that needs a colour reads a token, never a
+value.
 
-- **Materials.** A cold graphite ground, warm paper-white ink, and one brass that carries
-  everything the app itself says: the filled primary action, the thing that wants
-  attention, the tracked net worth, the marker on the open section. The data adds the only
-  other hues — money in, money out and errors, a transfer, a split — so a green on this
-  screen is always money arriving and never a brand accent. The app icon is the same
-  palette: brass bars on the ground.
-- **Two weights of line.** `--border` separates things that belong together (a list's rows,
-  the sections of a panel); `--border-strong` draws the edge of something you can touch (a
-  control, an input, the sheet). Only the second has to clear the 3:1 contrast WCAG 1.4.11
-  asks of a non-text cue, and the pairs were measured rather than chosen by eye:
-  `--border-strong` on the raised surface 3.01, `--faint` on a surface 4.81, `--out` on a
-  surface 5.68, `--accent` on the ground 8.08, `--text` on the ground 15.96.
-- **Lists are ruled, not framed.** `.txn-list`, `.card-list`, `.flag-list`, `.budget-list`
-  and `.anomaly-list` are one surface each, with hairline separators between rows; a list
-  inside something that is already a surface (the sheet, a rule group, the legs of a
-  transfer) draws the rules and no frame. The dashboard's eight metrics are a grid whose
-  1 px gaps over a `--border` background are the separators between the cells.
-- **Type.** IBM Plex Sans variable 100–700, Latin subset, 45.7 kB, kept in `src/assets/` so
-  that Vite emits it into the hashed `/assets/` directory the service worker caches — a
+The direction is fluid: a deep field with three coloured glows, surfaces floating on it as
+translucent glass, and no sharp corner anywhere.
+
+- **The field and its glows.** One fixed layer paints an amber glow top-left, a violet one
+  top-right and a teal one below — painted once and composited, not repainted on scroll.
+  Text colours are chosen against the *worst* patch the glows can produce (one glow at its
+  centre, two overlapping at half strength) and then verified against the real render: with
+  the app hidden, the lightest background pixel measured `rgb(38,34,31)`, and there the body
+  text stands at 14.5:1, `--muted` at 8.4, `--faint` at 6.4, the brass at 10.0, money in at
+  10.3, money out at 8.1.
+- **Glass, not card stock.** `--glass` (4% white) is the resting surface, `--glass-raised`
+  (7%) what is pressed or chosen, and `--sheen` lays a thread of light along the top edge of
+  every lastra. Depth is that thread plus a low shadow, never the same flat grey under every
+  panel. Blur is spent only on what floats above the page — the two bars, the drawer, the
+  sheet, the toast — and on the two scrims that dim the page behind the drawer and the sheet,
+  because blurring every list would cost a repaint the phone does not have to spare.
+  `--faint` is measured against the top of a lastra, where `--sheen` is brightest, not against
+  the bare field: there it stands at 5.3:1.
+- **Two weights of line.** `--hairline` separates things that belong together (the rows of a
+  lastra, the sections of a panel) and is decoration; `--border-strong` draws the edge of a
+  control or an input, and only that one is held to the 3:1 contrast WCAG 1.4.11 asks of a
+  non-text cue. Measured on the lightest patch of the field: 5.38.
+- **A list is one surface and its rows are the content.** `.txn-list`, `.card-list`,
+  `.flag-list`, `.budget-list` and `.anomaly-list` are a single rounded translucent lastra
+  with hairline separators; a list inside something that is already a surface (the sheet, a
+  rule group, the legs of a transfer) draws the separators and no frame. The dashboard's
+  eight metrics are separate glass tiles on a grid.
+- **Type.** Plus Jakarta Sans variable 200-800, Latin subset, 27.3 kB, kept in `src/assets/`
+  so that Vite emits it into the hashed `/assets/` directory the service worker caches — a
   font in `public/` would never be cached and would come back from the network on every
-  offline start. `OFL.txt` sits beside it because the licence requires it. Every figure the
-  app prints is tabular, so a column of amounts lines up on the comma.
-- **Motion.** One entrance per screen: `.screen > *` is staged 40 ms apart, and it answers a
-  change of section rather than a background refresh. A press is answered under the finger
-  with a 0.985 scale. There is no `will-change`: asking the compositor for a layer per row
-  of a long list costs more than the scale saves. `prefers-reduced-motion: reduce` zeroes
-  the delays as well as the durations, because a zero-length animation that still waits
-  200 ms holds its block invisible for 200 ms.
+  offline start. `OFL.txt` sits beside it. Every figure the app prints is tabular, and the
+  face was picked by measuring that in the browser: a proportional digit breaks a column of
+  amounts.
+- **Motion.** One entrance per screen, staged 40 ms apart and eased on a spring so it settles
+  rather than stops; a press is answered under the finger with a scale. There is no
+  `will-change`. `prefers-reduced-motion: reduce` zeroes the delays as well as the durations,
+  because a zero-length animation that still waits 200 ms holds its block invisible for
+  200 ms.
 - There is no preloader and no entrance outside that stagger: an app that has data to show
   shows it.
 
 ## Layout
 
-Safe-area insets are respected (notch, home indicator), the layout works from 360 px up without
-horizontal scrolling, and every control has a tap target of at least 44 px — measured at 390 px on
-a copy of the ledger: no control below 44 px, and the document width equal to the viewport.
+Safe-area insets are respected (notch, home indicator), and the content padding carries the inset
+of the two floating bars as well. The layout works from 360 px up without horizontal scrolling.
+Measured at 390 px against a copy of the ledger, with `prefers-reduced-motion` on so that the
+entrance animation cannot distort a measurement: the document is exactly as wide as the viewport,
+no control is under 44 px, and on all five sections no filled box is left with a corner radius
+under 2 px.

@@ -24,34 +24,37 @@ import { formatAmount, formatDate, formatMonth, toAmount } from "../format";
 import type { CategorySpend, MonthlyFlow, NetWorthPoint } from "../types";
 import { categoryText } from "../category";
 
-const PALETTE = [
-  "#d2a13f",
-  "#6fa8dc",
-  "#c98b6b",
-  "#7fc8a9",
-  "#d98ca8",
-  "#b3c46a",
-  "#a99bf0",
-  "#8fa3b8",
+/** Every slice is a gradient of its own colour, from the light end to the deep
+    one: a flat disc of eight saturated hues is the look this app does not have. */
+const SLICES: Array<[string, string]> = [
+  ["#f6d894", "#d99f36"],
+  ["#a8cff7", "#5f8fd0"],
+  ["#f6bda4", "#d0744f"],
+  ["#96e8c6", "#49b98b"],
+  ["#f6b6cd", "#cf6f95"],
+  ["#dcea94", "#9aae42"],
+  ["#d0c5ff", "#8d76e6"],
+  ["#b9c6d6", "#7a8da3"],
 ];
 
 const AXIS = {
   tick: { fill: "var(--muted)", fontSize: 12 },
-  axisLine: { stroke: "var(--border)" },
+  axisLine: { stroke: "var(--hairline)" },
   tickLine: false,
 } as const;
 
-const GRID = { stroke: "var(--border)", vertical: false } as const;
+const GRID = { stroke: "rgba(255, 255, 255, 0.06)", vertical: false } as const;
 
 const TOOLTIP = {
-  background: "var(--surface-raised)",
-  border: "1px solid var(--border-strong)",
-  borderRadius: "3px",
+  background: "rgba(28, 30, 50, 0.94)",
+  border: "1px solid var(--hairline)",
+  borderRadius: "18px",
+  boxShadow: "0 18px 40px -18px rgba(3, 5, 14, 0.9)",
   color: "var(--text)",
   fontSize: "13px",
 } as const;
 
-const CURSOR = { fill: "rgba(236, 235, 230, 0.06)" } as const;
+const CURSOR = { fill: "rgba(244, 245, 249, 0.06)" } as const;
 
 function money(value: unknown): string {
   return formatAmount(Number(value ?? 0));
@@ -83,28 +86,46 @@ interface SpendingPieProps {
 }
 
 export function SpendingPie({ categories, total }: SpendingPieProps) {
-  const data = categories.map((item, index) => ({
+  const data = categories.map((item) => ({
     name: categoryText(item.category),
     value: toAmount(item.amount),
-    color: PALETTE[index % PALETTE.length],
   }));
 
   return (
     <div className="chart chart--pie">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
+          <defs>
+            {data.map((_slice, index) => {
+              const [light, deep] = SLICES[index % SLICES.length];
+              return (
+                <linearGradient
+                  id={`slice-${index}`}
+                  key={`slice-${index}`}
+                  x1="0"
+                  y1="0"
+                  x2="1"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor={light} />
+                  <stop offset="100%" stopColor={deep} />
+                </linearGradient>
+              );
+            })}
+          </defs>
           <Pie
             data={data}
             dataKey="value"
             nameKey="name"
             innerRadius="58%"
             outerRadius="86%"
-            paddingAngle={2}
+            paddingAngle={3}
+            cornerRadius={6}
             stroke="none"
             isAnimationActive={false}
           >
-            {data.map((slice) => (
-              <Cell key={slice.name} fill={slice.color} />
+            {data.map((slice, index) => (
+              <Cell key={slice.name} fill={`url(#slice-${index % SLICES.length})`} />
             ))}
           </Pie>
           <Tooltip contentStyle={TOOLTIP} itemStyle={{ color: "var(--text)" }} formatter={money} />
@@ -128,7 +149,9 @@ export function SpendingLegend({ categories, total }: SpendingPieProps) {
           <li className="chart-legend__row" key={item.category}>
             <span
               className="chart-legend__swatch"
-              style={{ background: PALETTE[index % PALETTE.length] }}
+              style={{
+                background: `linear-gradient(135deg, ${SLICES[index % SLICES.length][0]}, ${SLICES[index % SLICES.length][1]})`,
+              }}
               aria-hidden="true"
             />
             <span className="chart-legend__name">{categoryText(item.category)}</span>
@@ -154,6 +177,16 @@ export function FlowsChart({ months }: { months: MonthlyFlow[] }) {
     <div className="chart">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} barGap={2} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
+          <defs>
+            <linearGradient id="bar-in" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--in-light)" />
+              <stop offset="100%" stopColor="var(--in-deep)" />
+            </linearGradient>
+            <linearGradient id="bar-out" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--out-light)" />
+              <stop offset="100%" stopColor="var(--out-deep)" />
+            </linearGradient>
+          </defs>
           <CartesianGrid {...GRID} />
           <XAxis dataKey="label" {...AXIS} />
           <YAxis {...AXIS} tickFormatter={compact} width={52} />
@@ -164,13 +197,13 @@ export function FlowsChart({ months }: { months: MonthlyFlow[] }) {
             formatter={money}
             labelFormatter={(_label, payload) => labelFrom(payload, "month")}
           />
-          <Bar dataKey="Entrate" fill="var(--in)" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="Entrate" fill="url(#bar-in)" radius={[7, 7, 0, 0]} isAnimationActive={false}>
             {data.map((row) => (
               // The month still running is dimmed: it is short, not cheap.
               <Cell key={row.month} fillOpacity={row.partial ? 0.45 : 1} />
             ))}
           </Bar>
-          <Bar dataKey="Uscite" fill="var(--out)" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="Uscite" fill="url(#bar-out)" radius={[7, 7, 0, 0]} isAnimationActive={false}>
             {data.map((row) => (
               <Cell key={row.month} fillOpacity={row.partial ? 0.45 : 1} />
             ))}
@@ -194,7 +227,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
         <AreaChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
           <defs>
             <linearGradient id="networth-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.4} />
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.45} />
               <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
             </linearGradient>
           </defs>
@@ -204,7 +237,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
           <Tooltip
             contentStyle={TOOLTIP}
             itemStyle={{ color: "var(--text)" }}
-            cursor={{ stroke: "var(--border)" }}
+            cursor={{ stroke: "var(--hairline)" }}
             formatter={money}
             labelFormatter={(_label, payload) => labelFrom(payload, "date")}
           />
