@@ -467,7 +467,12 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `web/public/`: Vite emits it into the hashed `/assets/` directory the service worker
   caches, so an offline start does not wait on the network, and the licence file ships beside
   it. Figures stay tabular — a face whose digits are proportional breaks every column of
-  amounts.
+  amounts. Two surfaces are painted by the browser rather than by the stylesheet, and
+  both need care: a `select`'s drop-down is drawn from the control's own colour, so a
+  translucent fill there composites over a light ground and yields a white menu with the
+  app's near-white text (hence the opaque `--menu` on selects and their options), and a
+  shadow on a filled control must carry no offset, or it reads as a smear detached below
+  the button instead of a halo around it.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

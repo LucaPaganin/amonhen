@@ -71,9 +71,13 @@
   /* Una lastra sta su di un filo di luce e su un alone basso: la profondità sta
      lì, ora che non c'è più un bordo a disegnarla. */
   --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 18px 38px -26px rgba(2, 3, 10, 0.95);
-  --shadow-glow: 0 16px 30px -14px rgba(232, 189, 99, 0.42);
+  --shadow-glow: 0 0 30px -8px rgba(232, 189, 99, 0.45);
   --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 22px 44px -20px rgba(2, 3, 10, 0.92);
   --chrome: rgba(23, 25, 44, 0.66);
+
+  /* L'equivalente opaco di --fill-2, per le superfici che dipinge il browser e
+     non questo foglio: lì un colore con alpha viene composto sul chiaro. */
+  --menu: #2b2d38;
 
   --ease: cubic-bezier(0.22, 0.8, 0.3, 1);
   --spring: cubic-bezier(0.34, 1.45, 0.5, 1);
@@ -609,7 +613,9 @@ input:not([type="checkbox"]):not([type="radio"]) {
   cursor: default;
 }
 
-/* L'unico controllo pieno: ottone sfumato, inchiostro scuro, alone. */
+/* L'unico controllo pieno: ottone sfumato, inchiostro scuro, alone. L'alone non
+   ha scostamento — centrato sulla pillola è un alone, spostato in basso è una
+   striscia colorata che sembra staccata dal pulsante. */
 .button--primary {
   background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
@@ -649,7 +655,7 @@ input:not([type="checkbox"]):not([type="radio"]) {
   }
 
   .button--primary:hover:not(:disabled) {
-    box-shadow: 0 20px 38px -14px rgba(232, 189, 99, 0.55);
+    box-shadow: 0 0 40px -6px rgba(232, 189, 99, 0.6);
   }
 }
 
@@ -677,6 +683,22 @@ input:not([type="checkbox"]):not([type="radio"]) {
 .field input::placeholder,
 .sheet__new-row .input::placeholder {
   color: var(--faint);
+}
+
+/* La superficie del menù che una tendina apre la dipinge il browser a partire
+   dal colore del controllo, non da questo foglio: su un riempimento con alpha
+   quella superficie esce chiara, mentre il testo eredita il bianco dell'app —
+   un menù bianco con scritte bianche. Quindi opaca, e con le voci dichiarate
+   invece che ereditate. */
+select,
+.field select,
+.split__category {
+  background: var(--menu);
+}
+
+select option {
+  background-color: var(--menu);
+  color: var(--text);
 }
 
 .month-picker {

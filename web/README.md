@@ -372,6 +372,14 @@ lines left in the interface are the faint separators between the rows of a list.
   render against those fills over the lightest patch: body text 14.8 / 12.8 / 11.6 / 10.1,
   `--muted` 8.0 / 7.0 / 6.3 / 5.5, `--faint` 7.2 / 6.2 / 5.6 / 4.9, the brass 10.7, money in
   10.4, money out 8.1.
+- **Two surfaces the browser paints, not the stylesheet.** A `select`'s drop-down is
+  drawn from the control's own colour, and a translucent colour there composites over the
+  browser's light ground: a white menu with the app's near-white text inside it. The nine
+  selects and their options therefore use one opaque fill, `--menu`, measured at 12.7:1.
+  And the brass glow under a filled button is centred (`0 0 30px -8px`): with a downward
+  offset it is not a halo around the button but a coloured smear detached below it —
+  profiled on the render, the old value contributed 0 above the pill and 30 down to 21
+  for 12 px below it, the new one 25 above and 22 below at the same distance.
 - **A state is a tint, not an outline.** The semantic chips are their own colour on a 15%
   tint of it — 6.4 for attention and the app's own work, 6.3 for money in, 5.2 for money out,
   5.3 for a transfer, 5.9 for a split. 15% is the ceiling: at 22% the red and the violet drop
