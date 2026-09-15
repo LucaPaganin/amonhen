@@ -336,7 +336,7 @@ the operator learns `AMONHEN_LLM_URL` / `AMONHEN_LLM_MODEL` are missing.
 
 ## PWA
 
-- `public/manifest.webmanifest` — standalone display, theme/background `#0d0f1a`, 192 px and
+- `public/manifest.webmanifest` — standalone display, theme/background `#0b0d16`, 192 px and
   512 px icons, drawn from the bar-chart glyph over the app palette: gradient brass bars on the
   same three glows the page paints behind them.
 - `public/sw.js` — caches the hashed `/assets/*` on first fetch and nothing else. The document is
@@ -355,48 +355,53 @@ rasterizer if the artwork changes.
 ## Design
 
 The app has one visual identity, and it lives in the `:root` block of `src/styles.css`: the
-colours, the three background glows, the two glass levels, the radii, the type scale and the
-two motion curves are tokens there. A component that needs a colour reads a token, never a
-value.
+field's three glows, the fill levels, the palette, the type scale, the radii and the two
+motion curves are tokens there. A component that needs a colour reads a token.
 
-The direction is fluid: a deep field with three coloured glows, surfaces floating on it as
-translucent glass, and no sharp corner anywhere.
+The direction is minimal and borderless: **nothing draws a line**. A panel is a slightly
+lighter fill, a control a lighter fill still, a state a tint of its own colour, and the only
+lines left in the interface are the faint separators between the rows of a list.
 
-- **The field and its glows.** One fixed layer paints an amber glow top-left, a violet one
-  top-right and a teal one below — painted once and composited, not repainted on scroll.
-  Text colours are chosen against the *worst* patch the glows can produce (one glow at its
-  centre, two overlapping at half strength) and then verified against the real render: with
-  the app hidden, the lightest background pixel measured `rgb(38,34,31)`, and there the body
-  text stands at 14.5:1, `--muted` at 8.4, `--faint` at 6.4, the brass at 10.0, money in at
-  10.3, money out at 8.1.
-- **Glass, not card stock.** `--glass` (4% white) is the resting surface, `--glass-raised`
-  (7%) what is pressed or chosen, and `--sheen` lays a thread of light along the top edge of
-  every lastra. Depth is that thread plus a low shadow, never the same flat grey under every
-  panel. Blur is spent only on what floats above the page — the two bars, the drawer, the
-  sheet, the toast — and on the two scrims that dim the page behind the drawer and the sheet,
-  because blurring every list would cost a repaint the phone does not have to spare.
-  `--faint` is measured against the top of a lastra, where `--sheen` is brightest, not against
-  the bare field: there it stands at 5.3:1.
-- **Two weights of line.** `--hairline` separates things that belong together (the rows of a
-  lastra, the sections of a panel) and is decoration; `--border-strong` draws the edge of a
-  control or an input, and only that one is held to the 3:1 contrast WCAG 1.4.11 asks of a
-  non-text cue. Measured on the lightest patch of the field: 5.38.
-- **A list is one surface and its rows are the content.** `.txn-list`, `.card-list`,
-  `.flag-list`, `.budget-list` and `.anomaly-list` are a single rounded translucent lastra
-  with hairline separators; a list inside something that is already a surface (the sheet, a
-  rule group, the legs of a transfer) draws the separators and no frame. The dashboard's
-  eight metrics are separate glass tiles on a grid.
+- **The field.** A fixed layer paints an amber glow top-left, a violet one top-right and a
+  teal one below, painted once and composited rather than repainted on scroll. Colours were
+  chosen against the lightest patch those glows can produce and then verified on the real
+  render: with the app hidden, the brightest background pixel measured `rgb(37,33,31)`.
+- **Three fills, no borders.** `--fill-1` (5% white) is a resting lastra, `--fill-2` (8%) a
+  control, `--fill-3` (12%) what is pressed or chosen; `--sep` (7%) is the only line. Depth
+  comes from a thread of light along the top edge plus a low shadow. Measured on the real
+  render against those fills over the lightest patch: body text 14.8 / 12.8 / 11.6 / 10.1,
+  `--muted` 8.0 / 7.0 / 6.3 / 5.5, `--faint` 7.2 / 6.2 / 5.6 / 4.9, the brass 10.7, money in
+  10.4, money out 8.1.
+- **A state is a tint, not an outline.** The semantic chips are their own colour on a 15%
+  tint of it — 6.4 for attention and the app's own work, 6.3 for money in, 5.2 for money out,
+  5.3 for a transfer, 5.9 for a split. 15% is the ceiling: at 22% the red and the violet drop
+  below 4.5. There is no `--danger` and no `--warning` any more, because money leaving and
+  what went wrong are the same colour, and attention is the app's own brass.
+- **What identifies a control.** With no outline the boundary is the fill, and a subtle fill
+  on this ground cannot reach the 3:1 WCAG 1.4.11 asks of a non-text cue: 5% reads at 1.15
+  against the field, 8% at 1.27, 12% at 1.46. That is a deliberate trade of the borderless
+  brief, affordable because every control also carries its own label or placeholder and the
+  keyboard focus ring is a 2 px brass outline.
+- **One family of shapes.** Buttons, chips, fields and selects are all pills; panels and
+  lists use 14 to 30 px radii; nothing has a square corner, and the browser's own button
+  border is removed globally — checkboxes and radios are the one exception, since there the
+  mark *is* the control.
 - **Type.** Plus Jakarta Sans variable 200-800, Latin subset, 27.3 kB, kept in `src/assets/`
   so that Vite emits it into the hashed `/assets/` directory the service worker caches — a
   font in `public/` would never be cached and would come back from the network on every
-  offline start. `OFL.txt` sits beside it. Every figure the app prints is tabular, and the
-  face was picked by measuring that in the browser: a proportional digit breaks a column of
-  amounts.
-- **Motion.** One entrance per screen, staged 40 ms apart and eased on a spring so it settles
-  rather than stops; a press is answered under the finger with a scale. There is no
-  `will-change`. `prefers-reduced-motion: reduce` zeroes the delays as well as the durations,
-  because a zero-length animation that still waits 200 ms holds its block invisible for
-  200 ms.
+  offline start. `OFL.txt` sits beside it. Figures stay tabular, and the face was picked by
+  measuring that in the browser: a proportional digit breaks a column of amounts. Screen
+  titles, metric values and amounts are weight 800, because the figure is what the screen
+  exists to show.
+- **Dense, not airy.** Screen gap 14, panel gap 10, metric gap 8, rows at 62 px: this carries
+  more per screen than the airier pass before it while every control still clears 44 px.
+- **Charts carry no frame at all.** No grid and no axis lines: slices and bars are gradients,
+  the bars have round caps, and the exact numbers live in the tooltip. A block containing a
+  chart is a lastra like the metric tiles, so one screen does not speak two languages.
+- **Motion.** One entrance per screen, staged 35 ms apart and eased on a spring; a press is
+  answered under the finger with a scale. There is no `will-change`.
+  `prefers-reduced-motion: reduce` zeroes the delays as well as the durations, because a
+  zero-length animation that still waits 175 ms holds its block invisible for 175 ms.
 - There is no preloader and no entrance outside that stagger: an app that has data to show
   shows it.
 
@@ -406,5 +411,5 @@ Safe-area insets are respected (notch, home indicator), and the content padding 
 of the two floating bars as well. The layout works from 360 px up without horizontal scrolling.
 Measured at 390 px against a copy of the ledger, with `prefers-reduced-motion` on so that the
 entrance animation cannot distort a measurement: the document is exactly as wide as the viewport,
-no control is under 44 px, and on all five sections no filled box is left with a corner radius
-under 2 px.
+no control is under 44 px, no element draws a border, no filled box is left with a corner radius
+under 2 px, and at the foot of every section the last block clears the floating bar.

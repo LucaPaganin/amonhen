@@ -455,16 +455,19 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   an update can look like it never happened. `API_VERSION` catches the other
   direction — a stale bundle against a newer server.
 - **A colour is named once, in `web/src/styles.css`.** The `:root` block holds the field's
-  three glows, the two glass levels, the palette, the type scale, the radii and the two
-  motion curves; a component reads a token. Text colours are chosen against the lightest
-  patch the glows can produce rather than against the base colour, and the two line weights
-  carry two meanings: `--hairline` separates things that belong together, while
-  `--border-strong` draws the edge of a control or an input, which is why only the second is
-  held to the 3:1 WCAG 1.4.11 asks of a non-text cue. The font is a Latin-subset Plus
-  Jakarta Sans variable file in `web/src/assets/` rather than `web/public/`: Vite emits it
-  into the hashed `/assets/` directory the service worker caches, so an offline start does
-  not wait on the network, and the licence file ships beside it. Figures stay tabular — a
-  face whose digits are proportional breaks every column of amounts.
+  three glows, the three fill levels, the palette, the type scale, the radii and the two
+  motion curves; a component reads a token. Nothing in the interface draws a line: a panel
+  is a lighter fill, a control a lighter fill still, and a state is its own colour on a 15%
+  tint of it, which is the ceiling — at 22% the money-out red and the transfer violet drop
+  below 4.5 against that tint. Text colours are chosen against the lightest patch the glows
+  can produce rather than against the base colour. With no outline the boundary of a control
+  is its fill, and a subtle fill cannot reach the 3:1 WCAG 1.4.11 asks of a non-text cue, so
+  the label inside the control and the brass focus ring are what carry it. The font is a
+  Latin-subset Plus Jakarta Sans variable file in `web/src/assets/` rather than
+  `web/public/`: Vite emits it into the hashed `/assets/` directory the service worker
+  caches, so an offline start does not wait on the network, and the licence file ships beside
+  it. Figures stay tabular — a face whose digits are proportional breaks every column of
+  amounts.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

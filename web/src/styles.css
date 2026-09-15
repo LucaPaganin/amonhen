@@ -1,16 +1,14 @@
-/* AmonHen — fluido.
+/* AmonHen — minimale.
 
-   Il fondo è un campo profondo con tre bagliori (ambra in alto a sinistra, viola
-   in alto a destra, acqua in basso) e le superfici ci galleggiano sopra: vetro
-   appena latteo, un filo di luce sul bordo alto, angoli generosi. Niente spigoli
-   vivi e nessun bordo dritto: dove prima c'era una riga c'è una curva, dove c'era
-   un riquadro c'è una lastra.
+   Nessun bordo. Una superficie si riconosce dal suo riempimento, un controllo dal
+   suo, uno stato dal colore del testo e dalla tinta che lo regge. Restano solo i
+   fili dentro le liste, e sono l'unica linea dell'interfaccia.
 
-   I colori del testo sono scelti sul punto *peggiore* che il fondo può produrre,
-   non sul colore base: un bagliore da solo al suo centro, due che si sovrappongono
-   a metà forza. Su quel punto — e sul vetro e sul rialzato sopra di esso — il
-   bianco sta a 13.0, il tenue a 5.10, l'ottone a 8.04, il bordo dei controlli a
-   5.30. Misurato, non scelto a occhio. */
+   I riempimenti sono tre: 5% di bianco per una lastra a riposo, 8% per un
+   controllo, 12% per quello che è premuto o scelto. Le tinte di stato stanno al
+   15%: misurate sul punto peggiore del fondo, il testo che ci sta sopra tiene
+   5.19 nel caso peggiore (il rosso delle uscite) e nessuna scende sotto 4.5 —
+   al 22% invece il rosso e il viola lo superano. */
 
 @font-face {
   font-family: "Plus Jakarta Sans";
@@ -24,23 +22,25 @@
 }
 
 :root {
-  --bg: #0d0f1a;
+  --bg: #0b0d16;
 
-  /* I tre bagliori del fondo, e le due lastre che ci stanno sopra. */
-  --glow-amber: rgba(210, 161, 63, 0.18);
-  --glow-violet: rgba(139, 92, 246, 0.24);
-  --glow-teal: rgba(45, 212, 191, 0.16);
-  --glass: rgba(255, 255, 255, 0.04);
-  --glass-raised: rgba(255, 255, 255, 0.07);
-  --sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01));
+  --glow-amber: rgba(232, 189, 99, 0.16);
+  --glow-violet: rgba(124, 92, 255, 0.22);
+  --glow-teal: rgba(45, 212, 191, 0.13);
 
-  --text: #f4f5f9;
-  --muted: #b4bdd0;
-  --faint: #a9b2c4;
+  /* I tre riempimenti, e l'unica linea rimasta. */
+  --fill-1: rgba(255, 255, 255, 0.05);
+  --fill-2: rgba(255, 255, 255, 0.08);
+  --fill-3: rgba(255, 255, 255, 0.12);
+  --sep: rgba(255, 255, 255, 0.07);
 
-  --accent: #f0c97a;
-  --accent-light: #e8bd63;
-  --accent-deep: #c8912c;
+  --text: #f5f6fa;
+  --muted: #b0b8cc;
+  --faint: #a4aec2;
+
+  --accent: #f2cf86;
+  --accent-light: #f0d08a;
+  --accent-deep: #cf9a34;
   --accent-ink: #17110a;
   --in: #6ee7a8;
   --in-light: #8ff0bd;
@@ -51,40 +51,29 @@
   --transfer: #c0b2ff;
   --split: #8ed3f0;
 
-  /* Due pesi di linea, e il secondo è l'unico che deve vedersi: `--hairline`
-     separa cose che stanno insieme, `--border-strong` disegna il bordo di ciò
-     che si tocca, ed è tenuto ai 3:1 che WCAG 1.4.11 chiede a un segno non
-     testuale. */
-  --hairline: rgba(255, 255, 255, 0.1);
-  --border-strong: #8d97ac;
-
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --text-xs: 0.75rem;
   --text-sm: 0.85rem;
   --text-ui: 0.95rem;
-  --text-title: clamp(1.35rem, 1.2rem + 0.6vw, 1.5rem);
+  --text-title: clamp(1.5rem, 1.3rem + 1vw, 1.75rem);
 
-  /* Nessun angolo vivo: ogni raggio è una curva, e la pillola è il default dei
-     controlli. */
-  --radius-xs: 12px;
-  --radius-sm: 16px;
-  --radius: 20px;
-  --radius-lg: 26px;
-  --radius-xl: 32px;
+  --radius-sm: 14px;
+  --radius: 18px;
+  --radius-lg: 24px;
+  --radius-xl: 30px;
   --pill: 999px;
 
   --tap: 44px;
   --tabbar: 92px;
   --appbar: 64px;
 
-  /* L'ombra di una lastra è un filo di luce sul bordo alto più un alone basso:
-     un'ombra grigia uguale sotto ogni riquadro è il modo più rapido per
-     sembrare un template. */
-  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 34px -22px rgba(3, 5, 14, 0.95);
-  --shadow-glow: 0 16px 34px -16px rgba(232, 189, 99, 0.5);
-  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px -18px rgba(3, 5, 14, 0.9);
-  --chrome: rgba(22, 24, 42, 0.72);
+  /* Una lastra sta su di un filo di luce e su un alone basso: la profondità sta
+     lì, ora che non c'è più un bordo a disegnarla. */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 18px 38px -26px rgba(2, 3, 10, 0.95);
+  --shadow-glow: 0 16px 30px -14px rgba(232, 189, 99, 0.42);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 22px 44px -20px rgba(2, 3, 10, 0.92);
+  --chrome: rgba(23, 25, 44, 0.66);
 
   --ease: cubic-bezier(0.22, 0.8, 0.3, 1);
   --spring: cubic-bezier(0.34, 1.45, 0.5, 1);
@@ -120,8 +109,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Il campo di luce. Sta su un livello suo, fissato: si dipinge una volta e poi
-   si compone, invece di ripetersi a ogni scorrimento. */
+/* Il campo di luce: dipinto una volta su un livello suo, poi composto. */
 body::before {
   content: "";
   position: fixed;
@@ -145,10 +133,19 @@ button {
   touch-action: manipulation;
 }
 
+/* Nemmeno il browser disegna un contorno: quello di sistema compariva su ogni
+   pulsante senza una regola propria. Caselle e radio sono l'eccezione, perché lì
+   il segno *è* il controllo. */
+button,
+select,
+input:not([type="checkbox"]):not([type="radio"]) {
+  border: 0;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
-  border-radius: var(--radius-xs);
+  border-radius: var(--pill);
 }
 
 .visually-hidden {
@@ -163,8 +160,7 @@ button {
   border: 0;
 }
 
-/* Le cifre si leggono in colonna e si confrontano con quella sopra: ogni numero
-   che l'app stampa è tabellare. */
+/* Le cifre si leggono in colonna: ogni numero che l'app stampa è tabellare. */
 .amount,
 .metric__value,
 .txn__date,
@@ -182,40 +178,37 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* Layout */
+/* Layout: denso. Meno spazio vuoto, non meno aria. */
 
 .app__main {
   max-width: 720px;
   margin: 0 auto;
-  padding: calc(var(--appbar) + env(safe-area-inset-top, 0px) + 14px) 16px
-    calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 36px);
+  padding: calc(var(--appbar) + env(safe-area-inset-top, 0px) + 10px) 14px
+    calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 24px);
 }
 
-/* La schermata del server vecchio non disegna la navigazione, quindi non deve
-   lasciarle il posto. */
 .app__main--plain {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 18px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
 }
 
 .state__command {
   margin: 0;
   padding: 10px 14px;
-  border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
-  background: var(--glass-raised);
+  background: var(--fill-2);
   overflow-x: auto;
   font-size: var(--text-xs);
 }
 
-/* L'iscrizione in fondo alla pagina, nella voce del luogo da cui l'app prende il
-   nome. Tonda anche lei: una capsula con il testo dentro. */
+/* L'iscrizione in fondo, nella voce del luogo da cui l'app prende il nome. */
+/* L'iscrizione resta — è la voce del posto da cui l'app prende il nome — ma
+   smette di essere una pillola: al piede di ogni schermata una forma in più è
+   peso, e il testo basta. */
 .app__epigraph {
   max-width: 720px;
-  margin: 30px auto 0;
-  padding: 14px 18px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--pill);
-  background: var(--glass);
+  margin: 18px auto 0;
+  padding: 0 18px;
+  background: none;
   color: var(--faint);
   font-size: var(--text-xs);
   letter-spacing: 0.02em;
@@ -225,7 +218,7 @@ button {
 .screen {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .screen__header {
@@ -233,19 +226,21 @@ button {
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
+/* Il titolo di una schermata è grande: è la prima cosa che si legge, e con i
+   bordi via non c'è più nient'altro a fare da cornice. */
 .screen__title {
   margin: 0;
   font-size: var(--text-title);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
 
 .screen__subtitle {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--muted);
   font-size: var(--text-sm);
 }
@@ -253,20 +248,15 @@ button {
 .screen__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
-/* Il nome di una sezione, con la riga che si spegne ai due capi invece di
-   tagliare il foglio da un bordo all'altro. */
 .section-title {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin: 6px 0 0;
-  padding-top: 12px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent)
-    top / 100% 1px no-repeat;
-  color: var(--text);
+  margin: 4px 0 0;
+  color: var(--muted);
   font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -277,17 +267,15 @@ button {
   justify-content: center;
   min-width: 24px;
   padding: 2px 9px;
-  border: 1px solid var(--hairline);
   border-radius: var(--pill);
-  background: var(--glass-raised);
+  background: var(--fill-2);
   color: var(--muted);
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: normal;
 }
 
-/* Navigazione: la barra in alto e il cassetto che apre, sopra la barra in basso.
-   Sono due capsule di vetro che galleggiano, non due fasce incollate ai bordi. */
+/* Guscio: due capsule di vetro che galleggiano, senza contorno. */
 
 .appbar {
   position: fixed;
@@ -310,7 +298,6 @@ button {
   max-width: 700px;
   height: 54px;
   padding: 0 12px 0 6px;
-  border: 1px solid var(--hairline);
   border-radius: var(--pill);
   background: var(--chrome);
   backdrop-filter: blur(20px) saturate(1.3);
@@ -323,7 +310,6 @@ button {
   place-items: center;
   width: var(--tap);
   height: var(--tap);
-  border: 0;
   border-radius: var(--pill);
   background: none;
   color: var(--text);
@@ -332,7 +318,7 @@ button {
 }
 
 .appbar__menu[aria-expanded="true"] {
-  background: var(--glass-raised);
+  background: var(--fill-3);
   color: var(--accent);
 }
 
@@ -344,8 +330,8 @@ button {
 .appbar__brand {
   color: var(--text);
   font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .drawer {
@@ -363,7 +349,7 @@ button {
 .drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(6, 7, 14, 0.66);
+  background: rgba(5, 6, 13, 0.68);
   backdrop-filter: blur(3px);
   opacity: 0;
   visibility: hidden;
@@ -375,8 +361,6 @@ button {
   visibility: visible;
 }
 
-/* Il cassetto entra dal fianco con il bordo destro arrotondato: è una lastra che
-   scorre sopra la pagina, non una parete che si apre. */
 .drawer__panel {
   position: absolute;
   top: 0;
@@ -385,13 +369,11 @@ button {
   display: flex;
   flex-direction: column;
   width: min(84vw, 330px);
-  padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px
     calc(env(safe-area-inset-bottom, 0px) + 16px);
   overflow-y: auto;
-  border: 1px solid var(--hairline);
-  border-left: 0;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
-  background: rgba(20, 22, 38, 0.92);
+  background: rgba(21, 23, 40, 0.94);
   backdrop-filter: blur(22px) saturate(1.2);
   box-shadow: var(--shadow-float);
   transform: translateX(-102%);
@@ -414,8 +396,8 @@ button {
 }
 
 .drawer__title {
-  margin: 0 0 0 10px;
-  color: var(--muted);
+  margin: 0 0 0 12px;
+  color: var(--faint);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -426,7 +408,6 @@ button {
   place-items: center;
   width: var(--tap);
   height: var(--tap);
-  border: 0;
   border-radius: var(--pill);
   background: none;
   color: var(--muted);
@@ -454,7 +435,6 @@ button {
   width: 100%;
   min-height: var(--tap);
   padding: 10px 12px;
-  border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
@@ -464,10 +444,9 @@ button {
   transition: background var(--fast) var(--ease);
 }
 
-/* La sezione aperta è una pillola piena di luce d'ottone, non un blocco grigio. */
+/* La sezione aperta è una pillola di luce, non un blocco con un contorno. */
 .drawer__item[aria-current="page"] {
-  background: linear-gradient(135deg, rgba(232, 189, 99, 0.24), rgba(232, 189, 99, 0.08));
-  box-shadow: inset 0 0 0 1px rgba(232, 189, 99, 0.28);
+  background: linear-gradient(135deg, rgba(240, 208, 138, 0.22), rgba(240, 208, 138, 0.08));
   color: var(--text);
 }
 
@@ -487,7 +466,7 @@ button {
 
 .drawer__label {
   font-size: var(--text-ui);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .drawer__hint {
@@ -499,17 +478,15 @@ button {
 .drawer__count {
   margin-left: auto;
   min-width: 24px;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: var(--pill);
   background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 800;
   line-height: 18px;
   text-align: center;
 }
-
-/* La barra in basso: una capsula che galleggia sopra il contenuto. */
 
 .tabbar {
   position: fixed;
@@ -522,7 +499,6 @@ button {
   max-width: 700px;
   margin: 0 auto;
   padding: 7px;
-  border: 1px solid var(--hairline);
   border-radius: var(--radius-xl);
   background: var(--chrome);
   backdrop-filter: blur(20px) saturate(1.3);
@@ -536,12 +512,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  /* L'altezza della voce non si ricava dal token della capsula: il token dice
-     quanto spazio occupa la capsula dal fondo, e se la voce lo inseguisse la
-     capsula crescerebbe con lui. 66 px e l'etichetta su due righe. */
   min-height: 66px;
   padding: 8px 4px;
-  border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
@@ -551,8 +523,7 @@ button {
 }
 
 .tabbar__item[aria-current="page"] {
-  background: linear-gradient(160deg, rgba(232, 189, 99, 0.24), rgba(232, 189, 99, 0.07));
-  box-shadow: inset 0 0 0 1px rgba(232, 189, 99, 0.26);
+  background: linear-gradient(160deg, rgba(240, 208, 138, 0.22), rgba(240, 208, 138, 0.07));
   color: var(--accent);
 }
 
@@ -564,7 +535,7 @@ button {
 .tabbar__label {
   max-width: 100%;
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.05;
   text-align: center;
 }
@@ -580,7 +551,7 @@ button {
   background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 800;
   line-height: 19px;
   text-align: center;
 }
@@ -588,7 +559,7 @@ button {
 .toast {
   position: fixed;
   right: 14px;
-  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 12px);
+  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 10px);
   left: 14px;
   z-index: 20;
   display: flex;
@@ -596,10 +567,9 @@ button {
   gap: 10px;
   max-width: 690px;
   margin: 0 auto;
-  padding: 12px 16px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  background: rgba(28, 30, 50, 0.92);
+  padding: 13px 18px;
+  border-radius: var(--pill);
+  background: rgba(30, 32, 54, 0.94);
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow-float);
   animation: toast-in var(--base) var(--spring);
@@ -613,9 +583,8 @@ button {
 
 /* Controlli */
 
-/* Il contorno è l'unica cosa che identifica un pulsante secondario su una lastra
-   di vetro, quindi è `--border-strong` e non un filo: è l'unico posto in cui il
-   bordo deve vedersi. */
+/* Senza contorni, un pulsante secondario è riconoscibile dal suo riempimento:
+   l'8% di bianco che lo stacca dalla lastra su cui sta. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -624,15 +593,15 @@ button {
   min-width: var(--tap);
   min-height: var(--tap);
   padding: 10px 18px;
-  border: 1px solid var(--border-strong);
+  border: 0;
   border-radius: var(--pill);
-  background: var(--glass);
+  background: var(--fill-2);
   color: var(--text);
   font-size: var(--text-ui);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
-    transform var(--fast) var(--spring), box-shadow var(--fast) var(--ease);
+  transition: background var(--fast) var(--ease), transform var(--fast) var(--spring),
+    box-shadow var(--fast) var(--ease);
 }
 
 .button:disabled {
@@ -640,23 +609,19 @@ button {
   cursor: default;
 }
 
-/* L'unico controllo pieno di una schermata: ottone sfumato, inchiostro scuro
-   sopra, e un alone che lo stacca dal fondo. */
+/* L'unico controllo pieno: ottone sfumato, inchiostro scuro, alone. */
 .button--primary {
-  border-color: transparent;
   background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
   box-shadow: var(--shadow-glow);
 }
 
 .button--danger {
-  border-color: var(--out);
-  background: transparent;
+  background: rgba(255, 159, 159, 0.15);
   color: var(--out);
 }
 
 .button--ghost {
-  border-color: var(--hairline);
   background: transparent;
   color: var(--muted);
   font-size: 1.1rem;
@@ -666,9 +631,9 @@ button {
   width: 100%;
 }
 
-/* La pressione risponde sotto il dito, con la molla che la riporta. Niente
-   `will-change`: chiedere un livello al compositore per ogni riga di una lista
-   lunga costa più di quanto la scala renda. */
+/* La pressione risponde sotto il dito e la molla la riporta. Niente
+   `will-change`: un livello al compositore per ogni riga di una lista lunga costa
+   più di quanto la scala renda. */
 .button:active:not(:disabled) {
   transform: scale(0.96);
   box-shadow: none;
@@ -676,18 +641,20 @@ button {
 
 @media (hover: hover) and (pointer: fine) {
   .button:hover:not(:disabled) {
-    background: var(--glass-raised);
-  }
-
-  .button--primary:hover:not(:disabled) {
-    box-shadow: 0 20px 40px -16px rgba(232, 189, 99, 0.62);
+    background: var(--fill-3);
   }
 
   .button--danger:hover:not(:disabled) {
-    background: rgba(255, 159, 159, 0.12);
+    background: rgba(255, 159, 159, 0.22);
+  }
+
+  .button--primary:hover:not(:disabled) {
+    box-shadow: 0 20px 38px -14px rgba(232, 189, 99, 0.55);
   }
 }
 
+/* I campi sono pillole riempite, come i pulsanti: un modulo di due non ha un
+   campo e un bottone, ha due controlli. */
 .input,
 .field select,
 .field input,
@@ -698,10 +665,10 @@ button {
   width: 100%;
   min-width: 0;
   min-height: var(--tap);
-  padding: 10px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--glass);
+  padding: 10px 16px;
+  border: 0;
+  border-radius: var(--pill);
+  background: var(--fill-2);
   color: var(--text);
   font-size: 1rem;
 }
@@ -716,13 +683,13 @@ button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -733,20 +700,19 @@ button {
 .field > label {
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-/* Un chip dice una cosa sola: quello che è, o lo stato in cui sta. Lo stato lo
-   porta il colore, quindi quei colori sono tenuti ai 3:1 di WCAG 1.4.11 contro
-   la lastra che li regge — misurati sul punto peggiore del fondo. */
+/* Un chip dice una cosa sola. Lo stato lo porta il testo, e la tinta che lo
+   regge è al 15%: misurata sul punto peggiore del fondo, nessun colore scende
+   sotto 4.5, mentre al 22% il rosso e il viola lo superano. */
 .chip {
   padding: 3px 10px;
-  border: 1px solid var(--hairline);
   border-radius: var(--pill);
-  background: var(--glass);
+  background: var(--fill-2);
   color: var(--text);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -754,23 +720,23 @@ button {
 .chip--pending,
 .chip--warning,
 .chip--proposal {
-  border-color: var(--accent);
+  background: rgba(240, 201, 122, 0.15);
   color: var(--accent);
 }
 
 .chip--split {
-  border-color: var(--split);
+  background: rgba(142, 211, 240, 0.15);
   color: var(--split);
 }
 
 .chip--transfer {
-  border-color: var(--transfer);
+  background: rgba(192, 178, 255, 0.15);
   color: var(--transfer);
 }
 
 /* L'invariante 5.4 per conto: il registro e la banca si sono trovati. */
 .chip--verified {
-  border-color: var(--in);
+  background: rgba(110, 231, 168, 0.15);
   color: var(--in);
 }
 
@@ -780,12 +746,11 @@ button {
   padding: 8px 16px;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
-    color var(--fast) var(--ease), transform var(--fast) var(--spring);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease),
+    transform var(--fast) var(--spring), box-shadow var(--fast) var(--ease);
 }
 
 .chip--toggle.chip--on {
-  border-color: transparent;
   background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
   color: var(--accent-ink);
   box-shadow: var(--shadow-glow);
@@ -795,12 +760,11 @@ button {
   transform: scale(0.96);
 }
 
-/* La barra dei filtri: il periodo sempre visibile, il resto a un tocco. */
 .filterbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .filterbar__toggle {
@@ -810,11 +774,10 @@ button {
 .filters {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-/* Un campo e il suo pulsante su una riga: un modulo di due è una riga, non una
-   colonna. Dichiarata dopo `.filters`, che è una colonna alla stessa specificità. */
+/* Dichiarata dopo `.filters`, che è una colonna alla stessa specificità. */
 .filters--row {
   flex-direction: row;
   flex-wrap: wrap;
@@ -833,7 +796,7 @@ button {
 .filters__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .filters__caption {
@@ -843,9 +806,8 @@ button {
 
 /* Lastre
 
-   Una lista è una lastra di vetro sola, con i fili che separano le righe. Il
-   filo è l'unica cosa che deve essere disegnata, quindi una schermata di liste
-   non porta una cornice per riga. */
+   Una lista è una superficie sola e i suoi fili sono l'unica linea rimasta
+   nell'interfaccia: quello che separa due movimenti, e nient'altro. */
 .txn-list,
 .card-list,
 .flag-list,
@@ -856,10 +818,8 @@ button {
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
-  background: var(--glass);
-  background-image: var(--sheen);
+  background: var(--fill-1);
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }
@@ -869,11 +829,10 @@ button {
 .flag-list > * + *,
 .budget-list > * + *,
 .anomaly-list > * + * {
-  border-top: 1px solid var(--hairline);
+  box-shadow: inset 0 1px 0 var(--sep);
 }
 
-/* Una lista dentro qualcosa che è già una lastra disegna i fili e nessuna
-   cornice: un riquadro dentro un riquadro è un angolo che non dice niente. */
+/* Una lista dentro qualcosa che è già una lastra porta i fili e nessun fondo. */
 .sheet__list,
 .rule-group__rules,
 .legs {
@@ -887,7 +846,7 @@ button {
 .sheet__list > * + *,
 .rule-group__rules > * + *,
 .legs > * + * {
-  border-top: 1px solid var(--hairline);
+  box-shadow: inset 0 1px 0 var(--sep);
 }
 
 /* Righe dei movimenti */
@@ -898,8 +857,8 @@ button {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 66px;
-  padding: 12px 14px;
+  min-height: 62px;
+  padding: 10px 14px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -913,12 +872,12 @@ button.txn {
 }
 
 button.txn:active {
-  background: var(--glass-raised);
+  background: var(--fill-2);
 }
 
 @media (hover: hover) and (pointer: fine) {
   button.txn:hover {
-    background: var(--glass-raised);
+    background: var(--fill-2);
   }
 }
 
@@ -930,7 +889,7 @@ button.txn:active {
 .txn__body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -954,7 +913,7 @@ button.txn:active {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: 2px;
 }
 
 .txn__running {
@@ -963,8 +922,9 @@ button.txn:active {
   white-space: nowrap;
 }
 
+/* La cifra di una riga è la cosa più importante della riga. */
 .amount {
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
 }
 
@@ -975,30 +935,24 @@ button.txn:active {
 /* Lastre intere: una lettura, una proposta, una cosa che sta in piedi da sola */
 
 .card {
-  padding: 14px 16px;
-  border: 1px solid var(--hairline);
+  padding: 13px 15px;
   border-radius: var(--radius-lg);
-  background: var(--glass);
-  background-image: var(--sheen);
+  background: var(--fill-1);
   box-shadow: var(--shadow-card);
 }
 
 .card-list > .card {
-  border: 0;
   border-radius: 0;
   background: transparent;
-  background-image: none;
   box-shadow: none;
 }
 
 .card__caption {
-  margin: 0 0 8px;
-  color: var(--muted);
+  margin: 0 0 7px;
+  color: var(--faint);
   font-size: var(--text-xs);
 }
 
-/* Una lettura del modello: prosa, quindi va a capo, e non prende in prestito il
-   monospazio che spetta a una cifra calcolata. */
 .assistant__answer {
   margin: 0;
   white-space: pre-wrap;
@@ -1009,7 +963,7 @@ button.txn:active {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 3px 12px;
   margin: 0;
-  padding: 10px 0;
+  padding: 9px 0;
 }
 
 .leg__description {
@@ -1032,16 +986,14 @@ button.txn:active {
 
 .card__actions {
   display: flex;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 11px;
 }
 
 .card__actions .button {
   flex: 1;
 }
 
-/* In una proposta la categoria si sceglie prima e si conferma dopo, quindi la
-   tendina prende lo spazio e il pulsante solo quello che serve alla sua parola. */
 .card__actions .input {
   flex: 1 1 auto;
   min-width: 0;
@@ -1062,18 +1014,16 @@ button.txn:active {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .proposal__source {
-  color: var(--muted);
+  color: var(--faint);
   font-size: var(--text-xs);
 }
 
-/* Fare una categoria da una proposta: il campo compare sotto il gesto che l'ha
-   chiesto, e il nome nuovo arriva già scelto. */
 .proposal__new {
   display: flex;
   flex-wrap: wrap;
@@ -1093,27 +1043,27 @@ button.txn:active {
 .proposal-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .proposal-actions .button {
   flex: 1;
 }
 
-/* Stati */
+/* Stati: uno stato è una tinta, non un contorno. */
 
 .state {
   margin: 0;
   padding: 18px;
-  border: 1px dashed var(--border-strong);
   border-radius: var(--radius-lg);
-  background: var(--glass);
+  background: var(--fill-1);
   color: var(--muted);
   font-size: var(--text-ui);
+  text-align: center;
 }
 
-.state--empty {
-  text-align: center;
+.state__command {
+  text-align: left;
 }
 
 .state--error {
@@ -1121,9 +1071,9 @@ button.txn:active {
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
-  border-style: solid;
-  border-color: var(--out);
+  background: rgba(255, 159, 159, 0.15);
   color: var(--out);
+  text-align: left;
 }
 
 .state--error p {
@@ -1153,7 +1103,7 @@ button.txn:active {
 }
 
 .sheet::backdrop {
-  background: rgba(6, 7, 14, 0.7);
+  background: rgba(5, 6, 13, 0.72);
   backdrop-filter: blur(4px);
 }
 
@@ -1161,16 +1111,14 @@ button.txn:active {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
   max-width: 720px;
   max-height: 84dvh;
   overflow-y: auto;
-  padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
-  border: 1px solid var(--hairline);
-  border-bottom: 0;
+  padding: 12px 14px calc(18px + env(safe-area-inset-bottom, 0px));
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  background: rgba(20, 22, 38, 0.94);
+  background: rgba(21, 23, 40, 0.96);
   backdrop-filter: blur(22px) saturate(1.2);
   box-shadow: var(--shadow-float);
   animation: sheet-in var(--base) var(--spring);
@@ -1182,11 +1130,10 @@ button.txn:active {
   content: "";
   flex: none;
   align-self: center;
-  width: 42px;
-  height: 4px;
+  width: 44px;
+  height: 5px;
   border-radius: var(--pill);
-  background: var(--border-strong);
-  opacity: 0.7;
+  background: var(--fill-3);
 }
 
 .sheet__header {
@@ -1199,7 +1146,8 @@ button.txn:active {
 .sheet__title {
   margin: 0;
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .sheet__rule {
@@ -1217,25 +1165,25 @@ button.txn:active {
   accent-color: var(--accent);
 }
 
-/* Le scelte del foglio sono pillole separate, non righe di un elenco: sono
-   bottoni, e un bottone ha la sua forma. */
+/* Le scelte del foglio sono pillole riempite: sono bottoni, e un bottone ha la
+   sua forma. */
 .sheet__list {
-  gap: 8px;
+  gap: 6px;
 }
 
 .sheet__list > * + * {
-  border-top: 0;
+  box-shadow: none;
 }
 
 .sheet__option {
   width: 100%;
   min-height: 50px;
-  padding: 12px 16px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-sm);
-  background: var(--glass);
+  padding: 12px 18px;
+  border: 0;
+  border-radius: var(--pill);
+  background: var(--fill-1);
   text-align: left;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: background var(--fast) var(--ease), color var(--fast) var(--ease),
     transform var(--fast) var(--spring);
@@ -1243,40 +1191,34 @@ button.txn:active {
 
 .sheet__option:active {
   transform: scale(0.98);
-  background: var(--glass-raised);
+  background: var(--fill-3);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sheet__option:hover {
-    background: var(--glass-raised);
+    background: var(--fill-2);
   }
 }
 
-/* La candidata che il pannello sta per abbinare: scelta, e lo dice con il
-   gradiente dell'app. */
 .sheet__option--on {
-  border-color: transparent;
-  background: linear-gradient(135deg, rgba(232, 189, 99, 0.26), rgba(232, 189, 99, 0.1));
-  box-shadow: inset 0 0 0 1px rgba(232, 189, 99, 0.3);
+  background: linear-gradient(135deg, rgba(240, 208, 138, 0.24), rgba(240, 208, 138, 0.1));
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 800;
 }
-
-/* Categoria nuova: il selettore non deve pretendere prima un comando da terminale */
 
 .sheet__new {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--hairline);
+  margin-top: 12px;
+  padding-top: 12px;
+  box-shadow: inset 0 1px 0 var(--sep);
 }
 
 .sheet__new-label {
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .sheet__new-row {
@@ -1314,7 +1256,7 @@ button.txn:active {
   margin: 6px 0 0;
   color: var(--text);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 800;
 }
 
 /* Fase 3: metriche, flag e modifica degli split */
@@ -1322,25 +1264,22 @@ button.txn:active {
 .banner {
   margin: 0;
   padding: 12px 16px;
-  border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  background: var(--glass);
+  background: var(--fill-1);
   font-size: var(--text-sm);
 }
 
 .banner--warning {
-  border-color: rgba(240, 201, 122, 0.4);
-  background: linear-gradient(135deg, rgba(232, 189, 99, 0.18), rgba(232, 189, 99, 0.04));
+  background: rgba(240, 201, 122, 0.15);
   color: var(--accent);
 }
 
-/* Le otto letture sono tessere di vetro su una griglia, non un pannello diviso
-   da righe: con gli angoli tondi, il filo che separa due celle è un bordo che
-   nessuno vuole vedere. */
+/* Le otto letture sono tessere riempite su una griglia, senza contorno: la
+   distanza fra due tessere è quello che le separa. */
 .metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1349,12 +1288,10 @@ button.txn:active {
 .metric {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid var(--hairline);
+  gap: 3px;
+  padding: 12px 13px;
   border-radius: var(--radius);
-  background: var(--glass);
-  background-image: var(--sheen);
+  background: var(--fill-1);
   box-shadow: var(--shadow-card);
 }
 
@@ -1362,54 +1299,53 @@ button.txn:active {
   margin: 0;
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 600;
 }
 
+/* Il numero di una tessera è grande: è quello che si viene a leggere. */
 .metric__value {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   white-space: nowrap;
 }
 
 .metric__value--empty {
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: normal;
 }
 
 .metric__warning {
   margin: 0;
   color: var(--accent);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-/* Cosa vuol dire ogni cifra, a un tocco invece che in tre righe sotto ogni
-   tessera. */
 .metric-help {
-  padding: 14px 16px;
-  border: 1px solid var(--hairline);
+  padding: 12px 15px;
   border-radius: var(--radius-lg);
-  background: var(--glass);
-  background-image: var(--sheen);
+  background: var(--fill-1);
   box-shadow: var(--shadow-card);
   font-size: var(--text-sm);
 }
 
-/* La divulgazione è un controllo ed è alta come uno. L'altezza viene dal
-   padding, non da un flex, così il browser si tiene il suo marcatore. */
+/* La divulgazione è un controllo e sta in piedi come uno: l'altezza viene dal
+   padding, così il browser si tiene il suo marcatore. */
 .metric-help summary {
   padding: 12px 0;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .metric-help__list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 12px 0 0;
+  gap: 7px;
+  margin: 10px 0 0;
   padding: 0 0 0 18px;
   color: var(--muted);
 }
@@ -1417,7 +1353,17 @@ button.txn:active {
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+}
+
+/* Un blocco con dentro un grafico è una lastra come le altre: senza, il grafico
+   e la sua legenda galleggiavano sul fondo mentre le tessere accanto avevano un
+   riempimento, e la stessa schermata parlava due lingue. */
+.panel:has(.chart) {
+  padding: 12px 15px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--fill-1);
+  box-shadow: var(--shadow-card);
 }
 
 @media (min-width: 640px) {
@@ -1432,7 +1378,7 @@ button.txn:active {
   align-items: center;
   justify-content: space-between;
   gap: 8px 14px;
-  padding: 14px 16px;
+  padding: 13px 15px;
 }
 
 .flag-row__name {
@@ -1443,13 +1389,13 @@ button.txn:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .flag-row__balance {
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .flag-row__check {
@@ -1470,35 +1416,38 @@ button.txn:active {
   min-height: var(--tap);
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
+/* L'interruttore spento è il controllo che, senza contorno, ci va più vicino a
+   sparire: il riempimento sta a 1.46 contro il fondo, sotto i 3:1 che WCAG 1.4.11
+   chiede a un segno non testuale. A dire lo stato resta la manopola, chiara e
+   spostata: è il compromesso che il brief senza bordi chiede, ed è il motivo per
+   cui la traccia sta al 12% e non all'8%. */
 .toggle__track {
   position: relative;
   flex: none;
   width: 46px;
   height: 28px;
-  border: 1px solid var(--border-strong);
   border-radius: var(--pill);
-  background: var(--glass);
-  transition: background var(--base) var(--ease), border-color var(--base) var(--ease);
+  background: var(--fill-3);
+  transition: background var(--base) var(--ease);
 }
 
 .toggle__thumb {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--muted);
-  box-shadow: 0 2px 6px rgba(3, 5, 14, 0.5);
+  box-shadow: 0 2px 7px rgba(2, 3, 10, 0.55);
   transition: transform var(--base) var(--spring), background var(--base) var(--ease);
 }
 
 .toggle input:checked + .toggle__track {
-  border-color: transparent;
   background: linear-gradient(135deg, var(--accent-light), var(--accent-deep));
 }
 
@@ -1523,7 +1472,7 @@ button.txn:active {
 .split {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .split__hint {
@@ -1535,7 +1484,7 @@ button.txn:active {
 .split__rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1545,7 +1494,7 @@ button.txn:active {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 6.5rem auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .split__amount {
@@ -1558,27 +1507,26 @@ button.txn:active {
 
 .split__total {
   margin: 0;
-  padding: 10px 16px;
-  border: 1px solid var(--hairline);
+  padding: 10px 18px;
   border-radius: var(--pill);
-  background: var(--glass-raised);
+  background: var(--fill-2);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .split__total--ok {
-  border-color: rgba(110, 231, 168, 0.45);
+  background: rgba(110, 231, 168, 0.15);
   color: var(--in);
 }
 
 .split__total--off {
-  border-color: rgba(240, 201, 122, 0.45);
+  background: rgba(240, 201, 122, 0.15);
   color: var(--accent);
 }
 
 .split__actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .split__actions .button {
@@ -1590,12 +1538,11 @@ button.txn:active {
 .budget-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
+  gap: 7px;
+  padding: 13px 15px;
 }
 
-/* Sforato: la riga si accende dal lato del testo invece di portare un bordo
-   dritto sul fianco. */
+/* Sforato: la riga si accende dal lato del testo, senza un bordo sul fianco. */
 .budget-row--over {
   background-image: linear-gradient(120deg, rgba(255, 159, 159, 0.16), transparent 70%);
 }
@@ -1609,7 +1556,7 @@ button.txn:active {
 
 .budget-row__name {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1628,7 +1575,7 @@ button.txn:active {
 
 .budget-row__over {
   color: var(--out);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .budget-row__actions {
@@ -1653,8 +1600,8 @@ button.txn:active {
 .anomaly {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
+  gap: 3px;
+  padding: 13px 15px;
 }
 
 .anomaly__head {
@@ -1666,24 +1613,24 @@ button.txn:active {
 
 .anomaly__merchant {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .anomaly__amount {
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 .anomaly__meta {
   margin: 0;
-  color: var(--muted);
+  color: var(--faint);
   font-size: var(--text-xs);
 }
 
 .anomaly__sentence {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   font-size: var(--text-sm);
 }
 
@@ -1691,8 +1638,8 @@ button.txn:active {
 
 .chart {
   position: relative;
-  height: 220px;
-  margin-top: 6px;
+  height: 208px;
+  margin-top: 4px;
 }
 
 .chart--pie {
@@ -1713,20 +1660,20 @@ button.txn:active {
 .chart__center-label {
   color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-/* L'unica cifra del cruscotto a cui è concesso di essere forte: è il totale a
-   cui sommano tutte le fette sopra di lei. */
+/* La cifra più grande del cruscotto: il totale a cui sommano tutte le fette. */
 .chart__center-value {
-  font-size: clamp(1.05rem, 4.6vw, 1.3rem);
-  font-weight: 700;
+  font-size: clamp(1.2rem, 5.2vw, 1.55rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 .chart-legend {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   margin: 10px 0 0;
   padding: 0;
   list-style: none;
@@ -1741,8 +1688,8 @@ button.txn:active {
 .chart-legend__swatch {
   flex: none;
   align-self: center;
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
 }
 
@@ -1760,18 +1707,17 @@ button.txn:active {
 }
 
 .chart-legend__value {
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .chart-note {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--muted);
   font-size: var(--text-sm);
 }
 
-/* Regole sulla descrizione: una categoria si modifica sul posto, la rimozione si
-   conferma sul posto */
+/* Regole sulla descrizione */
 
 .rule-group {
   display: flex;
@@ -1785,7 +1731,6 @@ button.txn:active {
   gap: 0 10px;
 }
 
-/* La freccia, il nome e i conteggi: un bersaglio solo per tutta la testata. */
 .rule-group__toggle {
   display: flex;
   flex: 1 1 auto;
@@ -1802,8 +1747,6 @@ button.txn:active {
   cursor: pointer;
 }
 
-/* I flag della categoria, sulla riga che la nomina: cosa è una categoria e cosa
-   ci finisce dentro si leggono e si decidono nello stesso posto. */
 .rule-group__flags {
   display: flex;
   flex: 0 1 auto;
@@ -1812,7 +1755,7 @@ button.txn:active {
 }
 
 .rule-group__chevron {
-  color: var(--muted);
+  color: var(--faint);
   font-size: var(--text-sm);
 }
 
@@ -1820,7 +1763,8 @@ button.txn:active {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1832,22 +1776,22 @@ button.txn:active {
 }
 
 .rule-group__empty {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   color: var(--muted);
   font-size: var(--text-sm);
 }
 
 .rule-group__rules {
-  margin: 12px 0 0;
-  padding: 12px 0 0;
-  border-top: 1px solid var(--hairline);
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  box-shadow: inset 0 1px 0 var(--sep);
 }
 
 .rule-row {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 9px 0;
 }
 
 .rule-row__head {
@@ -1882,10 +1826,8 @@ button.txn:active {
   min-width: 0;
 }
 
-/* Dentro un gruppo la categoria non è in discussione — la voce sopra di esso dice
-   quale sia — quindi il testo e il pulsante stanno sulla stessa riga invece di
-   prendersene una a testa: otto regole devono leggersi come otto righe, non
-   ventiquattro. */
+/* Dentro un gruppo la categoria non è in discussione: il testo e il pulsante
+   stanno sulla stessa riga, così otto regole si leggono come otto righe. */
 .rule-group__rules .rule-row__controls .input {
   flex: 1 1 auto;
   min-width: 7rem;
@@ -1906,17 +1848,14 @@ button.txn:active {
   font-size: var(--text-sm);
 }
 
-/* Una regola assegna la categoria sotto cui sta, quindi il gruppo è il modulo: il
-   testo va dove stanno le regole che andrà a raggiungere, e non c'è nessuna
-   categoria da scegliere. */
 .rule-add {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: 12px 0 0;
-  padding: 12px 0 0;
-  border-top: 1px solid var(--hairline);
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  box-shadow: inset 0 1px 0 var(--sep);
 }
 
 .rule-add .input {
@@ -1925,11 +1864,9 @@ button.txn:active {
   min-height: var(--tap);
 }
 
-/* L'unica cosa che può andare storta da questo modulo è un pattern che il
-   registro rifiuta, e il motivo deve stare accanto al testo che l'ha causato. */
 .rule-add__error {
   flex: 1 1 100%;
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   color: var(--out);
   font-size: var(--text-sm);
 }
@@ -1939,11 +1876,9 @@ button.txn:active {
 .account-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
-/* Sotto la riga a cui appartiene: la riga dei flag va a capo, quindi prende una
-   riga intera. */
 .account-row__actions {
   display: flex;
   flex: 1 1 100%;
@@ -1958,13 +1893,13 @@ button.txn:active {
 .account-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .account-form__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .account-form__actions .button {
@@ -1977,12 +1912,8 @@ button.txn:active {
   font-size: var(--text-sm);
 }
 
-/* Movimento
-
-   Un'entrata per schermata, cadenzata per posizione: la pagina si compone in un
-   gesto solo, e la molla la lascia assestare invece di fermarla di colpo. Il
-   movimento risponde al tocco che ha cambiato schermata, e dopo non si muove più
-   niente da solo. */
+/* Movimento: una entrata per schermata, cadenzata per posizione, assestata
+   dalla molla. Nessun niente si muove da solo dopo. */
 
 @keyframes screen-in {
   from {
@@ -2025,27 +1956,27 @@ button.txn:active {
 }
 
 .screen > :nth-child(2) {
-  animation-delay: 40ms;
+  animation-delay: 35ms;
 }
 
 .screen > :nth-child(3) {
-  animation-delay: 80ms;
+  animation-delay: 70ms;
 }
 
 .screen > :nth-child(4) {
-  animation-delay: 120ms;
+  animation-delay: 105ms;
 }
 
 .screen > :nth-child(5) {
-  animation-delay: 160ms;
+  animation-delay: 140ms;
 }
 
 .screen > :nth-child(6) {
-  animation-delay: 200ms;
+  animation-delay: 175ms;
 }
 
 /* I ritardi si azzerano insieme alle durate: un'animazione di durata zero che
-   aspetta ancora 200 ms tiene il suo blocco invisibile per 200 ms. */
+   aspetta ancora 175 ms tiene il suo blocco invisibile per 175 ms. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

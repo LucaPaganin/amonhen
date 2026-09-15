@@ -10,7 +10,6 @@ import {
   AreaChart,
   Bar,
   BarChart,
-  CartesianGrid,
   Cell,
   Pie,
   PieChart,
@@ -37,24 +36,24 @@ const SLICES: Array<[string, string]> = [
   ["#b9c6d6", "#7a8da3"],
 ];
 
+/* Nessuna griglia e nessuna linea d'asse: restano le etichette, e i numeri
+   esatti li porta il tooltip. */
 const AXIS = {
   tick: { fill: "var(--muted)", fontSize: 12 },
-  axisLine: { stroke: "var(--hairline)" },
+  axisLine: false,
   tickLine: false,
 } as const;
 
-const GRID = { stroke: "rgba(255, 255, 255, 0.06)", vertical: false } as const;
-
 const TOOLTIP = {
-  background: "rgba(28, 30, 50, 0.94)",
-  border: "1px solid var(--hairline)",
-  borderRadius: "18px",
+  background: "rgba(30, 32, 54, 0.95)",
+  border: "none",
+  borderRadius: "20px",
   boxShadow: "0 18px 40px -18px rgba(3, 5, 14, 0.9)",
   color: "var(--text)",
   fontSize: "13px",
 } as const;
 
-const CURSOR = { fill: "rgba(244, 245, 249, 0.06)" } as const;
+const CURSOR = { fill: "rgba(255, 255, 255, 0.05)" } as const;
 
 function money(value: unknown): string {
   return formatAmount(Number(value ?? 0));
@@ -117,7 +116,7 @@ export function SpendingPie({ categories, total }: SpendingPieProps) {
             data={data}
             dataKey="value"
             nameKey="name"
-            innerRadius="58%"
+            innerRadius="63%"
             outerRadius="86%"
             paddingAngle={3}
             cornerRadius={6}
@@ -187,7 +186,6 @@ export function FlowsChart({ months }: { months: MonthlyFlow[] }) {
               <stop offset="100%" stopColor="var(--out-deep)" />
             </linearGradient>
           </defs>
-          <CartesianGrid {...GRID} />
           <XAxis dataKey="label" {...AXIS} />
           <YAxis {...AXIS} tickFormatter={compact} width={52} />
           <Tooltip
@@ -231,13 +229,12 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
               <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid {...GRID} />
           <XAxis dataKey="label" {...AXIS} />
           <YAxis {...AXIS} tickFormatter={compact} width={52} domain={["auto", "auto"]} />
           <Tooltip
             contentStyle={TOOLTIP}
             itemStyle={{ color: "var(--text)" }}
-            cursor={{ stroke: "var(--hairline)" }}
+            cursor={{ stroke: "var(--fill-3)" }}
             formatter={money}
             labelFormatter={(_label, payload) => labelFrom(payload, "date")}
           />
