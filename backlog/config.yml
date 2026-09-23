@@ -1,4 +1,4 @@
-project_name: "bank-connector"
+project_name: "amonhen"
 default_status: "To Do"
 statuses: ["To Do", "In Progress", "Done"]
 labels: []

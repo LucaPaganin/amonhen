@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.1 — settembre 2026
+Versione 1.2 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -38,7 +38,10 @@ scegliere. Conti e budget resta i conti e i budget del mese.
 1.1 · una regola può essere un'espressione regolare, scritta fra barre: copre una
 famiglia che la banca scrive in troppi modi per elencarli, vede lo stesso testo
 delle regole — spazi collassati, maiuscole ignorate — e vince su un testo;
-un'espressione che non compila si rifiuta invece di restare lì a non combaciare.*
+un'espressione che non compila si rifiuta invece di restare lì a non combaciare.
+1.2 · il progetto prende il nome del prodotto anche fuori: il repository su
+GitHub e la cartella locale sono `amonhen`, non più `bank-connector`, e §7
+perde la frase che diceva il contrario.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -246,7 +249,7 @@ Conseguenze da accettare consapevolmente:
 
 **Repo**: branch sul repo esistente. La strumentazione di sviluppo (regole per gli agenti, backlog) va installata su `main` in un commit dedicato, prima di aprire il branch, così è disponibile anche ai branch successivi.
 
-**Esito (settembre 2026).** La strumentazione è su `main` in un commit dedicato e il lavoro sta su un branch; il percorso Actual è uscito dal branch; il livello che parla con Enable Banking è un modulo interno (`providers/`), scritto contro le fixture anonimizzate della fase 0. Il prodotto si chiama AmonHen, e dal 2026 anche i confini lo dicono: il pacchetto è `amonhen`, le variabili sono `AMONHEN_*`, il database è `amonhen.db`. La cartella del repo resta `bank-connector`, che è il nome che l'ha ospitato prima che il prodotto avesse il suo.
+**Esito (settembre 2026).** La strumentazione è su `main` in un commit dedicato e il lavoro sta su un branch; il percorso Actual è uscito dal branch; il livello che parla con Enable Banking è un modulo interno (`providers/`), scritto contro le fixture anonimizzate della fase 0. Il prodotto si chiama AmonHen, e dal 2026 anche i confini lo dicono: il pacchetto è `amonhen`, le variabili sono `AMONHEN_*`, il database è `amonhen.db`, e da settembre hanno lo stesso nome il repository su GitHub e la cartella locale. `bank-connector` resta il nome con cui quel repo ha ospitato il connettore prima che il prodotto avesse il suo: è storia della sezione, non lo stato di oggi.
 
 ## 8. Dove non va l'AI
 

@@ -1,4 +1,4 @@
-# CLAUDE.md — AmonHen (repo folder: bank-connector)
+# CLAUDE.md — AmonHen
 
 ## Project
 
