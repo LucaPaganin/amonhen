@@ -17,6 +17,7 @@ accounts.json
 amonhen.db
 dumps
 mytest*
+actual-cache
 web/node_modules
 web/dist
 htmlcov

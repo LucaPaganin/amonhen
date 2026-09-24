@@ -1219,3 +1219,400 @@ def test_anchoring_from_a_declaration_makes_the_invariant_hold_by_construction(a
     assert anchored["verification"]["state"] == "verified"
     assert anchored["opening_balance"] == "0.00"
     assert anchored["opening_date"] == "2026-08-02"
+
+
+def test_the_account_says_whether_deleted_movements_may_come_back(api):
+    """The flag is per account, and the panel has to read it and set it."""
+    client, _ = api
+    revolut = next(a for a in client.get("/api/accounts").json() if a["name"] == "Revolut")
+    assert revolut["reimport_deleted"] is False
+    # A reconciled account, so "the flag left the verification where it was" is
+    # a statement this test can actually contradict.
+    client.put(
+        f"/api/accounts/{revolut['id']}/declaration",
+        json={"date": "2026-09-12", "balance": revolut["balance"], "kind": "available"},
+    )
+
+    patched = client.patch(f"/api/accounts/{revolut['id']}", json={"reimport_deleted": True})
+
+    assert patched.status_code == 200
+    assert patched.json()["reimport_deleted"] is True
+    assert patched.json()["verification"]["state"] == "verified"
+    stored = next(a for a in client.get("/api/accounts").json() if a["id"] == revolut["id"])
+    assert stored["reimport_deleted"] is True
+    assert stored["investment"] is False
+    # A category is not an account, whatever the body says.
+    groceries = next(c for c in client.get("/api/categories").json() if c["name"] == "Uncategorized")
+    assert client.patch(f"/api/accounts/{groceries['id']}", json={"reimport_deleted": True}).status_code == 422
+    client.close()
+
+
+def test_a_deleted_movement_comes_back_through_the_flag(tmp_path, monkeypatch):
+    """The whole loop, over the API: delete, sync, flip the flag, sync again."""
+    from test_sync_service import fixture_transactions
+
+    transactions = fixture_transactions()
+    client, _ = app_with_a_fake_bank(tmp_path, monkeypatch, transactions)
+    assert client.post("/api/sync").json()["accounts"][0]["actions"]["inserted"] == len(transactions)
+    movement = client.get("/api/transactions").json()["items"][0]
+    client.put(f"/api/transactions/{movement['id']}/notes", json={"notes": "da riavere"})
+    client.delete(f"/api/transactions/{movement['id']}")
+
+    suppressed = client.post("/api/sync").json()
+
+    assert suppressed["accounts"][0]["actions"] == {"suppressed": 1, "duplicate": len(transactions) - 1}
+
+    account = client.get("/api/accounts").json()[0]
+    client.patch(f"/api/accounts/{account['id']}", json={"reimport_deleted": True})
+    reimported = client.post("/api/sync").json()
+
+    # The row comes back as a new one — its identity is the bank's — with the
+    # note it had when it was deleted, and the count is whole again.
+    assert reimported["accounts"][0]["actions"] == {"reimported": 1, "duplicate": len(transactions) - 1}
+    assert [item["notes"] for item in client.get("/api/transactions").json()["items"] if item["notes"]] == [
+        "da riavere"
+    ]
+    assert client.get("/api/transactions").json()["total"] == len(transactions)
+    client.close()
+
+
+def test_the_trash_lists_what_was_deleted_and_where(api):
+    client, _ = api
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    client.put(f"/api/transactions/{movement['id']}/notes", json={"notes": "doppione"})
+
+    client.delete(f"/api/transactions/{movement['id']}")
+
+    trash = client.get("/api/deleted").json()
+    assert len(trash) == 1
+    assert (
+        trash[0]["account"]["name"],
+        trash[0]["date"],
+        trash[0]["amount"],
+        trash[0]["description"],
+        trash[0]["notes"],
+    ) == (
+        movement["account"]["name"],
+        movement["date"],
+        movement["amount"],
+        movement["description"],
+        "doppione",
+    )
+    assert trash[0]["deleted_at"] is not None
+    client.close()
+
+
+def test_restoring_from_the_trash_puts_the_movement_back(api):
+    """Including the invariant: the balance the bank declared holds again."""
+    client, _ = api
+    revolut = next(a for a in client.get("/api/accounts").json() if a["name"] == "Revolut")
+    client.put(
+        f"/api/accounts/{revolut['id']}/declaration",
+        json={"date": "2026-09-12", "balance": revolut["balance"], "kind": "available"},
+    )
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    client.put(f"/api/transactions/{movement['id']}/notes", json={"notes": "per sbaglio"})
+    client.delete(f"/api/transactions/{movement['id']}")
+    deleted_id = client.get("/api/deleted").json()[0]["id"]
+
+    restored = client.post(f"/api/deleted/{deleted_id}/restore")
+
+    assert restored.status_code == 200
+    assert restored.json()["notes"] == "per sbaglio"
+    assert client.get("/api/deleted").json() == []
+    # The account agrees with the bank again, and the movement counts once.
+    account = next(a for a in client.get("/api/accounts").json() if a["id"] == revolut["id"])
+    assert account["verification"]["state"] == "verified"
+    assert client.post(f"/api/deleted/{deleted_id}/restore").status_code == 409
+    client.close()
+
+
+def test_restoring_something_that_is_not_in_the_trash_is_404(api):
+    client, _ = api
+
+    assert client.post("/api/deleted/999/restore").status_code == 404
+    client.close()
+
+
+def test_the_panel_says_a_difference_is_what_someone_deleted(api):
+    """Reconciled except for the hand-deleted movements, and not a red panel."""
+    client, _ = api
+    revolut = next(a for a in client.get("/api/accounts").json() if a["name"] == "Revolut")
+    client.put(
+        f"/api/accounts/{revolut['id']}/declaration",
+        json={"date": "2026-09-12", "balance": revolut["balance"], "kind": "available"},
+    )
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+
+    client.delete(f"/api/transactions/{movement['id']}")
+    after_delete = next(a for a in client.get("/api/accounts").json() if a["id"] == revolut["id"])
+    check = after_delete["verification"]["checks"][0]
+
+    assert after_delete["verification"]["state"] == "suppressed"
+    assert check["explained"] is True
+    assert check["suppressed"] == movement["amount"]
+    assert check["suppressed_count"] == 1
+
+    # A difference bigger than the deletions is still a mismatch.
+    client.put(
+        f"/api/accounts/{revolut['id']}/declaration",
+        json={"date": "2026-09-12", "balance": "1.00", "kind": "available"},
+    )
+    wrong = next(a for a in client.get("/api/accounts").json() if a["id"] == revolut["id"])
+    assert wrong["verification"]["state"] == "mismatch"
+
+    # And one explained figure beside an unexplained one is a mismatch too: the
+    # explanation is per figure, never a cloak over the other.
+    client.put(
+        f"/api/accounts/{revolut['id']}/declaration",
+        json={"date": "2026-09-12", "balance": revolut["balance"], "kind": "available"},
+    )
+    client.put(
+        f"/api/accounts/{revolut['id']}/declaration",
+        json={"date": "2026-09-12", "balance": "1.00", "kind": "booked"},
+    )
+    mixed = next(a for a in client.get("/api/accounts").json() if a["id"] == revolut["id"])
+    explained = {check["kind"]: check["explained"] for check in mixed["verification"]["checks"]}
+
+    assert mixed["verification"]["state"] == "mismatch"
+    assert explained["available"] is True
+    assert explained["booked"] is False
+    client.close()
+
+
+def test_a_movement_can_be_deleted_and_does_not_come_back(api):
+    """Deleting is a write with a memory: the sync must not undo it."""
+    client, _ = api
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    client.post("/api/rules", json={"pattern": "EKOM", "category": "Spesa"})
+
+    deleted = client.delete(f"/api/transactions/{movement['id']}")
+
+    assert deleted.status_code == 200
+    assert deleted.json() == {"id": movement["id"], "unlinked_pair": False}
+    assert client.get(f"/api/transactions/{movement['id']}").status_code == 404
+    assert client.delete(f"/api/transactions/{movement['id']}").status_code == 404
+    # Nothing else moved: the rule is still the rule it was. Its count drops,
+    # because the movement it held is gone — that is the deletion, not a rewrite.
+    assert [(rule["pattern"], rule["category"]) for rule in client.get("/api/rules").json()] == [
+        ("EKOM", "Spesa")
+    ]
+
+    client.close()
+
+
+def test_deleting_a_leg_says_the_pair_was_unlinked(api):
+    client, _ = api
+    legs = client.get("/api/transactions", params={"transfer": "true"}).json()["items"]
+
+    deleted = client.delete(f"/api/transactions/{legs[0]['id']}").json()
+
+    assert deleted["unlinked_pair"] is True
+    # The other half is spending again rather than a leg of nothing.
+    surviving = next(
+        item
+        for item in client.get("/api/transactions", params={"transfer": "false"}).json()["items"]
+        if item["id"] == legs[1]["id"]
+    )
+    assert surviving["transfer"] is None
+    client.close()
+
+
+def test_deleting_a_movement_that_does_not_exist_is_404(api):
+    client, _ = api
+
+    assert client.delete("/api/transactions/99999").status_code == 404
+    client.close()
+
+
+def test_a_note_is_written_read_and_cleared(api):
+    """The one field of a movement a person may write, and nothing else is."""
+    client, _ = api
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    assert movement["notes"] is None
+
+    written = client.put(f"/api/transactions/{movement['id']}/notes", json={"notes": "  rimborso a meta  "})
+
+    assert written.status_code == 200
+    # Whitespace is trimmed, and the movement comes back as the app reads it.
+    assert written.json()["notes"] == "rimborso a meta"
+    assert written.json()["description"] == movement["description"]
+    assert client.get(f"/api/transactions/{movement['id']}").json()["notes"] == "rimborso a meta"
+
+    # Nothing else travels: a body that tries to rewrite the amount is ignored,
+    # because the ledger is checked against what the bank said.
+    untouched = client.put(
+        f"/api/transactions/{movement['id']}/notes",
+        json={"notes": "ancora", "amount": "999.00", "date": "2020-01-01", "description": "riscritta"},
+    ).json()
+
+    assert untouched["amount"] == movement["amount"]
+    assert untouched["date"] == movement["date"]
+    assert untouched["description"] == movement["description"]
+
+    cleared = client.put(f"/api/transactions/{movement['id']}/notes", json={"notes": ""})
+
+    assert cleared.json()["notes"] is None
+    client.close()
+
+
+def test_a_note_is_found_by_the_search(api):
+    """Marking a movement is only useful if the mark can be found again."""
+    client, _ = api
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    other = client.get("/api/transactions").json()["items"][1]
+    client.put(f"/api/transactions/{movement['id']}/notes", json={"notes": "da rivedere con il notaio"})
+
+    found = client.get("/api/transactions", params={"search": "notaio"}).json()
+
+    assert [item["id"] for item in found["items"]] == [movement["id"]]
+    assert other["notes"] is None
+    client.close()
+
+
+def test_a_note_on_a_movement_that_does_not_exist_is_404(api):
+    client, _ = api
+
+    assert client.put("/api/transactions/99999/notes", json={"notes": "x"}).status_code == 404
+    client.close()
+
+
+def test_the_queue_row_carries_the_note_too(api, tmp_path):
+    """A row waiting for a decision is shown by the same component as any other."""
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    ledger = Ledger(conn)
+    row = ledger.conn.execute("SELECT id FROM transactions ORDER BY id LIMIT 1").fetchone()
+    ledger.set_notes(row["id"], "segnato in coda")
+    conn.close()
+
+    queue = client.get("/api/review").json()
+
+    assert any(item["notes"] == "segnato in coda" for item in queue["uncategorized"] + [
+        link["leg_a"] for link in queue["transfers"]
+    ] + [link["leg_b"] for link in queue["transfers"]])
+    client.close()
+
+
+def app_with_a_fake_bank(tmp_path, monkeypatch, transactions=()):
+    """The app wired to the sync fixtures: its own config on disk, a fake bank.
+
+    A sync reads `accounts.json`, not the ledger, so a test of the endpoint has
+    to hand it a file of its own: the default path is the operator's.
+    """
+    from test_sync_service import FakeClient
+
+    from amonhen import api as api_module
+
+    config = tmp_path / "accounts.json"
+    config.write_text(
+        json.dumps(
+            {
+                "application_id": "app-1",
+                "pem_path": "private.pem",
+                "redirect_url": "http://localhost:8000/callback",
+                # The same holder name the sync fixtures were normalized with,
+                # or the own-transfer filter would read a different ledger.
+                "account_holder_name": "Titolare Conto",
+                "accounts": [
+                    {
+                        "session_id": "session-1",
+                        "account_uid": "uid-1",
+                        "bank_name": "Revolut",
+                        "notes": "Revolut personale",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake = FakeClient(list(transactions))
+    monkeypatch.setattr(api_module, "_client", lambda _config: fake)
+    client = TestClient(
+        create_app(tmp_path / "ledger.db", web_dist=tmp_path / "missing", config_path=config)
+    )
+    return client, fake
+
+
+def test_the_sync_button_writes_what_the_bank_reports(tmp_path, monkeypatch):
+    """The button is the whole point of the endpoint: fetch now, answer with it."""
+    from test_sync_service import fixture_transactions
+
+    transactions = fixture_transactions()
+    client, _ = app_with_a_fake_bank(tmp_path, monkeypatch, transactions)
+
+    response = client.post("/api/sync")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [account["account"] for account in payload["accounts"]] == ["Revolut personale"]
+    assert payload["accounts"][0]["actions"]["inserted"] == len(transactions)
+    assert payload["accounts"][0]["error"] is None
+    assert payload["errors"] == []
+    assert payload["accounts"][0]["verification"]["state"] == "unverified"
+    # The keys the button's summary reads, and the one figure it can be held to:
+    # what the account reported is what the payload says it reported.
+    assert set(payload) == {
+        "accounts",
+        "transfers_linked",
+        "rules_applied",
+        "passthrough_legs",
+        "errors",
+    }
+    assert payload["accounts"][0]["fetched"] == len(transactions)
+    # What the app reads afterwards is what the sync wrote, not a second ledger.
+    assert client.get("/api/transactions").json()["total"] == len(transactions)
+    client.close()
+
+
+def test_a_sync_is_refused_while_another_one_runs(tmp_path, monkeypatch):
+    """A second run is turned away rather than queued behind the first."""
+    from amonhen import sync as sync_module
+
+    client, _ = app_with_a_fake_bank(tmp_path, monkeypatch)
+
+    sync_module._SYNC_LOCK.acquire()
+    try:
+        response = client.post("/api/sync")
+    finally:
+        sync_module._SYNC_LOCK.release()
+
+    assert response.status_code == 409
+    assert "already running" in response.json()["detail"]
+    client.close()
+
+
+def test_a_sync_says_why_it_cannot_run(tmp_path):
+    """The reason, in the words the CLI prints, instead of a traceback."""
+    missing_config = TestClient(
+        create_app(
+            tmp_path / "ledger.db",
+            web_dist=tmp_path / "missing",
+            config_path=tmp_path / "nothing-here.json",
+        )
+    )
+    no_key = tmp_path / "accounts.json"
+    no_key.write_text(
+        json.dumps(
+            {
+                "application_id": "app-1",
+                "pem_path": "private.pem",
+                "accounts": [
+                    {"session_id": "session-1", "account_uid": "uid-1", "notes": "Revolut"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    unreadable_key = TestClient(
+        create_app(tmp_path / "ledger.db", web_dist=tmp_path / "missing", config_path=no_key)
+    )
+
+    for client in (missing_config, unreadable_key):
+        response = client.post("/api/sync")
+        assert response.status_code == 503
+        assert response.json()["detail"].startswith("cannot sync:")
+        client.close()

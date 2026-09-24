@@ -36,6 +36,9 @@ export function TransactionRow({ transaction, runningTotal, onSelect, flag }: Tr
       <span className="txn__date">{formatDate(transaction.date)}</span>
       <span className="txn__body">
         <span className="txn__title">{title}</span>
+        {transaction.notes === null ? null : (
+          <span className="txn__note">{transaction.notes}</span>
+        )}
         <span className="txn__meta">
           <span>{transaction.account.name}</span>
           {transferLabel ? (
@@ -73,8 +76,8 @@ export function TransactionRow({ transaction, runningTotal, onSelect, flag }: Tr
           className="txn"
           onClick={() => onSelect(transaction)}
           aria-label={`${title}, ${formatDate(transaction.date)}, ${amount}, ${transaction.account.name}, ${categoryLabel}${
-            transaction.status === "PDNG" ? ", in attesa" : ""
-          }${flag ? `, ${flag.label}` : ""}`}
+            transaction.notes === null ? "" : `, nota: ${transaction.notes}`
+          }${transaction.status === "PDNG" ? ", in attesa" : ""}${flag ? `, ${flag.label}` : ""}`}
         >
           {content}
         </button>

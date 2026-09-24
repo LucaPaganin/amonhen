@@ -45,16 +45,19 @@ export function useAccounts() {
     void load();
   }, [load]);
 
-  // Optimistic: the flag flips immediately; a failed save rolls the list back
+  // Optimistic: the flags flip immediately; a failed save rolls the list back
   // to its previous value. Returns the error message, or null on success.
-  const setInvestment = useCallback(
-    async (id: number, investment: boolean): Promise<string | null> => {
+  const setFlags = useCallback(
+    async (
+      id: number,
+      flags: { investment?: boolean; reimport_deleted?: boolean },
+    ): Promise<string | null> => {
       const snapshot = latest.current;
       setAccounts((current) =>
-        current.map((account) => (account.id === id ? { ...account, investment } : account)),
+        current.map((account) => (account.id === id ? { ...account, ...flags } : account)),
       );
       try {
-        await api.setInvestment(id, investment);
+        await api.setAccountFlags(id, flags);
         reload();
         return null;
       } catch (caught) {
@@ -113,7 +116,7 @@ export function useAccounts() {
     error,
     loading,
     reload,
-    setInvestment,
+    setFlags,
     createAccount,
     declareBalance,
     setOpening,

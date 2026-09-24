@@ -338,6 +338,7 @@ input:not([type="checkbox"]):not([type="radio"]) {
   letter-spacing: -0.02em;
 }
 
+
 .drawer {
   position: fixed;
   inset: 0;
@@ -572,7 +573,9 @@ input:not([type="checkbox"]):not([type="radio"]) {
   max-width: 690px;
   margin: 0 auto;
   padding: 13px 18px;
-  border-radius: var(--pill);
+  /* Un avviso che va a capo non è una pillola: su più righe il raggio tondo
+     mangia il riempimento sotto le ultime, e il testo resta appeso fuori. */
+  border-radius: var(--radius-lg);
   background: rgba(30, 32, 54, 0.94);
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow-float);
@@ -635,6 +638,23 @@ input:not([type="checkbox"]):not([type="radio"]) {
 
 .button--block {
   width: 100%;
+}
+
+/* L'unico controllo della barra che non è una sezione: chiede i dati adesso.
+   Sta a destra, compone `.button` — quindi è dichiarato dopo, alla stessa
+   specificità — e tiene solo quello che è suo. */
+.appbar__sync {
+  margin-left: auto;
+  padding: 0 14px;
+  height: var(--tap);
+  font-size: var(--text-sm);
+}
+
+/* In corso: il pulsante resta leggibile e non promette un secondo tocco. */
+.appbar__sync:disabled {
+  opacity: 1;
+  color: var(--accent);
+  cursor: default;
 }
 
 /* La pressione risponde sotto il dito e la molla la riporta. Niente
@@ -760,6 +780,13 @@ select option {
 .chip--verified {
   background: rgba(110, 231, 168, 0.15);
   color: var(--in);
+}
+
+/* Riconciliato tranne che per quello che è stato cancellato a mano: né il verde
+   di chi concorda, né l'ambra di un difetto. */
+.chip--suppressed {
+  background: rgba(192, 178, 255, 0.15);
+  color: var(--transfer);
 }
 
 /* Il filtro della lista: un chip che si preme, non che si legge. */
@@ -918,6 +945,17 @@ button.txn:active {
 .txn__title {
   overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* La nota è testo di una persona, non della banca: sta sotto il titolo, piccola,
+   su una riga, perché una lista di movimenti non diventa un quaderno. */
+.txn__note {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-style: italic;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1252,6 +1290,20 @@ button.txn:active {
   min-height: var(--tap);
 }
 
+/* La nota apre il foglio, quindi non porta il separatore che stacca la coda. */
+.sheet__note {
+  margin-top: 0;
+  padding-top: 0;
+  box-shadow: none;
+}
+
+/* Una riga piccola che dice cosa fara un controllo: sta sotto il controllo. */
+.hint {
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
 /* Un pannello di giroconto: a cosa è attaccata una gamba, e la via d'uscita */
 
 .transfer__subject {
@@ -1429,6 +1481,39 @@ button.txn:active {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
+}
+
+/* La riga che spiega una flag e il cestino del conto stanno su una riga loro,
+   sotto il nome e i comandi. */
+.flag-row .hint,
+.trash-list {
+  flex-basis: 100%;
+}
+
+.trash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trash-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  background: var(--fill-2);
+}
+
+.trash-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .toggle {

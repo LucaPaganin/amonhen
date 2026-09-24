@@ -72,6 +72,8 @@ export interface Account extends AccountRef {
   type: string;
   balance: string;
   investment: boolean;
+  /** On: the next sync writes back the movements deleted from this account. */
+  reimport_deleted: boolean;
   opening_date: string | null;
   /** The figure the ledger starts from, or null while nothing anchors it. */
   opening_balance: string | null;
@@ -101,6 +103,11 @@ export interface Declaration {
  * look at the pending rows or at duplicates and gaps.
  */
 export interface DeclaredBalanceCheck {
+  /** The difference is the movements a person deleted, and nothing else. */
+  explained: boolean;
+  /** What those deleted movements would have added to this figure, signed. */
+  suppressed: string;
+  suppressed_count: number;
   kind: "available" | "booked";
   source: string;
   date: string;
@@ -112,8 +119,32 @@ export interface DeclaredBalanceCheck {
 
 export type AccountVerification =
   | { state: "verified"; date: string; checks: DeclaredBalanceCheck[] }
+  /** Reconciled except for what somebody deleted here, by hand. */
+  | { state: "suppressed"; date: string; checks: DeclaredBalanceCheck[] }
   | { state: "mismatch"; date: string; checks: DeclaredBalanceCheck[] }
   | { state: "unverified"; date: null; checks: DeclaredBalanceCheck[] };
+
+/** One account's part of a sync: what it returned, and what the ledger made of it. */
+export interface SyncAccountResult {
+  account: string;
+  fetched: number;
+  balances: number;
+  /** How the movements were absorbed: `inserted`, `promoted`, `duplicate`, … */
+  actions: Record<string, number>;
+  error: string | null;
+  /** The sync's own 5.4 sentence, when the ledger and the bank disagreed. */
+  balance_mismatch: string | null;
+  verification: AccountVerification | null;
+}
+
+/** What a sync wrote, per account, with what it could not read. */
+export interface SyncOutcome {
+  accounts: SyncAccountResult[];
+  transfers_linked: number;
+  rules_applied: number;
+  passthrough_legs: number;
+  errors: string[];
+}
 
 export interface Category {
   id: number;
@@ -156,6 +187,8 @@ export interface Transaction {
   transfer: TransferDetail | null;
   counterparty: string | null;
   source: string;
+  /** The note a person wrote on this movement; the only field they may write. */
+  notes: string | null;
   /** Queue only: what the automatic passes already made of this row. */
   review_state?: ReviewState;
   /** Queue only: the category a pending proposal suggests, if any. */
@@ -164,6 +197,30 @@ export interface Transaction {
 
 /** `proposed`: something is waiting for a decision. `unhandled`: nothing was. */
 export type ReviewState = "proposed" | "unhandled";
+
+/**
+ * A movement taken out of the ledger. `unlinked_pair` says a transfer was
+ * undone with it: the other leg is spending again, and the row that said so is
+ * gone, so the app has to tell the person rather than let it look untouched.
+ */
+export interface Deletion {
+  id: number;
+  unlinked_pair: boolean;
+}
+
+/** A deleted movement as the trash reads it: enough to recognise, and to undo. */
+export interface DeletedMovement {
+  id: number;
+  account: AccountRef;
+  date: string;
+  amount: string;
+  description: string;
+  merchant: string | null;
+  status: TransactionStatus;
+  notes: string | null;
+  /** When it was deleted, ISO: the list says it without a time of day. */
+  deleted_at: string;
+}
 
 export interface TransferCandidate {
   confidence: string;

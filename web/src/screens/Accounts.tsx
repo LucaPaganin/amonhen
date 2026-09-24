@@ -12,6 +12,7 @@ import type {
   Budget,
   DeclaredBalanceCheck,
   Declaration,
+  DeletedMovement,
   NewAccount,
 } from "../types";
 import { useAccounts } from "../useAccounts";
@@ -20,6 +21,8 @@ import { categoryText } from "../category";
 interface AccountsScreenProps {
   /** Opens the assistant on one budget: the question is born at that row. */
   onAskAssistant: (context: AssistantContext) => void;
+  /** Bumped after a sync: the balances and the 5.4 verdict are read again. */
+  refreshToken: number;
 }
 
 /** The two figures a bank reports, in the words the form offers. */
@@ -31,6 +34,7 @@ const KIND_LABELS: Record<Declaration["kind"], string> = {
 /** What declaring a figure is for: it says whether the bank and the ledger agree. */
 const VERIFICATION_OUTCOMES: Record<AccountVerification["state"], string> = {
   verified: "banca e ledger concordano",
+  suppressed: "d'accordo salvo i movimenti cancellati a mano",
   mismatch: "banca e ledger non concordano",
   unverified: "nessun confronto possibile",
 };
@@ -45,6 +49,23 @@ function today(): string {
 }
 
 /** Which figure disagrees decides what to go and look at. */
+function suppressedLabel(checks: DeclaredBalanceCheck[]): string {
+  // The two declared figures describe one account: the available one counts
+  // every deleted movement and the booked one a subset, so the total is the
+  // widest of them — never their sum, which counts the same movement twice.
+  const widest = checks.reduce((most, check) =>
+    check.suppressed_count > most.suppressed_count ? check : most,
+  );
+  // The amount is said without its sign: the two figures above already say
+  // which way the difference runs.
+  const amount = Math.abs(toAmount(widest.suppressed));
+  const what =
+    widest.suppressed_count === 1
+      ? "1 movimento cancellato a mano"
+      : `${widest.suppressed_count} movimenti cancellati a mano`;
+  return `d'accordo salvo ${what} (${formatAmount(String(amount))})`;
+}
+
 function verificationLabel(checks: DeclaredBalanceCheck[]): string {
   const failed = checks.filter((check) => !check.ok);
   if (failed.length === 1 && failed[0].kind === "available") return "non torna sui sospesi";
@@ -58,7 +79,10 @@ function verificationDetail(verification: AccountVerification): string {
     .map(
       (check) =>
         `${check.source} del ${formatDate(check.date)}: banca ${formatAmount(check.declared)}, ` +
-        `ledger ${formatAmount(check.computed)}`,
+        `ledger ${formatAmount(check.computed)}` +
+        (check.explained
+          ? ` (${formatAmount(String(Math.abs(toAmount(check.suppressed))))} cancellati a mano)`
+          : ""),
     )
     .join(" · ");
 }
@@ -75,16 +99,21 @@ function VerificationChip({ verification }: { verification: AccountVerification 
       </span>
     );
   }
+  // Reconciled except for what was deleted here by hand: that is not a defect,
+  // so it is not the amber a defect gets either.
+  const tone =
+    verification.state === "verified"
+      ? "chip--verified"
+      : verification.state === "suppressed"
+        ? "chip--suppressed"
+        : "chip--warning";
   return (
-    <span
-      className={`chip flag-row__check ${
-        verification.state === "verified" ? "chip--verified" : "chip--warning"
-      }`}
-      title={verificationDetail(verification)}
-    >
+    <span className={`chip flag-row__check ${tone}`} title={verificationDetail(verification)}>
       {verification.state === "verified"
         ? `verificato al ${formatDate(verification.date)}`
-        : verificationLabel(verification.checks)}
+        : verification.state === "suppressed"
+          ? suppressedLabel(verification.checks)
+          : verificationLabel(verification.checks)}
     </span>
   );
 }
@@ -400,19 +429,21 @@ function NewAccountSheet({ open, onClose, onCreate }: NewAccountSheetProps) {
   );
 }
 
-export function AccountsScreen({ onAskAssistant }: AccountsScreenProps) {
+export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenProps) {
   const {
     accounts,
     error: accountsError,
     loading: accountsLoading,
     reload: reloadAccounts,
-    setInvestment,
+    setFlags,
     createAccount,
     declareBalance,
     setOpening,
   } = useAccounts();
 
   const [pendingAccounts, setPendingAccounts] = useState<number[]>([]);
+  const [trash, setTrash] = useState<DeletedMovement[]>([]);
+  const [trashError, setTrashError] = useState<string | null>(null);
   const [declareFor, setDeclareFor] = useState<Account | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -442,7 +473,48 @@ export function AccountsScreen({ onAskAssistant }: AccountsScreenProps) {
     const controller = new AbortController();
     void loadBudgets(month, controller.signal);
     return () => controller.abort();
-  }, [loadBudgets, month]);
+  }, [loadBudgets, month, refreshToken]);
+
+  // A sync declares balances under this screen, so the token says to read them
+  // again: the first render is not a refresh, the mount effect above is.
+  useEffect(() => {
+    if (refreshToken > 0) reloadAccounts();
+  }, [refreshToken, reloadAccounts]);
+
+  // The trash is read once and grouped under each account: what a delete left
+  // behind belongs to the account whose flag decides whether it may come back.
+  const loadTrash = useCallback(async (signal?: AbortSignal) => {
+    try {
+      setTrash(await api.deleted(signal));
+      setTrashError(null);
+    } catch (caught) {
+      if (isAbortError(caught)) return;
+      setTrashError(errorMessage(caught));
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadTrash(controller.signal);
+    return () => controller.abort();
+  }, [loadTrash, refreshToken]);
+
+  const restore = async (item: DeletedMovement) => {
+    if (pendingAccounts.includes(item.account.id)) return;
+    setPendingAccounts((current) => [...current, item.account.id]);
+    try {
+      await api.restoreDeleted(item.id);
+      setNotice(`Movimento ripristinato: ${item.merchant ?? item.description}`);
+      // Both sides change: the account gains the movement back and the trash
+      // loses it, and the verification is what says whether they agree again.
+      reloadAccounts();
+      await loadTrash();
+    } catch (caught) {
+      setNotice(`Movimento non ripristinato: ${errorMessage(caught)}`);
+    } finally {
+      setPendingAccounts((current) => current.filter((id) => id !== item.account.id));
+    }
+  };
 
   const applyBudget = async (budget: Budget, amount: string | null) => {
     if (pendingBudget !== null) return;
@@ -472,10 +544,13 @@ export function AccountsScreen({ onAskAssistant }: AccountsScreenProps) {
     await applyBudget(budget, value);
   };
 
-  const toggleInvestment = async (account: Account, next: boolean) => {
+  const toggleFlag = async (
+    account: Account,
+    flags: { investment?: boolean; reimport_deleted?: boolean },
+  ) => {
     if (pendingAccounts.includes(account.id)) return;
     setPendingAccounts((current) => [...current, account.id]);
-    const message = await setInvestment(account.id, next);
+    const message = await setFlags(account.id, flags);
     setPendingAccounts((current) => current.filter((id) => id !== account.id));
     if (message !== null) setNotice(`Conto non aggiornato: ${message}`);
   };
@@ -567,9 +642,51 @@ export function AccountsScreen({ onAskAssistant }: AccountsScreenProps) {
                       ariaLabel={`Investimento ${account.name}`}
                       checked={account.investment}
                       disabled={pending}
-                      onChange={(next) => void toggleInvestment(account, next)}
+                      onChange={(next) => void toggleFlag(account, { investment: next })}
+                    />
+                    <Toggle
+                      label="Ripristina i cancellati"
+                      ariaLabel={`Ripristina i movimenti cancellati di ${account.name}`}
+                      checked={account.reimport_deleted}
+                      disabled={pending}
+                      onChange={(next) => void toggleFlag(account, { reimport_deleted: next })}
                     />
                   </div>
+                  {account.reimport_deleted ? (
+                    <p className="hint">
+                      I movimenti cancellati di questo conto tornano al prossimo sync, con la loro
+                      nota.
+                    </p>
+                  ) : null}
+                  {trash.filter((item) => item.account.id === account.id).length === 0 ? null : (
+                    <ul className="trash-list">
+                      {trash
+                        .filter((item) => item.account.id === account.id)
+                        .map((item) => (
+                          <li className="trash-row" key={item.id}>
+                            <span className="trash-row__text">
+                              <span className="txn__title">{item.merchant ?? item.description}</span>
+                              {item.notes === null ? null : (
+                                <span className="txn__note">{item.notes}</span>
+                              )}
+                              <span className="txn__meta">
+                                <span>{formatDate(item.date)}</span>
+                                <span>{formatAmount(item.amount)}</span>
+                                <span>cancellato il {formatDate(item.deleted_at.slice(0, 10))}</span>
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              className="button"
+                              disabled={pending}
+                              onClick={() => void restore(item)}
+                            >
+                              Ripristina
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
                   <div className="account-row__actions">
                     <button
                       type="button"
@@ -598,6 +715,11 @@ export function AccountsScreen({ onAskAssistant }: AccountsScreenProps) {
               );
             })}
           </ul>
+        )}
+        {trashError === null ? null : (
+          <p className="state state--error" role="alert">
+            Cestino non leggibile: {trashError}
+          </p>
         )}
       </section>
 

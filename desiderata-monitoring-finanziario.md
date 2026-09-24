@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.2 — settembre 2026
+Versione 1.3 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -41,7 +41,13 @@ delle regole — spazi collassati, maiuscole ignorate — e vince su un testo;
 un'espressione che non compila si rifiuta invece di restare lì a non combaciare.
 1.2 · il progetto prende il nome del prodotto anche fuori: il repository su
 GitHub e la cartella locale sono `amonhen`, non più `bank-connector`, e §7
-perde la frase che diceva il contrario.*
+perde la frase che diceva il contrario.
+1.3 · la fase 6: il ledger si aggiorna da un pulsante nell'app invece che da un
+terminale, un movimento porta una nota locale che il sync non tocca, si cancella
+davvero — con il tombstone che tiene il sync dal rimetterlo, una flag per conto
+che decide se può tornare e un cestino che lo ripristina — e la §5.4 spiega la
+differenza che una cancellazione lascia invece di gridare mismatch. L'immagine
+la costruisce la CI su un tag, e il NAS la tira: non ha più bisogno del repo.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -109,6 +115,8 @@ Requisiti comuni a entrambi i percorsi:
 - Un adattatore per formato di export, che normalizza verso lo schema comune. I formati differiscono per istituto (colonne, segno dell'importo, formato data, separatore decimale).
 - Gestione della transizione pending → booked senza duplicare la transazione.
 - Payload grezzo conservato integralmente, con indicazione del percorso di provenienza, per poter riprocessare senza ri-fetchare né ri-scaricare.
+- **Una cancellazione è una decisione che il sync rispetta.** Un movimento si cancella dal ledger e resta in `deleted_transactions` con l'identità con cui il ledger deduplica (l'identificativo della banca, altrimenti l'impronta di contenuto così com'era), il payload, la nota, com'era la riga e quando è stata tolta: senza quella copia il sync successivo riscriverebbe il movimento, e a mano non resta niente da rileggere. Un `PDNG` cancellato sopprime anche il `BOOK` che la banca manda dopo, anche quando lo contabilizza con un altro riferimento e un'altra data. La soppressione riconosce il movimento in tre modi, e sono le relazioni che il ledger conosce già: l'identificativo con cui è stato cancellato, lo stesso contenuto che arriva dall'*altro* percorso di ingest — è la zona di sovrapposizione di §5.1, dove l'impronta è il solo discriminante — e la gamba contabilizzata di un movimento in attesa cancellato qui, che la banca manda giorni dopo con un altro riferimento e un'altra data. Esatta ovunque altro: quattro accrediti identici nello stesso giorno sono quattro movimenti, e cancellarne uno non deve sopprimere il suo gemello, quindi un movimento dello stesso stato non si riconosce mai dal solo contenuto. Una leg di un giroconto non si cancella lasciando l'altra appesa al conto di clearing: il link si rifiuta, l'altra gamba torna in coda, e la cancellazione lo dice. Il cestino di un conto elenca ciò che è stato tolto — data, importo, descrizione, nota e quando è sparito — e il ripristino di una riga la rimette nel ledger dal payload conservato, con la sua nota: una seconda volta è rifiutata, e il ripristino passa dalle stesse regole dell'ingest, quindi un movimento che il ledger già tiene non viene scritto due volte. Quello che il ripristino non può sapere è un movimento tornato sotto un'identità che il tombstone non porta — il limite dell'impronta nella zona di sovrapposizione — e il posto dove accorgersene è la lista del cestino.
+- **Il ritorno di una cancellazione è una decisione del conto.** Una flag per conto — spenta, perché cancellare deve significare cancellare — dice se il sync successivo riporta i movimenti cancellati: accesa, li riscrive dal tombstone con la loro nota e segna che sono tornati; spenta, li lascia fuori e l'esito del sync li conta fra i soppressi. Si accende per un conto solo, perché la ragione è la storia di quel conto — un consenso rinnovato, un periodo cancellato per sbaglio — non una proprietà del ledger, e spegnerla di nuovo non ricancella ciò che è tornato.
 - **La ri-autorizzazione rinfresca, non accoda.** Un consenso può morire mentre la sessione che lo contiene è ancora valida, e rinnovarlo produce una sessione nuova mentre l'uid del conto resta lo stesso: la voce di `accounts.json` che ha quell'uid si aggiorna sul posto — nome e data d'inizio restano, perché il primo è il nome con cui il ledger conosce il conto e la seconda è la storia che ha già importato — e solo un conto mai visto viene aggiunto. Accodare una seconda voce significava, per un ledger che riconosce i conti per nome, un secondo conto con la stessa storia dentro.
 
 ### 5.2 Modello a partita doppia
@@ -139,6 +147,8 @@ saldo_iniziale + Σ movimenti == saldo dichiarato dalla banca
 ```
 
 Questa è la quantità conservata del sistema. Va verificata a ogni sync e l'esito è **visibile per conto** (pannello Conti), non sepolto in un log: non è una metrica di spesa, è lo stato di affidabilità di quel conto. La banca dichiara due figure per la stessa data — disponibile e contabilizzata — e ognuna si confronta con il saldo calcolato che significa la stessa cosa, così un controllo che fallisce dice quale delle due non torna, ed è ciò che distingue un movimento in attesa da un duplicato. Un conto per cui nessuno ha dichiarato un saldo resta `non verificato`: il silenzio non è un assenso. Se non torna, ogni numero a valle è inaffidabile.
+
+**Una differenza spiegata non è un guasto.** Gli esiti visibili per conto sono quattro, non tre: oltre a *verificato*, *mismatch* e *non verificato*, un conto la cui differenza è esattamente ciò che una persona ha cancellato a mano si legge **d'accordo salvo N movimenti cancellati a mano**, con l'importo, perché il ledger e la banca discordano davvero, ma per una decisione presa qui, e un rosso che nessuno può far sparire insegna a ignorare l'unica riga che conta. Ogni figura si confronta con i movimenti che conterrebbe: quella disponibile conta anche i sospesi cancellati, quella contabilizzata no. Una differenza che i tombstone non spiegano resta un mismatch, e il sync non chiama guasto ciò che è spiegato: lo annota.
 
 ### 5.5 Categorizzazione
 
@@ -212,10 +222,14 @@ Una sezione dell'app che discute i numeri che il backend ha già calcolato — s
 
 ```
 accounts             (id, nome, tipo: reale|virtuale|categoria, istituto, iban, uid_esterno, valuta,
-                      saldo_iniziale, data_iniziale, flag: episodico | incomprimibile | investimento)
+                      saldo_iniziale, data_iniziale, flag: episodico | incomprimibile | investimento,
+                      ripristina_cancellati)
 transactions         (id, conto, data, importo, descrizione, stato BOOK|PDNG, external_id, content_hash,
-                      origine psd2|import, payload_grezzo, controparte, conto_controparte)
+                      origine psd2|import, payload_grezzo, controparte, conto_controparte, nota)
 postings             (id, transaction_id, account_id, importo, note)
+deleted_transactions (id, conto, chiave, data, importo, descrizione, stato, external_id, content_hash,
+                      origine, payload_grezzo, controparte, conto_controparte, nota, cancellato_il,
+                      ripristinato_il)
 transfer_links       (leg_a, leg_b, confidenza, metodo, confermato_da_umano: 1 confermato, 0 da rivedere, -1 rifiutato)
 rules                (chiave, testo, categoria)
 account_balances     (conto, data, saldo, origine)
@@ -225,6 +239,15 @@ settings             (chiave, valore)
 ```
 
 Vincolo di integrità: per ogni `transaction_id`, `SUM(postings.importo) = 0`.
+
+**La nota di un movimento è locale, e nient'altro si scrive a mano.** Un movimento porta una
+`notes` che la banca non manda e che nessun percorso di ingest tocca su una riga che esiste:
+sopravvive alla promozione `PDNG`→`BOOK`, che riscrive data, descrizione e identificativo della
+stessa riga, e alla riimportazione del periodo. L'unica scrittura che non viene da una persona è
+il tombstone che restituisce a un movimento appena ricreato la nota che quello cancellato aveva,
+nel reimport e nel ripristino. È l'unico campo del
+movimento che una persona può modificare: importo, data e descrizione sono ciò che la banca ha
+dichiarato, e la verifica di §5.4 confronta proprio quella dichiarazione con il ledger.
 
 Vincolo deliberato: `content_hash` **non** è unico. La stessa spesa può ripetersi identica nello stesso giorno, e il percorso di import ha bisogno che l'hash di base resti riutilizzabile.
 
@@ -287,7 +310,22 @@ La sezione di §5.9: una lettura in prosa delle serie e dei budget già calcolat
 
 Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la successiva esista per avere senso.
 
-**Stato (settembre 2026).** Fasi 0-4 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. Lavoro aperto, tracciato nel backlog: l'immagine da provare sul NAS e il consenso di Fineco da rinnovare.
+**Fase 6 — il sync si comanda, la nota si scrive, cancellare è possibile.** *(fatta)*
+Un pulsante in cima all'app chiede i conti adesso e risponde con quello che ha
+scritto, per conto; ogni movimento porta una nota locale che nessun percorso di
+ingest scrive; un movimento si cancella davvero, e il tombstone che ne resta tiene
+il sync dal rimetterlo, con una flag per conto che decide se può tornare e un
+cestino che lo ripristina riga per riga; la verifica di §5.4 dice quando la
+differenza è ciò che qualcuno ha cancellato. L'immagine si costruisce in CI a ogni
+tag e il NAS la tira.
+*Fatto quando*: un movimento appena fatto si legge dall'app senza aprire un
+terminale; cancellare un movimento sbagliato non viene disfatto dal sync
+successivo e il conto dice che la differenza è quella; un tag fa girare i test e
+pubblica l'immagine (`linux/amd64`). Il primo deploy di quell'immagine sul NAS
+resta lavoro aperto, perché l'immagine non è mai stata costruita su questa
+macchina.
+
+**Stato (settembre 2026).** Fasi 0-6 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la §5.4 che spiega la differenza lasciata da una cancellazione a mano. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. Lavoro aperto, tracciato nel backlog: il primo deploy da un'immagine pubblicata e il consenso di Fineco da rinnovare.
 
 ## 10. Rischi
 

@@ -73,10 +73,17 @@ const SECTIONS: Section[] = [
   },
 ];
 
-interface NavProps {
+interface SectionNavProps {
   active: TabId;
   reviewCount: number;
   onChange: (tab: TabId) => void;
+}
+
+interface NavProps extends SectionNavProps {
+  /** A sync in flight: the button says so and refuses a second tap. */
+  syncing: boolean;
+  /** Asks the server for data now; the answer arrives as a toast. */
+  onSync: () => void;
 }
 
 function menuLabel(section: Section, reviewCount: number): string {
@@ -243,8 +250,11 @@ function CloseIcon() {
  * names the sections in full and says what is inside them, so a section you have
  * not opened before is not a guess. Both paths call the same `onChange`, and the
  * sections themselves are declared once above.
+ *
+ * The bar also carries the one control that is not a section: asking Enable
+ * Banking for the data now, instead of waiting for the scheduled pass.
  */
-export function Navigation({ active, reviewCount, onChange }: NavProps) {
+export function Navigation({ active, reviewCount, onChange, syncing, onSync }: NavProps) {
   const [open, setOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -282,6 +292,15 @@ export function Navigation({ active, reviewCount, onChange }: NavProps) {
             <BarsIcon />
           </button>
           <span className="appbar__brand">AmonHen</span>
+          <button
+            type="button"
+            className="button appbar__sync"
+            onClick={onSync}
+            disabled={syncing}
+            aria-busy={syncing}
+          >
+            {syncing ? "Sincronizzo…" : "Sincronizza"}
+          </button>
         </div>
       </header>
 
@@ -343,7 +362,7 @@ export function Navigation({ active, reviewCount, onChange }: NavProps) {
   );
 }
 
-export function TabBar({ active, reviewCount, onChange }: NavProps) {
+export function TabBar({ active, reviewCount, onChange }: SectionNavProps) {
   return (
     <nav className="tabbar" aria-label="Sezioni">
       {SECTIONS.filter((section) => section.inBar).map((section) => (

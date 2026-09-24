@@ -4,11 +4,12 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 import requests
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
 from amonhen.providers.enable_banking import ConsentExpiredError
-from amonhen.sync import SyncService
+from amonhen.sync import SyncBusy, SyncService, _SYNC_LOCK
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "enable_banking" / "revolut_personale.json"
 TODAY = dt.date(2026, 9, 12)
@@ -267,3 +268,65 @@ def test_an_unreachable_details_call_leaves_the_sync_alone(ledger):
     assert result.errors == []
     assert result.accounts[0].actions.get("inserted") == len(transactions)
     assert ledger.find_account(name="Revolut personale")["iban"] is None
+
+
+def test_the_sync_does_not_call_an_explained_difference_a_mismatch(ledger):
+    """A deleted movement makes the ledger short by design, and says why.
+
+    The assertion exists to catch duplicates and gaps; a decision taken by hand
+    is neither, and a sync that cried wolf about it would teach everyone to
+    ignore the one line that matters.
+    """
+    transactions = fixture_transactions()
+    SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    account = ledger.find_account(name="Revolut personale")
+    expected = ledger.balance(account["id"], TODAY)
+    victim = ledger.conn.execute(
+        "SELECT id, amount FROM transactions WHERE status = 'BOOK' LIMIT 1"
+    ).fetchone()
+    ledger.delete_transaction(victim["id"])
+
+    result = SyncService(
+        ledger,
+        FakeClient(transactions, balances=[reported_balance(str(expected), "ITAV", TODAY.isoformat())]),
+        build_config(),
+        today=TODAY,
+    ).run()
+
+    assert result.errors == []
+    assert result.accounts[0].balance_mismatch is None
+    # What it did write, it says: the deleted movement came back from the bank
+    # and was left out.
+    assert result.accounts[0].actions.get("suppressed") == 1
+
+    # But a difference the deletion does not explain is still reported.
+    wrong = SyncService(
+        ledger,
+        FakeClient(
+            transactions,
+            balances=[reported_balance(str(expected + Decimal("5.00")), "ITAV", TODAY.isoformat())],
+        ),
+        build_config(),
+        today=TODAY,
+    ).run()
+
+    assert "disagrees with the declared balance" in wrong.errors[0]
+
+
+def test_only_one_sync_runs_at_a_time_in_a_process(ledger):
+    """The app's button and the scheduled loop of `serve` share one process.
+
+    Two runs writing the same SQLite file is not a state worth having, so the
+    second caller is turned away instead of being queued behind the first.
+    """
+    service = SyncService(ledger, FakeClient([]), build_config(), today=TODAY)
+
+    with _SYNC_LOCK:  # a run already in progress, wherever it was asked from
+        with pytest.raises(SyncBusy):
+            service.run()
+
+    # The same service run twice: a lock that went back after the first run is
+    # the only way the second one gets in, so a leaked lock — a button dead
+    # until the process restarts — fails here instead of in production.
+    assert service.run().errors == []
+    assert service.run().errors == []

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { api, errorMessage } from "../api";
+import { deletionNotice } from "../notices";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferCard } from "../components/TransferCard";
@@ -446,6 +447,22 @@ export function ReviewQueueScreen({
           if (!transaction) return;
           await api.setSplits(transaction.id, splits);
           setPickerFor(null);
+          await review.reload();
+        }}
+        onSaveNotes={async (notes) => {
+          const transaction = pickerFor;
+          if (!transaction) return;
+          await api.setNotes(transaction.id, notes);
+          // The queue is the server's to rebuild, so a note is written and the
+          // page is fetched again rather than patched here.
+          await review.reload();
+        }}
+        onDelete={async () => {
+          const transaction = pickerFor;
+          if (!transaction) return;
+          const deleted = await api.deleteTransaction(transaction.id);
+          setPickerFor(null);
+          review.notify(deletionNotice(deleted));
           await review.reload();
         }}
         onSelect={(category, options) => {

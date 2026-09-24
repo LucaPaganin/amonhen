@@ -40,7 +40,11 @@ CREATE TABLE IF NOT EXISTS transactions (
     counterparty TEXT,
     counterparty_account TEXT,
     currency TEXT NOT NULL DEFAULT 'EUR',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    -- A note a person wrote on this movement. It is local: the bank never
+    -- sends one, and no ingest path writes this column, which is why a sync
+    -- cannot overwrite what someone wrote.
+    notes TEXT
 );
 
 CREATE INDEX IF NOT EXISTS transactions_content_hash ON transactions(content_hash);
@@ -48,6 +52,37 @@ CREATE INDEX IF NOT EXISTS transactions_content_hash ON transactions(content_has
 CREATE UNIQUE INDEX IF NOT EXISTS transactions_external_id
     ON transactions(account_id, external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS transactions_date ON transactions(date);
+
+-- A movement a person deleted. The row is copied here whole — payload, note and
+-- the identity the ledger deduplicates by — and this is what keeps the next sync
+-- from putting it back: without it a delete would be undone by the following
+-- run, which is why deleting used to mean editing the database by hand.
+CREATE TABLE IF NOT EXISTS deleted_transactions (
+    id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id),
+    -- The identity the ledger dedupes by: the bank's own id when the row had
+    -- one, otherwise the content hash exactly as the row carried it (suffixes
+    -- for repeated identical content included), so two identical movements on
+    -- one day stay distinguishable here too.
+    key TEXT NOT NULL,
+    date TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL,
+    external_id TEXT,
+    content_hash TEXT NOT NULL,
+    source TEXT NOT NULL,
+    source_file TEXT,
+    raw_payload TEXT NOT NULL,
+    counterparty TEXT,
+    counterparty_account TEXT,
+    currency TEXT NOT NULL,
+    notes TEXT,
+    deleted_at TEXT NOT NULL,
+    -- Set when the movement came back, by the account's own flag or by hand.
+    restored_at TEXT,
+    UNIQUE (account_id, key)
+);
 
 CREATE TABLE IF NOT EXISTS postings (
     id INTEGER PRIMARY KEY,
@@ -143,6 +178,8 @@ _ADDED_COLUMNS = (
     ("accounts", "episodic", "INTEGER NOT NULL DEFAULT 0"),
     ("accounts", "essential", "INTEGER NOT NULL DEFAULT 0"),
     ("accounts", "investment", "INTEGER NOT NULL DEFAULT 0"),
+    ("transactions", "notes", "TEXT"),
+    ("accounts", "reimport_deleted", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 

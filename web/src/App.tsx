@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { api } from "./api";
+import { api, errorMessage } from "./api";
 import { rememberBucket } from "./category";
 import { Navigation, TabBar } from "./components/Navigation";
 import type { TabId } from "./components/Navigation";
@@ -11,6 +11,7 @@ import { DashboardScreen } from "./screens/Dashboard";
 import { MovementsScreen } from "./screens/Movements";
 import { ReviewQueueScreen } from "./screens/ReviewQueue";
 import { CategoryRulesScreen } from "./screens/CategoryRules";
+import { syncSummary } from "./notices";
 import type { AssistantContext } from "./types";
 import { useCategories } from "./useCategories";
 import { useReviewQueue } from "./useReviewQueue";
@@ -22,7 +23,7 @@ import { useRules } from "./useRules";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 11;
+const REQUIRED_API_VERSION = 17;
 
 export default function App() {
   const [tab, setTab] = useState<TabId>("dashboard");
@@ -30,6 +31,12 @@ export default function App() {
   // What the assistant was opened from, when it was opened from a screen: the
   // question is born there, and the section is handed the thing it is about.
   const [assistantContext, setAssistantContext] = useState<AssistantContext | null>(null);
+  // A sync writes movements underneath every screen, so a number that counts
+  // them is bumped and the screens that read the ledger fetch again. A key that
+  // only grows, rather than a remount: a filter a person chose survives it.
+  const [syncedAt, setSyncedAt] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const review = useReviewQueue();
   const {
     categories,
@@ -69,6 +76,25 @@ export default function App() {
     setTab("assistant");
   }, []);
   const clearAssistantContext = useCallback(() => setAssistantContext(null), []);
+  const dismissSyncNotice = useCallback(() => setSyncNotice(null), []);
+
+  // The server does the work and the answer is the summary; the screens are
+  // told to read the ledger again rather than left showing what they had.
+  const runSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncNotice(null);
+    try {
+      const outcome = await api.sync();
+      setSyncNotice(syncSummary(outcome));
+      setSyncedAt((count) => count + 1);
+      review.reload();
+      reloadCategories();
+    } catch (error) {
+      setSyncNotice(`Sync non riuscito: ${errorMessage(error)}`);
+    } finally {
+      setSyncing(false);
+    }
+  }, [reloadCategories, review]);
 
   if (staleServer) {
     return (
@@ -100,7 +126,13 @@ export default function App() {
 
   return (
     <div className="app">
-      <Navigation active={tab} reviewCount={reviewCount} onChange={setTab} />
+      <Navigation
+        active={tab}
+        reviewCount={reviewCount}
+        onChange={setTab}
+        syncing={syncing}
+        onSync={() => void runSync()}
+      />
 
       <main className="app__main">
         {tab === "review" ? (
@@ -118,10 +150,15 @@ export default function App() {
             onReloadCategories={reloadCategories}
             onCategorize={review.categorize}
             onReviewReload={review.reload}
+            refreshToken={syncedAt}
           />
         ) : null}
-        {tab === "dashboard" ? <DashboardScreen categories={categories} /> : null}
-        {tab === "accounts" ? <AccountsScreen onAskAssistant={openAssistant} /> : null}
+        {tab === "dashboard" ? (
+          <DashboardScreen categories={categories} refreshToken={syncedAt} />
+        ) : null}
+        {tab === "accounts" ? (
+          <AccountsScreen onAskAssistant={openAssistant} refreshToken={syncedAt} />
+        ) : null}
         {tab === "assistant" ? (
           <AssistantScreen
             context={assistantContext}
@@ -144,7 +181,11 @@ export default function App() {
 
       <TabBar active={tab} reviewCount={reviewCount} onChange={setTab} />
 
-      {review.notice ? <Toast message={review.notice} onDismiss={review.dismissNotice} /> : null}
+      {syncNotice !== null ? (
+        <Toast message={syncNotice} onDismiss={dismissSyncNotice} />
+      ) : review.notice ? (
+        <Toast message={review.notice} onDismiss={review.dismissNotice} />
+      ) : null}
     </div>
   );
 }

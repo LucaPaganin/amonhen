@@ -1,6 +1,7 @@
 """PSD2 sync: fetch the configured accounts and write them into the ledger."""
 import datetime as dt
 import logging
+import threading
 from dataclasses import dataclass, field, replace
 
 import requests
@@ -18,6 +19,16 @@ log = logging.getLogger("amonhen.sync")
 # Re-fetch a short overlap so late bookings and pending transitions are seen again.
 SYNC_OVERLAP_DAYS = 7
 DEFAULT_BACKFILL_DAYS = 90
+
+# One sync at a time in this process. The app's button and the scheduled loop of
+# `serve` live there together, and two runs writing the same SQLite file is not a
+# state worth having. The CLI and the daemon are separate processes, with their
+# own copy of this lock, so the guard costs them nothing.
+_SYNC_LOCK = threading.Lock()
+
+
+class SyncBusy(RuntimeError):
+    """A sync is already running in this process."""
 
 
 @dataclass
@@ -63,6 +74,15 @@ class SyncService:
         self._details: dict[str, dict] = {}
 
     def run(self) -> SyncResult:
+        """One full pass, or `SyncBusy` when another one is already running."""
+        if not _SYNC_LOCK.acquire(blocking=False):
+            raise SyncBusy("a sync is already running in this process")
+        try:
+            return self._run()
+        finally:
+            _SYNC_LOCK.release()
+
+    def _run(self) -> SyncResult:
         results = [self._sync_account(entry) for entry in self.config.accounts]
         linked = link_transfers(self.ledger, since=self._earliest_start())
         # Declared own accounts come after the pairing, so a real pair between
@@ -87,6 +107,18 @@ class SyncService:
         if account is None:
             return None
         failed = [check for check in self.ledger.declared_checks(account["id"]) if not check.ok]
+        explained = [check for check in failed if check.explained]
+        for check in explained:
+            # Not a mismatch and not silence either: the ledger disagrees with
+            # the bank by exactly what somebody deleted here.
+            log.info(
+                "account %s: the %s figure is short by %s across %d deleted movement(s)",
+                entry.name,
+                check.kind,
+                check.suppressed,
+                check.suppressed_count,
+            )
+        failed = [check for check in failed if not check.explained]
         if not failed:
             return None
         message = "; ".join(

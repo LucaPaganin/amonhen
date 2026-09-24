@@ -7,7 +7,9 @@ from typing import Any, Literal
 AccountType = Literal["real", "virtual", "category"]
 TransactionStatus = Literal["BOOK", "PDNG"]
 SourceKind = Literal["psd2", "import"]
-RecordAction = Literal["inserted", "duplicate", "promoted", "updated"]
+RecordAction = Literal[
+    "inserted", "duplicate", "promoted", "updated", "suppressed", "reimported"
+]
 
 
 def parse_decimal(value: str | Decimal | int | float) -> Decimal:

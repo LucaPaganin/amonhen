@@ -113,11 +113,15 @@ you chose, and choosing none is what rejecting the proposal means — **Moviment
 filterable
 transaction list, each transfer row marked with the account its other half sits
 on and narrowable to the transfers alone, where opening a row confirms, undoes or
-makes a pairing by hand, **Conti** the management section — every real account
-with its balance, its opening figure and the 5.4 outcome, where you declare a
-balance read off the bank, align the opening so the invariant holds again, add an
-account by hand (the broker, or a bank that is not connected here) and set a
-category's monthly budget — and **Categorie e regole**, where a category is
+makes a pairing by hand, writes **the note** — the only field of a movement a
+person may write, and the one the sync never touches — and **deletes it** into the
+account's trash, **Conti** the management section — every real account with its
+balance, its opening figure and the 5.4 outcome, where you declare a balance read
+off the bank, align the opening so the invariant holds again, add an account by
+hand (the broker, or a bank that is not connected here), set a category's monthly
+budget, empty the trash one movement at a time and decide, per account, whether the
+next sync brings back the movements deleted from it — and **Categorie e regole**,
+where a category is
 defined and what falls into it is decided. A rule is a text the description
 contains, plus the category that follows from it, and the two are one list: each
 category is an entry, with the two flags the metrics read and how many rules and
@@ -156,13 +160,22 @@ the movements the declared figure actually contains: a booked balance leaves the
 pending movements out of the opening instead of folding them into it. A figure
 you type by hand has no bank tag to say which of the two it is, so `--kind
 available|booked` says it (default `available`, the pending-inclusive one). The
-app shows the outcome per account in the **Conti** section — `verificato al …`, `non torna sui sospesi`,
+app shows the outcome per account in the **Conti** section — `verificato al …`,
+`d'accordo salvo N movimenti cancellati a mano` when the difference is exactly
+what was deleted here (the fourth outcome, §5.4), `non torna sui sospesi`,
 `non torna sul contabile`, `discrepanza …`, or `saldo non verificato` when no
 balance was ever declared, which is not the same as verified: an assertion nobody
 can see is not one you can lean on.
 
 CSV profiles: `revolut`, `fineco`, `actual`. Missing one? Add an adapter
 rather than transforming the file by hand.
+
+The top bar carries one control that is not a section: **Sincronizza** asks Enable
+Banking for the accounts now, inside the request, and answers with what it wrote —
+per account, the movements inserted and updated, the transfers linked, the rules
+applied, what a deletion kept out, and whether each account still agrees with the
+bank. Waiting for the scheduled pass is not a way to look at a movement that just
+happened.
 
 ## Connecting a bank
 
@@ -327,12 +340,50 @@ it is off, and nothing else in the app depends on it.
 
 ## On the NAS
 
-`docker-compose.yaml` builds and runs everything; nothing else is needed.
+The NAS does not need this repository. The image is built by CI and published to
+GHCR when a `v*` tag is pushed (`.github/workflows/image.yml`, `linux/amd64`,
+after `pytest` and the bundle build pass); the NAS pulls it and runs it. What the
+NAS carries is four small files and the ledger.
 
 ```bash
-cp .env.example .env          # fill AMONHEN_LLM_API_KEY, adjust the cadence
-docker compose up -d --build
+# Once, on the NAS, in a directory of its own (e.g. /volume1/docker/amonhen):
+ssh nas mkdir -p /volume1/docker/amonhen
+scp docker-compose.yaml nas:/volume1/docker/amonhen/
+scp .env.example        nas:/volume1/docker/amonhen/.env    # then edit it
+scp accounts.json private.pem nas:/volume1/docker/amonhen/  # kept from before, if the app ran here
+
+# At every deploy, on the NAS:
+cd /volume1/docker/amonhen
+docker compose pull
+docker compose up -d
 docker compose logs -f amonhen
+```
+
+`AMONHEN_TAG` in `.env` decides which image runs: a version tag pins a deploy,
+`latest` follows the newest one. Rolling back is editing that line and pulling
+again.
+
+Two things the pull needs to know. The image is published under the lower-case
+name in `.github/workflows/image.yml` and `docker-compose.yaml` — the two must
+agree, or the pull finds nothing. And the package is **public**, so the NAS needs
+no credentials; the image carries code and the bundle, never a ledger, a key or a
+configuration. Should it ever be private, one login on the NAS is enough:
+
+```bash
+echo "$PAT" | docker login ghcr.io -u <your-github-user> --password-stdin
+```
+
+Without compose, the same container by hand:
+
+```bash
+docker run -d --name amonhen --restart unless-stopped \
+  -e AMONHEN_HOST=0.0.0.0 -e AMONHEN_DB_PATH=/data/amonhen.db \
+  -e AMONHEN_CONFIG_FILE=/config/accounts.json \
+  -v amonhen-data:/data \
+  -v "$PWD/accounts.json:/config/accounts.json" \
+  -v "$PWD/private.pem:/config/private.pem:ro" \
+  -p 127.0.0.1:8000:8000 \
+  ghcr.io/lucapaganin/amonhen:${AMONHEN_TAG:-latest}
 ```
 
 What it mounts, and why:
@@ -360,7 +411,7 @@ tailscale serve status
 The image declares a `HEALTHCHECK` on `/api/health`, so `docker ps` says
 `healthy` while the process is up: the quickest way to tell a working app from a
 crashed one without a shell on the NAS. The Python and the bundle live in the
-image, so a code change means `docker compose up -d --build`.
+image, so a code change means a new image, a `docker compose pull` and an `up -d`.
 
 Two mounts carry state and one is written to while the app runs: `/data` holds the
 ledger, `/config` holds `accounts.json`, and the container's user (uid 10001) must
@@ -376,6 +427,19 @@ a root-owned `/app`. It does **not** default the bind address: `settings.py` kee
 `127.0.0.1` because the API has no authentication, and a published port is a
 decision. compose sets `AMONHEN_HOST=0.0.0.0` for you; a bare run needs it too, or
 the port answers nothing.
+
+### Building the image by hand
+
+`docker-compose.yaml` runs the published image and knows nothing about the
+source; `docker-compose.build.yaml` adds the build for a machine that has the
+checkout:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+```
+
+The two files leave the same container behind, under the same image name, so a
+locally built image and a pulled one are interchangeable.
 
 ## Layout
 
@@ -457,3 +521,5 @@ from raw dumps.
 |4|Budgets, anomalies, classifier and optional LLM proposals|done|
 |UI|Dashboard: spending per category, monthly income/expense, observed net worth|done|
 |UI|Dashboard filters (period, accounts, category) and the Conti section: accounts, declared balances, budgets|done|
+|5|Assistant (§5.9): a prose reading of the computed series, with proposals to confirm|done|
+|6|Sync button, a local note on a movement, deletion with tombstone and trash, per-account reimport flag|done|

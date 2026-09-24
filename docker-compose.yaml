@@ -1,7 +1,10 @@
 services:
   amonhen:
-    build:
-      context: .
+    # The image comes from the registry, not from this checkout: the NAS has no
+    # repository to build from. CI publishes on a `v*` tag (see
+    # `.github/workflows/image.yml`), and `docker-compose.build.yaml` is the
+    # local build for a machine that does have the source.
+    image: ghcr.io/lucapaganin/amonhen:${AMONHEN_TAG:-latest}
     container_name: amonhen
     restart: unless-stopped
     init: true

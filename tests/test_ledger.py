@@ -83,6 +83,474 @@ def test_pending_is_promoted_to_booked_without_a_second_row(ledger):
     ledger.validate()
 
 
+def test_a_note_survives_the_promotion_of_its_movement(ledger):
+    """A note is local, and the promotion rewrites the row it hangs on.
+
+    The bank's booked row replaces date, description and provider id of the
+    pending one. What a person wrote about the movement has to be there after.
+    """
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(
+        make_txn(ledger, account, "2026-01-10", "-12.30", "Netflix", status="PDNG", external_id="p1")
+    )
+    ledger.set_notes(transaction_id, "da chiedere a Netflix")
+
+    _, action = ledger.record(
+        make_txn(ledger, account, "2026-01-12", "-12.30", "NETFLIX.COM", external_id="b1")
+    )
+
+    assert action == "promoted"
+    row = ledger.conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+    assert row["notes"] == "da chiedere a Netflix"
+    assert row["description"] == "NETFLIX.COM"
+
+
+def test_a_note_survives_the_import_of_the_same_movement(ledger):
+    """The import path is the other way into the ledger; it writes the row too."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(
+        make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    )
+    ledger.set_notes(transaction_id, "rimborso a meta")
+
+    ledger.record(make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1"))
+
+    assert ledger.conn.execute("SELECT notes FROM transactions").fetchone()["notes"] == "rimborso a meta"
+
+
+def test_a_note_can_be_cleared_and_an_empty_one_is_nothing(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom"))
+
+    ledger.set_notes(transaction_id, "  ")
+    assert ledger.conn.execute("SELECT notes FROM transactions").fetchone()["notes"] is None
+
+    ledger.set_notes(transaction_id, "  spesa di prova  ")
+    assert ledger.conn.execute("SELECT notes FROM transactions").fetchone()["notes"] == "spesa di prova"
+
+    ledger.set_notes(transaction_id, None)
+    assert ledger.conn.execute("SELECT notes FROM transactions").fetchone()["notes"] is None
+
+
+def test_a_note_on_a_movement_that_does_not_exist_is_refused(ledger):
+    with pytest.raises(KeyError):
+        ledger.set_notes(9999, "qualcosa")
+
+
+def test_deleting_a_movement_takes_it_out_and_remembers_it(ledger):
+    """The row goes; what it carried stays, or the next sync writes it back."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(
+        make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    )
+    ledger.set_notes(transaction_id, "doppione")
+
+    deletion = ledger.delete_transaction(transaction_id)
+
+    assert deletion.transaction_id == transaction_id
+    assert deletion.unlinked_pair is False
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 0
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM postings").fetchone()["c"] == 0
+    tombstone = ledger.conn.execute("SELECT * FROM deleted_transactions").fetchone()
+    assert (tombstone["key"], tombstone["amount"], tombstone["notes"], tombstone["restored_at"]) == (
+        "e1", "-42.50", "doppione", None
+    )
+
+
+def test_a_deleted_movement_is_not_written_back(ledger):
+    """What a delete means: the next sync sees the movement and leaves it out."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    txn = make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    transaction_id, _ = ledger.record(txn)
+    ledger.delete_transaction(transaction_id)
+
+    id_again, action = ledger.record(txn)
+
+    assert action == "suppressed"
+    assert id_again == 0
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 0
+
+
+def test_a_deleted_movement_without_a_provider_id_is_remembered_by_its_hash(ledger):
+    """The import path has no provider id, and its rows must stay deleted too."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    txn = make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", source="import")
+    transaction_id, _ = ledger.record(txn)
+    ledger.delete_transaction(transaction_id)
+
+    _, action = ledger.record(txn)
+
+    assert action == "suppressed"
+
+
+def test_deleting_one_of_two_identical_movements_keeps_the_other(ledger):
+    """Four identical top-ups in one day are real, so a tombstone is exact.
+
+    The second row carries a suffixed hash; deleting it must not swallow the
+    first, which is the row the bank will report again tomorrow.
+    """
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    first = make_txn(ledger, account, "2026-01-05", "-250.00", "Top up")
+    second = make_txn(ledger, account, "2026-01-05", "-250.00", "Top up")
+    ledger.record_batch([first, second])
+    rows = ledger.conn.execute("SELECT id FROM transactions ORDER BY id").fetchall()
+    assert len(rows) == 2
+
+    ledger.delete_transaction(rows[1]["id"])
+    actions = ledger.record_batch([first, second])
+
+    assert actions == {"duplicate": 1, "suppressed": 1}
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 1
+
+
+def test_deleting_a_leg_takes_the_pair_with_it(ledger):
+    """The other half cannot stay out of the spending with nothing saying why."""
+    revolut = ledger.ensure_account(Account(name="Revolut", type="real"))
+    joint = ledger.ensure_account(Account(name="Conto cointestato", type="real"))
+    out = ledger.record(make_txn(ledger, revolut, "2026-01-10", "-840.00", "Bonifico"))[0]
+    into = ledger.record(make_txn(ledger, joint, "2026-01-10", "840.00", "Bonifico"))[0]
+    ledger.link_transfer_pair(out, into, "high", "manual")
+    assert ledger.category_of(into) is None
+
+    deletion = ledger.delete_transaction(out)
+
+    assert deletion.unlinked_pair is True
+    # The surviving leg is spending again, and nothing points at the clearing.
+    assert ledger.category_of(into) == "Uncategorized"
+    assert ledger.transfer_target(into) is None
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transfer_links").fetchone()["c"] == 0
+    ledger.validate()
+
+
+def test_deleting_a_pending_movement_suppresses_the_booked_one(ledger):
+    """A card authorization and its settlement are the same movement.
+
+    The bank reports the pending row first and books it days later; deleting the
+    pending one and watching the booked one come back would make a delete look
+    like it had failed. The two hold the same provider reference, and that is
+    what the tombstone matches.
+    """
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(
+        make_txn(ledger, account, "2026-01-10", "-12.30", "Cart Srl", status="PDNG", external_id="p1")
+    )
+    ledger.delete_transaction(transaction_id)
+
+    _, action = ledger.record(
+        make_txn(ledger, account, "2026-01-12", "-12.30", "Cart Srl", external_id="p1")
+    )
+
+    assert action == "suppressed"
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 0
+
+
+def test_a_deleted_movement_stays_deleted_when_the_other_path_delivers_it(ledger):
+    """The overlap between sync and import is a designed state, not a corner.
+
+    An export carries no identifier, so a movement deleted from one path
+    arrives from the other under a different identity: same content, different
+    key. Without this the next sync quietly undoes the deletion, and the ledger
+    agrees with the bank again — which makes the panel that exists to catch it
+    report green.
+    """
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    imported = make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", source="import")
+    transaction_id, _ = ledger.record(imported)
+    ledger.delete_transaction(transaction_id)
+
+    _, action = ledger.record(
+        make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    )
+
+    assert action == "suppressed"
+
+
+def test_a_deleted_movement_stays_deleted_when_the_import_delivers_it(ledger):
+    """The other direction: deleted with the bank's id, re-delivered by export."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(
+        make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    )
+    ledger.delete_transaction(transaction_id)
+
+    _, action = ledger.record(
+        make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", source="import")
+    )
+
+    assert action == "suppressed"
+
+
+def test_a_deleted_pending_movement_is_not_settled_into_the_ledger(ledger):
+    """The bank books it days later under a new reference and a new date.
+
+    That is the promotion the ledger already models; for a deletion it is the
+    same movement, so the settlement must not bring it back. Nothing else can be
+    swallowed this way: the twin of a same-status movement is never matched on
+    content alone.
+    """
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(
+        make_txn(ledger, account, "2026-01-10", "-12.30", "Cart Srl", status="PDNG", external_id="p1")
+    )
+    ledger.delete_transaction(transaction_id)
+
+    _, action = ledger.record(
+        make_txn(ledger, account, "2026-01-12", "-12.30", "CART SRL", external_id="b1")
+    )
+
+    assert action == "suppressed"
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 0
+
+
+def test_a_deleted_movement_is_not_found_again(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom"))
+
+    ledger.delete_transaction(transaction_id)
+
+    with pytest.raises(KeyError):
+        ledger.delete_transaction(transaction_id)
+    with pytest.raises(KeyError):
+        ledger.set_notes(transaction_id, "tardi")
+
+
+def test_an_account_can_take_its_deleted_movements_back(ledger):
+    """Off is what deleting means; on is the one account that wants them again."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    txn = make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    transaction_id, _ = ledger.record(txn)
+    ledger.set_notes(transaction_id, "cancellato per sbaglio")
+    ledger.delete_transaction(transaction_id)
+
+    assert ledger.record(txn)[1] == "suppressed"
+
+    ledger.set_reimport_deleted(account, True)
+    again, action = ledger.record(txn)
+
+    assert action == "reimported"
+    row = ledger.conn.execute("SELECT * FROM transactions WHERE id = ?", (again,)).fetchone()
+    assert row["external_id"] == "e1"
+    # The note comes back with the movement: losing it would make the flag an
+    # expensive way to undo a mistake.
+    assert row["notes"] == "cancellato per sbaglio"
+    tombstone = ledger.conn.execute("SELECT * FROM deleted_transactions").fetchone()
+    assert tombstone["restored_at"] is not None
+
+    # A second sync sees the movement already there.
+    assert ledger.record(txn)[1] == "duplicate"
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 1
+
+    # Turning the flag off again does not take back what came home.
+    ledger.set_reimport_deleted(account, False)
+    assert ledger.record(txn)[1] == "duplicate"
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 1
+
+
+def test_the_reimport_flag_is_refused_on_something_that_is_not_an_account(ledger):
+    category = ledger.category("Spesa")
+
+    with pytest.raises(ValueError):
+        ledger.set_reimport_deleted(category, True)
+
+
+def test_deleting_a_movement_that_came_back_starts_the_tombstone_over(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    txn = make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    transaction_id, _ = ledger.record(txn)
+    ledger.delete_transaction(transaction_id)
+    ledger.set_reimport_deleted(account, True)
+    again, _ = ledger.record(txn)
+
+    ledger.set_reimport_deleted(account, False)
+    ledger.delete_transaction(again)
+
+    tombstones = ledger.conn.execute("SELECT * FROM deleted_transactions").fetchall()
+    assert len(tombstones) == 1
+    assert tombstones[0]["restored_at"] is None
+    assert ledger.record(txn)[1] == "suppressed"
+
+
+def test_a_deleted_movement_comes_back_whole(ledger):
+    """Restoring is the delete undone: the note, the payload and the balance."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    txn = make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom", external_id="e1")
+    transaction_id, _ = ledger.record(txn)
+    ledger.set_notes(transaction_id, "da riavere")
+    before = ledger.balance(account, dt.date(2026, 1, 31))
+    ledger.delete_transaction(transaction_id)
+    deleted_id = ledger.deleted_transactions()[0]["id"]
+
+    restored = ledger.restore_deleted(deleted_id)
+
+    row = ledger.conn.execute("SELECT * FROM transactions WHERE id = ?", (restored,)).fetchone()
+    assert (row["external_id"], row["amount"], row["notes"]) == ("e1", "-42.50", "da riavere")
+    assert ledger.balance(account, dt.date(2026, 1, 31)) == before
+    # One movement, not two: the identity it was deleted by is the identity it
+    # comes back with. The note comes back; the category does not — that is a
+    # decision the ingest or a person takes again, and pretending otherwise
+    # would put a movement back on a category nobody chose.
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 1
+    assert ledger.category_of(restored) == "Uncategorized"
+    assert ledger.deleted_transactions() == []
+    ledger.validate()
+
+
+def test_a_movement_that_came_back_is_out_of_the_trash(ledger):
+    """The list is what is still deleted, not what was deleted once."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom"))
+    ledger.delete_transaction(transaction_id)
+    ledger.set_reimport_deleted(account, True)
+    ledger.record(make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom"))
+
+    assert ledger.deleted_transactions() == []
+
+
+def test_restoring_twice_is_refused(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(make_txn(ledger, account, "2026-01-05", "-42.50", "Ekom"))
+    ledger.delete_transaction(transaction_id)
+    deleted_id = ledger.deleted_transactions()[0]["id"]
+    ledger.restore_deleted(deleted_id)
+
+    with pytest.raises(ValueError):
+        ledger.restore_deleted(deleted_id)
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 1
+
+
+def test_a_restored_pending_movement_is_still_settled_when_the_bank_does(ledger):
+    """The tombstone keeps its veto after a restore, and the promotion precedes it."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    transaction_id, _ = ledger.record(
+        make_txn(ledger, account, "2026-01-10", "-12.30", "Cart Srl", status="PDNG", external_id="p1")
+    )
+    ledger.delete_transaction(transaction_id)
+    restored = ledger.restore_deleted(ledger.deleted_transactions()[0]["id"])
+    assert ledger.conn.execute("SELECT status FROM transactions").fetchone()["status"] == "PDNG"
+
+    promoted, action = ledger.record(
+        make_txn(ledger, account, "2026-01-12", "-12.30", "CART SRL", external_id="b1")
+    )
+
+    assert (promoted, action) == (restored, "promoted")
+
+
+def test_restoring_something_that_was_never_deleted_is_refused(ledger):
+    with pytest.raises(KeyError):
+        ledger.restore_deleted(999)
+
+
+def test_a_deletion_explains_the_difference_it_leaves(ledger):
+    """Deleting a movement the bank still counts makes the ledger disagree.
+
+    The disagreement is the deleted amount and nothing else, and saying so is
+    what keeps a red panel for the differences nobody decided.
+    """
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    ledger.record(make_txn(ledger, account, "2026-01-05", "-10.00", "Bar"))
+    gone = ledger.record(make_txn(ledger, account, "2026-01-06", "-3.00", "Ekom"))[0]
+    ledger.record(make_txn(ledger, account, "2026-01-12", "-12.30", "Netflix", status="PDNG"))
+    # What the bank declares: everything, the deleted movement included.
+    declared = ledger.balance(account, dt.date(2026, 1, 31))
+    ledger.delete_transaction(gone)
+
+    available = ledger.check_balance(account, declared, dt.date(2026, 1, 31), kind="available")
+    booked = ledger.check_balance(account, declared, dt.date(2026, 1, 31), kind="booked")
+
+    assert (available.difference, available.suppressed, available.suppressed_count) == (
+        Decimal("-3.00"), Decimal("-3.00"), 1
+    )
+    assert available.explained and not available.ok
+    # The same figure against the booked side is not explained by the deletion:
+    # the rest of that difference is the pending movement it never had.
+    assert not booked.explained and booked.suppressed_count == 1
+    assert ledger.balance(account, dt.date(2026, 1, 31)) - declared == Decimal("3.00")
+
+
+def test_a_pending_deletion_is_not_part_of_the_booked_figure(ledger):
+    """The two declared figures count different movements, deletions included."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    ledger.record(make_txn(ledger, account, "2026-01-05", "-10.00", "Bar"))
+    pending = ledger.record(
+        make_txn(ledger, account, "2026-01-12", "-12.30", "Netflix", status="PDNG")
+    )[0]
+    declared = ledger.balance(account, dt.date(2026, 1, 31), settled=True)
+    ledger.delete_transaction(pending)
+
+    available = ledger.check_balance(account, declared, dt.date(2026, 1, 31), kind="available")
+    booked = ledger.check_balance(account, declared, dt.date(2026, 1, 31), kind="booked")
+
+    assert (available.suppressed, available.suppressed_count) == (Decimal("-12.30"), 1)
+    assert (booked.suppressed, booked.suppressed_count) == (Decimal("0.00"), 0)
+
+
+def test_a_restored_movement_stops_explaining_anything(ledger):
+    """It is in the ledger again, so it is no longer a difference."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    ledger.record(make_txn(ledger, account, "2026-01-05", "-10.00", "Bar"))
+    gone = ledger.record(make_txn(ledger, account, "2026-01-06", "-3.00", "Ekom"))[0]
+    declared = ledger.balance(account, dt.date(2026, 1, 31))
+    ledger.delete_transaction(gone)
+    ledger.restore_deleted(ledger.deleted_transactions()[0]["id"])
+
+    check = ledger.check_balance(account, declared, dt.date(2026, 1, 31))
+
+    assert check.ok
+    assert (check.suppressed_count, check.suppressed) == (0, Decimal("0.00"))
+
+
+def test_a_deletion_after_the_declared_date_explains_nothing(ledger):
+    """The figure is checked on a date: what was deleted later is not part of it."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    ledger.record(make_txn(ledger, account, "2026-01-05", "-10.00", "Bar"))
+    declared = ledger.balance(account, dt.date(2026, 1, 20))
+    gone = ledger.record(make_txn(ledger, account, "2026-01-25", "-3.00", "Ekom"))[0]
+    ledger.delete_transaction(gone)
+
+    check = ledger.check_balance(account, declared, dt.date(2026, 1, 20))
+
+    assert check.ok
+    assert (check.suppressed_count, check.suppressed) == (0, Decimal("0.00"))
+
+
+def test_a_deletion_before_the_opening_explains_nothing(ledger):
+    """`balance` folds what sits before the opening date into the opening.
+
+    A movement the figure never held cannot be the reason the figure disagrees,
+    and counting it here would turn a true difference into a permanent red.
+    """
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    early = ledger.record(make_txn(ledger, account, "2026-01-05", "-30.00", "Bar"))[0]
+    late = ledger.record(make_txn(ledger, account, "2026-01-15", "-10.00", "Ekom"))[0]
+    ledger.conn.execute(
+        "UPDATE accounts SET opening_balance = '100.00', opening_date = '2026-01-10' WHERE id = ?",
+        (account,),
+    )
+    declared = ledger.balance(account, dt.date(2026, 1, 31))
+    ledger.delete_transaction(early)
+    ledger.delete_transaction(late)
+
+    check = ledger.check_balance(account, declared, dt.date(2026, 1, 31))
+
+    assert (check.difference, check.suppressed, check.suppressed_count) == (
+        Decimal("-10.00"), Decimal("-10.00"), 1
+    )
+    assert check.explained
+
+
+def test_a_difference_the_deletions_do_not_explain_is_still_a_mismatch(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    gone = ledger.record(make_txn(ledger, account, "2026-01-06", "-3.00", "Ekom"))[0]
+    declared = ledger.balance(account, dt.date(2026, 1, 31))
+    ledger.delete_transaction(gone)
+
+    # The bank's figure is off by more than what was deleted: a gap nobody
+    # decided, and it must not hide behind the explanation.
+    check = ledger.check_balance(account, declared - Decimal("5.00"), dt.date(2026, 1, 31))
+
+    assert not check.ok and not check.explained
+
+
 def test_late_pending_twin_after_the_booked_row_is_ignored(ledger):
     account = ledger.ensure_account(Account(name="Revolut", type="real"))
     ledger.record(make_txn(ledger, account, "2026-01-12", "-12.30", "NETFLIX.COM", external_id="b1"))

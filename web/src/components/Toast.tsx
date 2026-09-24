@@ -7,7 +7,12 @@ interface ToastProps {
 
 export function Toast({ message, onDismiss }: ToastProps) {
   useEffect(() => {
-    const timer = window.setTimeout(onDismiss, 6000);
+    // A sync answers with one line per account, and a message nobody can finish
+    // reading is a message that was not shown: the time grows with the text.
+    const timer = window.setTimeout(
+      onDismiss,
+      Math.min(18000, Math.max(6000, message.length * 60)),
+    );
     return () => window.clearTimeout(timer);
   }, [message, onDismiss]);
 

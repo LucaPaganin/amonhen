@@ -30,6 +30,8 @@ const PERIODS = [3, 6, 12, 24];
 
 interface DashboardScreenProps {
   categories: Category[];
+  /** Bumped after a sync: every series is read again, not redrawn as it was. */
+  refreshToken: number;
 }
 
 interface MetricCard {
@@ -41,7 +43,7 @@ interface MetricCard {
   warning: string | null;
 }
 
-export function DashboardScreen({ categories }: DashboardScreenProps) {
+export function DashboardScreen({ categories, refreshToken }: DashboardScreenProps) {
   const [fromMonth, setFromMonth] = useState(() => shiftMonth(currentMonth(), -(DEFAULT_MONTHS - 1)));
   const [toMonth, setToMonth] = useState(currentMonth);
   const [scopedAccounts, setScopedAccounts] = useState<string[]>([]);
@@ -84,7 +86,7 @@ export function DashboardScreen({ categories }: DashboardScreenProps) {
         setLoading(false);
       }
     },
-    [filters],
+    [filters, refreshToken],
   );
 
   const loadSpending = useCallback(
@@ -97,7 +99,7 @@ export function DashboardScreen({ categories }: DashboardScreenProps) {
         setSpendingError(errorMessage(caught));
       }
     },
-    [filters],
+    [filters, refreshToken],
   );
 
   const loadFlows = useCallback(
@@ -110,7 +112,7 @@ export function DashboardScreen({ categories }: DashboardScreenProps) {
         setFlowsError(errorMessage(caught));
       }
     },
-    [filters],
+    [filters, refreshToken],
   );
 
   const loadNetWorth = useCallback(
@@ -123,7 +125,7 @@ export function DashboardScreen({ categories }: DashboardScreenProps) {
         setNetWorthError(errorMessage(caught));
       }
     },
-    [filters],
+    [filters, refreshToken],
   );
 
   // One period read four ways: a filter change refetches all of them together,
@@ -148,7 +150,7 @@ export function DashboardScreen({ categories }: DashboardScreenProps) {
     } finally {
       setAnomaliesLoading(false);
     }
-  }, []);
+  }, [refreshToken]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -165,7 +167,7 @@ export function DashboardScreen({ categories }: DashboardScreenProps) {
       .then(setAccounts)
       .catch(() => undefined);
     return () => controller.abort();
-  }, []);
+  }, [refreshToken]);
 
   const cards = useMemo<MetricCard[]>(() => {
     if (!metrics) return [];

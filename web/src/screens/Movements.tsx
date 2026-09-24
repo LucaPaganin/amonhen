@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api, errorMessage } from "../api";
+import { deletionNotice } from "../notices";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { Toast } from "../components/Toast";
 import { TransactionRow } from "../components/TransactionRow";
@@ -19,6 +20,8 @@ interface MovementsScreenProps {
   onCategorize: ReviewQueueController["categorize"];
   /** A transfer changes what the queue has left, so its counts are refetched. */
   onReviewReload: () => void;
+  /** Bumped after a sync: the list is what the ledger now holds, not what it held. */
+  refreshToken: number;
 }
 
 function chronological(a: Transaction, b: Transaction): number {
@@ -32,6 +35,7 @@ export function MovementsScreen({
   onReloadCategories,
   onCategorize,
   onReviewReload,
+  refreshToken,
 }: MovementsScreenProps) {
   const [month, setMonth] = useState(currentMonth);
   const [accountId, setAccountId] = useState("");
@@ -85,7 +89,7 @@ export function MovementsScreen({
         setLoading(false);
       });
     return () => controller.abort();
-  }, [filters, reloadKey]);
+  }, [filters, reloadKey, refreshToken]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -234,7 +238,7 @@ export function MovementsScreen({
           <input
             id="filter-search"
             type="search"
-            placeholder="Descrizione o controparte"
+            placeholder="Descrizione, controparte o nota"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
@@ -297,6 +301,23 @@ export function MovementsScreen({
           const updated = await api.setSplits(transaction.id, splits);
           setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
           setPickerFor(null);
+        }}
+        onSaveNotes={async (notes) => {
+          const transaction = pickerFor;
+          if (!transaction) return;
+          const updated = await api.setNotes(transaction.id, notes);
+          setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+          setPickerFor(updated);
+        }}
+        onDelete={async () => {
+          const transaction = pickerFor;
+          if (!transaction) return;
+          const deleted = await api.deleteTransaction(transaction.id);
+          setItems((current) => current.filter((item) => item.id !== deleted.id));
+          setTotal((current) => current - 1);
+          setPickerFor(null);
+          setNotice(deletionNotice(deleted));
+          onReviewReload();
         }}
         onSelect={(chosenCategory, options) => {
           const transaction = pickerFor;

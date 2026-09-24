@@ -19,6 +19,10 @@ interface CategoryPickerProps {
   onClose: () => void;
   transaction?: Transaction | null;
   onSaveSplits?: (splits: SplitInput[]) => Promise<void>;
+  /** Writes the movement's local note; the only field of it a person may set. */
+  onSaveNotes?: (notes: string) => Promise<void>;
+  /** Takes the movement out of the ledger; the caller closes and reports it. */
+  onDelete?: () => Promise<void>;
   /** Opens the transfer panel: this row may be money moved between own accounts. */
   onTransfer?: () => void;
 }
@@ -35,6 +39,8 @@ export function CategoryPicker({
   onClose,
   transaction = null,
   onSaveSplits,
+  onSaveNotes,
+  onDelete,
   onTransfer,
 }: CategoryPickerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -44,6 +50,24 @@ export function CategoryPicker({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [splitMode, setSplitMode] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // The draft starts from what the movement carries, and what was saved is kept
+  // here rather than read back from the prop: the caller may not have refetched
+  // the row yet, and a save button that stays lit after saving is a lie.
+  useEffect(() => {
+    setNoteDraft(transaction?.notes ?? "");
+    setSavedNote(transaction?.notes ?? null);
+    setNoteError(null);
+    setConfirmingDelete(false);
+    setDeleteError(null);
+  }, [transaction?.id, transaction?.notes]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -71,6 +95,33 @@ export function CategoryPicker({
       setCreateError(errorMessage(error));
     } finally {
       setCreating(false);
+    }
+  };
+
+  const saveNote = async () => {
+    if (transaction === null || onSaveNotes === undefined || savingNote) return;
+    const notes = noteDraft.trim();
+    setSavingNote(true);
+    setNoteError(null);
+    try {
+      await onSaveNotes(notes);
+      setSavedNote(notes === "" ? null : notes);
+    } catch (error) {
+      setNoteError(errorMessage(error));
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const deleteMovement = async () => {
+    if (onDelete === undefined || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete();
+    } catch (error) {
+      setDeleteError(errorMessage(error));
+      setDeleting(false);
     }
   };
 
@@ -114,6 +165,46 @@ export function CategoryPicker({
           />
         ) : (
           <>
+            {transaction !== null && onSaveNotes !== undefined ? (
+              <form
+                className="sheet__new sheet__note"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void saveNote();
+                }}
+              >
+                <label className="sheet__new-label" htmlFor={`${titleId}-note`}>
+                  Nota
+                </label>
+                <div className="sheet__new-row">
+                  <input
+                    id={`${titleId}-note`}
+                    className="input"
+                    type="text"
+                    value={noteDraft}
+                    placeholder="Es. rimborso a metà"
+                    autoComplete="off"
+                    onChange={(event) => setNoteDraft(event.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    className="button"
+                    disabled={savingNote || noteDraft.trim() === (savedNote ?? "")}
+                  >
+                    {savingNote ? "Salvo…" : "Salva nota"}
+                  </button>
+                </div>
+                <p className="hint">
+                  La nota è tua: il sync non la tocca e nessun altro campo si modifica.
+                </p>
+                {noteError !== null ? (
+                  <p className="state state--error" role="alert">
+                    Nota non salvata: {noteError}
+                  </p>
+                ) : null}
+              </form>
+            ) : null}
+
             {canSplit ? (
               <button type="button" className="button button--block" onClick={() => setSplitMode(true)}>
                 Dividi in più categorie
@@ -192,6 +283,49 @@ export function CategoryPicker({
                 </p>
               ) : null}
             </form>
+
+            {onDelete === undefined ? null : (
+              <div className="sheet__new">
+                {confirmingDelete ? (
+                  <>
+                    <p className="hint">
+                      Esce dal ledger e resta nel cestino del conto, in Conti, da dove si riporta.
+                    </p>
+                    <div className="sheet__new-row">
+                      <button
+                        type="button"
+                        className="button button--danger"
+                        onClick={() => void deleteMovement()}
+                        disabled={deleting}
+                      >
+                        {deleting ? "Cancello…" : "Sì, cancella"}
+                      </button>
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() => setConfirmingDelete(false)}
+                        disabled={deleting}
+                      >
+                        No, lascia stare
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="button button--danger button--block"
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    Cancella il movimento
+                  </button>
+                )}
+                {deleteError !== null ? (
+                  <p className="state state--error" role="alert">
+                    Movimento non cancellato: {deleteError}
+                  </p>
+                ) : null}
+              </div>
+            )}
           </>
         )}
       </div>

@@ -19,7 +19,7 @@ from amonhen.settings import (
     PORT,
     SYNC_INTERVAL_HOURS,
 )
-from amonhen.sync import SyncService
+from amonhen.sync import SyncBusy, SyncService
 from amonhen.transfers import link_passthrough_legs, link_transfers
 
 
@@ -228,6 +228,10 @@ def _sync_loop(db_path: str, config_path: str, interval_hours: float) -> None:
                 SyncService(Ledger(conn), build_client(config), config).run()
             finally:
                 conn.close()
+        except SyncBusy:
+            # Somebody pressed the button in the app while this pass was due:
+            # that pass is simply the one they asked for, not a failure.
+            logging.info("scheduled sync skipped: another one is running")
         except Exception:
             logging.exception("scheduled sync failed")
         time.sleep(interval_hours * 3600)
@@ -530,10 +534,19 @@ def cmd_balance_check(ledger: Ledger, args) -> int:
         f"computed={format_decimal(check.computed)} declared={format_decimal(check.declared)} "
         f"difference={format_decimal(check.difference)} kind={check.kind}"
     )
-    if not check.ok:
-        print("MISMATCH: duplicates or gaps in the ledger", file=sys.stderr)
-        return 1
-    return 0
+    if check.ok:
+        return 0
+    if check.explained:
+        # A difference the tombstones account for is a decision somebody took
+        # here, not a gap: the same four outcomes the Conti panel shows.
+        print(
+            f"reconciled except for {check.suppressed_count} movement(s) deleted by hand "
+            f"({format_decimal(check.suppressed)})",
+            file=sys.stderr,
+        )
+        return 0
+    print("MISMATCH: duplicates or gaps in the ledger", file=sys.stderr)
+    return 1
 
 
 # -- helpers --------------------------------------------------------------

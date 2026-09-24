@@ -19,7 +19,10 @@ import type {
   Rule,
   Spending,
   Suggestion,
+  DeletedMovement,
+  Deletion,
   SuggestionDecision,
+  SyncOutcome,
   Transaction,
   TransactionPage,
   TransferDecision,
@@ -122,6 +125,12 @@ function reviewSearch(query: ReviewQuery): string {
   return params.toString();
 }
 
+async function drop<T>(path: string): Promise<T> {
+  return toResult<T>(
+    await fetch(`/api${path}`, { method: "DELETE", headers: { Accept: "application/json" } }),
+  );
+}
+
 /** The dashboard reads: a period in months, and the names to narrow it to. */
 function filterSearch(filters: DashboardFilters): string {
   const start = monthBounds(filters.from);
@@ -134,6 +143,9 @@ function filterSearch(filters: DashboardFilters): string {
 
 export const api = {
   health: (signal?: AbortSignal) => get<Health>("/health", signal),
+  // Synchronous on purpose: the button asked for this run, and the answer is
+  // what the run wrote. A second one while it is going answers 409.
+  sync: () => send<SyncOutcome>("POST", "/sync", {}),
   accounts: (signal?: AbortSignal) => get<Account[]>("/accounts", signal),
   categories: (signal?: AbortSignal) => get<Category[]>("/categories", signal),
   transactions: (query: TransactionQuery, signal?: AbortSignal) =>
@@ -154,10 +166,25 @@ export const api = {
     send<Transaction>("POST", `/transactions/${transactionId}/category`, { category }),
   setSplits: (transactionId: number, splits: SplitInput[]) =>
     send<Transaction>("PUT", `/transactions/${transactionId}/splits`, { splits }),
+  // A note is the one field of a movement the app writes: everything else is
+  // the bank's own statement.
+  setNotes: (transactionId: number, notes: string) =>
+    send<Transaction>("PUT", `/transactions/${transactionId}/notes`, { notes }),
+  deleteTransaction: (transactionId: number) =>
+    drop<Deletion>(`/transactions/${transactionId}`),
+  // The movements a person deleted and has not brought back, for the trash in
+  // the Conti section; the restore answer is the movement itself.
+  deleted: (signal?: AbortSignal) => get<DeletedMovement[]>("/deleted", signal),
+  restoreDeleted: (deletedId: number) =>
+    send<Transaction>("POST", `/deleted/${deletedId}/restore`, {}),
   setCategoryFlags: (categoryId: number, flags: { episodic?: boolean; essential?: boolean }) =>
     send<Category>("PATCH", `/categories/${categoryId}`, flags),
-  setInvestment: (accountId: number, investment: boolean) =>
-    send<Account>("PATCH", `/accounts/${accountId}`, { investment }),
+  // The account's own flags: whether its inflows are savings, and whether the
+  // movements deleted from it may come back at the next sync.
+  setAccountFlags: (
+    accountId: number,
+    flags: { investment?: boolean; reimport_deleted?: boolean },
+  ) => send<Account>("PATCH", `/accounts/${accountId}`, flags),
   createAccount: (body: NewAccount) => send<Account>("POST", "/accounts", body),
   declareBalance: (accountId: number, body: Declaration) =>
     send<Account>("PUT", `/accounts/${accountId}/declaration`, body),

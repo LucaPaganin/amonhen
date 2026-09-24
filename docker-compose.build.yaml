@@ -1,0 +1,12 @@
+# Local build, for a machine that has the source.
+#
+# The NAS does not use this file: it pulls the published image with
+# `docker-compose.yaml` alone. Here the image is built from this checkout
+# instead, under the same name, so either path leaves the same container behind:
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+#
+services:
+  amonhen:
+    build:
+      context: .

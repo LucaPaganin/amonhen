@@ -57,7 +57,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
 |`amonhen/config.py`|Reads `accounts.json`: Enable Banking credentials, accounts, and the `passthrough` declarations|
-|`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers|
+|`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `SyncBusy` is the process-wide guard on one run at a time|
 |`amonhen/transfers.py`|Transfer candidate graph, weights, link review state|
 |`amonhen/matching.py`|Exact maximum-weight bipartite matching (Hungarian)|
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
@@ -86,10 +86,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`|
-|`ledger`|`Ledger`, `BalanceCheck`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
+|`ledger`|`Ledger`, `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount`, `load_config`|
-|`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`|
+|`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`|
 |`transfers`|`link_transfers`, `link_own_account_transfers`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `RuleBook`, `categorize`, `rule_usage`|
@@ -120,6 +120,55 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   pending row on (account, amount, ±3 days) updates the pending row in place,
   and a pending row arriving after its booked twin is ignored. The `PDNG`
   vs `BOOK` distinction must survive.
+- **A note is local, and that is why the sync cannot lose it.** `transactions.notes`
+  is written by `PUT /api/transactions/{id}/notes` — the only field of a movement a
+  person may rewrite, since amount, date and description are what the bank said and
+  the 5.4 assertion compares that statement with the ledger — and by
+  `_mark_restored`, which only ever hands a movement that has just been recreated
+  the note its tombstone kept. Nothing in `record`, `_promote`, `_insert` or
+  `_replace_postings` names the column, so a note survives the promotion that
+  rewrites the row it hangs on and the whole re-import of a period. `search` reads it with the description and the
+  counterparty: marking a movement is only useful if the mark can be found again.
+- **Deleting is a write with a memory.** `DELETE /api/transactions/{id}` copies
+  the row — identity, payload, note, status, and when it went — into
+  `deleted_transactions` and removes it in one transaction. The tombstone's `key`
+  is the bank's own `external_id` when the row had one, otherwise its
+  `content_hash` **verbatim**, suffixes for repeated identical content included;
+  `record` reads it after the dedup lookups, so a movement the ledger already
+  holds is a duplicate whatever somebody deleted once, and only a row that is
+  really absent can be suppressed. `_tombstone` recognises the movement in three
+  ways, each one a relation the ledger already has: the same provider id, the
+  same content from the *other* ingest path (an export carries no id, and the
+  content hash is the only discriminator in that overlap), or the settled twin of
+  a deleted pending movement — other status, same amount, within
+  `PENDING_WINDOW_DAYS`. Never on content alone for a same-status row: four
+  identical top-ups on one day are four movements, and deleting one must not
+  swallow a surviving twin. `restore_deleted` writes through `record` with
+  `restoring=True`, which lifts the tombstone's veto and nothing else, so a
+  movement the ledger already holds comes back as a duplicate instead of a second
+  row. Deleting a leg of a transfer rejects the link first — `transfer_links`
+  cascades, and the other leg would otherwise stay posted to the clearing account
+  with nothing on the row explaining why.
+- **A deleted movement can come back, per account and one at a time.** The account
+  flag `reimport_deleted` (off by default, set from the Conti panel) decides what
+  the *next sync* does: on, `record` writes the movement in from the tombstone
+  with its note and marks `restored_at` (`reimported` in the sync's actions); off,
+  the movement is counted as `suppressed`. `POST /api/deleted/{id}/restore` is the
+  same return for one movement, right now: it rebuilds the row from the payload the
+  tombstone kept, hands it the note the tombstone held, and refuses a second time
+  with 409. What comes back is the movement and its note, not its category: the
+  restored row is on `Uncategorized` until the next `categorize` — which every sync
+  runs — or a person decides, because a category is a decision about money, not a
+  field of the bank's payload. `deleted_transactions()` is the
+  trash the Conti panel shows, and it lists `restored_at IS NULL` only.
+- **The sync has one guard and one button.** `SyncService.run` takes a
+  process-wide lock and raises `SyncBusy` when another run holds it, which is what
+  makes `POST /api/sync` and the scheduled loop of `serve` safe in one process;
+  the CLI and the daemon are separate processes with their own copy, so the guard
+  costs them nothing. The endpoint is synchronous on purpose — the caller asked
+  for this run, and the answer is what it wrote — and it answers 503 with the
+  reason when `accounts.json` or the key cannot be read, 409 when a run is already
+  going.
 - **Transfers are excluded from spending by construction.** A transfer leg's
   balancing posting goes to the `Transfer clearing` virtual account instead of
   a category account, so `spend_between` never sees it. Candidates are equal
@@ -262,7 +311,17 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   that, keeping the rows. A tie on the date is broken in favour of the bank's
   own number, never by row order. An account nobody declared a balance for stays
   `unverified`: silence is not agreement, and it is the state FinecoBank sits in
-  while its consent is expired.
+  while its consent is expired. A fourth state sits beside `verified`,
+  `mismatch` and `unverified`: `suppressed`, when the difference is exactly what
+  a person deleted on that account by hand. `BalanceCheck.suppressed` is the
+  signed sum of the account's tombstones up to the declaration date that the
+  figure being checked would have counted — both statuses for `available`, only
+  `BOOK` for `booked`, never a row with `restored_at`, which is in the ledger
+  again — and `explained` is `difference == suppressed` with at least one
+  deletion. The sync's own assertion skips the explained checks (it logs them at
+  info and reports nothing), because a red nobody can clear teaches people to
+  ignore the one line that matters; a difference the tombstones do not explain
+  is still reported.
 - **The dashboard charts read three aggregations; the client never sums.**
   `spend_by_category` adds up to `spend_between` by construction and keeps
   `Uncategorized` as a slice, so the pie cannot look smaller than the money that
@@ -413,11 +472,15 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   is stale instead of rendering nothing.
 - **The Docker image cannot be built on this machine.** The Docker CLI and
   compose are installed but the Linux engine is not running, so `docker build`
-  has never been exercised here: the recipe in README ("On the NAS") is verified
-  only down to the commands the image runs (`uv sync --frozen --no-dev
-  --no-install-project` and `npm run build`, both of which do run locally). Keep
-  the `uv` image tag at the version that wrote `uv.lock`: the lock is revision 3
-  and older uv binaries refuse to read it.
+  has never been exercised here. What can be checked locally is checked: `docker
+  compose config` resolves the image (with and without `AMONHEN_TAG`) and
+  `npm ci` + `npm run build` are the same commands CI runs. The image itself is
+  built by `.github/workflows/image.yml` on a `v*` tag, linux/amd64, after
+  `pytest` and the bundle build pass, and published as
+  `ghcr.io/lucapaganin/amonhen:<tag>` and `:latest` — the lower-case name has to
+  match `image:` in `docker-compose.yaml`, or the NAS pulls nothing. Keep the
+  `uv` image tag in the Dockerfile at the version that wrote `uv.lock`: the lock
+  is revision 3 and older uv binaries refuse to read it.
 - **Verifying UI work means running it.** Start the server on a copy, drive a
   real browser tab and read the DOM; for anything visual, screenshot it and have
   a vision model describe the image. "The component renders this" is not
@@ -483,16 +546,17 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB`), eleven tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), twelve tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
 
 |Table|Columns|Holds|
 |---|---|---|
-|`accounts`|12|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `investment` is what makes a transfer into an account savings instead of spending|
-|`transactions`|15|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`|
+|`accounts`|13|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `investment` is what makes a transfer into an account savings instead of spending; `reimport_deleted` decides whether the next sync writes back the movements deleted from this account|
+|`transactions`|16|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`, `notes` (local, written by a person, never by an ingest path)|
 |`postings`|5|The double-entry legs: `transaction_id`, `account_id`, `amount`, `note`. A spend is one leg on the real account and one on a category account; a transfer is one leg on each real account, or on the virtual clearing account when only one side is in the ledger; a split is several category legs on one transaction|
+|`deleted_transactions`|18|A movement a person deleted, copied whole: the identity the ledger dedupes by, the bank's payload, the note, when it went and when it came back. It is what keeps the next sync from writing the movement in again|
 |`transfer_links`|5|A pairing, proposed or confirmed: the two legs, `confidence`, `method`, `confirmed_by_human`|
 |`rules`|3|`key` (what the upsert conflicts on: the text lower-cased, or the expression as typed — case is part of an expression, `\D` is not `\d`), `pattern` (what a person typed: a text, or `/an expression/`), `category`|
 |`account_balances`|4|What a bank declared, one row per `(account, date, source)`: the available and booked figures coexist so the 5.4 assertion can check each|
@@ -504,8 +568,9 @@ by construction.
 
 Three shapes wrap the same movement: `IncomingTransaction` (`models.py`, 13 fields)
 is what a source reports before the ledger assigns ids, the balancing posting and
-the hash; the row above is what is stored; `Transaction` (`web/src/types.ts`,
-14 keys) is what the API returns — `category` is the posting's category (null when
+the hash — a note is not part of what a source reports, which is why the class
+does not carry one; the row above is what is stored; `Transaction`
+(`web/src/types.ts`, 15 keys) is what the API returns — `category` is the posting's category (null when
 there are several), `merchant` is the normalized name, and `review_state` /
 `proposed_category` exist only in the queue.
 
@@ -515,6 +580,10 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |---|---|
 |Change what the product must do|The spec (`desiderata-monitoring-finanziario.md`) first, then the code — §9 holds the order of work and the status of each phase|
 |Change the sync cadence|`AMONHEN_SYNC_INTERVAL_HOURS` or `daemon --interval-hours`|
+|Ask the banks for data now|The **Sincronizza** button in the app's top bar (`POST /api/sync`), or `uv run amonhen sync`|
+|Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
+|Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|
+|Deploy a new image to the NAS|Tag `v*` and let CI publish, then `docker compose pull && docker compose up -d` on the NAS (the NAS needs no checkout)|
 |Add a bank's CSV layout|Add a `CsvProfile` in `adapters/csv_adapter.py` plus a synthetic fixture|
 |Reset an account|Delete its rows / the database file, then `sync` and `import` again|
 |Re-derive the opening balance|`uv run amonhen balances` then `uv run amonhen anchor`|

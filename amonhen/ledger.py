@@ -51,6 +51,22 @@ _TRANSACTION_COLUMNS = (
 
 
 @dataclass(frozen=True)
+class Deletion:
+    """A movement taken out of the ledger, and what had to be undone with it."""
+
+    transaction_id: int
+    unlinked_pair: bool
+
+
+@dataclass(frozen=True)
+class DeletedTotal:
+    """What a person deleted from an account: how much, and over how many rows."""
+
+    amount: Decimal
+    count: int
+
+
+@dataclass(frozen=True)
 class BalanceCheck:
     account_id: int
     as_of: dt.date
@@ -64,9 +80,24 @@ class BalanceCheck:
     def difference(self) -> Decimal:
         return self.declared - self.computed
 
+    # What a person deleted would have been part of this figure, and is not.
+    # `Booked` carries only the settled movements and `available` all of them,
+    # exactly like the two figures the bank declares.
+    suppressed: Decimal = Decimal("0")
+    suppressed_count: int = 0
+
     @property
     def ok(self) -> bool:
         return self.difference == 0
+
+    @property
+    def explained(self) -> bool:
+        """The difference is the movements a person deleted, and nothing else.
+
+        A check that fails for a decision taken by hand is not a defect: saying
+        so is what keeps the panel's red for the differences nobody decided.
+        """
+        return not self.ok and self.suppressed_count > 0 and self.difference == self.suppressed
 
 
 # EB tags every balance it declares with a type, and the types fall into two
@@ -202,7 +233,19 @@ class Ledger:
 
     # -- transactions ------------------------------------------------------
 
-    def record(self, txn: IncomingTransaction, occurrence: int = 1) -> tuple[int, RecordAction]:
+    def record(
+        self, txn: IncomingTransaction, occurrence: int = 1, *, restoring: bool = False
+    ) -> tuple[int, RecordAction]:
+        """Write one movement, or say why it was not written.
+
+        The id is 0 when nothing was written — the movement is one a person
+        deleted, and the tombstone knows it — so the caller reads the action.
+
+        `restoring` is for the one caller that *is* bringing a deleted movement
+        back: the dedup runs as always, so a movement the ledger already holds is
+        answered as a duplicate instead of being written twice, and only the
+        tombstone's veto — the thing being undone — is skipped.
+        """
         digest = content_hash(txn.account_id, txn.date, txn.amount, txn.description)
         if occurrence > 1:
             # Identical content repeated inside one ingest batch is a second
@@ -224,7 +267,19 @@ class Ledger:
         counterpart = self._find_opposite_status(txn)
         if counterpart is not None:
             return self._merge_status_change(counterpart, txn, digest)
-        return self._insert(txn, digest), "inserted"
+        # The tombstone is read last on purpose: a movement the ledger already
+        # holds is a duplicate whatever a person deleted once, and only a row
+        # that is really absent can be one a deletion keeps out.
+        tombstone = None if restoring else self._tombstone(txn, digest)
+        if tombstone is not None and not tombstone["reimport_deleted"]:
+            return 0, "suppressed"
+        transaction_id = self._insert(txn, digest)
+        if tombstone is not None:
+            action = "reimported"
+            self._mark_restored(tombstone["id"], tombstone["notes"], transaction_id)
+        else:
+            action = "inserted"
+        return transaction_id, action
 
     def record_batch(self, transactions: Iterable[IncomingTransaction]) -> dict[str, int]:
         """Record a batch, giving identical rows inside it their own identity."""
@@ -236,6 +291,45 @@ class Ledger:
             _, action = self.record(txn, occurrence=occurrences[key])
             actions[action] = actions.get(action, 0) + 1
         return actions
+
+    def _tombstone(self, txn: IncomingTransaction, digest: str) -> sqlite3.Row | None:
+        """The deletion this movement matches, with the account's own flag.
+
+        Three ways a movement can be the one that was deleted, and each one is a
+        relation the ledger already knows:
+
+        - the same provider identifier it was deleted under;
+        - the same content arriving from the *other* ingest path — an export
+          carries no identifier, and §5.1 makes the content hash the only
+          discriminator in the overlap between sync and import;
+        - the settled twin of a pending movement deleted here, which the bank
+          reports under a new reference and a new date.
+
+        Exact everywhere else, and only there: four identical top-ups on one day
+        are four movements, so a same-status row is never matched on its content
+        alone — that is what keeps the surviving twin of a deleted one alive.
+        """
+        return self.conn.execute(
+            """SELECT d.*, a.reimport_deleted
+               FROM deleted_transactions d JOIN accounts a ON a.id = d.account_id
+               WHERE d.account_id = ?
+                 AND (
+                     d.key = ?
+                     OR (d.content_hash = ? AND d.source <> ?)
+                     OR (d.status <> ? AND d.amount = ?
+                         AND ABS(julianday(d.date) - julianday(?)) <= ?)
+                 )""",
+            (
+                txn.account_id,
+                txn.external_id or digest,
+                digest,
+                txn.source,
+                txn.status,
+                format_decimal(txn.amount),
+                txn.date.isoformat(),
+                PENDING_WINDOW_DAYS,
+            ),
+        ).fetchone()
 
     def _find_by_external_id(self, txn: IncomingTransaction) -> sqlite3.Row | None:
         if not txn.external_id:
@@ -317,6 +411,142 @@ class Ledger:
                 (transaction_id, account_id, format_decimal(amount)),
             )
 
+    def delete_transaction(self, transaction_id: int) -> Deletion:
+        """Take a movement out of the ledger, keeping it as a tombstone.
+
+        Deleting one leg of a transfer would leave the other leg posted to the
+        clearing account with no partner — out of the spending, and nothing on
+        the row saying why — so the pair is rejected first and the other leg
+        goes back to the queue. The row is copied whole into
+        `deleted_transactions`, which is what stops the next sync from writing
+        it straight back.
+        """
+        row = self.conn.execute(
+            "SELECT * FROM transactions WHERE id = ?", (transaction_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"transaction {transaction_id} not found")
+        link = self.transfer_link(transaction_id)
+        with self.conn:
+            if link is not None:
+                self.set_transfer_review(link["leg_a"], link["leg_b"], "reject")
+            # Copied from the row itself rather than from a tuple of fifteen
+            # placeholders: a swapped pair there is silent, and the column list
+            # would have to be kept in step with the table by hand.
+            self.conn.execute(
+                """INSERT INTO deleted_transactions (
+                       account_id, key, date, amount, description, status, external_id,
+                       content_hash, source, source_file, raw_payload, counterparty,
+                       counterparty_account, currency, notes, deleted_at, restored_at
+                   )
+                   SELECT account_id, COALESCE(external_id, content_hash), date, amount,
+                       description, status, external_id, content_hash, source, source_file,
+                       raw_payload, counterparty, counterparty_account, currency, notes,
+                       ?, NULL
+                   FROM transactions WHERE id = ?
+                   ON CONFLICT (account_id, key) DO UPDATE SET
+                       date = excluded.date, amount = excluded.amount,
+                       description = excluded.description, status = excluded.status,
+                       external_id = excluded.external_id,
+                       content_hash = excluded.content_hash, source = excluded.source,
+                       source_file = excluded.source_file, raw_payload = excluded.raw_payload,
+                       counterparty = excluded.counterparty,
+                       counterparty_account = excluded.counterparty_account,
+                       currency = excluded.currency, notes = excluded.notes,
+                       deleted_at = excluded.deleted_at, restored_at = NULL""",
+                (dt.datetime.now(dt.UTC).isoformat(), transaction_id),
+            )
+            self.conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
+        return Deletion(transaction_id=transaction_id, unlinked_pair=link is not None)
+
+    def restore_deleted(self, deleted_id: int) -> int:
+        """Put a deleted movement back, with the note it had, and say it came back.
+
+        The row is rebuilt from what the tombstone kept — payload and all, under
+        the identity it was deleted by — so nothing has to be fetched again and
+        the movement cannot land twice: the row it restores is the one whose
+        deletion this is, and a tombstone restored twice is refused because
+        there is nothing left to put back.
+        """
+        row = self.conn.execute(
+            "SELECT * FROM deleted_transactions WHERE id = ?", (deleted_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"deleted movement {deleted_id} not found")
+        if row["restored_at"] is not None:
+            raise ValueError(f"deleted movement {deleted_id} was already restored")
+        # Through `record`, with the tombstone's veto lifted: a movement the
+        # ledger already holds under any of the identities the dedup knows is
+        # answered as a duplicate instead of being written a second time, and a
+        # freshly written row gets the note the tombstone kept.
+        transaction_id, action = self.record(self._movement_of(row), restoring=True)
+        self._mark_restored(deleted_id, row["notes"] if action == "inserted" else None, transaction_id)
+        return transaction_id
+
+    def deleted_transactions(self, account_id: int | None = None) -> list[sqlite3.Row]:
+        """The movements still deleted, newest deletion first.
+
+        Restored ones are left out: they are in the ledger again, and offering
+        to restore them would be offering to do what has been done.
+        """
+        sql = """SELECT d.*, a.name AS account_name
+                 FROM deleted_transactions d JOIN accounts a ON a.id = d.account_id
+                 WHERE d.restored_at IS NULL"""
+        params: tuple = ()
+        if account_id is not None:
+            sql += " AND d.account_id = ?"
+            params = (account_id,)
+        return list(self.conn.execute(sql + " ORDER BY d.deleted_at DESC, d.id DESC", params))
+
+    def _movement_of(self, row: sqlite3.Row) -> IncomingTransaction:
+        """The tombstone as the ledger records movements, ready to be written."""
+        return IncomingTransaction(
+            account_id=row["account_id"],
+            date=dt.date.fromisoformat(row["date"]),
+            amount=parse_decimal(row["amount"]),
+            description=row["description"],
+            status=row["status"],
+            source=row["source"],
+            balancing_account_id=self.uncategorized(),
+            external_id=row["external_id"],
+            counterparty=row["counterparty"],
+            counterparty_account=row["counterparty_account"],
+            currency=row["currency"],
+            raw=json.loads(row["raw_payload"]),
+            source_file=row["source_file"],
+        )
+
+    def _mark_restored(self, deleted_id: int, notes: str | None, transaction_id: int) -> None:
+        """Hand the movement its note back, and remember that it came home.
+
+        The row was written a moment ago with no note, so the tombstone's copy is
+        the only one there is. Both callers already hold it.
+        """
+        with self.conn:
+            if notes:
+                self.conn.execute(
+                    "UPDATE transactions SET notes = ? WHERE id = ?", (notes, transaction_id)
+                )
+            self.conn.execute(
+                "UPDATE deleted_transactions SET restored_at = ? WHERE id = ?",
+                (dt.datetime.now(dt.UTC).isoformat(), deleted_id),
+            )
+
+    def set_notes(self, transaction_id: int, notes: str | None) -> None:
+        """Write the note a person put on a movement, or clear it with nothing.
+
+        Local by construction: the bank sends no note, and no ingest path names
+        this column, so a note survives every later sync.
+        """
+        text = (notes or "").strip()
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE transactions SET notes = ? WHERE id = ?",
+                (text or None, transaction_id),
+            )
+        if cursor.rowcount == 0:
+            raise KeyError(f"transaction {transaction_id} not found")
+
     def set_splits(self, transaction_id: int, splits: Sequence[tuple[int, Decimal]]) -> None:
         """Replace the category side with several postings that still sum to zero.
 
@@ -382,6 +612,22 @@ class Ledger:
     def setting(self, key: str, default: str | None = None) -> str | None:
         row = self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else default
+
+    def set_reimport_deleted(self, account_id: int, value: bool) -> None:
+        """Whether this account takes back the movements a person deleted.
+
+        Off, which is what deleting means; on, the next sync writes them in
+        again from the tombstone, note included. Per account because the reason
+        to turn it on is one account's own history — a consent renewed, a period
+        deleted by mistake — not a property of the ledger.
+        """
+        if self.account(account_id)["type"] != "real":
+            raise ValueError(f"account {account_id} is not a real account")
+        with self.conn:
+            self.conn.execute(
+                "UPDATE accounts SET reimport_deleted = ? WHERE id = ?",
+                (1 if value else 0, account_id),
+            )
 
     def set_setting(self, key: str, value: str) -> None:
         with self.conn:
@@ -927,6 +1173,7 @@ class Ledger:
     ) -> BalanceCheck:
         account = self.account(account_id)
         opening = parse_decimal(account["opening_balance"]) if account["opening_balance"] else Decimal(0)
+        deleted = self.deleted_total(account_id, as_of, kind)
         return BalanceCheck(
             account_id=account_id,
             as_of=as_of,
@@ -935,6 +1182,34 @@ class Ledger:
             computed=self.balance(account_id, as_of, settled=kind == "booked"),
             kind=kind,
             source=source,
+            suppressed=deleted.amount,
+            suppressed_count=deleted.count,
+        )
+
+    def deleted_total(self, account_id: int, as_of: dt.date, kind: str) -> DeletedTotal:
+        """What the hand-deleted movements would add to the figure being checked.
+
+        A deleted movement is missing from the computed balance while the bank
+        still counts it, so the difference a deletion leaves is exactly this
+        sum — and it is signed the way the movements were: deleting an expense
+        takes money out of the ledger, and the bank cannot see that.
+
+        The same boundary `balance` uses: a movement on or before the opening
+        date is already folded into the opening figure, so a deletion there
+        explains nothing and must not be added here.
+        """
+        statuses = ("BOOK", "PDNG") if kind == "available" else ("BOOK",)
+        opening_date = self.account(account_id)["opening_date"]
+        rows = self.conn.execute(
+            f"""SELECT amount FROM deleted_transactions
+                WHERE account_id = ? AND restored_at IS NULL AND date <= ?
+                  AND (? IS NULL OR date > ?)
+                  AND status IN ({", ".join("?" * len(statuses))})""",
+            (account_id, as_of.isoformat(), opening_date, opening_date, *statuses),
+        ).fetchall()
+        return DeletedTotal(
+            amount=sum((parse_decimal(row["amount"]) for row in rows), Decimal(0)),
+            count=len(rows),
         )
 
     def declarations(self, account_id: int, as_of: dt.date | None = None) -> list[sqlite3.Row]:

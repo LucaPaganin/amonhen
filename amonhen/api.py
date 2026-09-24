@@ -24,7 +24,7 @@ from amonhen import assistant, db
 from amonhen.anomalies import detect_anomalies
 from amonhen.classifier import apply_proposals, propose_categories
 from amonhen.config import load_config, save_account
-from amonhen.ledger import UNCATEGORIZED_WHERE, Ledger
+from amonhen.ledger import UNCATEGORIZED_WHERE, BalanceCheck, Ledger
 from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
     RuleBook,
@@ -46,6 +46,7 @@ from amonhen.models import Account, format_decimal, parse_decimal
 from amonhen.providers.enable_banking import EnableBankingClient
 from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED
 from amonhen.suggestions import propose_for_unseen
+from amonhen.sync import SyncBusy, SyncResult, SyncService
 from amonhen.transfers import pair_candidates
 
 WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
@@ -54,7 +55,7 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
 # Python process keeps running its old code, so the two can drift.
-API_VERSION = 11
+API_VERSION = 17
 
 # Where an in-flight authorization waits between /connect and /callback.
 PENDING_OAUTH = "pending_oauth"
@@ -70,6 +71,12 @@ def _client(config) -> EnableBankingClient:
 
 class CategoryRequest(BaseModel):
     category: str
+
+
+class NotesRequest(BaseModel):
+    """The local note of a movement: the only field the app may write on it."""
+
+    notes: str | None = None
 
 
 class ReviewRequest(BaseModel):
@@ -122,6 +129,7 @@ class CategoryFlagsRequest(BaseModel):
 
 class AccountFlagsRequest(BaseModel):
     investment: bool | None = None
+    reimport_deleted: bool | None = None
 
 
 class SplitItem(BaseModel):
@@ -807,24 +815,52 @@ def create_app(
                 "essential": bool(row["essential"]),
             }
 
-    @app.patch("/api/accounts/{account_id}")
-    def patch_account(account_id: int, body: AccountFlagsRequest) -> dict:
-        if body.investment is None:
-            raise HTTPException(status_code=422, detail="set investment")
+    @app.get("/api/deleted")
+    def deleted() -> list[dict]:
+        """The movements a person deleted and has not brought back.
+
+        Answered whole rather than per account: the Conti section asks once and
+        groups them under the account each one belonged to, which is where the
+        flag that would bring them all back also lives.
+        """
+        with ledger_scope() as ledger:
+            return [_deleted_payload(row) for row in ledger.deleted_transactions()]
+
+    @app.post("/api/deleted/{deleted_id}/restore")
+    def restore_deleted(deleted_id: int) -> dict:
+        """Put one deleted movement back, with the note it had when it went."""
         with ledger_scope() as ledger:
             try:
-                ledger.set_investment(account_id, body.investment)
-            except (KeyError, ValueError) as exc:
-                raise HTTPException(status_code=404 if isinstance(exc, KeyError) else 422,
-                                    detail=str(exc)) from exc
-            row = ledger.account(account_id)
-            return {
-                "id": row["id"],
-                "name": row["name"],
-                "investment": bool(row["investment"]),
-                "balance": format_decimal(ledger.balance(account_id, dt.date.today())),
-                "opening_date": row["opening_date"],
-            }
+                transaction_id = ledger.restore_deleted(deleted_id)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
+    @app.patch("/api/accounts/{account_id}")
+    def patch_account(account_id: int, body: AccountFlagsRequest) -> dict:
+        """Flip an account's own flags, and answer with the account.
+
+        `investment` marks the account whose inflows are savings rather than
+        spending; `reimport_deleted` decides whether a movement deleted here may
+        come back at the next sync. Both are decisions about the account, so
+        they are written here rather than on a movement, and the answer is the
+        account as every other endpoint reads it.
+        """
+        if body.investment is None and body.reimport_deleted is None:
+            raise HTTPException(status_code=422, detail="nothing to set")
+        with ledger_scope() as ledger:
+            try:
+                if body.investment is not None:
+                    ledger.set_investment(account_id, body.investment)
+                if body.reimport_deleted is not None:
+                    ledger.set_reimport_deleted(account_id, body.reimport_deleted)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            return _account_payload(ledger, account_id)
 
     @app.put("/api/transactions/{transaction_id}/splits")
     def put_splits(transaction_id: int, body: SplitsRequest) -> dict:
@@ -842,6 +878,34 @@ def create_app(
                 )
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
+            return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
+    @app.delete("/api/transactions/{transaction_id}")
+    def delete_transaction(transaction_id: int) -> dict:
+        """Take a movement out of the ledger, remembered as a tombstone.
+
+        The row goes: this is not a flag on a movement that stays visible. What
+        it carried — the bank's payload, the note, the identity the ledger
+        dedupes by — is copied aside, so the next sync does not write it back
+        and a person can still see and undo the deletion.
+        """
+        with ledger_scope() as ledger:
+            _require_transaction(ledger, transaction_id)
+            deletion = ledger.delete_transaction(transaction_id)
+            return {"id": deletion.transaction_id, "unlinked_pair": deletion.unlinked_pair}
+
+    @app.put("/api/transactions/{transaction_id}/notes")
+    def put_notes(transaction_id: int, body: NotesRequest) -> dict:
+        """Write the local note of a movement, or clear it.
+
+        The only field of a movement a person may rewrite: everything else is
+        what the bank said, and the 5.4 assertion compares that statement with
+        the ledger, so a hand-edited amount or date would break the one check
+        that says whether the numbers can be trusted.
+        """
+        with ledger_scope() as ledger:
+            _require_transaction(ledger, transaction_id)
+            ledger.set_notes(transaction_id, body.notes)
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
 
     @app.post("/api/transactions/{transaction_id}/category")
@@ -958,8 +1022,59 @@ def create_app(
         with ledger_scope() as ledger:
             return {"applied": categorize(ledger, RuleBook(ledger.conn))}
 
+    @app.post("/api/sync")
+    def run_sync() -> dict:
+        """Fetch every configured account now, and answer with what it wrote.
+
+        Synchronous on purpose: the caller asked for this run, and the answer is
+        the run. The guard is the sync's own, so the button and the scheduled
+        loop of `serve` can never write at the same time. A configuration that
+        cannot be read is the caller's to see, in the same words the CLI prints.
+        """
+        try:
+            config = load_config(config_path)
+            client = _client(config)
+        except (OSError, KeyError, ValueError) as exc:
+            raise HTTPException(status_code=503, detail=f"cannot sync: {exc}")
+        with ledger_scope() as ledger:
+            try:
+                result = SyncService(ledger, client, config).run()
+            except SyncBusy as exc:
+                raise HTTPException(status_code=409, detail=str(exc))
+            return _sync_payload(ledger, result)
+
     _mount_pwa(app, web_dist if web_dist is not None else WEB_DIST)
     return app
+
+
+def _sync_payload(ledger: Ledger, result: SyncResult) -> dict:
+    """What a sync did, per account, with the 5.4 verdict the panel shows.
+
+    The accounts are answered in the order the configuration lists them, and one
+    that could not be reached carries its reason: a sync that reports what it
+    failed to do is worth more than one that reports only its successes.
+    """
+    accounts = []
+    for entry in result.accounts:
+        row = ledger.find_account(name=entry.account)
+        accounts.append(
+            {
+                "account": entry.account,
+                "fetched": entry.fetched,
+                "balances": entry.balances,
+                "actions": entry.actions,
+                "error": entry.error,
+                "balance_mismatch": entry.balance_mismatch,
+                "verification": _verification(ledger, row["id"]) if row else None,
+            }
+        )
+    return {
+        "accounts": accounts,
+        "transfers_linked": result.transfers_linked,
+        "rules_applied": result.rules_applied,
+        "passthrough_legs": result.passthrough_legs,
+        "errors": result.errors,
+    }
 
 
 def _verification(ledger: Ledger, account_id: int) -> dict:
@@ -975,7 +1090,7 @@ def _verification(ledger: Ledger, account_id: int) -> dict:
     if not checks:
         return {"state": "unverified", "date": None, "checks": []}
     return {
-        "state": "verified" if all(check.ok for check in checks) else "mismatch",
+        "state": _verification_state(checks),
         "date": max(check.as_of for check in checks).isoformat(),
         "checks": [
             {
@@ -986,10 +1101,29 @@ def _verification(ledger: Ledger, account_id: int) -> dict:
                 "computed": format_decimal(check.computed),
                 "difference": format_decimal(check.difference),
                 "ok": check.ok,
+                # A difference a person made by deleting a movement is not a
+                # defect, and the panel says which one it is.
+                "explained": check.explained,
+                "suppressed": format_decimal(check.suppressed),
+                "suppressed_count": check.suppressed_count,
             }
             for check in checks
         ],
     }
+
+
+def _verification_state(checks: list[BalanceCheck]) -> str:
+    """Which of the four outcomes the account is in.
+
+    `suppressed` is its own state and not a quiet `verified`: the ledger does
+    disagree with the bank by exactly what somebody deleted, and the panel has
+    to be able to say that in one phrase.
+    """
+    if all(check.ok for check in checks):
+        return "verified"
+    if all(check.ok or check.explained for check in checks):
+        return "suppressed"
+    return "mismatch"
 
 
 def _names(raw: str | None) -> tuple[str, ...]:
@@ -1066,6 +1200,27 @@ def _require_real_account(ledger: Ledger, account_id: int) -> sqlite3.Row:
     return row
 
 
+def _deleted_payload(row: sqlite3.Row) -> dict:
+    """A deleted movement as the trash list reads it.
+
+    No payload and no provider id: what the list shows is the movement a person
+    recognises — when it was, what it was, what it was worth, the note they wrote
+    on it and when it went — and the rest stays in the ledger, where the sync
+    reads it from.
+    """
+    return {
+        "id": row["id"],
+        "account": {"id": row["account_id"], "name": row["account_name"]},
+        "date": row["date"],
+        "amount": row["amount"],
+        "description": row["description"],
+        "merchant": merchant_name(row["description"]),
+        "status": row["status"],
+        "notes": row["notes"],
+        "deleted_at": row["deleted_at"],
+    }
+
+
 def _account_payload(ledger: Ledger, account_id: int) -> dict:
     """One account as every account endpoint answers it."""
     row = ledger.account(account_id)
@@ -1078,6 +1233,9 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         "opening_date": row["opening_date"],
         "opening_balance": row["opening_balance"],
         "investment": bool(row["investment"]),
+        # Off means a movement deleted here stays deleted; on means the next
+        # sync writes it back from the tombstone, note included.
+        "reimport_deleted": bool(row["reimport_deleted"]),
         "verification": _verification(ledger, row["id"]),
     }
 
@@ -1112,8 +1270,10 @@ def _transaction_filters(
         )
         params.append(category)
     if search:
-        clauses.append("(t.description LIKE ? OR t.counterparty LIKE ?)")
-        params += [f"%{search}%", f"%{search}%"]
+        # A note is the one word a person wrote on a movement, so a search that
+        # could not find it would make marking a movement pointless.
+        clauses.append("(t.description LIKE ? OR t.counterparty LIKE ? OR t.notes LIKE ?)")
+        params += [f"%{search}%", f"%{search}%", f"%{search}%"]
     if transfer is not None:
         # A leg's balancing side sits on a virtual account, so this is the same
         # test `Ledger.is_transfer` makes.
@@ -1246,6 +1406,9 @@ def _transaction(row: sqlite3.Row, ledger: Ledger) -> dict:
         "transfer": ledger.transfer_of(row["id"]),
         "counterparty": row["counterparty"],
         "source": row["source"],
+        # Local, and the only field a person may write: the sync never sets it,
+        # so what is here was written by hand and stays.
+        "notes": row["notes"],
     }
 
 
