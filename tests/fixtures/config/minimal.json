@@ -1,0 +1,7 @@
+{
+  "application_id": "app-under-test",
+  "pem_path": "private.pem",
+  "redirect_url": "http://localhost:8000/callback",
+  "account_holder_name": "",
+  "accounts": []
+}

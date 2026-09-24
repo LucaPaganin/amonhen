@@ -2,6 +2,7 @@
 import datetime as dt
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,10 +27,18 @@ def make_txn(ledger, account_id, date, amount, description, status="BOOK"):
     )
 
 
+MINIMAL_CONFIG = Path(__file__).resolve().parent / "fixtures" / "config" / "minimal.json"
+
+
 @pytest.fixture
 def api(tmp_path):
+    # A configuration of its own: the default is the operator's `accounts.json`,
+    # which is not in version control, so a test that read it would pass only on
+    # the machine that happens to have one.
     db_path = tmp_path / "ledger.db"
-    client = TestClient(create_app(db_path, web_dist=tmp_path / "missing"))
+    client = TestClient(
+        create_app(db_path, web_dist=tmp_path / "missing", config_path=MINIMAL_CONFIG)
+    )
 
     conn = connect(db_path)
     ledger = Ledger(conn)

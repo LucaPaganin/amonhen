@@ -1,7 +1,12 @@
 """CLI end to end on a temporary ledger; no network, no real data."""
 import datetime as dt
+from pathlib import Path
 
 from amonhen.cli import main
+
+# A configuration of its own: the default is the operator's `accounts.json`,
+# which is not in version control.
+MINIMAL_CONFIG = Path(__file__).resolve().parent / "fixtures" / "config" / "minimal.json"
 
 ACTUAL_EXPORT = """Account,Date,Payee,Notes,Category_Group,Category,Amount,Split_Amount,Cleared
 Revolut,2026-08-03,ACME Srl,CARD_PAYMENT | VISA 1234,Spese,Cibo,-3.94,0,Cleared
@@ -11,7 +16,7 @@ Revolut,2026-08-05,Stipendio,Income,Income,Stipendio,1200.00,0,Cleared
 
 
 def run(db, *args) -> int:
-    return main(["--db", str(db), *args])
+    return main(["--db", str(db), "--config", str(MINIMAL_CONFIG), *args])
 
 
 def make_export(tmp_path):

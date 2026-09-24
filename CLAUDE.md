@@ -481,6 +481,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   match `image:` in `docker-compose.yaml`, or the NAS pulls nothing. Keep the
   `uv` image tag in the Dockerfile at the version that wrote `uv.lock`: the lock
   is revision 3 and older uv binaries refuse to read it.
+- **The suite keeps its own configuration.** `tests/fixtures/config/minimal.json`
+  is what the API and CLI tests point their app at, and `.env` is never read by a
+  test: the defaults are the operator's `accounts.json` and `.env`, neither of
+  which is in version control, so a test that read them would pass only on the
+  machine that happens to have one. Eleven of them did, until the first CI run on
+  a clean checkout found it. Run the suite from a tree without those files
+  (`git archive HEAD | tar -x -C /tmp/x`) when touching anything that reads the
+  configuration.
 - **Verifying UI work means running it.** Start the server on a copy, drive a
   real browser tab and read the DOM; for anything visual, screenshot it and have
   a vision model describe the image. "The component renders this" is not
