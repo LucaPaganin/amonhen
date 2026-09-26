@@ -515,9 +515,10 @@ becomes a two-column grid, and the panels that share a row are marked where they
 (`panel--pair`: the two period charts, the accounts and the budgets) rather than guessed from what
 they contain — with two charts drawn instead of three, or one of the two lists missing, a guess
 leaves a panel half-wide next to an empty half. The net-worth curve has no partner and stays full
-width. A list of cards — the queue's proposals, the assistant's, the rule groups — turns back into a
-grid of cards: each entry gets back the radius, fill and shadow `.card-list > .card` had taken away
-to make it a row of one sheet, and the sheet itself stops drawing a surface. A list of rows
+width. A list of cards — the assistant's, the rule groups — turns back into a grid of cards: each
+entry gets back the radius, fill and shadow `.card-list > .card` had taken away to make it a row of
+one sheet, and the sheet itself stops drawing a surface. The queue's own list is the exception: above
+1024 it is the left half of a two-column panel, so its proposals stay one per row. A list of rows
 (movements, accounts, budgets) keeps its sheet and its hairline at every width. From 1440 the eight
 metric tiles fit on one row (145 px each; the longest figure asks for 103 of them), which is the case
 a wide window exists for. Prose keeps a book's measure: `.chart-note`, `.screen__subtitle` and
@@ -547,7 +548,21 @@ this is one block of CSS on a container that already existed. The page behind st
 it is open (`body:has(dialog[open])`), since a panel as tall as the window is exactly where a page
 sliding underneath is noticed. Below 1024 the sheet still comes from the bottom, byte for byte.
 
+**And the movement list becomes a table, while the queue is read in two.** Five columns — date,
+description, category, account, amount — is the shape to aim at, and at 1024 they do not fit: the
+description was left 118 px, fifteen characters a line, in the first attempt that gave the account a
+column of its own. So the account stays under the title, where the phone puts it, until 1440, and from
+there it takes its own column and the description widens (537 px measured at 1484). The header sticks
+under the top bar and its widths are fixed, because the header and the rows are two separate grids: an
+`auto` column would be sized from each one's own content, which puts the label over the wrong column
+(the header's "Categoria" is 58 px, the rows' pills up to 293). A pill too long for its column wraps
+inside it rather than spilling over the account beside it. In the review queue the proposals stay on
+the left and the one you pick is shown on the right — merchant, source, the category in force, the
+stake, what accepting would write, and the controls themselves — while the card in the list keeps only
+its head (its stake sentence would be the same sentence twice). The controls are written once and
+placed in both, and the stylesheet hides the one the width does not need.
+
 Below 1024 nothing moves, and that is checked rather than hoped: on the same ledger, against the
 build before the change, every visible element's box at 390 and 768 is compared — 530, 796 and 278
-per screen, no box differs — all six screenshots come out byte-identical, and the bottom sheet
-itself, captured open at both widths, is byte-identical too.
+per screen, no box differs — all eight screenshots (four screens at two widths) come out
+byte-identical, and the bottom sheet itself, captured open at both widths, is byte-identical too.

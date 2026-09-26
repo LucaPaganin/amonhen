@@ -1084,6 +1084,18 @@ button.txn {
   cursor: pointer;
 }
 
+/* L'intestazione di una tabella che esiste solo sopra i 1024, e i due gruppi di
+   pillole dentro la riga: sotto, quei gruppi non esistono per il layout e le
+   pillole stanno in fila dentro la descrizione come sono sempre state. */
+.txn-head {
+  display: none;
+}
+
+.txn__what,
+.txn__flags {
+  display: contents;
+}
+
 button.txn:active {
   background: var(--fill-2);
 }
@@ -1272,6 +1284,12 @@ button.txn:active {
 
 .proposal-actions .button {
   flex: 1;
+}
+
+/* Il dettaglio della proposta esiste solo dove c'è spazio per l'elenco accanto
+   (sopra i 1024): su un telefono la scheda è già il dettaglio. */
+.queue-detail {
+  display: none;
 }
 
 /* Stati: uno stato è una tinta, non un contorno. */
@@ -2554,6 +2572,172 @@ button.txn:active {
     box-shadow: var(--shadow-card);
   }
 
+  /* La coda si guarda in due: le proposte a sinistra, il dettaglio di quella
+     scelta a destra, che resta in cima mentre l'elenco scorre. */
+  .panel--split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 330px);
+    gap: 14px;
+    align-items: start;
+  }
+
+  .panel--split > * {
+    grid-column: 1 / -1;
+  }
+
+  .panel--split > .card-list,
+  .panel--split > .state,
+  .panel--split > .queue-detail {
+    grid-column: auto;
+  }
+
+  /* Nell'elenco le schede stanno una per riga: la colonna è già mezza schermata. */
+  .panel--split .card-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .queue-detail {
+    position: sticky;
+    top: calc(var(--appbar) + 12px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-1);
+    box-shadow: var(--shadow-card);
+  }
+
+  .queue-detail__merchant {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+  }
+
+  .queue-detail__choice {
+    margin: 0;
+  }
+
+  /* Nel dettaglio stanno i comandi, e nella scheda no: l'elenco è il maestro, il
+     dettaglio è dove si decide. Sotto i 1024 il dettaglio non esiste e la scheda
+     tiene i suoi comandi, che sono gli stessi. La riga di quello che la proposta
+     vale sta nel dettaglio, che la ripete: nella scheda sarebbe due volte la
+     stessa frase. */
+  .panel--split .proposal__controls,
+  .panel--split .proposal .chart-note {
+    display: none;
+  }
+
+  /* La proposta che il dettaglio sta mostrando è la riga accesa dell'elenco. */
+  .proposal[aria-current] {
+    background: linear-gradient(135deg, rgba(240, 208, 138, 0.24), rgba(240, 208, 138, 0.1));
+  }
+
+  /* I movimenti diventano una tabella: cinque colonne, con l'intestazione che
+     resta in cima mentre si scorre. I due contenitori della riga escono dal
+     layout (`display: contents`) e i loro figli prendono posto nelle colonne,
+     quindi la stessa riga serve il telefono — i pezzi in fila dentro la
+     descrizione — e la finestra, dove i pezzi stanno in colonna.
+
+     Le colonne sono fisse: intestazione e righe sono due griglie diverse, e una
+     colonna `auto` ciascuna la calcolerebbe dai propri contenuti, mettendo
+     l'intestazione sopra la colonna sbagliata. Le misure vengono dal contenuto
+     peggiore del mese: la data più lunga 83 px, il conto 126, l'importo con il
+     progressivo 134, e la pillola della categoria 293 — che qui va a capo nella
+     sua colonna invece di allargarla o di finire sopra al conto accanto. */
+  .txn-head,
+  .txn {
+    grid-template-columns: 5.2rem minmax(12rem, 1fr) 11rem 9rem;
+    align-items: center;
+  }
+
+  /* Il conto non ha una colonna sua finché la finestra non è larga: a 1024, con
+     cinque colonne, alla descrizione restavano 118 px, cioè quindici caratteri
+     per riga. Sta sotto il titolo, come sul telefono, e da 1440 esce. */
+  .txn-head > :nth-child(4) {
+    display: none;
+  }
+
+  .txn-head > :last-child {
+    text-align: right;
+  }
+
+  /* Una pillola lunga (un giroconto, che nomina l'altro conto) va a capo nella
+     sua colonna invece di finire sopra al conto accanto. */
+  .txn__what .chip,
+  .txn__flags .chip {
+    white-space: normal;
+  }
+
+  .txn-head {
+    position: sticky;
+    top: calc(var(--appbar) + 8px);
+    z-index: 2;
+    display: grid;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--menu);
+    color: var(--faint);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  /* Solo la riga dei movimenti: `.txn__meta` vive anche nelle righe del cestino
+     in Conti, dove è la riga di testo di una colonna e non deve sparire. */
+  .txn > .txn__body,
+  .txn > .txn__body > .txn__meta {
+    display: contents;
+  }
+
+  .txn__what,
+  .txn__flags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Data e importo stanno al centro delle righe che la descrizione può occupare
+     (titolo, conto, nota); categoria e le sue pillole hanno una colonna. */
+  .txn__date,
+  .txn__figures {
+    grid-row: 1 / span 3;
+  }
+
+  .txn__date {
+    grid-column: 1;
+  }
+
+  .txn__title {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .txn__account {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .txn__note {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .txn__what {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .txn__flags {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .txn__figures {
+    grid-column: 4;
+  }
+
   /* Un paragrafo largo quanto la finestra non si legge: nei testi la riga resta
      quella di un libro. */
   .assistant__answer,
@@ -2600,6 +2784,36 @@ button.txn:active {
     grid-template-columns: none;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
+  }
+
+  /* Nella tabella dei movimenti il conto si prende la sua colonna e la
+     descrizione si allarga. La colonna della categoria resta la sua: una
+     pillola più lunga di così va a capo lì dentro, come a 1024. */
+  .txn-head,
+  .txn {
+    grid-template-columns: 5.2rem minmax(0, 1fr) 13rem 9rem 9rem;
+  }
+
+  .txn-head > :nth-child(4) {
+    display: block;
+  }
+
+  .txn__date,
+  .txn__account,
+  .txn__figures {
+    grid-row: 1 / span 2;
+  }
+
+  .txn__note {
+    grid-row: 2;
+  }
+
+  .txn__account {
+    grid-column: 4;
+  }
+
+  .txn__figures {
+    grid-column: 5;
   }
 }
 

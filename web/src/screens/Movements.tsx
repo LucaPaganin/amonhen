@@ -261,6 +261,20 @@ export function MovementsScreen({
         <p className="state">Nessun movimento per i filtri scelti.</p>
       ) : null}
 
+      {/* L'intestazione della tabella: esiste solo dove la riga ha le colonne da
+          nominare (sopra i 1024) e solo quando c'è almeno una riga sotto. Le
+          righe dicono già tutto nella loro etichetta, quindi questa non c'è per
+          chi ascolta. */}
+      {displayed.length > 0 ? (
+        <div className="txn-head" aria-hidden="true">
+          <span>Data</span>
+          <span>Descrizione</span>
+          <span>Categoria</span>
+          <span>Conto</span>
+          <span>Importo</span>
+        </div>
+      ) : null}
+
       <ul className="txn-list">
         {displayed.map((transaction) => (
           <TransactionRow

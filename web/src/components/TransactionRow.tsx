@@ -31,6 +31,13 @@ export function TransactionRow({ transaction, runningTotal, onSelect, flag }: Tr
       ? `${transaction.splits.length} categorie`
       : (transaction.category ?? "senza categoria"));
 
+  // Sopra i 1024 la riga è una tabella, e ogni pezzo va nella sua colonna: data,
+  // descrizione, categoria, importo, e il conto che si prende una colonna sua
+  // quando la finestra è larga abbastanza (da 1440). I due contenitori spariscono
+  // dal layout con `display: contents` e i loro figli entrano nella griglia della
+  // riga, quindi la stessa riga serve il telefono (i pezzi in fila dentro la
+  // descrizione) e la finestra (i pezzi in colonna) senza due markup da tenere
+  // allineati.
   const content = (
     <>
       <span className="txn__date">{formatDate(transaction.date)}</span>
@@ -40,23 +47,27 @@ export function TransactionRow({ transaction, runningTotal, onSelect, flag }: Tr
           <span className="txn__note">{transaction.notes}</span>
         )}
         <span className="txn__meta">
-          <span>{transaction.account.name}</span>
-          {transferLabel ? (
-            <span className="chip chip--transfer">{transferLabel}</span>
-          ) : transaction.splits.length > 1 ? (
-            <span className="chip chip--split">{categoryLabel}</span>
-          ) : transaction.category ? (
-            <span className="chip">{categoryText(transaction.category)}</span>
-          ) : null}
-          {transfer?.state === "proposed" ? (
-            <span className="chip chip--warning">Da confermare</span>
-          ) : null}
-          {transaction.status === "PDNG" ? <span className="chip chip--pending">In attesa</span> : null}
-          {flag ? (
-            <span className={flag.warning ? "chip chip--warning" : "chip chip--proposal"}>
-              {flag.label}
-            </span>
-          ) : null}
+          <span className="txn__account">{transaction.account.name}</span>
+          <span className="txn__what">
+            {transferLabel ? (
+              <span className="chip chip--transfer">{transferLabel}</span>
+            ) : transaction.splits.length > 1 ? (
+              <span className="chip chip--split">{categoryLabel}</span>
+            ) : transaction.category ? (
+              <span className="chip">{categoryText(transaction.category)}</span>
+            ) : null}
+          </span>
+          <span className="txn__flags">
+            {transfer?.state === "proposed" ? (
+              <span className="chip chip--warning">Da confermare</span>
+            ) : null}
+            {transaction.status === "PDNG" ? <span className="chip chip--pending">In attesa</span> : null}
+            {flag ? (
+              <span className={flag.warning ? "chip chip--warning" : "chip chip--proposal"}>
+                {flag.label}
+              </span>
+            ) : null}
+          </span>
         </span>
       </span>
       <span className="txn__figures">

@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.7 — settembre 2026
+Versione 1.8 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -83,6 +83,13 @@ quello che si stava guardando resta visibile accanto — la stessa finestra di
 prima, con lo stesso Esc, lo stesso backdrop e la stessa trappola del fuoco.
 Sotto i 1024 px il foglio dal basso resta quello del telefono. (Il budget non è
 una scheda: si modifica nella riga che lo mostra.)*
+*1.8 · le due schermate che si guardano di più prendono la forma della finestra.
+I movimenti sono una tabella — data, descrizione, categoria, importo, e il conto
+che si prende una colonna sua dove c'è spazio — con l'intestazione che resta in
+cima mentre si scorre, invece di una riga che si allarga fino a mille e duecento
+pixel. La coda si guarda in due: l'elenco delle proposte a sinistra, il dettaglio
+di quella scelta a destra con i suoi comandi, così si decide senza aprire niente.
+Sotto i 1024 px le due schermate restano quelle del telefono.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`

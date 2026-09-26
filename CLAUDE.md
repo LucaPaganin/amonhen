@@ -621,6 +621,18 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   scrollbar away, and with it the width the page lays out in: the centred column moved half of
   that and a panel flush with the right edge moved all of it. The same block reserves the gutter
   (`html { scrollbar-gutter: stable }`), so the locked and unlocked states share one width.
+- **A grid's columns are not shared with the grid below it.** The movements table's header and its
+  rows are two separate grids, so any `auto` column is sized from its own contents: with `auto`, the
+  header's "Categoria" (58 px) sat over nothing while the rows' pills reached 293. The columns are
+  fixed in `rem` for that reason, and the numbers come from the worst cell measured in a month. The
+  same trap is why the row keeps one markup for both shapes: `display: contents` on
+  `.txn__body`/`.txn__meta` hands their children to the row's grid above 1024, while below they are
+  the phone's lines — and the eight screenshots at 390 and 768 stay byte-identical.
+- **A control written once can be placed twice.** In the review queue the category select, its
+  confirm button and the new-category form live in one function (`proposalControls`) and render both
+  inside the card (below 1024, where the card is the detail) and inside the docked pane (above, where
+  the pane is); the stylesheet hides whichever the width does not need, so there is one implementation
+  and one set of controls on screen at a time.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

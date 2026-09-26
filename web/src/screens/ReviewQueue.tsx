@@ -69,6 +69,14 @@ export function ReviewQueueScreen({
   // category a rule may point at, so it is not a choice here.
   const categoryOptions = categories.filter((item) => item.name !== bucketName());
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  // Quale proposta sta nel dettaglio: il clic la sceglie, e la prima è scelta da
+  // sé, così il pannello non è mai un riquadro vuoto che aspetta un gesto.
+  const [selected, setSelected] = useState<string | null>(null);
+  const active =
+    suggestions.suggestions.find((item) => item.merchant === selected) ??
+    suggestions.suggestions[0] ??
+    null;
+  const activeChoice = active === null ? "" : (chosen[active.merchant] ?? active.category);
   const [newFor, setNewFor] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -164,6 +172,85 @@ export function ReviewQueueScreen({
     }
   };
 
+  // I comandi di una proposta: la scelta della categoria e il pulsante che la
+  // conferma, con il campo che ne crea una nuova. Sono gli stessi dentro la
+  // scheda (dove li usa il telefono) e nel dettaglio (dove li usa la finestra),
+  // quindi si scrivono una volta e il foglio spegne il posto che non serve. Il
+  // posto entra nell'id del campo perché le due copie stanno nello stesso
+  // documento, e un id ripetuto manda l'etichetta al campo sbagliato.
+  const proposalControls = (suggestion: Suggestion, place: "card" | "detail") => {
+    const choice = chosen[suggestion.merchant] ?? suggestion.category;
+    const rejecting = choice === "";
+    return (
+      <>
+        <div className="card__actions">
+          <select
+            className="input"
+            aria-label={`Categoria per ${suggestion.merchant}`}
+            value={choice}
+            disabled={categoryOptions.length === 0}
+            onChange={(event) =>
+              event.target.value === NEW_CATEGORY
+                ? setNewFor(suggestion.merchant)
+                : setChosen({ ...chosen, [suggestion.merchant]: event.target.value })
+            }
+          >
+            {categoryOptions.map((item) => (
+              <option key={item.id} value={item.name}>
+                {item.name}
+              </option>
+            ))}
+            <option value="">Nessuna categoria: rifiuta la proposta</option>
+            <option value={NEW_CATEGORY}>Nuova categoria…</option>
+          </select>
+          <button
+            type="button"
+            className={rejecting ? "button button--danger" : "button button--primary"}
+            onClick={() =>
+              void decideSuggestion(
+                suggestion,
+                rejecting ? "dismiss" : "accept",
+                rejecting ? undefined : choice,
+              )
+            }
+          >
+            {rejecting ? "Rifiuta" : "Accetta"}
+          </button>
+        </div>
+        {newFor === suggestion.merchant ? (
+          <form
+            className="proposal__new"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createCategory(suggestion);
+            }}
+          >
+            <label className="visually-hidden" htmlFor={`new-${place}-${suggestion.merchant}`}>
+              Nome della nuova categoria
+            </label>
+            <input
+              id={`new-${place}-${suggestion.merchant}`}
+              className="input"
+              type="text"
+              autoComplete="off"
+              placeholder="Nome della categoria"
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              autoFocus
+            />
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={newName.trim() === "" || creating}
+            >
+              {creating ? "Creo…" : "Crea"}
+            </button>
+          </form>
+        ) : null}
+      </>
+    );
+  };
+
   return (
     <section className="screen">
       <header className="screen__header">
@@ -206,7 +293,7 @@ export function ReviewQueueScreen({
 
       {isEmpty ? <p className="state state--empty">Tutto in ordine: niente da confermare.</p> : null}
 
-      <section className="panel">
+      <section className="panel panel--split">
         <h2 className="section-title">
           Proposte da confermare <span className="count">{suggestions.suggestions.length}</span>
         </h2>
@@ -248,12 +335,19 @@ export function ReviewQueueScreen({
         ) : (
           <ul className="card-list">
             {suggestions.suggestions.map((suggestion) => {
-              // The proposal is a starting point, not a verdict: the category is
-              // editable, and choosing none is what rejecting it means.
-              const choice = chosen[suggestion.merchant] ?? suggestion.category;
-              const rejecting = choice === "";
+              // La scheda scelta è quella che il dettaglio mostra. Il fuoco la
+              // sceglie, e la scheda è un fermo di tabulazione apposta: sopra i
+              // 1024 i suoi comandi stanno nel dettaglio, quindi senza questo
+              // fermo una tastiera non avrebbe modo di cambiare proposta.
               return (
-                <li className="card proposal" key={suggestion.merchant}>
+                <li
+                  className="card proposal"
+                  key={suggestion.merchant}
+                  tabIndex={0}
+                  aria-current={suggestion.merchant === active?.merchant ? "true" : undefined}
+                  onClick={() => setSelected(suggestion.merchant)}
+                  onFocus={() => setSelected(suggestion.merchant)}
+                >
                   <div className="proposal__head">
                     <span className="proposal__merchant">{suggestion.merchant}</span>
                     <span className="chip">{suggestion.category}</span>
@@ -262,75 +356,40 @@ export function ReviewQueueScreen({
                     </span>
                   </div>
                   <p className="chart-note">{stakeText(suggestion.stake)}</p>
-                  <div className="card__actions">
-                    <select
-                      className="input"
-                      aria-label={`Categoria per ${suggestion.merchant}`}
-                      value={choice}
-                      disabled={categoryOptions.length === 0}
-                      onChange={(event) =>
-                        event.target.value === NEW_CATEGORY
-                          ? setNewFor(suggestion.merchant)
-                          : setChosen({ ...chosen, [suggestion.merchant]: event.target.value })
-                      }
-                    >
-                      {categoryOptions.map((item) => (
-                        <option key={item.id} value={item.name}>
-                          {item.name}
-                        </option>
-                      ))}
-                      <option value="">Nessuna categoria: rifiuta la proposta</option>
-                      <option value={NEW_CATEGORY}>Nuova categoria…</option>
-                    </select>
-                    <button
-                      type="button"
-                      className={rejecting ? "button button--danger" : "button button--primary"}
-                      onClick={() =>
-                        void decideSuggestion(
-                          suggestion,
-                          rejecting ? "dismiss" : "accept",
-                          rejecting ? undefined : choice,
-                        )
-                      }
-                    >
-                      {rejecting ? "Rifiuta" : "Accetta"}
-                    </button>
-                  </div>
-                  {newFor === suggestion.merchant ? (
-                    <form
-                      className="proposal__new"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void createCategory(suggestion);
-                      }}
-                    >
-                      <label className="visually-hidden" htmlFor={`new-${suggestion.merchant}`}>
-                        Nome della nuova categoria
-                      </label>
-                      <input
-                        id={`new-${suggestion.merchant}`}
-                        className="input"
-                        type="text"
-                        autoComplete="off"
-                        placeholder="Nome della categoria"
-                        value={newName}
-                        onChange={(event) => setNewName(event.target.value)}
-                        autoFocus
-                      />
-                      <button
-                        type="submit"
-                        className="button button--primary"
-                        disabled={newName.trim() === "" || creating}
-                      >
-                        {creating ? "Creo…" : "Crea"}
-                      </button>
-                    </form>
-                  ) : null}
+                  <div className="proposal__controls">{proposalControls(suggestion, "card")}</div>
                 </li>
               );
             })}
           </ul>
         )}
+
+        {/* Il dettaglio della proposta scelta. Sopra i 1024 sta accanto
+            all'elenco (`.panel--split`); sotto non c'è, perché su un telefono la
+            scheda è già il dettaglio. Dice cosa quella riga vale e cosa fa
+            accettarla, così la coda resta il posto dove si decide senza aprire
+            niente. */}
+        <aside className="queue-detail">
+          {active === null ? (
+            <p className="state">Nessuna proposta da guardare.</p>
+          ) : (
+            <>
+              <p className="queue-detail__merchant">{active.merchant}</p>
+              <p className="hint">
+                {active.source === "llm" ? "proposta dal modello" : "proposta dal classificatore"}
+              </p>
+              <p className="queue-detail__choice">
+                <span className="chip">{activeChoice === "" ? "nessuna categoria" : activeChoice}</span>
+              </p>
+              <p className="chart-note">{stakeText(active.stake)}</p>
+              <p className="hint">
+                {activeChoice === ""
+                  ? "Rifiutarla lascia il merchant senza categoria e fuori dalla coda."
+                  : `Accettarla scrive la regola: ${active.merchant} → ${activeChoice}.`}
+              </p>
+              <div className="queue-detail__controls">{proposalControls(active, "detail")}</div>
+            </>
+          )}
+        </aside>
       </section>
 
       {!review.loadError && !isEmpty ? (
