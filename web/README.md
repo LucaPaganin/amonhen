@@ -499,3 +499,23 @@ Measured at 390 px against a copy of the ledger, with `prefers-reduced-motion` o
 entrance animation cannot distort a measurement: the document is exactly as wide as the viewport,
 no control is under 44 px, no element draws a border, no filled box is left with a corner radius
 under 2 px, and at the foot of every section the last block clears the floating bar.
+
+**Above 1024 px the window gets the column it deserves.** One phone column centred in a wide window
+wastes most of it: measured before this layer existed, the column was 720 px of 1484 — 382 px empty
+per side — with every panel, card and list row 692 px wide, one per row. The cap is a single token,
+`--shell` (720 px, then 1100 from 1024, 1240 from 1440), and the top bar and the bottom bar read it
+too, because they are the frame of that column and not two unrelated measures. From 1024 the screen
+becomes a two-column grid, and the panels that share a row are marked where they are written
+(`panel--pair`: the two period charts, the accounts and the budgets) rather than guessed from what
+they contain — with two charts drawn instead of three, or one of the two lists missing, a guess
+leaves a panel half-wide next to an empty half. The net-worth curve has no partner and stays full
+width. A list of cards — the queue's proposals, the assistant's, the rule groups — turns back into a
+grid of cards: each entry gets back the radius, fill and shadow `.card-list > .card` had taken away
+to make it a row of one sheet, and the sheet itself stops drawing a surface. A list of rows
+(movements, accounts, budgets) keeps its sheet and its hairline at every width. From 1440 the eight
+metric tiles fit on one row (145 px each; the longest figure asks for 103 of them), which is the case
+a wide window exists for. Prose keeps a book's measure: `.chart-note`, `.screen__subtitle` and
+`.assistant__answer` cap at 72 `ch`, and at 1484 the widest note measures 72 characters a line.
+
+Below 1024 nothing moves, and that is checked rather than hoped: every visible element's box at 390
+and 768 is compared with the previous build, 526 to 796 elements per screen, and no box differs.

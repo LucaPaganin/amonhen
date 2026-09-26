@@ -588,6 +588,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   image 16 px in from the right edge, and `::picker(select)` — `appearance: base-select`
   has to be declared on the picker as well, or the control alone styles and the menu stays
   the engine's own, square-cornered and highlighted in the platform's blue.
+- **The desktop is a layer, not a second layout.** Everything the wide window gets lives in one
+  section at the foot of `web/src/styles.css`, above 1024 px (and one step more above 1440), and
+  the cap of the content column is the single token `--shell` — read by `.app__main`, the top bar
+  and the bottom bar together, because they frame that column. Panels that share a row say so
+  where they are written (`panel--pair`), and are not guessed from their contents or their
+  neighbours: two charts drawn instead of three, or one of two lists missing, is enough to leave
+  a panel half-wide beside an empty half. Below the threshold nothing at all may move, and that is
+  verified by comparing every element's box at 390 and 768 against the previous build, not by eye.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

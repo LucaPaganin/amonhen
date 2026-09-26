@@ -418,7 +418,7 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
         </p>
       ) : null}
 
-      <section className="panel">
+      <section className="panel panel--pair">
         <h2 className="section-title">
           Spese per categoria <span className="count">{periodChip}</span>
         </h2>
@@ -443,7 +443,7 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel panel--pair">
         <h2 className="section-title">
           Entrate e uscite <span className="count">{periodChip}</span>
         </h2>

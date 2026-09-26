@@ -68,6 +68,11 @@
   --tabbar: 92px;
   --appbar: 64px;
 
+  /* Il tetto della colonna di contenuto. Sale con la finestra (vedi la sezione
+     del desktop in fondo): la fascia alta e quella bassa lo leggono anche loro,
+     perché sono la cornice di questa colonna e non due misure a caso. */
+  --shell: 720px;
+
   /* Una lastra sta su di un filo di luce e su un alone basso: la profondità sta
      lì, ora che non c'è più un bordo a disegnarla. */
   --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 18px 38px -26px rgba(2, 3, 10, 0.95);
@@ -185,7 +190,7 @@ input:not([type="checkbox"]):not([type="radio"]) {
 /* Layout: denso. Meno spazio vuoto, non meno aria. */
 
 .app__main {
-  max-width: 720px;
+  max-width: var(--shell);
   margin: 0 auto;
   padding: calc(var(--appbar) + env(safe-area-inset-top, 0px) + 10px) 14px
     calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 24px);
@@ -356,7 +361,7 @@ input:not([type="checkbox"]):not([type="radio"]) {
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 700px;
+  max-width: calc(var(--shell) - 20px);
   height: 54px;
   padding: 0 12px 0 6px;
   border-radius: var(--pill);
@@ -558,7 +563,7 @@ input:not([type="checkbox"]):not([type="radio"]) {
   z-index: 10;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  max-width: 700px;
+  max-width: calc(var(--shell) - 20px);
   margin: 0 auto;
   padding: 7px;
   border-radius: var(--radius-xl);
@@ -2335,6 +2340,94 @@ button.txn:active {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------- il desktop
+
+   Sotto i 1024 px non cambia niente: quello che segue è tutto ciò che il
+   desktop ha in più, e ogni regola qui dentro è una che il telefono non vede.
+   Due soglie: da 1024 la finestra si prende il posto che ha (1100 px di colonna
+   e griglie a due), da 1440 un passo ancora (1240 e griglie a tre).
+
+   Il tetto è un gettone solo, --shell, perché la fascia alta e quella bassa
+   devono restare larghe quanto il contenuto che incorniciano; e la colonna
+   smette di essere un telefono centrato in una finestra grande. */
+
+@media (min-width: 1024px) {
+  :root {
+    --shell: 1100px;
+  }
+
+  /* La schermata diventa una griglia di due colonne, e chi non ha un compagno
+     le occupa entrambe: l'intestazione, i filtri, le liste, le tessere. */
+  .screen {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 14px;
+  }
+
+  .screen > * {
+    grid-column: 1 / -1;
+  }
+
+  /* Due lastre che si affiancano quando c'è la finestra: i due grafici del
+     periodo, i conti e i budget. Si dichiarano dove sono scritte, con
+     `panel--pair`, e non si indovinano da quello che contengono o da chi hanno
+     accanto: due grafici su tre (il patrimonio con un punto solo non ne
+     disegna) o una lista che non c'è (nessun conto, nessun budget) bastano a
+     lasciare un pannello mezzo largo con metà riga vuota. */
+  .screen > .panel--pair {
+    grid-column: auto;
+  }
+
+  /* Una lista di schede dentro una lastra sola è la forma del telefono. Da qui
+     la lastra è la scheda, una per riquadro: `.card-list > .card` le toglieva
+     raggio, riempimento e ombra per farne le righe di un foglio solo, e questo
+     gliele ridà. */
+  .card-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow: visible;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .card-list > .card {
+    border-radius: var(--radius-lg);
+    background: var(--fill-1);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Un paragrafo largo quanto la finestra non si legge: nei testi la riga resta
+     quella di un libro. */
+  .assistant__answer,
+  .chart-note,
+  .screen__subtitle {
+    max-width: 72ch;
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --shell: 1240px;
+  }
+
+  .card-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Le otto tessere del cruscotto su una riga sola, una colonna per tessera:
+     è il caso per cui la finestra larga esiste, e da qui ci stanno tutte —
+     a 1440 misurano 145 px e la cifra più lunga ne vuole 103. Sotto, quattro
+     per riga: a otto non ci starebbe (103 px di cifra in 101 di spazio). */
+  .metrics {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
   }
 }
 

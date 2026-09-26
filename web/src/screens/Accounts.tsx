@@ -596,7 +596,7 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
         </div>
       </header>
 
-      <section className="panel">
+      <section className="panel panel--pair">
         <h2 className="section-title">
           Conti <span className="count">{accounts.length}</span>
         </h2>
@@ -723,7 +723,7 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel panel--pair">
         <h2 className="section-title">
           Budget <span className="count">{formatMonth(month)}</span>
         </h2>
