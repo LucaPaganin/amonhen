@@ -428,14 +428,24 @@ lines left in the interface are the faint separators between the rows of a list.
   render against those fills over the lightest patch: body text 14.8 / 12.8 / 11.6 / 10.1,
   `--muted` 8.0 / 7.0 / 6.3 / 5.5, `--faint` 7.2 / 6.2 / 5.6 / 4.9, the brass 10.7, money in
   10.4, money out 8.1.
-- **Two surfaces the browser paints, not the stylesheet.** A `select`'s drop-down is
-  drawn from the control's own colour, and a translucent colour there composites over the
-  browser's light ground: a white menu with the app's near-white text inside it. The nine
-  selects and their options therefore use one opaque fill, `--menu`, measured at 12.7:1.
-  And the brass glow under a filled button is centred (`0 0 30px -8px`): with a downward
-  offset it is not a halo around the button but a coloured smear detached below it —
-  profiled on the render, the old value contributed 0 above the pill and 30 down to 21
-  for 12 px below it, the new one 25 above and 22 below at the same distance.
+- **The drop-down, and who draws it.** A `select`'s menu is painted by the engine from the
+  control's own colour, and a translucent colour there composites over the browser's light
+  ground: a white menu with the app's near-white text inside it. Every select and its
+  options therefore use one opaque fill, `--menu`, measured at 12.7:1 — including the ones
+  that carry `class="input"`, where the 8% fill of the field rule had been winning on
+  specificity. The arrow is this stylesheet's: `appearance: none` and a 12×8 chevron at
+  16 px from the right edge, the same inset the text keeps on the other side, because the
+  engine's own sat 3.5 px from that edge — inside the 22 px curve of the pill, where it
+  read as crammed against the wall. Where the engine hands the menu over
+  (`::picker(select)`, Chrome 135 and later, declared on the picker as well as on the
+  control) it is a lastra with the panels' 18 px radius, as wide as its control, its rows
+  44 px tall and the option in force in the brass that marks a chosen row everywhere else;
+  without it the native menu stays, opaque and legible, with the platform's own highlight.
+- **A glow on a filled control carries no offset.** The brass glow under a filled button is
+  centred (`0 0 30px -8px`): with a downward offset it is not a halo around the button but a
+  coloured smear detached below it — profiled on the render, the old value contributed 0
+  above the pill and 30 down to 21 for 12 px below it, the new one 25 above and 22 below
+  at the same distance.
 - **A state is a tint, not an outline.** The semantic chips are their own colour on a 15%
   tint of it — 6.4 for attention and the app's own work, 6.3 for money in, 5.2 for money out,
   5.3 for a transfer, 5.9 for a split. 15% is the ceiling: at 22% the red and the violet drop
@@ -447,9 +457,10 @@ lines left in the interface are the faint separators between the rows of a list.
   brief, affordable because every control also carries its own label or placeholder and the
   keyboard focus ring is a 2 px brass outline.
 - **One family of shapes.** Buttons, chips, fields and selects are all pills; panels and
-  lists use 14 to 30 px radii; nothing has a square corner, and the browser's own button
-  border is removed globally — checkboxes and radios are the one exception, since there the
-  mark *is* the control.
+  lists use 14 to 30 px radii; nothing has a square corner — the menu a select opens
+  included, wherever the engine lets this stylesheet paint it — and the browser's own
+  button border is removed globally — checkboxes and radios are the one exception, since
+  there the mark *is* the control.
 - **Type.** Plus Jakarta Sans variable 200-800, Latin subset, 27.3 kB, kept in `src/assets/`
   so that Vite emits it into the hashed `/assets/` directory the service worker caches — a
   font in `public/` would never be cached and would come back from the network on every

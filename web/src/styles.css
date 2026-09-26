@@ -762,20 +762,99 @@ input:not([type="checkbox"]):not([type="radio"]) {
   color: var(--faint);
 }
 
-/* La superficie del menù che una tendina apre la dipinge il browser a partire
-   dal colore del controllo, non da questo foglio: su un riempimento con alpha
-   quella superficie esce chiara, mentre il testo eredita il bianco dell'app —
-   un menù bianco con scritte bianche. Quindi opaca, e con le voci dichiarate
-   invece che ereditate. */
+/* La tendina è l'unico controllo che il browser disegna per intero, e lo disegna
+   a modo suo: la freccia a 3.5 px dal bordo — dentro la curva di 22 px della
+   pillola, dove legge come appoggiata al muro — e un menù d'angoli vivi, l'unico
+   dell'app. Il disegno torna quindi al foglio: la freccia è un'immagine nostra a
+   16 px dal bordo, la stessa distanza che il testo tiene dal bordo opposto, e il
+   menù, dove il motore sa renderlo un elemento invece che una finestra di
+   sistema, prende raggio, riempimento e righe da qui. */
+/* `select.input` è nella lista perché la coda di `.input` nella lastra dei campi
+   qui sopra (0,1,0) batte un `select` nudo: quelle tendine — la categoria di una
+   proposta, quella di una regola — restavano senza freccia e con il fondo
+   translucido. */
 select,
 .field select,
+select.input,
 .split__category {
-  background: var(--menu);
+  appearance: none;
+  /* Lo spazio della freccia: 16 px di margine, 12 di disegno, 12 di respiro. */
+  padding-right: 40px;
+  background-color: var(--menu);
+  /* Un data URI non legge i gettoni: questo filo è --text scritto a mano. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23f5f6fa' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 12px 8px;
 }
 
+/* Il menù nativo resta la superficie di ripiego, e la dipinge il motore dal
+   colore del controllo: su un riempimento con alpha esce chiaro, mentre il testo
+   eredita il bianco dell'app — un menù bianco con scritte bianche. Quindi opaca,
+   e con le voci dichiarate invece che ereditate. */
 select option {
   background-color: var(--menu);
   color: var(--text);
+}
+
+/* Dove il motore lascia il menù al foglio (::picker(select): Chrome 135 e
+   oltre) la tendina torna un controllo come gli altri — una lastra d'angoli
+   tondi larga quanto il campo, righe alte un dito — e la voce in vigore porta la
+   tinta e il colore che l'app dà a ogni voce scelta. */
+@supports (appearance: base-select) {
+  /* Il picker va dichiarato base quanto il controllo: senza, la tendina resta
+     dipinta dal sistema e di queste regole non usa niente. */
+  select,
+  .field select,
+  select.input,
+  .split__category,
+  ::picker(select) {
+    appearance: base-select;
+  }
+
+  /* La freccia è già nostra: questa sarebbe la seconda. */
+  select::picker-icon {
+    display: none;
+  }
+
+  ::picker(select) {
+    border: 0;
+    border-radius: var(--radius);
+    background-color: var(--menu);
+    box-shadow: var(--shadow-float);
+    padding: 6px;
+    margin-top: 8px;
+  }
+
+  select option {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap);
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+  }
+
+  select option:focus-visible {
+    background-color: var(--fill-2);
+  }
+
+  select option:checked {
+    background: linear-gradient(135deg, rgba(240, 208, 138, 0.24), rgba(240, 208, 138, 0.1));
+    color: var(--accent);
+    font-weight: 800;
+  }
+
+  /* Il segno di scelta è la tinta, non la spunta del sistema. */
+  select option::checkmark {
+    display: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    select option:hover {
+      background-color: var(--fill-2);
+    }
+  }
 }
 
 .month-picker {

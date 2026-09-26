@@ -580,9 +580,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   amounts. Two surfaces are painted by the browser rather than by the stylesheet, and
   both need care: a `select`'s drop-down is drawn from the control's own colour, so a
   translucent fill there composites over a light ground and yields a white menu with the
-  app's near-white text (hence the opaque `--menu` on selects and their options), and a
-  shadow on a filled control must carry no offset, or it reads as a smear detached below
-  the button instead of a halo around it.
+  app's near-white text (hence the opaque `--menu`, which the selects carrying
+  `class="input"` need the rule to name explicitly, that class being more specific than a
+  bare `select`), and a shadow on a filled control must carry no offset, or it reads as a
+  smear detached below the button instead of a halo around it. The arrow and, where the
+  engine allows it, the menu itself are the stylesheet's: `appearance: none` with a chevron
+  image 16 px in from the right edge, and `::picker(select)` — `appearance: base-select`
+  has to be declared on the picker as well, or the control alone styles and the menu stays
+  the engine's own, square-cornered and highlighted in the platform's blue.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same
