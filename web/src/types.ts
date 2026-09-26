@@ -400,3 +400,65 @@ export interface Rule {
   category: string;
   count: number;
 }
+
+/** What the first setup still has to write, as the machine key that names it. */
+export type SetupRequirement = "application_id" | "private_key" | "accounts";
+
+/** One entry of the configuration file: an account an authorization found. */
+export interface ConfiguredAccount {
+  /** Enable Banking's own identifier: how the entry is renamed or dropped. */
+  account_uid: string;
+  /** The ledger's name for the account, which is what a rename decides. */
+  name: string;
+  institution: string;
+  country: string;
+  /** From when the movements are imported; null imports everything. */
+  start_sync_date: string | null;
+  /** When the consent stops working, as the bank reported it. */
+  session_expiry: string | null;
+}
+
+/** What the last authorization wrote, so the return from the bank is visible. */
+export interface SetupLastConnect {
+  when: string;
+  /** Per account: added by this authorization, or an existing consent renewed. */
+  written: { account: string; action: "added" | "refreshed" }[];
+}
+
+/**
+ * The configuration as the server sees it, the file that does not exist yet
+ * included: `missing` names what has to be written before the app can work, and
+ * `configured` is true exactly when nothing is missing.
+ */
+export interface SetupState {
+  configured: boolean;
+  missing: SetupRequirement[];
+  application_id: string;
+  redirect_url: string;
+  account_holder_name: string;
+  /** Where the private key was written; the key itself never travels back. */
+  pem_path: string;
+  key_loads: boolean;
+  accounts: ConfiguredAccount[];
+  last_connect: SetupLastConnect | null;
+}
+
+/** The credentials the first step collects; the key only when it is being set. */
+export interface SetupCredentials {
+  application_id: string;
+  redirect_url: string;
+  account_holder_name?: string;
+  private_key?: string;
+}
+
+/** One bank an authorization can be started for, by its exact ASPSP name. */
+export interface SetupBank {
+  name: string;
+  country: string;
+}
+
+/** The banks one country has, already filtered and sorted by the server. */
+export interface SetupBanks {
+  country: string;
+  banks: SetupBank[];
+}

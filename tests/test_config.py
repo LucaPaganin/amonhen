@@ -1,9 +1,12 @@
 """accounts.json: the keys the monitoring system reads, and their defaults."""
 import json
+import threading
+import time
 
 import pytest
 
-from amonhen.config import load_config, save_account
+import amonhen.config as config_module
+from amonhen.config import load_config, rename_account, save_account
 
 
 def write_config(tmp_path, **overrides):
@@ -162,3 +165,46 @@ def test_the_same_authorization_twice_leaves_one_entry(tmp_path):
     accounts = json.loads(path.read_text(encoding="utf-8"))["accounts"]
     assert action == "refreshed"
     assert len(accounts) == 1
+
+
+def test_two_writes_at_once_do_not_lose_one(tmp_path, monkeypatch):
+    """The document is rewritten whole, so overlapping writes must queue.
+
+    The setup screen saves one account row at a time while the OAuth callback
+    can land in the same moment: without one writer at a time the second write
+    starts from the file it read before the first one landed, and the first
+    account's name is gone.
+    """
+    path = write_config(
+        tmp_path,
+        accounts=[
+            {"session_id": "s1", "account_uid": "u1", "bank_name": "Revolut", "notes": "Uno"},
+            {"session_id": "s1", "account_uid": "u2", "bank_name": "Revolut", "notes": "Due"},
+        ],
+    )
+    # Widen the window: a write that takes a moment is one the other thread can
+    # start from in the pre-fix version, where the read is not serialized.
+    real_write = config_module._write_document
+
+    def slow_write(target, data):
+        time.sleep(0.05)
+        real_write(target, data)
+
+    monkeypatch.setattr(config_module, "_write_document", slow_write)
+    ready = threading.Barrier(2)
+
+    def rename(uid, name):
+        ready.wait(timeout=5)
+        rename_account(path, uid, name=name)
+
+    threads = [
+        threading.Thread(target=rename, args=("u1", "Uno rinominato")),
+        threading.Thread(target=rename, args=("u2", "Due rinominato")),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    names = sorted(account.name for account in load_config(path).accounts)
+    assert names == ["Due rinominato", "Uno rinominato"]

@@ -49,7 +49,7 @@ function today(): string {
 }
 
 /** Which figure disagrees decides what to go and look at. */
-function suppressedLabel(checks: DeclaredBalanceCheck[]): string {
+export function suppressedLabel(checks: DeclaredBalanceCheck[]): string {
   // The two declared figures describe one account: the available one counts
   // every deleted movement and the booked one a subset, so the total is the
   // widest of them — never their sum, which counts the same movement twice.

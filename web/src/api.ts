@@ -17,6 +17,9 @@ import type {
   ReviewQueue,
   ReviewState,
   Rule,
+  SetupBanks,
+  SetupCredentials,
+  SetupState,
   Spending,
   Suggestion,
   DeletedMovement,
@@ -240,4 +243,24 @@ export const api = {
     }),
   propose: () => send<{ considered: number; recorded: number }>("POST", "/propose", {}),
   llmSuggest: () => send<{ recorded: number }>("POST", "/llm-suggest", {}),
+  // The first setup. Every write answers with the whole setup payload, so the
+  // screen that asked for it never re-reads what it has just changed.
+  setup: (signal?: AbortSignal) => get<SetupState>("/setup", signal),
+  saveCredentials: (body: SetupCredentials) =>
+    send<SetupState>("PUT", "/setup/credentials", body),
+  setupBanks: (country: string, signal?: AbortSignal) =>
+    get<SetupBanks>(`/setup/banks?country=${encodeURIComponent(country)}`, signal),
+  // The authorization happens at the bank: this answers with where to send the
+  // browser, which the caller navigates to.
+  setupConnect: (bank: string, country: string) =>
+    send<{ url: string }>("POST", "/setup/connect", { bank, country }),
+  // An empty start date clears the one on the file, and the sync falls back to
+  // its own default backfill from then on.
+  renameConfiguredAccount: (accountUid: string, name: string, startSyncDate: string) =>
+    send<SetupState>("PATCH", `/setup/accounts/${encodeURIComponent(accountUid)}`, {
+      name,
+      start_sync_date: startSyncDate,
+    }),
+  removeConfiguredAccount: (accountUid: string) =>
+    drop<SetupState>(`/setup/accounts/${encodeURIComponent(accountUid)}`),
 };

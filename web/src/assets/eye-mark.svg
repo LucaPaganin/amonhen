@@ -1,0 +1,30 @@
+<svg class="eye" viewBox="0 -2 64 62" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="eye-halo">
+      <stop class="eye__halo-core" offset="0%" />
+      <stop class="eye__halo-mid" offset="45%" />
+      <stop class="eye__halo-out" offset="100%" />
+    </radialGradient>
+    <radialGradient id="eye-ball" cx="50%" cy="40%" r="62%">
+      <stop class="eye__ball-hot" offset="0%" />
+      <stop class="eye__ball-mid" offset="60%" />
+      <stop class="eye__ball-rim" offset="100%" />
+    </radialGradient>
+  </defs>
+
+  <!-- Barad-dûr, dietro: la guglia, il corpo, i due sproni, la base. -->
+  <path class="eye__spire" d="M32 33L34.2 41H29.8Z" />
+  <path class="eye__tower" d="M25.5 57L27.5 39H36.5L38.5 57Z" />
+  <path class="eye__spur" d="M19.5 57L21 46.5H24.5L26 57ZM38 57L39.5 46.5H43L44.5 57Z" />
+  <path class="eye__tower" d="M13 57H51V60H13Z" />
+
+  <!-- L'alone, poi le nove lingue di fuoco: cinque lunghe, quattro corte. -->
+  <circle class="eye__halo" cx="32" cy="18" r="19" fill="url(#eye-halo)" />
+  <path class="eye__flame" d="M44.34 15.47Q46.86 13.6 48.81 10.52Q47.79 10.8 43.08 12.01ZM40.66 8.85Q41.65 5.87 41.48 2.23Q40.81 3.05 37.64 6.73ZM33.84 5.54Q32.95 2.53 30.72 -0.36Q30.64 0.7 30.16 5.54ZM26.36 6.73Q23.9 4.78 20.42 3.7Q20.96 4.61 23.34 8.85ZM20.92 12.01Q17.79 11.82 14.31 12.93Q15.28 13.36 19.66 15.47Z" />
+  <path class="eye__flame eye__flame--short" d="M43.01 11.87Q43.61 10.17 43.53 7.8Q43.07 8.03 40.77 8.95ZM37.5 6.67Q37.02 4.93 35.6 3.03Q35.35 3.49 33.99 5.56ZM30.01 5.56Q28.61 4.42 26.36 3.67Q26.42 4.19 26.5 6.67ZM23.23 8.95Q21.43 8.82 19.16 9.5Q19.51 9.89 20.99 11.87Z" />
+
+  <!-- Il globo, l'anello limbale e la pupilla a fessura. -->
+  <circle class="eye__ball" cx="32" cy="18" r="10.5" fill="url(#eye-ball)" />
+  <circle class="eye__ring" cx="32" cy="18" r="7.6" fill="none" />
+  <path class="eye__pupil" d="M32 9.5C30.2 13.6 30.2 22.4 32 26.5C33.8 22.4 33.8 13.6 32 9.5Z" />
+</svg>

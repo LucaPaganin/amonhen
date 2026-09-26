@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.3 — settembre 2026
+Versione 1.4 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -48,6 +48,15 @@ davvero — con il tombstone che tiene il sync dal rimetterlo, una flag per cont
 che decide se può tornare e un cestino che lo ripristina — e la §5.4 spiega la
 differenza che una cancellazione lascia invece di gridare mismatch. L'immagine
 la costruisce la CI su un tag, e il NAS la tira: non ha più bisogno del repo.*
+*1.4 · il primo setup è guidato dall'app (§5.10): le credenziali Enable Banking
+— chiave privata incollata compresa —, l'istituto scelto fra quelli che il
+provider accetta invece che a memoria, i conti da tenere con il nome che il
+ledger userà, il primo sync con l'esito per conto e il saldo dichiarato che fa
+passare la §5.4 da `non verificato` a `verificato`. La schermata è un gate al
+primo avvio e resta raggiungibile dopo, perché un consenso scade e una banca si
+aggiunge. Compose monta la cartella di configurazione e non i due file, così un
+container appena creato può far nascere `accounts.json`; `/callback` torna
+nell'app invece di rispondere JSON grezzo.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -218,6 +227,29 @@ Una sezione dell'app che discute i numeri che il backend ha già calcolato — s
 
 *Fatto quando*: davanti a un mese strano si ottiene in una schermata una spiegazione che cita solo cifre già calcolate e almeno una proposta confermabile con un gesto; e la stessa domanda sugli stessi dati non viene richiesta due volte.
 
+### 5.10 Primo setup guidato *(costruita)*
+
+Il primo avvio era una decina di passi a mano e nessuno di essi stava nel prodotto: creare `accounts.json` da un template, mettere la chiave privata accanto, far combaciare tre indirizzi (quello che il browser raggiunge, `redirect_url` nel file, la callback registrata nel dashboard), aprire a mano `/connect` scrivendo il nome dell'ASPSP a memoria, poi editare lo stesso file per tenere solo i conti voluti fra i quattro che una banca risponde, poi sincronizzare, e infine dichiarare un saldo o il conto restava `non verificato` per la §5.4. L'app conosce già il proprio indirizzo, la lista degli istituti che Enable Banking accetta e i conti che un'autorizzazione ha appena scritto: quasi tutti quei passi chiedevano a una persona qualcosa che il sistema sa.
+
+**Il gate è la prima schermata, non un manuale.** Quando la configurazione manca, l'app apre il setup al posto delle sezioni, al primo passo che ha qualcosa da chiedere; a sistema configurato la stessa schermata resta raggiungibile dal menu, perché un consenso PSD2 scade e una banca si aggiunge, e il passo utile in quel momento è quello dei conti. Il wizard non è una modalità che si chiude per sempre: è dove la configurazione si guarda e si cambia.
+
+**Cinque passi.**
+
+1. *Credenziali.* Application ID, chiave privata incollata, indirizzo di ritorno, nome dell'intestatario. L'indirizzo lo propone l'app dalla propria origine — è quello che il browser raggiunge, quindi è quello giusto per costruzione — e la chiave si carica subito: una che non è una chiave privata si rifiuta lì, dove è stata incollata, invece di diventare un sync che fallisce domani. Resta a mano **una** cosa, ed è l'unica che il sistema non può scrivere al posto tuo: registrare quell'indirizzo nel dashboard Enable Banking, carattere per carattere. La schermata mostra la stringa esatta, e il rifiuto della banca (`Redirect URI not allowed`) torna verbatim.
+2. *Banca.* Il nome dell'ASPSP deve combaciare con quello che Enable Banking conosce, e chiederlo a memoria era un modo per sbagliarlo: la lista arriva dall'API, filtrata per paese, e si sceglie da lì. L'autorizzazione si apre nella stessa scheda, perché è lì che il ritorno deve arrivare.
+3. *Conti.* Una banca risponde con tutti i conti che l'autorizzazione copre — Fineco ne dà quattro — e prima si potavano editando il file a mano. Qui si tiene quello che serve, si dà a ciascuno il nome con cui il ledger lo conoscerà e la data da cui importarne la storia. Il nome è la chiave del ledger: un nome che un'altra voce già usa si rifiuta, invece di scoprire nel ledger che due conti erano uno.
+4. *Primo sync.* Il pulsante chiede i movimenti adesso e risponde per conto con quello che ha scritto, come quello della barra in alto (§5.4 compresa): il primo sync non è un passaggio a vuoto, è la prima volta che si vede cosa è arrivato.
+5. *Saldi e verifica.* Un conto senza saldo dichiarato è `non verificato` (§5.4), e un ledger che nessuno ha confrontato con la banca non è ancora affidabile: qui si dichiara il saldo letto dall'istituto, si allinea l'apertura e si legge l'esito per conto. Il setup si può chiudere con un conto ancora non verificato, ma lo dice.
+
+**Chi scrive la configurazione.** `accounts.json` ha due scrittori, e la scrittura è la stessa: il callback OAuth aggiunge o rinfresca le voci delle autorizzazioni, il setup scrive le credenziali e cura le voci; le chiavi che il sistema non conosce sopravvivono a entrambi. La chiave privata si scrive accanto al file, dove `pem_path` la indica, e **non torna mai indietro**: l'API dice se c'è e se si carica, non la restituisce, non la registra. `load_config` resta severo — chi legge la configurazione per lavorare continua a fallire forte — mentre lo stato del setup si legge anche da un documento assente, perché "non c'è ancora niente" e "questo server è rotto" sono due cose diverse.
+
+**Un avvio a freddo deve poter partire.** Un container appena creato non ha né `accounts.json` né `private.pem`, quindi compose monta la cartella di configurazione e non i due file: è la differenza tra un primo avvio possibile e un `up` che pretende che il setup sia già stato fatto da riga di comando. Per la stessa ragione `/connect` e `/callback` con la configurazione incompleta dicono cosa manca invece di rispondere 500, e il ritorno dal login è un 303 dentro l'app invece del JSON grezzo che nessuno leggeva: la schermata che ha iniziato l'autorizzazione è quella che deve dire cosa è arrivato.
+
+Restano fuori, ciascuna per una ragione diversa: l'import degli export storici (è un percorso di recupero con i suoi adattatori di formato, e resta sulla riga di comando), la configurazione dell'assistente (il modello è configurazione d'ambiente, §5.9, e l'app in container non scrive l'`.env` dell'host) e le dichiarazioni `passthrough` (§5.3: si capiscono dai testi che la banca stampa, che al primo avvio non ci sono ancora).
+
+*Fatto quando*: davanti a un'installazione nuova, dall'app e senza terminale, si arriva a un conto collegato, sincronizzato e verificato dalla §5.4, e l'unico passo che resta a una persona è registrare l'indirizzo di ritorno nel dashboard della banca.
+
+
 ## 6. Modello dati minimo
 
 ```
@@ -344,3 +376,5 @@ macchina.
 | Un merchant che si chiama come un'istruzione | Le descrizioni entrano come dati, e l'unica risposta accettata è quella che rispetta lo schema: merchant e categorie già noti (§5.9) |
 | Costo e latenza che scivolano | Domanda limitata, chiamate contate, nessuna ripetizione della stessa domanda sugli stessi dati, e l'assistente fuori dal percorso del sync (§5.9) |
 | Un rimborso gonfia le Entrate (giugno 2026: cinque accrediti che erano denaro altrui contati come le entrate del mese) | Si dichiara, come il giroconto verso un conto proprio: la voce esce dalle entrate e resta visibile a parte. La coppia con l'addebito compensato non si modella, perché la contabilità viva non ne mostra nessuna |
+| La chiave privata Enable Banking passa dall'app: si incolla in un campo e il server la scrive su disco | Il traffico è quello del tailnet e basta (§4: nessuna esposizione pubblica); la chiave non torna mai in una risposta e non finisce nei log, e il campo mostra solo se una chiave c'è e se si carica. Resta possibile metterla a mano dove `pem_path` la indica |
+| Un setup interrotto a metà lascia una configurazione incompleta | Lo stato si rilegge da `/api/setup` e ogni passo è riprendibile; una scrittura rifiutata non tocca il file, quindi una chiave sbagliata non sostituisce una buona, e `/connect` con la configurazione incompleta dice cosa manca invece di fallire |

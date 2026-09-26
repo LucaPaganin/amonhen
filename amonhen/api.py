@@ -16,6 +16,7 @@ from typing import Iterator, Literal
 
 import requests
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -23,7 +24,16 @@ from pydantic import BaseModel
 from amonhen import assistant, db
 from amonhen.anomalies import detect_anomalies
 from amonhen.classifier import apply_proposals, propose_categories
-from amonhen.config import load_config, save_account
+from amonhen.config import (
+    MonitorConfig,
+    UnknownConfiguredAccount,
+    load_config,
+    remove_account,
+    rename_account,
+    save_account,
+    save_credentials,
+    setup_state,
+)
 from amonhen.ledger import UNCATEGORIZED_WHERE, BalanceCheck, Ledger
 from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
@@ -43,7 +53,11 @@ from amonhen.metrics import (
     spend_by_category,
 )
 from amonhen.models import Account, format_decimal, parse_decimal
-from amonhen.providers.enable_banking import EnableBankingClient
+from amonhen.providers.enable_banking import (
+    ConsentExpiredError,
+    EnableBankingClient,
+    refusal_detail,
+)
 from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED
 from amonhen.suggestions import propose_for_unseen
 from amonhen.sync import SyncBusy, SyncResult, SyncService
@@ -55,10 +69,14 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
 # Python process keeps running its old code, so the two can drift.
-API_VERSION = 17
+API_VERSION = 18
 
 # Where an in-flight authorization waits between /connect and /callback.
 PENDING_OAUTH = "pending_oauth"
+
+# What the last authorization wrote, so the setup screen can report it even
+# though the browser arrives back on a plain GET.
+SETUP_LAST_CONNECT = "setup_last_connect"
 
 
 def _client(config) -> EnableBankingClient:
@@ -169,6 +187,31 @@ class SuggestionDecisionRequest(BaseModel):
     category: str | None = None
 
 
+class SetupCredentialsRequest(BaseModel):
+    """The Enable Banking credentials the first-setup screen collected.
+
+    `private_key` is the pasted PEM, present only when the key is being written.
+    Where it goes is not the caller's to choose: it is `pem_path` on the file, or
+    `./private.pem` beside it, which is also what the Enable Banking client and
+    the container's `/config` mount expect.
+    """
+
+    application_id: str
+    redirect_url: str
+    account_holder_name: str | None = None
+    private_key: str | None = None
+
+
+class SetupConnectRequest(BaseModel):
+    bank: str
+    country: str = "IT"
+
+
+class SetupAccountRequest(BaseModel):
+    name: str
+    start_sync_date: str | None = None
+
+
 def create_app(
     db_path: str | Path = DB_PATH,
     web_dist: Path | None = None,
@@ -190,6 +233,22 @@ def create_app(
     async def invalid_number(_request, exc: ArithmeticError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": f"invalid number: {exc}"})
 
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(_request, exc: RequestValidationError) -> JSONResponse:
+        """A malformed request, described without repeating what it carried.
+
+        Pydantic's own answer echoes the whole body under `input`, and one of
+        these bodies is a pasted private key: describing the offending field is
+        what the client shows anyway, and it is all it needs.
+        """
+        problems = [
+            f"{'.'.join(str(part) for part in error['loc'][1:])}: {error['msg']}"
+            for error in exc.errors()
+        ]
+        return JSONResponse(
+            status_code=422, content={"detail": "invalid request: " + "; ".join(problems)}
+        )
+
     @contextmanager
     def ledger_scope() -> Iterator[Ledger]:
         """One connection per request, opened and closed on the same thread.
@@ -206,9 +265,39 @@ def create_app(
 
     # -- consent flow (desiderata 7: the routes live in the application) ----
 
-    @app.get("/connect")
-    def connect(bank: str, country: str, psu_type: str = "personal") -> RedirectResponse:
-        config = load_config(config_path)
+    def credentials_or_409() -> MonitorConfig:
+        """The configuration a bank call needs, or the reason it cannot be made.
+
+        What a bank call needs is the application ID and a private key that
+        loads — not an account list, because the first setup authorizes its
+        first bank before any account is configured. Without this a fresh
+        install answers 500 for a state the screen is about to collect.
+        """
+        state = setup_state(config_path)
+        missing = [name for name in state["missing"] if name != "accounts"]
+        if missing:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "no Enable Banking credentials yet: finish the first setup "
+                    f"({', '.join(missing)} missing)"
+                ),
+            )
+        try:
+            return load_config(config_path)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409, detail=f"the configuration is not usable yet: {exc}"
+            ) from exc
+
+    def start_authorization(bank: str, country: str, psu_type: str) -> str:
+        """Ask Enable Banking for an authorization URL and remember the state.
+
+        The two callers differ only in what the browser does with the answer:
+        `/connect` redirects to it, and the setup screen navigates to it in the
+        same tab, because the return has to land inside the app.
+        """
+        config = credentials_or_409()
         client = _client(config)
         try:
             state, valid_until, url = client.start_auth(bank, country, psu_type)
@@ -216,7 +305,8 @@ def create_app(
             # The bank rejects an ASPSP name it does not know: say so, rather
             # than turning it into a server error.
             raise HTTPException(
-                status_code=502, detail=f"Enable Banking refused the request: {_upstream_detail(exc)}"
+                status_code=502,
+                detail=f"Enable Banking refused the request: {_upstream_refusal(exc)}",
             ) from exc
         with ledger_scope() as ledger:
             ledger.set_setting(
@@ -231,10 +321,14 @@ def create_app(
                     }
                 ),
             )
-        return RedirectResponse(url, status_code=302)
+        return url
+
+    @app.get("/connect")
+    def connect(bank: str, country: str, psu_type: str = "personal") -> RedirectResponse:
+        return RedirectResponse(start_authorization(bank, country, psu_type), status_code=302)
 
     @app.get("/callback")
-    def callback(code: str, state: str) -> dict:
+    def callback(code: str, state: str) -> RedirectResponse:
         with ledger_scope() as ledger:
             pending = ledger.setting(PENDING_OAUTH)
             if not pending:
@@ -242,13 +336,13 @@ def create_app(
             request = json.loads(pending)
             if request.get("state") != state:
                 raise HTTPException(status_code=400, detail="the authorization state does not match")
-            config = load_config(config_path)
+            config = credentials_or_409()
             try:
                 session = _client(config).complete_auth(code, state)
             except requests.HTTPError as exc:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Enable Banking refused the session: {_upstream_detail(exc)}",
+                    detail=f"Enable Banking refused the session: {_upstream_refusal(exc)}",
                 ) from exc
             session_id = session.get("session_id")
             raw_accounts = session.get("accounts_data") or session.get("accounts") or []
@@ -269,20 +363,107 @@ def create_app(
                 action, name = save_account(config_path, entry)
                 written.append({"account": name, "action": action})
             ledger.set_setting(PENDING_OAUTH, "")
-            return {
-                "session_id": session_id,
-                "accounts": [account.get("uid") for account in connected],
-                # Which entries were refreshed and which were added: a bank that
-                # returns several accounts writes several, and the person keeps
-                # the ones they want before the sync imports them all.
-                "written": written,
-                "next": (
-                    "run `uv run amonhen sync` to import this session"
-                    if len(connected) == 1
-                    else "edit accounts.json to keep the accounts you want, "
-                    "then run `uv run amonhen sync`"
+            # Which entries were refreshed and which were added: a bank that
+            # returns several accounts writes several, and the setup screen
+            # keeps the ones wanted before the sync imports them all. It is read
+            # back from `/api/setup`, because what the browser gets here is a
+            # redirect into the app rather than a JSON document nobody sees.
+            ledger.set_setting(
+                SETUP_LAST_CONNECT,
+                json.dumps(
+                    {
+                        "when": dt.datetime.now(dt.UTC).isoformat(),
+                        "written": written,
+                    }
                 ),
-            }
+            )
+        return RedirectResponse("/?setup=1", status_code=303)
+
+    # -- first setup (desiderata 5.10) --------------------------------------
+
+    def setup_payload() -> dict:
+        with ledger_scope() as ledger:
+            payload = setup_state(config_path)
+            payload["last_connect"] = _last_connect(ledger)
+        return payload
+
+    @app.get("/api/setup")
+    def setup() -> dict:
+        return setup_payload()
+
+    @app.put("/api/setup/credentials")
+    def write_credentials(request: SetupCredentialsRequest) -> dict:
+        try:
+            save_credentials(
+                config_path,
+                application_id=request.application_id,
+                redirect_url=request.redirect_url,
+                account_holder_name=request.account_holder_name,
+                private_key=request.private_key,
+            )
+        except OSError as exc:
+            # A folder the container's user cannot write in is the first setup's
+            # likeliest failure, and it deserves its own words rather than a 500.
+            raise HTTPException(
+                status_code=503, detail=f"the configuration could not be written: {exc}"
+            ) from exc
+        return setup_payload()
+
+    @app.get("/api/setup/banks")
+    def setup_banks(country: str = "IT") -> dict:
+        """The banks Enable Banking knows in one country, by exact name.
+
+        `/connect` takes the ASPSP name character for character, and a screen
+        that asks a person to remember it is asking them to get it wrong.
+        """
+        config = credentials_or_409()
+        try:
+            banks = _client(config).list_banks()
+        except (requests.HTTPError, ConsentExpiredError) as exc:
+            # The client reports a refused credential two ways — an HTTPError
+            # from a status code, a ConsentExpiredError from 401/403 — and both
+            # are the bank's answer, not a server error.
+            raise HTTPException(
+                status_code=502,
+                detail=f"Enable Banking refused the request: {_upstream_refusal(exc)}",
+            ) from exc
+        wanted = country.strip().upper()
+        return {
+            "country": wanted,
+            "banks": sorted(
+                (
+                    {"name": bank["name"], "country": bank.get("country") or ""}
+                    for bank in banks
+                    if (bank.get("country") or "").upper() == wanted
+                ),
+                key=lambda bank: bank["name"],
+            ),
+        }
+
+    @app.post("/api/setup/connect")
+    def setup_connect(request: SetupConnectRequest) -> dict:
+        return {"url": start_authorization(request.bank, request.country, "personal")}
+
+    @app.patch("/api/setup/accounts/{account_uid}")
+    def rename_configured_account(account_uid: str, request: SetupAccountRequest) -> dict:
+        try:
+            rename_account(
+                config_path,
+                account_uid,
+                name=request.name,
+                start_sync_date=request.start_sync_date,
+            )
+        except UnknownConfiguredAccount as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return setup_payload()
+
+    @app.delete("/api/setup/accounts/{account_uid}")
+    def remove_configured_account(account_uid: str) -> dict:
+        try:
+            remove_account(config_path, account_uid)
+        except UnknownConfiguredAccount as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return setup_payload()
 
     # -- reads -------------------------------------------------------------
 
@@ -1303,20 +1484,22 @@ def _month_bounds(month: str | None) -> tuple[dt.date, dt.date]:
     return dt.date(year, number, 1), dt.date(year, number, last_day)
 
 
-def _upstream_detail(exc: requests.HTTPError) -> str:
-    """The bank's own explanation, which is what the operator needs to see."""
-    response = exc.response
-    if response is None:
+def _upstream_refusal(exc: Exception) -> str:
+    """The bank's own reason, whichever way its client reports it."""
+    if not isinstance(exc, requests.HTTPError) or exc.response is None:
         return str(exc)
+    return f"{exc.response.status_code} {refusal_detail(exc.response)}"
+
+
+def _last_connect(ledger: Ledger) -> dict | None:
+    """What the last authorization wrote, for the screen the browser came back to."""
+    raw = ledger.setting(SETUP_LAST_CONNECT)
+    if not raw:
+        return None
     try:
-        body = response.json()
+        return json.loads(raw)
     except ValueError:
-        return f"{response.status_code} {response.text[:200]}"
-    if isinstance(body, dict):
-        for key in ("message", "detail", "error", "error_description"):
-            if isinstance(body.get(key), str):
-                return f"{response.status_code} {body[key]}"
-    return f"{response.status_code} {response.text[:200]}"
+        return None
 
 
 def _money(value) -> str | None:

@@ -7,7 +7,8 @@ export type TabId =
   | "movements"
   | "accounts"
   | "categories"
-  | "assistant";
+  | "assistant"
+  | "setup";
 
 interface Section {
   id: TabId;
@@ -17,7 +18,7 @@ interface Section {
   short: string;
   /** What the section holds, in the room a drawer has and the bar does not. */
   hint: string;
-  /** In the bottom bar, or only in the menu: six labels do not fit five columns. */
+  /** In the bottom bar, or only in the menu: seven labels do not fit five columns. */
   inBar: boolean;
   Icon: () => ReactElement;
 }
@@ -71,6 +72,14 @@ const SECTIONS: Section[] = [
     inBar: false,
     Icon: AssistantIcon,
   },
+  {
+    id: "setup",
+    label: "Configurazione",
+    short: "Configurazione",
+    hint: "Primo setup, banche collegate e consensi da rinnovare",
+    inBar: false,
+    Icon: SetupIcon,
+  },
 ];
 
 interface SectionNavProps {
@@ -107,6 +116,26 @@ function AssistantIcon() {
     >
       <path d="M4 5.5h16v10H9l-5 4z" />
       <path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" />
+    </svg>
+  );
+}
+
+function SetupIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M4 7h5M13 7h7M4 17h3M11 17h9" />
+      <circle cx="11" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
     </svg>
   );
 }

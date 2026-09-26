@@ -73,12 +73,19 @@ def test_connect_redirects_and_callback_stores_the_session(tmp_path, rsa_pem, mo
             "accounts_data": [{"uid": "uid-1", "name": "Revolut personale", "currency": "EUR"}],
         },
     )
-    done = client.get("/callback", params={"code": "code-1", "state": state})
+    done = client.get(
+        "/callback", params={"code": "code-1", "state": state}, follow_redirects=False
+    )
 
-    assert done.status_code == 200
-    assert done.json()["session_id"] == "sess-1"
-    assert done.json()["accounts"] == ["uid-1"]
-    assert done.json()["written"] == [{"account": "Revolut personale", "action": "added"}]
+    # The browser is sent back into the app: the screen that started the
+    # authorization is where the accounts that arrived are decided.
+    assert done.status_code == 303
+    assert done.headers["location"] == "/?setup=1"
+    setup = client.get("/api/setup").json()
+    assert setup["last_connect"]["written"] == [
+        {"account": "Revolut personale", "action": "added"}
+    ]
+    assert setup["configured"] is True
     saved = json.loads(config.read_text(encoding="utf-8"))
     assert len(saved["accounts"]) == 1
     entry = saved["accounts"][0]
@@ -138,10 +145,14 @@ def test_a_second_authorization_refreshes_the_entry_instead_of_appending(
             "accounts_data": [{"uid": "uid-1", "name": "Nadia Verdi", "currency": "EUR"}],
         },
     )
-    done = client.get("/callback", params={"code": "code-2", "state": state})
+    done = client.get(
+        "/callback", params={"code": "code-2", "state": state}, follow_redirects=False
+    )
 
+    assert done.status_code == 303
     saved = json.loads(config.read_text(encoding="utf-8"))
-    assert done.json()["written"] == [{"account": "Revolut personale", "action": "refreshed"}]
+    written = client.get("/api/setup").json()["last_connect"]["written"]
+    assert written == [{"account": "Revolut personale", "action": "refreshed"}]
     assert len(saved["accounts"]) == 1
     entry = saved["accounts"][0]
     assert entry["session_id"] == "sess-new"
@@ -191,3 +202,15 @@ def test_a_bank_name_the_provider_rejects_is_reported_as_an_upstream_failure(
 
     assert response.status_code == 502
     assert "Unknown ASPSP" in response.json()["detail"]
+
+
+@responses_lib.activate
+def test_connecting_before_the_first_setup_is_reported_not_crashed(tmp_path, monkeypatch):
+    """A fresh checkout has no accounts.json, and that is not a server error."""
+    monkeypatch.setattr(provider, "EB_API", API)
+    client = make_client(tmp_path, tmp_path / "accounts.json")
+
+    response = client.get("/connect", params={"bank": "Revolut", "country": "IT"})
+
+    assert response.status_code == 409
+    assert "first setup" in response.json()["detail"]

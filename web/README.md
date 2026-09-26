@@ -1,7 +1,8 @@
 # AmonHen — PWA
 
-Mobile-first React PWA over the `amonhen` FastAPI backend. Five screens, reachable from
-the bottom bar or from the hamburger in the top bar:
+Mobile-first React PWA over the `amonhen` FastAPI backend. Five screens in the bottom bar,
+reachable from there or from the hamburger in the top bar, plus the drawer entries with no
+column for them — **Assistente** (its own section below) and **Configurazione**, the setup wizard:
 
 - **Da confermare** — the review queue: the merchant proposals to accept or dismiss, each with the
   spending it would settle (amount, movements, span), the candidate
@@ -25,6 +26,8 @@ the bottom bar or from the hamburger in the top bar:
   *Rimuovi*; the group's last row writes a new one, and a rule assigns the category whose head was
   opened, so there is no category to choose. The bar at the top creates a category, and a search
   opens the groups that matched.
+- **Configurazione** — the setup wizard, `inBar: false`, in its own section below: while nothing
+  is configured it *is* the app, and afterwards it is where a bank is added or a consent renewed.
 
 The category picker also offers to create a rule that looks for that merchant's text in the
 description (`POST /api/rules`), and *È un giroconto* hands the row to the transfer sheet below.
@@ -38,7 +41,9 @@ in the top bar opens a drawer that names each section in full, says what it hold
 count of what is waiting. The drawer closes on a choice, on Escape and on the backdrop, keeps focus
 inside itself while open, is `inert` while shut — nothing in it is a tab stop off screen — and hands
 focus back to the hamburger when it closes. The sections and their icons are declared once, in
-`src/components/Navigation.tsx`, and both paths render from that list; **Assistente** is `inBar: false`, because six labels do not fit the bar's five columns and the drawer names it in full.
+`src/components/Navigation.tsx`, and both paths render from that list; **Assistente** and
+**Configurazione** are `inBar: false`, because seven labels do not fit the bar's five columns and
+the drawer names each of them in full.
 
 ## Assistente
 
@@ -59,6 +64,45 @@ title says how many calls the day has left.
 The section is also reachable from where the question is born: *Cosa è cambiato?* on the dashboard
 and *Regge?* on a budget row open it with that figure as the context (`POST /api/assistant/ask` with
 `context`).
+
+## Configurazione
+
+The setup wizard (desiderata 5.10) takes a fresh install to a reconciled ledger without a text editor,
+and it is a section of the app rather than a separate page: `Configurazione` in the drawer,
+`inBar: false`. Five steps, in this order:
+
+1. **Credenziali** — the Enable Banking application id, the private key pasted as PEM, the redirect
+   URL (prefilled with the one on the file, or with `window.location.origin + "/callback"` when
+   there is none yet) and the account holder's name, saved with `PUT /api/setup/credentials`, which
+   writes `accounts.json` and the key beside it. After the save the step shows the saved redirect URL
+   as a line to copy: registering it in the Enable
+   Banking dashboard character for character is the one step that stays manual. The key is never
+   read back — the payload answers whether it loads (`key_loads`) and says nothing about its
+   contents — and a refused write leaves the file untouched, with the server's English
+   `detail` shown as it is.
+2. **Banca** — a country select (Italy by default) and the ASPSP list from
+   `GET /api/setup/banks?country=IT`, already filtered and sorted, with a filter box over it.
+   Choosing a bank posts `POST /api/setup/connect` and sends the browser to it, because the login
+   happens at the bank and nowhere else.
+3. **Conti** — every account the authorization wrote, with an editable name and start date
+   (`PATCH /api/setup/accounts/{account_uid}`), a *Togli* (`DELETE /api/setup/accounts/{account_uid}`)
+   and a marker of what the last authorization did: `added` or `refreshed`, from `last_connect`.
+   The name is how the ledger knows the account, so two accounts under one name become one — which
+   is why a name another entry already uses is refused.
+4. **Primo sync** — `POST /api/sync`, and the per-account outcome is the content of the step rather
+   than a toast: movements inserted and updated, transfers linked, errors, and the 5.4 state.
+5. **Saldi e verifica** — per real account from `GET /api/accounts`: its verification state, the
+   form that declares a balance read off the bank (`PUT /api/accounts/{id}/declaration`, available or
+   booked) and, while the account is not verified, *Allinea il saldo iniziale*
+   (`PUT /api/accounts/{id}/opening`). The closing button returns to the dashboard and drops
+   `?setup=1` from the address with `history.replaceState`.
+
+Gating: while `GET /api/setup` answers `configured: false` the wizard replaces the app shell and
+opens at the first step whose requirement is unmet — *Credenziali* when the application id or the key
+is missing, *Banca* when only the accounts are. It stays reachable once the system is configured, from
+the same drawer entry, starting at *Conti* so a bank can be added or a consent renewed. `?setup=1` at
+boot forces it open and lands on *Conti* when `last_connect` is present: that is how the browser comes
+back from the bank, since `/callback` answers 303 to `/?setup=1` instead of a JSON document.
 
 ## Requirements
 
@@ -92,7 +136,8 @@ command to restart it, instead of rendering against response shapes it cannot re
 constants together whenever an endpoint's payload changes — or the meaning of a request field does,
 as when `POST /api/rules` learned that a pattern between slashes is an expression: a server that
 stored it as text would answer 201 and hold nothing, which is the silent misbehaviour the handshake
-exists to prevent.
+exists to prevent. The two constants stand at **18** today: the first-setup payloads (`/api/setup`
+and the routes around it) are what last moved them.
 
 ```bash
 npm run preview   # serve the built bundle locally
@@ -100,8 +145,9 @@ npm run preview   # serve the built bundle locally
 
 ## Dashboard
 
-The dashboard is the default tab and is built around the charts being the first thing on it: the
-spending donut, the monthly flows and the net-worth curve, then the metric tiles, then budgets,
+The dashboard is the default tab — the wizard replaces the shell only while nothing is configured —
+and it is built around the charts being the first thing on it: the spending donut, the monthly flows
+and the net-worth curve, then the metric tiles, then budgets,
 anomalies, the category flags and the tracked accounts. The tiles are a grid of label and figure,
 and what each one means sits behind one *Come si calcolano*.
 
@@ -336,9 +382,11 @@ the operator learns `AMONHEN_LLM_URL` / `AMONHEN_LLM_MODEL` are missing.
 
 ## PWA
 
-- `public/manifest.webmanifest` — standalone display, theme/background `#0b0d16`, 192 px and
-  512 px icons, drawn from the bar-chart glyph over the app palette: gradient brass bars on the
-  same three glows the page paints behind them.
+- `public/manifest.webmanifest` — standalone display, theme/background `#0b0d16`, `name` identical
+  to the document's `<title>`, and 192 px and 512 px icons rendered from
+  `src/assets/eye-mark.svg` over the app palette: the same mark the inscription shows, drawn at 56%
+  of the square, which keeps it inside the central 80% a maskable crop preserves. The 180 px
+  apple-touch icon is the same drawing at the same proportion, and the document is what links it.
 - `public/sw.js` — caches the hashed `/assets/*` on first fetch and nothing else. The document is
   deliberately not cached: it names the assets, so a stale copy points at files a rebuild has
   replaced, which is a blank screen and the one way an update can look like it never happened.
@@ -349,8 +397,10 @@ the operator learns `AMONHEN_LLM_URL` / `AMONHEN_LLM_MODEL` are missing.
 - `index.html` carries the manifest link, the theme colour and the `apple-mobile-web-app-*` meta
   tags. The service worker is registered in production only (`src/main.tsx`).
 
-Icons are plain PNGs generated from the same bar-chart glyph; regenerate them with any 192/512
-rasterizer if the artwork changes.
+Icons are plain PNGs rendered from `src/assets/eye-mark.svg` — 512, 192 and 180 (apple-touch) —
+by opening a throwaway page that loads the drawing and `src/styles.css` in a browser whose
+viewport is the target size, then taking a screenshot of each. The mark fills the central 56% so
+a maskable crop has nothing to bite.
 
 ## Design
 
@@ -406,6 +456,17 @@ lines left in the interface are the faint separators between the rows of a list.
 - **Charts carry no frame at all.** No grid and no axis lines: slices and bars are gradients,
   the bars have round caps, and the exact numbers live in the tooltip. A block containing a
   chart is a lastra like the metric tiles, so one screen does not speak two languages.
+- **The inscription opens the app.** The quote — "There was an eye in the Dark Tower that did
+  not sleep", *The Fellowship of the Ring* — sits at the top of every section with the mark
+  beside it: the Eye of Sauron, a round ball of brass with a dark slit pupil, ringed by nine
+  tongues of flame that all lean the same way, above Barad-dûr drawn in three tints of the text
+  colour, because the app is named after the Seat of Seeing and this is the one place that says
+  so. The drawing lives in one file, `src/assets/eye-mark.svg`, and takes every colour from the
+  tokens here rather than carrying literals: `src/styles.css` paints it and `public/` rasterises
+  the same file for the installed icons. It is a masthead and not a hero: 56 px wide, 54.3 px
+  tall, beside the words at 390 px, where the whole band measures 55.7 px — measured, because a
+  band that stacks the mark above the quote takes from the dashboard exactly what it is telling
+  you to look at. The wizard is the exception — a screen to be worked through has no inscription.
 - **Motion.** One entrance per screen, staged 35 ms apart and eased on a spring; a press is
   answered under the finger with a scale. There is no `will-change`.
   `prefers-reduced-motion: reduce` zeroes the delays as well as the durations, because a

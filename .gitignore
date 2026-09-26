@@ -1,4 +1,8 @@
 accounts.json
+# The configuration folder docker compose mounts at /config: the app writes its
+# own accounts.json and private.pem there. Anchored, because the fixtures keep a
+# `config/` folder of their own.
+/config/
 mytest*
 *.pem
 *.crt

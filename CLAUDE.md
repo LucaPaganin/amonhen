@@ -56,7 +56,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, budgets, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
-|`amonhen/config.py`|Reads `accounts.json`: Enable Banking credentials, accounts, and the `passthrough` declarations|
+|`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
 |`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `SyncBusy` is the process-wide guard on one run at a time|
 |`amonhen/transfers.py`|Transfer candidate graph, weights, link review state|
 |`amonhen/matching.py`|Exact maximum-weight bipartite matching (Hungarian)|
@@ -88,9 +88,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`db`|`connect`, `initialize`, `open_ledger_db`|
 |`ledger`|`Ledger`, `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
 |`dedup`|`content_hash`, `normalize_description`|
-|`config`|`MonitorConfig`, `ConfiguredAccount`, `load_config`|
+|`config`|`MonitorConfig`, `ConfiguredAccount`, `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`|
-|`transfers`|`link_transfers`, `link_own_account_transfers`, `pair_candidates`, `transfer_amount_total`|
+|`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `RuleBook`, `categorize`, `rule_usage`|
 |`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
@@ -345,9 +345,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   Enable Banking exposes a Revolut deposit account only through a consent that
   covers it, so a leg to it has no counterpart here and the pairing can never
   see it — on the live ledger that single line was the largest part of the burn.
-  `own_accounts` in `accounts.json` declares the labels the bank prints on those
-  transfers, and `link_own_account_transfers` moves each matching leg's category
-  side to a virtual account named after the label: out of `spend_between`, out
+  `passthrough` in `accounts.json` declares the labels the bank prints on those
+  transactions and where the money is recorded (`destination`), and
+  `link_passthrough_legs` moves each matching leg's category
+  side to that virtual account: out of `spend_between`, out
   of the review queue, still on the books (`Ledger.transfer_target` returns that
   name, which the API reports as the leg's `transfer.target`; the same thing can
   be recorded for one movement by hand, see above). It runs after
@@ -365,7 +366,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `is_transfer` became the `transfer` object in 6, and in 7 the dashboard reads
   took `from`/`to`/`accounts`/`categories` and answer with `applied`
   (`/api/spending` lost its `month`, `/api/flows` its `months`, and an account
-  row gained `opening_balance`).
+  row gained `opening_balance`). 18 is the first setup: `/api/setup` and the four
+  writes around it, and `/callback` answering a 303 into the app instead of the
+  JSON document nobody saw.
 - **A rule is a text the description contains, and writing one rewrites the
   ledger.** `rules.key` is the text as it is matched — `rule_key` trims,
   collapses runs of spaces and lower cases it, so a text typed by a human still
@@ -601,7 +604,8 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|
 |Regenerate parsing fixtures|`uv run python tools/dump_raw.py` then `uv run python tools/anonymize_dump.py dumps`|
-|Connect a new bank|Open `http://<host>:8000/connect?bank=Revolut&country=IT`, complete the bank login, then `uv run amonhen sync`|
+|Connect a new bank|**Configurazione** in the app's drawer, *Banca* step (`POST /api/setup/connect`, then the login happens at the bank) — or `http://<host>:8000/connect?bank=Revolut&country=IT`, the same route for a script. Then `uv run amonhen sync`, unless the wizard's *Primo sync* step already did it|
+|First setup on a fresh install|The app opens on the wizard by itself while `/api/setup` answers `configured: false` — *Credenziali* (application id, PEM key, redirect URL, holder: the URL it shows is what goes into the Enable Banking dashboard), *Banca*, *Conti*, *Primo sync*, *Saldi e verifica*. `PUT /api/setup/credentials` creates `accounts.json` and `private.pem`, so there is nothing to write by hand|
 |Add or change a categorization rule|The **Categorie e regole** section of the app, under the category it assigns, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
 |Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|
 |Run the UI locally|`uv run amonhen serve` and `npm --prefix web run dev` (Vite proxies `/api`)|

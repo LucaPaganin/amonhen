@@ -39,11 +39,11 @@ services:
       - "${AMONHEN_SYNC_INTERVAL_HOURS:-6}"
     volumes:
       - amonhen-data:/data
-      # Writable: /callback refreshes or adds a newly authorized account here.
-      # pem_path in accounts.json is resolved relative to that file, so it finds
-      # the key at /config/private.pem. Both files must exist before `up`.
-      - ./accounts.json:/config/accounts.json
-      - ./private.pem:/config/private.pem:ro
+      # The whole configuration folder, not the two files: on a first start
+      # neither exists yet, and the app writes its own accounts.json and
+      # private.pem into it from the setup screen. `pem_path` in accounts.json
+      # is resolved relative to that file, so it finds the key beside it.
+      - ./config:/config
 
   # Optional, read-only-by-default MCP bridge to the existing Actual server.
   # Actual Budget is no longer a dependency of this app; the bridge stays for

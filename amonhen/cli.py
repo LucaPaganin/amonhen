@@ -199,13 +199,15 @@ def cmd_serve(ledger: Ledger, args) -> int:
     from amonhen.api import create_app
 
     if args.sync_interval_hours > 0:
-        # Fail at startup, not in a log line every interval: a missing
-        # accounts.json or private.pem must be visible immediately.
+        # A configuration that cannot be read does not stop the server: the
+        # first-setup screen is served by this process, so on a fresh install
+        # nothing is configured yet and refusing to start would take away the
+        # screen that fixes it. Say it now and let the loop repeat it at every
+        # interval until the setup writes a configuration.
         try:
             build_client(load_config(args.config))
         except (OSError, KeyError, ValueError) as exc:
-            print(f"cannot sync: {exc}", file=sys.stderr)
-            return 1
+            print(f"cannot sync yet: {exc}", file=sys.stderr)
         threading.Thread(
             target=_sync_loop,
             args=(args.db, args.config, args.sync_interval_hours),

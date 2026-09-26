@@ -29,6 +29,24 @@ class ConsentExpiredError(RuntimeError):
     """Enable Banking rejected a request because the consent/session expired."""
 
 
+def refusal_detail(response: requests.Response) -> str:
+    """The provider's own words about a refusal, when it says any.
+
+    A wrong application ID is the first-setup mistake that looks like this, and
+    "Application does not exist" is worth more to the person reading it than the
+    status code it arrived with.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text[:200]
+    if isinstance(body, dict):
+        for key in ("message", "detail", "error", "error_description"):
+            if isinstance(body.get(key), str):
+                return body[key]
+    return response.text[:200]
+
+
 class EnableBankingClient:
     def __init__(
         self,
@@ -189,12 +207,12 @@ class EnableBankingClient:
             if response.status_code == 401:
                 raise ConsentExpiredError(
                     "Enable Banking rejected the request as unauthenticated: the session, "
-                    "consent or JWT is no longer valid"
+                    f"consent or JWT is no longer valid ({refusal_detail(response)})"
                 )
             if response.status_code == 403:
                 raise ConsentExpiredError(
                     "Enable Banking denied access: the consent was revoked or the "
-                    "application lacks the required permission"
+                    f"application lacks the required permission ({refusal_detail(response)})"
                 )
             return response
         return response

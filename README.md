@@ -1,6 +1,6 @@
 # AmonHen
 
-> "The Eye of Sauron the Terrible few could endure." — J.R.R. Tolkien, *Il Silmarillion*
+> "There was an eye in the Dark Tower that did not sleep." — J.R.R. Tolkien, *The Fellowship of the Ring*
 
 Named after Amon Hen, the Seat of Seeing.
 
@@ -43,8 +43,12 @@ giroconto never counts as spending — by construction, not by a rule.
 
 - Python 3.13+ and [`uv`](https://docs.astral.sh/uv/)
 - An Enable Banking application (application ID + RS256 private key)
-- `accounts.json` with the connected sessions, copied from
-  `accounts.example.json`
+
+Neither `accounts.json` nor `private.pem` has to exist before the first start:
+the app writes both — the credentials and the key from its setup screen, the
+connected accounts from the bank's callback — so an install with nothing
+configured comes up on that screen instead of failing. `accounts.example.json`
+documents the shape of the file for anyone who would rather write it by hand.
 
 ## Usage
 
@@ -88,9 +92,14 @@ The document is served `no-cache` and the service worker caches only the hashed
 at files that rebuild has replaced: that is a blank screen, and it is the one way an
 update can look like it never happened.
 
-The app has five sections, reachable from the bottom bar or from the hamburger in the top bar. The
-bar switches in one tap; the drawer it opens names each section in full, says what the section
-holds and carries the count of what is waiting, which is more than a fifth of the screen can.
+The app has five sections in the bottom bar, reachable in one tap there or from the hamburger in the
+top bar; the drawer it opens names each section in full, says what the section holds and carries the
+count of what is waiting, which is more than a fifth of the screen can, and adds the two sections
+with no column there — **Assistente** and **Configurazione**, the setup wizard (see *Connecting a
+bank*). The wizard is what a fresh install opens on: with nothing configured it replaces the app
+shell and starts at the first step whose requirement is unmet, and `?setup=1` in the address forces
+it open, which is how the browser comes back from a bank. Afterwards the same entry is where a bank
+is added or a consent renewed.
 
 The app opens on the **Dashboard**, which is built around one priority: the charts
 come first. The period — a 3/6/12/24-month chip — sits on a bar with a *Filtri*
@@ -179,64 +188,115 @@ happened.
 
 ## Connecting a bank
 
-1. Make three places agree character for character — scheme, host, port, path:
-   the address the browser reaches, `redirect_url` in `accounts.json`, and the
-   callback registered in the Enable Banking dashboard. Behind Tailscale the
-   cleanest address is the tailnet name with the HTTPS that Tailscale provisions:
+The app does this itself, in the **Configurazione** wizard (desiderata 5.10),
+which is what a fresh install opens on. Five steps, in order:
 
-   ```bash
-   tailscale serve --bg localhost:8000   # https://<node>.<tailnet>.ts.net
-   ```
+1. **Credenziali** — the Enable Banking application id, the private key pasted as
+   PEM, the redirect URL and the holder's name — which the sync reads so it does
+   not record you as your own counterparty — saved with
+   `PUT /api/setup/credentials`, which writes `accounts.json` and the key beside
+   it. The redirect URL is prefilled with the address the browser is on
+   (`<origin>/callback`) — the one that reaches the app, so the one the bank has
+   to call back — and a value already in the file that disagrees is shown under
+   the field instead of being kept as the answer. After saving, the step shows
+   the saved value as a line to copy: the
+   app cannot register it in the Enable Banking dashboard, so that one line stays
+   manual and has to match character for character. A key that does not load as a
+   private key, an application id that is empty and a redirect URL that is not
+   http(s) or does not end in `/callback` are all refused before anything is
+   written, with an English `detail`. The key is never read back: `/api/setup`
+   answers `key_loads` — whether the file on disk loads as a private key — and
+   nothing else.
+2. **Banca** — the country (Italy by default) and the banks Enable Banking knows
+   in it (`GET /api/setup/banks?country=IT`, already filtered and sorted by name,
+   with a filter box over the list). Choosing one posts
+   `POST /api/setup/connect` and sends the browser to the bank: the login happens
+   there, never here. Without credentials yet that step answers 409, and a wrong
+   ASPSP name comes back as the bank's own refusal (502).
+3. **Conti** — every account the authorization wrote, with its name and start date
+   editable (`PATCH /api/setup/accounts/{account_uid}`), a *Togli* to drop one
+   (`DELETE /api/setup/accounts/{account_uid}`) and what the last authorization did
+   to it — `added` or `refreshed` — from `last_connect`. The name is how the ledger
+   knows the account (it is the `notes` the sync matches by), so two entries under
+   one name are one account and their movements land in it together. This step is
+   what replaced hand-editing the file to keep the accounts you want.
+4. **Primo sync** — `POST /api/sync`, answered per account: what was fetched and
+   written (`actions`), the error it hit, and its 5.4 state (`verification`), plus
+   the run's `transfers_linked` and `rules_applied`. There is no toast; the
+   outcome is the content of the step.
+5. **Saldi e verifica** — per real account, its verification state, the form that
+   declares a balance read off the bank (`PUT /api/accounts/{id}/declaration`) and
+   — while the account is not verified — *Allinea il saldo iniziale*
+   (`PUT /api/accounts/{id}/opening`). Closing returns to the dashboard and drops
+   `?setup=1` from the address with `history.replaceState`.
 
-   so `redirect_url` is `https://<node>.<tailnet>.ts.net/callback` and that is
-   what gets registered. `http://<host>:8000/callback` works too, but Enable
-   Banking rejects a non-HTTPS redirect that is not localhost, and that address
-   only resolves on the machine running the app. The `:3000/callback` of earlier
-   versions belongs to the Flask app this one replaced: nothing listens there, so
-   the bank's redirect never arrives — which is what an expired consent looks
-   like when you try to renew it.
-2. Open `<that address>/connect?bank=FinecoBank&country=IT` (the bank name must
-   match an Enable Banking ASPSP exactly — no guessing; for Fineco it is
-   `FinecoBank`) and complete the bank login.
-3. `/callback` writes the authorized session into `accounts.json`. An account the
-   file already lists, by uid, is **refreshed in place**: the new session replaces
-   the old one and the name and start date it had are kept, so the ledger account
-   and the history already imported stay where they are. An account the file does
-   not know is added. The response says which was which:
+Registering the callback is the one thing this side cannot do for you, and it has
+to make three places agree character for character — scheme, host, port, path: the
+address the browser reaches, the redirect URL the wizard derived from it, and the
+callback registered in the Enable Banking dashboard. Behind Tailscale the cleanest
+address is the tailnet name with the HTTPS that Tailscale provisions:
 
-   ```json
-   {"session_id": "…", "accounts": ["…"],
-    "written": [{"account": "FinecoBank", "action": "refreshed"}],
-    "next": "run `uv run amonhen sync` to import this session"}
-   ```
+```bash
+tailscale serve --bg localhost:8000   # https://<node>.<tailnet>.ts.net
+```
 
-   A bank that returns several accounts writes all of them (Fineco answers with
-   four). Read `written`, and edit `accounts.json` to keep the ones you want
-   before syncing: the ledger matches an account by the name in `notes`, so two
-   entries under one name are one account and their movements would land in it
-   together.
-4. Import it:
+so `redirect_url` is `https://<node>.<tailnet>.ts.net/callback` and that is what
+gets registered. `http://<host>:8000/callback` works too, but Enable Banking
+rejects a non-HTTPS redirect that is not localhost, and that address only resolves
+on the machine running the app. The `:3000/callback` of earlier versions belongs
+to the Flask app this one replaced: nothing listens there, so the bank's redirect
+never arrives — which is what an expired consent looks like when you try to renew
+it.
 
-   ```bash
-   uv run python -m amonhen sync
-   ```
+The bank sends the browser back to `/callback`, which writes the authorized session
+into `accounts.json` and answers **303 to `/?setup=1`** instead of the JSON it used
+to return, so the browser always lands in the app, on the accounts step. An account
+the file already lists, by uid, is **refreshed in place**: the new session replaces
+the old one and the name and start date a person curated are kept, so the ledger
+account and the history already imported stay where they are. An account the file
+does not know is added. A bank that returns several accounts writes all of them
+(Fineco answers with four), and `last_connect` says which of them were added and
+which refreshed.
 
-   `session_expiry` in the entry is when the Enable Banking **session** stops
-   being valid, not when the bank's consent ends — the consent can end first, and
-   months earlier (Fineco's did). The symptom is `consent expired` in the sync and
-   a 401/403 on the account, and renewing it is this flow again.
+`GET /connect?bank=FinecoBank&country=IT` does the same thing at the URL level —
+the bank name must match an Enable Banking ASPSP exactly, no guessing; for Fineco
+it is `FinecoBank` — so a script or a bookmark can start an authorization without
+the app. It answers 302 to the bank itself, and it forwards the bank's own refusal
+verbatim when something is wrong: `Enable Banking refused the request: 400 Redirect
+URI not allowed` means the registered URL and `accounts.json` disagree.
 
-`/connect` forwards the bank's own refusal verbatim when something is wrong —
-for example `Enable Banking refused the request: 400 Redirect URI not allowed`
-means the registered URL and `accounts.json` disagree.
+Then import it:
+
+```bash
+uv run python -m amonhen sync
+```
+
+`session_expiry` in the entry is when the Enable Banking **session** stops being
+valid, not when the bank's consent ends — the consent can end first, and months
+earlier (Fineco's did). The symptom is `consent expired` in the sync and a 401/403
+on the account, and renewing it is the same wizard again: **Configurazione** in the
+drawer starts at the accounts step, so adding a bank or renewing a consent is one
+tap back.
 
 ## Configuration
 
 `accounts.json` (gitignored) holds the Enable Banking credentials and the
-connected accounts. Every runtime path and tunable reads a `AMONHEN_<NAME>`
+connected accounts. The app writes it: `PUT /api/setup/credentials` writes the
+credentials, the redirect URL and the key path (and the key itself, beside the
+file, since `pem_path` resolves relative to it and defaults to `./private.pem`),
+the OAuth callback appends and refreshes the account entries, and the setup screen
+renames and drops them. Both writers go through the same document helpers, so a
+key the app knows nothing about — the `passthrough` declarations below, for one —
+survives every write, and hand-editing the file stays possible: each command reads
+it at startup. Every runtime path and tunable reads a `AMONHEN_<NAME>`
 environment variable: `AMONHEN_DB_PATH`, `AMONHEN_CONFIG_FILE`,
 `AMONHEN_EB_API`, `AMONHEN_SYNC_INTERVAL_HOURS`, `AMONHEN_UNCATEGORIZED`,
 `AMONHEN_HOST`, `AMONHEN_PORT`.
+
+The holder's name the wizard asks for is `account_holder_name`, read as
+`own_names`: a movement whose counterparty is the holder's own name is relabelled
+with the remittance text instead, because money coming back to you is not a payment
+to yourself, and a counterparty of your own name tells the ledger nothing.
 
 The optional model — it proposes a category for merchants no rule covers, and it
 reads the numbers back to you in **Assistente** — is configured with
