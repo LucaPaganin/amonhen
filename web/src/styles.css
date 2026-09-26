@@ -2354,6 +2354,22 @@ button.txn:active {
   }
 }
 
+/* Lo stesso movimento del foglio, girato di novanta gradi: da destra, dove il
+   pannello sta, con la stessa distanza e la stessa durata. Il rimpicciolimento
+   del foglio non c'è: su un pannello a filo col bordo della finestra tirerebbe
+   via quel bordo mentre entra. */
+@keyframes sheet-in-right {
+  from {
+    opacity: 0.5;
+    transform: translateX(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;
@@ -2453,6 +2469,46 @@ button.txn:active {
   .toast {
     left: calc(var(--rail) + 14px);
     bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  }
+
+  /* Le schede entrano da destra invece che dal fondo. Un foglio che sale ha
+     senso su un telefono, dove il pollice è in basso; su una finestra il posto
+     di una scheda è il lato, e quello che si stava guardando resta lì.
+     È la stessa `<dialog>`: stesso Esc, stesso backdrop, stessa trappola del
+     fuoco — cambia dove il pannello sta. */
+  .sheet[open] {
+    align-items: stretch;
+    justify-content: flex-end;
+  }
+
+  .sheet__panel {
+    width: clamp(460px, 40%, 520px);
+    height: 100%;
+    max-height: 100%;
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    animation: sheet-in-right var(--base) var(--spring);
+  }
+
+  /* La maniglia dice "si chiude verso il basso": qui il pannello è in piedi, e
+     la croce in testa c'è già. */
+  .sheet__panel::before {
+    display: none;
+  }
+
+  /* Il pannello è alto quanto la finestra, e la pagina dietro non gli scorre
+     sotto mentre lo si legge. Solo qui: sotto i 1024 il foglio resta quello di
+     sempre, e la pagina dietro si comporta come si è sempre comportata. */
+  body:has(dialog[open]) {
+    overflow: hidden;
+  }
+
+  /* Togliere la barra di scorrimento cambia la larghezza della pagina su cui il
+     contenuto si centra: dove quella barra occupa spazio (Chrome ed Edge su
+     Windows, una quindicina di pixel) la colonna faceva un salto laterale
+     all'apertura e uno indietro alla chiusura. Con il gutter riservato le due
+     situazioni hanno la stessa larghezza, quindi non c'è niente da cui saltare. */
+  html {
+    scrollbar-gutter: stable;
   }
 
   /* La schermata diventa una griglia di due colonne, e chi non ha un compagno

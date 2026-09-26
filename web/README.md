@@ -536,6 +536,18 @@ The three shapes are one list — the item is shared by the drawer and the rail,
 keeps its compact variant, which is why a two-line "Da / confermare" is right there and wrong
 here.
 
+**And a sheet opens at the side, not from the floor.** A sheet that rises from the bottom is the
+phone's shape: the thumb is down there, and the page that dims behind it is the page it covers. From
+1024 the same `<dialog>` docks at the right edge instead — `clamp(460px, 40%, 520px)` wide, full
+height, rounded on the left and flush on the right, the mirror of the rail — so the list it was
+opened from stays on screen beside it. The drag handle of a bottom sheet is not drawn any more
+(it promises a downward close) and the ✕ in the header is the way out; Escape, the backdrop and the
+focus trap are the browser's and are untouched, because nothing about the dialog was reimplemented:
+this is one block of CSS on a container that already existed. The page behind stops scrolling while
+it is open (`body:has(dialog[open])`), since a panel as tall as the window is exactly where a page
+sliding underneath is noticed. Below 1024 the sheet still comes from the bottom, byte for byte.
+
 Below 1024 nothing moves, and that is checked rather than hoped: on the same ledger, against the
 build before the change, every visible element's box at 390 and 768 is compared — 530, 796 and 278
-per screen, no box differs — and all six screenshots come out byte-identical.
+per screen, no box differs — all six screenshots come out byte-identical, and the bottom sheet
+itself, captured open at both widths, is byte-identical too.

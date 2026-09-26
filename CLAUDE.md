@@ -609,6 +609,18 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   captures moved a balance and changed four elements, which looked exactly like a regression. And
   before a pixel comparison, blur the active element: the focus ring a previous interaction left on
   a button is a state of the session, not of the bundle, and cost one round of chasing it.
+- **A sheet docks right above 1024, and that is all that changed about it.** `.sheet` is a `<dialog>`
+  in the top layer, so `showModal()`, `Esc`, the backdrop and the focus trap are the browser's and
+  stay untouched; the desktop block only moves the panel (`align-items: stretch`,
+  `justify-content: flex-end`, a `clamp(460px, 40%, 520px)` width, full height, rounded on the left)
+  and swaps its entrance for `sheet-in-right`, which is the bottom sheet's 30px travel rotated a
+  quarter turn. The drag handle is hidden because it promises a downward close. The page behind is
+  locked with `body:has(dialog[open]) { overflow: hidden }` — and that lock stops wheels and
+  fingers, **not** `window.scrollTo` or a `scrollTop` assignment, so verify it with a real wheel
+  event: scripted scrolling "proves" a lock that is not there. The lock also takes the page's
+  scrollbar away, and with it the width the page lays out in: the centred column moved half of
+  that and a panel flush with the right edge moved all of it. The same block reserves the gutter
+  (`html { scrollbar-gutter: stable }`), so the locked and unlocked states share one width.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same
