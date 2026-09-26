@@ -1,0 +1,3 @@
+# The rehearsal script runs inside WSL, where a CRLF shebang is a bad
+# interpreter: keep shell scripts at LF whatever the checkout's autocrlf is.
+tools/*.sh text eol=lf

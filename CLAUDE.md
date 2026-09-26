@@ -39,7 +39,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 `spend`, `balances`, `anchor`, `balance-check`, `categorize`, `rules`,
 `rule-add`, `rule-remove`, `category-add`, `metrics`, `category-flags`, `account-flags`,
 `split`, `set`, `budget`, `budgets`, `anomalies`, `suggest`, `llm-suggest`,
-`validate`.
+`validate`, `backup`.
 
 ## Architecture in one line
 
@@ -67,15 +67,18 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
 |`amonhen/assistant.py`|Desiderata 5.9: a reading of the numbers already computed, and the guards on it|
-|`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, assistant, dashboard series) and PWA host|
+|`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, assistant, dashboard series, first setup) and PWA host; `/callback` answers 303 to `/?setup=1`|
+|`amonhen/backup.py`|`make_snapshot`: a dated snapshot of the living ledger (SQLite's backup API, not a file copy) plus the configuration it needs, a manifest, and the retention that keeps it bounded|
 |`amonhen/providers/enable_banking.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances)|
 |`amonhen/providers/eb_normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` (pure)|
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
-|`web/`|React PWA source (recharts for the dashboard charts); the five sections are declared once in `web/src/components/Navigation.tsx`; built to `web/dist`, served by the API|
+|`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
 |`tools/dump_raw.py`|Dumps raw EB payloads to disk, for regenerating fixtures|
 |`tools/anonymize_dump.py`|Turns raw dumps into committed fixtures|
+|`tools/eb_stub.py`|A stand-in for Enable Banking that serves the anonymized fixtures, so the first setup can be walked without a real consent (signs and verifies nothing)|
+|`tools/rehearse_local.sh`|Rehearses the first start in containers inside WSL: builds from the checkout, proves the `/config` ownership the NAS needs, walks the wizard against the stub, then the snapshot and the restore|
 |`tests/fixtures/enable_banking/`|Anonymized real payloads used by provider tests|
 |`tests/fixtures/imports/`|Synthetic CSV/OFX fixtures|
 
@@ -98,6 +101,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
 |`api`|`create_app`|
+|`backup`|`Snapshot`, `make_snapshot`|
 |`providers`|`EnableBankingClient`, `ConsentExpiredError`, `normalize_transaction`, `normalize_account`, `iban_of`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
 |`cli`|`main`, `build_parser`|
@@ -433,26 +437,56 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   session metadata still said `AUTHORIZED` while `/transactions` returned
   401/403, and its session listing still answered with four uids. Sync reports
   the error and continues with the other accounts, and the import path stays the
-  recovery when the bank cannot be reached at all. Renewing means the browser
-  flow again (`/connect?bank=FinecoBank&country=IT`), and it only completes when
-  three URLs agree: the address the browser reaches, `redirect_url` in
-  `accounts.json`, and the callback registered in the Enable Banking dashboard.
+  recovery when the bank cannot be reached at all. Renewing means the wizard
+  again — **Configurazione** in the drawer starts at *Conti*, and *Banca* is one
+  tap back (`POST /api/setup/connect`) — or
+  `<that address>/connect?bank=FinecoBank&country=IT`, which is the same
+  authorization at the URL level for a script or a bookmark. Either way it only
+  completes when three URLs agree: the address the browser reaches, `redirect_url`
+  in `accounts.json`, and the callback registered in the Enable Banking dashboard.
   The live file still points at `<tailnet>:3000/callback`, the port of the Flask
-  app this one replaced, where nothing listens — which is why a renewal cannot
-  finish today. Tailscale serves it as
+  app this one replaced, where nothing listens; the wizard's credentials step is
+  what rewrites it, from the origin the browser is on, and registering the derived
+  address in the dashboard stays manual. Tailscale serves it as
   `https://<node>.<tailnet>.ts.net/callback` (`tailscale serve --bg
   localhost:8000`).
-- **`accounts.json` is read at startup per command** and still carries the
-  Enable Banking credentials and account list. The `actual` section is gone.
-  The `/connect` and `/callback` endpoints write into it (so the container mounts
-  it writable), and every other reader only reads it. `save_account` keys on the
-  account **uid**: a session id changes at every authorization while the uid does
-  not, so a renewed consent *refreshes* the entry in place — keeping `notes`,
-  which is the name the ledger knows the account by, and `start_sync_date`, which
-  is the history it already imported — and only an account never seen before is
-  added. Keying on the (session, uid) pair appended a second entry for the same
-  account, which the ledger, matching by name, then merged into one account and
-  re-imported the history under.
+- **`accounts.json` has two writers, and neither is the only one.** The OAuth
+  callback appends and refreshes entries: `save_account` keys on the account
+  **uid** — a session id changes at every authorization while the uid does not, so
+  a renewed consent *refreshes* the entry in place, keeping `notes`, which is the
+  name the ledger knows the account by, and `start_sync_date`, which is the history
+  it already imported, and only an account never seen before is added. Keying on
+  the (session, uid) pair appended a second entry for the same account, which the
+  ledger, matching by name, then merged into one account and re-imported the
+  history under. The setup screen writes credentials and curates the same entries
+  (`save_credentials`, `rename_account`, `remove_account`, behind `/api/setup`),
+  and the two go through `_read_document` / `_write_document`, which read the file
+  as the document it is and write it back — so a key nobody in the app knows about,
+  the hand-written `passthrough` declarations for one, survives every write, and
+  hand-editing stays possible because each command still reads the file at
+  startup. The `actual` keys the old connector left in the file are ignored, and
+  a write does not remove them: nothing reads them and nothing tidies them.
+- **The private key is written and never read back.** `save_credentials` writes the
+  pasted PEM to `pem_path` — resolved relative to the configuration file,
+  `./private.pem` by default, so the same file works in the checkout and behind
+  the container's `/config` mount — and chmods it 0600, refusing a payload that
+  does not load as a private key before anything is written. `setup_state` answers
+  `key_loads`, whether the file on disk loads as one, and `load_config` hands the
+  path to the Enable Banking client. No endpoint returns the key and nothing logs
+  it: the file is the only copy.
+- **A snapshot is taken with SQLite's API, never by copying the file, and it is
+  not a backup until it leaves the machine.** `amonhen backup` runs
+  `Connection.backup` against the living database because the server may be
+  writing while the cron runs, and a torn file copy that looks like a backup is
+  the failure worth designing out; it writes a hidden `.partial` folder and renames
+  it only at the end, so a run that dies leaves nothing that retention would count.
+  The snapshot carries `accounts.json` and the key `pem_path` names, because a
+  ledger without the configuration that names its sessions is not restorable, and
+  the count it refuses on is zero accounts — `sqlite3.connect` creates an empty
+  database, so a wrong `--db` would otherwise snapshot one and report success. What
+  it does **not** do is get itself off the NAS: the folder is on the same disks as
+  the ledger, and pointing the NAS's own backup tool at `backups/` is what makes it
+  survive a disk.
 - **Fixtures are anonymized real payloads.** Never commit raw dumps under
   `dumps/` (gitignored) or add real names, IBANs or amounts to
   `tests/fixtures/`. Regenerate with `tools/anonymize_dump.py`.
@@ -473,17 +507,19 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   change does: `npm --prefix web run build`, then restart. The handshake
   (`API_VERSION` / `REQUIRED_API_VERSION`) is what makes the app say the server
   is stale instead of rendering nothing.
-- **The Docker image cannot be built on this machine.** The Docker CLI and
-  compose are installed but the Linux engine is not running, so `docker build`
-  has never been exercised here. What can be checked locally is checked: `docker
-  compose config` resolves the image (with and without `AMONHEN_TAG`) and
-  `npm ci` + `npm run build` are the same commands CI runs. The image itself is
-  built by `.github/workflows/image.yml` on a `v*` tag, linux/amd64, after
-  `pytest` and the bundle build pass, and published as
-  `ghcr.io/lucapaganin/amonhen:<tag>` and `:latest` — the lower-case name has to
-  match `image:` in `docker-compose.yaml`, or the NAS pulls nothing. Keep the
-  `uv` image tag in the Dockerfile at the version that wrote `uv.lock`: the lock
-  is revision 3 and older uv binaries refuse to read it.
+- **The image builds here now, and the build has to run inside WSL.** The Linux
+  engine is Docker Desktop's and its WSL integration is what makes `docker build`
+  and a bind mount behave like the NAS: `tools/rehearse_local.sh` builds the image
+  from the checkout, serves Enable Banking from `tools/eb_stub.py`, and walks the
+  wizard, the snapshot and the restore. Run it from a WSL shell and not from a
+  Windows one — on a Windows path Docker Desktop makes up the bind-mount
+  ownership, so the check that a `/config` owned by someone else is *refused*
+  stops meaning anything. The image the NAS pulls is still CI's:
+  `.github/workflows/image.yml` on a `v*` tag, linux/amd64, after `pytest` and the
+  bundle build pass, published as `ghcr.io/lucapaganin/amonhen:<tag>` and `:latest`
+  — the lower-case name has to match `image:` in `docker-compose.yaml`, or the NAS
+  pulls nothing. Keep the `uv` image tag in the Dockerfile at the version that
+  wrote `uv.lock`: the lock is revision 3 and older uv binaries refuse to read it.
 - **The suite keeps its own configuration.** `tests/fixtures/config/minimal.json`
   is what the API and CLI tests point their app at, and `.env` is never read by a
   test: the defaults are the operator's `accounts.json` and `.env`, neither of
@@ -595,6 +631,8 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
 |Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|
 |Deploy a new image to the NAS|Tag `v*` and let CI publish, then `docker compose pull && docker compose up -d` on the NAS (the NAS needs no checkout)|
+|Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|
+|Rehearse the first start before the NAS does|`tools/rehearse_local.sh` inside WSL: it builds from the checkout, serves `tools/eb_stub.py` as the bank, and prints what to walk in the browser|
 |Add a bank's CSV layout|Add a `CsvProfile` in `adapters/csv_adapter.py` plus a synthetic fixture|
 |Reset an account|Delete its rows / the database file, then `sync` and `import` again|
 |Re-derive the opening balance|`uv run amonhen balances` then `uv run amonhen anchor`|

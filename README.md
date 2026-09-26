@@ -65,6 +65,7 @@ uv run python -m amonhen balances        # record the balances the bank declares
 uv run python -m amonhen anchor --account "Revolut personale" --as-of 2026-09-12
 uv run python -m amonhen balance-check --account "Revolut personale" --as-of 2026-09-12
 uv run python -m amonhen validate        # every transaction must balance
+uv run python -m amonhen backup --dest backups --keep 14   # snapshot the ledger and its configuration
 uv run python -m amonhen daemon --interval-hours 6   # sync loop
 uv run python -m amonhen serve --sync-interval-hours 6   # API + PWA + sync
 uv run python -m amonhen rule-add "addebito sdd" "Bollette"   # a text the description contains
@@ -403,14 +404,18 @@ it is off, and nothing else in the app depends on it.
 The NAS does not need this repository. The image is built by CI and published to
 GHCR when a `v*` tag is pushed (`.github/workflows/image.yml`, `linux/amd64`,
 after `pytest` and the bundle build pass); the NAS pulls it and runs it. What the
-NAS carries is four small files and the ledger.
+NAS carries is two small files, the configuration folder and the ledger.
 
 ```bash
 # Once, on the NAS, in a directory of its own (e.g. /volume1/docker/amonhen):
 ssh nas mkdir -p /volume1/docker/amonhen
 scp docker-compose.yaml nas:/volume1/docker/amonhen/
 scp .env.example        nas:/volume1/docker/amonhen/.env    # then edit it
-scp accounts.json private.pem nas:/volume1/docker/amonhen/  # kept from before, if the app ran here
+ssh nas 'cd /volume1/docker/amonhen && mkdir -p config backups && chown 10001:10001 config backups'
+
+# A deployment from before the config folder existed carries the two files in the
+# compose directory instead: move them in, and let the container write there.
+ssh nas 'cd /volume1/docker/amonhen && mkdir -p config && mv accounts.json private.pem config/ && chown 10001:10001 config'
 
 # At every deploy, on the NAS:
 cd /volume1/docker/amonhen
@@ -418,6 +423,13 @@ docker compose pull
 docker compose up -d
 docker compose logs -f amonhen
 ```
+
+`docker compose up -d` no longer needs `accounts.json` and `private.pem` to exist
+first: compose mounts the folder, and the wizard writes both files into it. Docker
+creates a missing bind-mount target as the host's root, so a fresh install on a
+Linux NAS still wants `mkdir -p config backups && chown 10001:10001 config backups`
+before the first `up -d`, or the setup screen cannot write its own configuration
+and the nightly snapshot cannot be written either.
 
 `AMONHEN_TAG` in `.env` decides which image runs: a version tag pins a deploy,
 `latest` follows the newest one. Rolling back is editing that line and pulling
@@ -440,22 +452,27 @@ docker run -d --name amonhen --restart unless-stopped \
   -e AMONHEN_HOST=0.0.0.0 -e AMONHEN_DB_PATH=/data/amonhen.db \
   -e AMONHEN_CONFIG_FILE=/config/accounts.json \
   -v amonhen-data:/data \
-  -v "$PWD/accounts.json:/config/accounts.json" \
-  -v "$PWD/private.pem:/config/private.pem:ro" \
+  -v "$PWD/config:/config" \
+  -v "$PWD/backups:/backups" \
   -p 127.0.0.1:8000:8000 \
   ghcr.io/lucapaganin/amonhen:${AMONHEN_TAG:-latest}
 ```
 
 What it mounts, and why:
 
-- `./accounts.json` → `/config/accounts.json`, **writable**: `/callback` writes a
-  new authorization there.
-- `./private.pem` → `/config/private.pem`, read-only. `pem_path` is resolved
-  relative to the config file, so the same `accounts.json` works in the checkout
-  and behind the mount.
+- `./config` → `/config`, **writable**: the whole folder rather than the two
+  files, because on a first start neither exists yet and the app writes its own
+  `accounts.json` and `private.pem` there — the setup wizard writes the
+  credentials and the key, the OAuth callback writes the authorization.
+  `pem_path` is resolved relative to the configuration file, so the key is found
+  beside it, and the same file works in the checkout and behind the mount.
 - the volume `amonhen-data` → `/data`, where `AMONHEN_DB_PATH` points. That
   variable is also what keeps the ledger somewhere the `amonhen` user can write:
   a bare `docker run` without it defaults the database inside `/app`.
+- `./backups` → `/backups`, **writable**: where `amonhen backup` writes its dated
+  snapshots. A bind mount and not a volume, because the point of a snapshot is
+  that something outside this container reads it — the NAS backup job that
+  carries it off the machine sees a folder on the host.
 - `web/dist` is built inside the image, so the API serves the PWA itself.
 
 The port is published on `${AMONHEN_BIND_ADDRESS:-127.0.0.1}:8000`: the container
@@ -473,13 +490,66 @@ The image declares a `HEALTHCHECK` on `/api/health`, so `docker ps` says
 crashed one without a shell on the NAS. The Python and the bundle live in the
 image, so a code change means a new image, a `docker compose pull` and an `up -d`.
 
-Two mounts carry state and one is written to while the app runs: `/data` holds the
-ledger, `/config` holds `accounts.json`, and the container's user (uid 10001) must
-be able to **write the file** — the OAuth callback rewrites it. The image creates
-both directories owned by that user, but a bind-mounted file keeps the host's own
-mode: on a Linux NAS make it writable by 10001 (`chown 10001:10001 accounts.json`,
-or `chmod 664` with the container's group), or `/callback` will fail with a
+Three mounts carry state: `/data` holds the ledger, `/config` holds
+`accounts.json` and the key beside it, and `/backups` holds the snapshots. The
+container's user (uid 10001) must be able to **write in the last two** — the setup
+wizard writes both files and the OAuth callback rewrites the configuration, and the
+backup command writes a folder per run. The image creates all three directories
+owned by that user, but a bind mount keeps the host's own ownership and mode: on a
+Linux NAS make those folders writable by 10001 (`chown 10001:10001 config backups`,
+or `chmod 775` with the container's group), or the wizard's save will fail with a
 permission error while everything else works.
+
+### Backup and restore
+
+`amonhen backup` copies the ledger and the configuration into a folder named after
+the moment it ran:
+
+```bash
+# Inside the container, from the compose directory on the NAS:
+docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
+# /volume1/docker/amonhen/backups/2026-09-26T101500Z/
+#   amonhen.db  accounts.json  private.pem  manifest.json
+```
+
+The copy of `amonhen.db` is made with SQLite's own backup API, not by reading the
+file: the app may be writing when the snapshot runs, and a file copy taken then can
+be torn — a backup that looks like one and holds half a transaction is worse than
+no backup. `manifest.json` records when it was taken, where the database came from,
+its sha256, the row counts and which configuration files it carries; `--keep` is
+what stops the folder from growing forever, and `--keep 0` prunes nothing. The
+command refuses to snapshot a ledger with no accounts in it, because a wrong `--db`
+would otherwise produce a successful-looking backup of an empty database that
+`sqlite3.connect` had just created.
+
+On the NAS it is a cron entry, which is also the whole of what "nightly backup"
+means here:
+
+```cron
+15 3 * * *  cd /volume1/docker/amonhen && docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
+```
+
+**A snapshot on the NAS is not yet a backup**: it is on the same disks as the
+ledger. Getting it off the machine is the NAS's own job — point its backup tool at
+`/volume1/docker/amonhen/backups` — or, by hand:
+
+```bash
+docker compose cp amonhen:/backups/2026-09-26T101500Z .
+```
+
+To go back to one, stop the app first: stopping is what closes the database, so
+nothing is being written while the copy lands.
+
+```bash
+cd /volume1/docker/amonhen
+docker compose stop amonhen
+docker compose run --rm --no-deps --user root --entrypoint sh amonhen \
+  -c 'cp /backups/2026-09-26T101500Z/amonhen.db /data/amonhen.db && chown 10001:10001 /data/amonhen.db'
+docker compose up -d amonhen
+```
+
+The configuration is restored the same way, into `/config`, and its files have to
+end up owned by 10001 again.
 
 The image defaults the two state paths (`/data/amonhen.db`, `/config/accounts.json`),
 so a bare `docker run` with nothing but the config mount comes up instead of dying on
@@ -501,6 +571,48 @@ docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
 The two files leave the same container behind, under the same image name, so a
 locally built image and a pulled one are interchangeable.
 
+### Trying the first start before the NAS
+
+The first start is the one thing the NAS cannot rehearse for you: the wizard writes
+into a mounted folder, and a folder whose ownership is wrong fails there and only
+there. `tools/rehearse_local.sh` reproduces that shape on a development machine —
+the image built from the checkout, a configuration folder the host owns, the ledger
+volume, the wizard — and answers Enable Banking's routes from the anonymized
+fixtures in `tests/fixtures/enable_banking`, so no real consent is spent and the
+bank's dashboard is not touched.
+
+```bash
+# Inside WSL, with Docker Desktop running and WSL integration on for the distro:
+tools/rehearse_local.sh                 # --target DIR, --port 8000, --force
+```
+
+The port has to be free, and that is not a formality: on Docker Desktop a container
+publishing `127.0.0.1:8000` does not fail while something else holds `0.0.0.0:8000`,
+and the browser's loopback then answers from the container — a fresh wizard drawn
+over a running, configured app, which reads as lost data. The script asks Windows
+(`netstat.exe`) and refuses a port that is already listening; rehearsing next to a
+local `serve` therefore means `--port 8124`.
+
+It runs inside WSL on purpose: only there does a bind mount carry the POSIX
+ownership the NAS has, which is what the first check reads — writing into `/config`
+must be **refused** before the `chown 10001:10001` and allowed after. On a Windows
+path Docker Desktop makes that ownership up, the write succeeds, and the script
+says so instead of pretending the check passed.
+
+It leaves the working tree alone: the checkout is copied to `$HOME/amonhen-rehearsal`
+(on Linux filesystem, not the Windows one), and that folder is the whole footprint.
+Walking it is done when the wizard, the sync, the snapshot and the restore have been
+through once; the script prints the teardown at the end, and it has one step that is
+easy to miss — the configuration and the snapshots belong to the container's user, so
+they have to be emptied from inside the image before the folder can go:
+
+```bash
+cd $HOME/amonhen-rehearsal/deploy
+docker compose run --rm --no-deps --user root --entrypoint sh amonhen -c 'rm -rf /config/* /backups/*'
+docker compose down -v
+rm -rf $HOME/amonhen-rehearsal
+```
+
 ## Layout
 
 |Path|Role|
@@ -520,9 +632,10 @@ locally built image and a pulled one are interchangeable.
 |`amonhen/suggestions.py`|Optional LLM proposals for unseen merchants|
 |`amonhen/assistant.py`|Desiderata 5.9: a reading of the numbers already computed, and the guards on it|
 |`amonhen/api.py`|FastAPI surface and PWA host|
+|`amonhen/backup.py`|Dated, consistent snapshots of the ledger and its configuration|
 |`amonhen/cli.py`|`python -m amonhen`|
 |`web/`|React PWA source (built to `web/dist`, served by the API)|
-|`tools/`|Raw dump probe and the fixture anonymizer|
+|`tools/`|Raw dump probe, the fixture anonymizer, the fake Enable Banking API and the Docker rehearsal|
 |`tests/fixtures/`|Anonymized Enable Banking fixtures and synthetic import fixtures|
 
 ## Known limitations
@@ -583,3 +696,4 @@ from raw dumps.
 |UI|Dashboard filters (period, accounts, category) and the Conti section: accounts, declared balances, budgets|done|
 |5|Assistant (§5.9): a prose reading of the computed series, with proposals to confirm|done|
 |6|Sync button, a local note on a movement, deletion with tombstone and trash, per-account reimport flag|done|
+|7|First setup guided by the app (§5.10), backup and restore (§5.11), the local Docker rehearsal|done|

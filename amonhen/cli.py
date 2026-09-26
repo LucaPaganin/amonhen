@@ -1,13 +1,15 @@
-"""Command line entry point: sync, import, balances and the spend query."""
+"""Command line entry point: sync, import, balances, backup and the spend query."""
 import argparse
 import calendar
 import datetime as dt
 import logging
+import sqlite3
 import sys
 import time
 from decimal import Decimal
 from pathlib import Path
 
+from amonhen.backup import make_snapshot
 from amonhen.config import load_config
 from amonhen.ledger import Ledger, balance_kind
 from amonhen.merchants import RuleBook, categorize, rule_usage
@@ -32,6 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("sync", help="fetch every configured account into the ledger")
     sub.add_parser("validate", help="assert that every transaction balances")
+
+    backup = sub.add_parser("backup", help="snapshot the ledger and its configuration")
+    backup.add_argument("--dest", required=True, help="directory the snapshot is written into")
+    backup.add_argument("--keep", type=int, default=14,
+                        help="how many snapshots to keep (0 disables)")
     sub.add_parser("categorize", help="apply the rules to the movements still in the queue")
 
     serve = sub.add_parser("serve", help="run the HTTP API and the PWA")
@@ -182,6 +189,32 @@ def cmd_validate(ledger: Ledger, args) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print("ok: every transaction balances")
+    return 0
+
+
+def cmd_backup(ledger: Ledger, args) -> int:
+    """Write one snapshot, and refuse to write one of an empty ledger.
+
+    `main` opens the database before it dispatches and `sqlite3.connect` creates
+    a file that is not there, so a wrong `--db` would otherwise snapshot a ledger
+    born empty that second and report success. A backup that claims to have
+    worked and holds nothing is the failure worth refusing.
+    """
+    if ledger.conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 0:
+        print("the ledger has no accounts: nothing to snapshot", file=sys.stderr)
+        return 1
+    try:
+        snapshot = make_snapshot(
+            ledger.conn, args.dest, config_file=args.config, keep=args.keep
+        )
+    except (sqlite3.Error, OSError) as exc:
+        print(f"backup failed: {exc}", file=sys.stderr)
+        return 1
+    kept = f", kept {args.keep}" if args.keep > 0 else ""
+    print(
+        f"snapshot: {snapshot.path} — {snapshot.accounts} accounts, "
+        f"{snapshot.transactions} movements{kept}"
+    )
     return 0
 
 
@@ -616,6 +649,7 @@ HANDLERS = {
     "sync": cmd_sync,
     "daemon": cmd_daemon,
     "validate": cmd_validate,
+    "backup": cmd_backup,
     "categorize": cmd_categorize,
     "serve": cmd_serve,
     "rules": cmd_rules,

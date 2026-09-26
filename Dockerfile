@@ -28,7 +28,8 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project \
     && useradd --create-home --uid 10001 --shell /usr/sbin/nologin amonhen \
     && install --directory --owner=amonhen --group=amonhen /data \
-    && install --directory --owner=amonhen --group=amonhen /config
+    && install --directory --owner=amonhen --group=amonhen /config \
+    && install --directory --owner=amonhen --group=amonhen /backups
 
 COPY amonhen ./amonhen
 COPY --from=web /web/dist ./web/dist

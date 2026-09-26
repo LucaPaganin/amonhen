@@ -1,5 +1,7 @@
 """CLI end to end on a temporary ledger; no network, no real data."""
 import datetime as dt
+import hashlib
+import json
 from pathlib import Path
 
 from amonhen.cli import main
@@ -266,3 +268,109 @@ def test_spend_defaults_to_last_month(tmp_path, capsys):
     first_of_this_month = today.replace(day=1)
     previous = first_of_this_month - dt.timedelta(days=1)
     assert f"{previous.year:04d}-{previous.month:02d}-01" in out
+
+
+def test_backup_writes_a_snapshot_that_reads_back(tmp_path, capsys):
+    """The snapshot is a ledger, not a file: every command works on it."""
+    export = make_export(tmp_path)
+    db = tmp_path / "ledger.db"
+    run(db, "account-add", "Revolut", "--opening", "0.00", "--opening-date", "2026-08-01")
+    run(db, "import", str(export), "--account", "Revolut", "--profile", "actual")
+    dest = tmp_path / "backups"
+    capsys.readouterr()
+
+    assert run(db, "backup", "--dest", str(dest)) == 0
+
+    assert "3 movements" in capsys.readouterr().out
+    snapshots = list(dest.iterdir())
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert (snapshot / "amonhen.db").is_file()
+    assert (snapshot / "manifest.json").is_file()
+
+    assert run(snapshot / "amonhen.db", "validate") == 0
+    capsys.readouterr()
+    assert run(snapshot / "amonhen.db", "accounts") == 0
+    from_snapshot = capsys.readouterr().out
+    assert run(db, "accounts") == 0
+    assert from_snapshot == capsys.readouterr().out
+    assert "Revolut" in from_snapshot
+
+
+def test_backup_copies_the_configuration_and_hashes_what_it_wrote(tmp_path, capsys):
+    """A ledger without the accounts.json that names its sessions is not restorable."""
+    db = tmp_path / "ledger.db"
+    run(db, "account-add", "Revolut")
+    key = tmp_path / "private.pem"
+    key.write_text("-----BEGIN PRIVATE KEY-----\nnot a real key\n", encoding="utf-8")
+    config = tmp_path / "accounts.json"
+    config.write_text(json.dumps({"pem_path": "private.pem", "accounts": []}), encoding="utf-8")
+    dest = tmp_path / "backups"
+    capsys.readouterr()
+
+    # `run` puts the fixture configuration before the subcommand; this one is
+    # passed where argparse reads it, in the global option group.
+    assert main(["--db", str(db), "--config", str(config), "backup", "--dest", str(dest)]) == 0
+
+    snapshot = next(dest.iterdir())
+    assert (snapshot / "accounts.json").read_bytes() == config.read_bytes()
+    assert (snapshot / "private.pem").read_bytes() == key.read_bytes()
+    manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["configuration"] == ["accounts.json", "private.pem"]
+    assert manifest["accounts"] == 1
+    written = (snapshot / "amonhen.db").read_bytes()
+    assert manifest["db_sha256"] == hashlib.sha256(written).hexdigest()
+
+
+def test_backup_keeps_the_newest_and_refuses_an_empty_ledger(tmp_path, capsys):
+    import sqlite3
+
+    from amonhen.backup import make_snapshot
+    from amonhen.db import open_ledger_db
+
+    db = tmp_path / "ledger.db"
+    run(db, "account-add", "Revolut")
+    capsys.readouterr()
+    dest = tmp_path / "backups"
+    ten_oh_one = dt.datetime(2026, 9, 26, 10, 1, tzinfo=dt.timezone.utc)
+
+    conn = open_ledger_db(db)
+    try:
+        make_snapshot(conn, dest, now=dt.datetime(2026, 9, 26, 10, 0, tzinfo=dt.timezone.utc))
+        newest = make_snapshot(conn, dest, keep=1, now=ten_oh_one)
+        # keep=0 is what the default does not do: leave everything in place.
+        keep_all = tmp_path / "keep-all"
+        make_snapshot(conn, keep_all, now=dt.datetime(2026, 9, 26, 10, 0, tzinfo=dt.timezone.utc))
+        make_snapshot(conn, keep_all, now=ten_oh_one)
+        # A stamp older than one already in the folder must not cost the snapshot
+        # just written: retention holds that folder back from the comparison.
+        backwards = tmp_path / "backwards"
+        make_snapshot(conn, backwards, now=ten_oh_one)
+        older = make_snapshot(
+            conn, backwards, keep=1, now=dt.datetime(2026, 9, 26, 10, 0, tzinfo=dt.timezone.utc)
+        )
+        # A run that dies halfway must leave no folder that looks like a
+        # snapshot, and must not touch the ones already there.
+        dead = open_ledger_db(db)
+        dead.close()
+        try:
+            make_snapshot(dead, dest, now=dt.datetime(2026, 9, 26, 10, 2, tzinfo=dt.timezone.utc))
+        except sqlite3.Error:
+            pass
+        else:
+            raise AssertionError("expected a closed connection to fail the copy")
+    finally:
+        conn.close()
+
+    assert [entry.name for entry in dest.iterdir()] == [newest.path.name]
+    assert newest.created_at == "2026-09-26T10:01:00Z"
+    assert older.path.is_dir()
+    assert [entry.name for entry in backwards.iterdir()] == [older.path.name]
+    assert sorted(entry.name for entry in keep_all.iterdir()) == [
+        "2026-09-26T100000Z",
+        "2026-09-26T100100Z",
+    ]
+
+    assert run(tmp_path / "empty.db", "backup", "--dest", str(tmp_path / "nowhere")) == 1
+    assert "no accounts" in capsys.readouterr().err
+    assert not (tmp_path / "nowhere").exists()
