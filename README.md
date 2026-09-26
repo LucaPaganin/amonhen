@@ -97,9 +97,11 @@ The app has five sections in the bottom bar, reachable in one tap there or from 
 top bar; the drawer it opens names each section in full, says what the section holds and carries the
 count of what is waiting, which is more than a fifth of the screen can, and adds the two sections
 with no column there — **Assistente** and **Configurazione**, the setup wizard (see *Connecting a
-bank*). The wizard is what a fresh install opens on: with nothing configured it replaces the app
-shell and starts at the first step whose requirement is unmet, and `?setup=1` in the address forces
-it open, which is how the browser comes back from a bank. Afterwards the same entry is where a bank
+bank*). Above 1024 px both of those surfaces are off and the same list stands up as a rail down the
+left, with all seven sections named in full. The wizard is what a fresh install opens on: with
+nothing configured it replaces the app shell and starts at the first step whose requirement is
+unmet, and `?setup=1` in the address forces it open, which is how the browser comes back from a
+bank. Afterwards the same entry is where a bank
 is added or a consent renewed.
 
 The app opens on the **Dashboard**, which is built around one priority: the charts

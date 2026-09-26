@@ -73,6 +73,13 @@
      perché sono la cornice di questa colonna e non due misure a caso. */
   --shell: 720px;
 
+  /* Quanto è largo il rail sopra i 1024: il contenuto gli si sposta accanto
+     invece di finirci sotto, e la finestra si stringe di tanto. 248 e non 232:
+     con 232 la voce più lunga con il badge addosso ("Da confermare" più il
+     contatore della coda, la sola che ne ha uno) chiedeva 115 px in 109 e
+     andava a capo, lasciando "Da" da solo su una riga. */
+  --rail: 248px;
+
   /* Una lastra sta su di un filo di luce e su un alone basso: la profondità sta
      lì, ora che non c'è più un bordo a disegnarla. */
   --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 18px 38px -26px rgba(2, 3, 10, 0.95);
@@ -495,7 +502,11 @@ input:not([type="checkbox"]):not([type="radio"]) {
   list-style: none;
 }
 
-.drawer__item {
+/* La voce di una lista di sezioni — icona, nome per esteso, il badge di quello
+   che aspetta. È la stessa nel cassetto e nel rail, che sono due forme della
+   stessa lista; la barra in basso ha invece la sua voce, compatta, perché lì il
+   nome intero non ci sta. */
+.navitem {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -512,37 +523,41 @@ input:not([type="checkbox"]):not([type="radio"]) {
 }
 
 /* La sezione aperta è una pillola di luce, non un blocco con un contorno. */
-.drawer__item[aria-current="page"] {
+.navitem[aria-current="page"] {
   background: linear-gradient(135deg, rgba(240, 208, 138, 0.22), rgba(240, 208, 138, 0.08));
   color: var(--text);
 }
 
-.drawer__item[aria-current="page"] .navicon {
+.navitem[aria-current="page"] .navicon {
   color: var(--accent);
 }
 
-.drawer__item .navicon {
+.navitem .navicon {
   width: 20px;
   height: 20px;
 }
 
-.drawer__text {
+.navitem__text {
   display: flex;
   flex-direction: column;
 }
 
-.drawer__label {
+.navitem__label {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--text-ui);
   font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.drawer__hint {
+.navitem__hint {
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: 1.3;
 }
 
-.drawer__count {
+.navitem__count {
   margin-left: auto;
   min-width: 24px;
   padding: 2px 9px;
@@ -553,6 +568,14 @@ input:not([type="checkbox"]):not([type="radio"]) {
   font-weight: 800;
   line-height: 18px;
   text-align: center;
+}
+
+/* Il rail: la stessa lista di sezioni, in piedi, per una finestra larga. Sopra i
+   1024 prende il posto della barra in basso; sotto non esiste — è questa regola
+   a spegnerlo, e la forma visibile gliela dà la sezione del desktop in fondo al
+   foglio. */
+.apprail {
+  display: none;
 }
 
 .tabbar {
@@ -2359,6 +2382,79 @@ button.txn:active {
     --shell: 1100px;
   }
 
+  /* Il rail prende il posto della barra in basso, e la finestra si stringe di
+     quello che occupa: `.app` sposta il contenuto della larghezza del rail a
+     destra, e da lì la colonna si centra nello spazio che resta invece che nella
+     finestra. Solo dove il rail c'è: il primo avvio, il caricamento e la
+     schermata del server vecchio disegnano `.app` senza navigazione, e senza il
+     `:has` il wizard di un desktop si presenterebbe spostato a destra, con una
+     fascia vuota a sinistra dove nessun rail è stato disegnato.
+     La fascia alta è `fixed` e il padding di `.app` non la tocca, quindi il suo
+     `left` ripete la misura: la pillola in alto resta sopra la colonna che
+     incornicia, come il resto della cornice. */
+  .app:has(.apprail) {
+    padding-left: var(--rail);
+  }
+
+  .appbar {
+    left: var(--rail);
+  }
+
+  /* Il rail: la vetrata della barra in basso, in piedi, da un capo all'altro
+     della finestra. Le voci sono quelle del cassetto (`navitem`), quindi la
+     sezione aperta si segna come ovunque e il badge della coda è lo stesso. */
+  .apprail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 11;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: var(--rail);
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px
+      calc(env(safe-area-inset-bottom, 0px) + 14px);
+    overflow-y: auto;
+    border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+    background: var(--chrome);
+    backdrop-filter: blur(20px) saturate(1.3);
+    box-shadow: var(--shadow-float);
+  }
+
+  /* La stessa voce del cassetto, con lo stato che il rail si può permettere: è
+     la forma che esiste solo su una finestra, dove il puntatore è la norma. La
+     barra e il cassetto sono le forme del telefono e restano come sono; la
+     condizione vera è comunque quella del media, non il rail. */
+  @media (hover: hover) and (pointer: fine) {
+    .apprail .navitem:hover {
+      background: var(--fill-2);
+    }
+  }
+
+  /* Il cassetto e la barra in basso sono le due forme del telefono, e qui le
+     sezioni sono il rail: spengo il pulsante, il pannello e la barra insieme,
+     perché una finestra che si allarga mentre il cassetto è aperto non deve
+     ritrovarselo in mezzo. */
+  .appbar__menu,
+  .drawer,
+  .tabbar {
+    display: none;
+  }
+
+  /* La barra in basso non c'è più: la prenotazione che le riservava il fondo
+     sarebbe una fascia vuota alta 92 px. */
+  .app__main {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+  }
+
+  /* L'avviso è sullo stesso asse del contenuto, e senza la barra sotto scende
+     dove deve stare. */
+  .toast {
+    left: calc(var(--rail) + 14px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  }
+
   /* La schermata diventa una griglia di due colonne, e chi non ha un compagno
      le occupa entrambe: l'intestazione, i filtri, le liste, le tessere. */
   .screen {
@@ -2407,6 +2503,26 @@ button.txn:active {
   .assistant__answer,
   .chart-note,
   .screen__subtitle {
+    max-width: 72ch;
+  }
+
+  /* E un campo di testo non è una pagina: largo quanto una domanda, non quanto
+     la finestra. Il setup è un modulo, non una schermata di dati, quindi è la
+     sua colonna intera a restare stretta e a centrarsi come le altre: a 1484 la
+     colonna portava l'Application ID a 1214 px — centocinquanta caratteri su una
+     riga per un identificativo — dentro una scheda larga uguale e vuota per metà. */
+  .screen:has(.stepper) {
+    max-width: 720px;
+    margin-inline: auto;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    max-width: 640px;
+  }
+
+  .hint {
     max-width: 72ch;
   }
 }

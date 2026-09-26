@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.5 — settembre 2026
+Versione 1.6 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -66,6 +66,16 @@ l'immagine costruita dal checkout, la cartella di configurazione con la propriet
 che ha il NAS, il wizard percorso contro una banca finta che serve le fixture
 anonimizzate — perché il primo avvio non si prova la prima volta sul NAS e il
 ripristino non si prova la prima volta che serve.*
+*1.6 · il desktop smette di essere un telefono largo: sopra i 1024 px la colonna
+di contenuto si prende lo spazio che la finestra ha (1100, e 1240 da 1440) invece
+di restare 720 px in mezzo al vuoto, il cruscotto affianca i due grafici del
+periodo, la coda va a due colonne e poi a tre, e da 1440 le otto tessere stanno
+su una riga. Le sezioni smettono di essere una pillola in fondo alla finestra: la
+stessa lista sale in un rail laterale, che sostituisce la barra in basso e il menu
+— le due vie di §0.4 restano quelle del telefono, che sotto i 1024 px è ancora la
+forma dell'app. E il contenuto non si allarga fino a sciogliere ciò che è stretto
+per natura: i paragrafi tengono le 72 battute di una riga di libro, e il setup,
+che è un modulo, resta una colonna.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`

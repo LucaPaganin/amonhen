@@ -1,8 +1,9 @@
 # AmonHen — PWA
 
 Mobile-first React PWA over the `amonhen` FastAPI backend. Five screens in the bottom bar,
-reachable from there or from the hamburger in the top bar, plus the drawer entries with no
-column for them — **Assistente** (its own section below) and **Configurazione**, the setup wizard:
+reachable from there or from the hamburger in the top bar — and above 1024 px from the rail, which
+carries all seven — plus the drawer entries with no column for them — **Assistente** (its own
+section below) and **Configurazione**, the setup wizard:
 
 - **Da confermare** — the review queue: the merchant proposals to accept or dismiss, each with the
   spending it would settle (amount, movements, span), the candidate
@@ -36,14 +37,17 @@ The review screen can run the categorization cascade
 
 ## Navigation
 
-Two paths into the same `onChange`: the bottom bar switches a section in one tap, and the hamburger
-in the top bar opens a drawer that names each section in full, says what it holds and carries the
-count of what is waiting. The drawer closes on a choice, on Escape and on the backdrop, keeps focus
-inside itself while open, is `inert` while shut — nothing in it is a tab stop off screen — and hands
-focus back to the hamburger when it closes. The sections and their icons are declared once, in
-`src/components/Navigation.tsx`, and both paths render from that list; **Assistente** and
-**Configurazione** are `inBar: false`, because seven labels do not fit the bar's five columns and
-the drawer names each of them in full.
+Three paths into the same `onChange`, two of them the phone's: the bottom bar switches a section in
+one tap, and the hamburger in the top bar opens a drawer that names each section in full, says what
+it holds and carries the count of what is waiting. The drawer closes on a choice, on Escape and on
+the backdrop, keeps focus inside itself while open, is `inert` while shut — nothing in it is a tab
+stop off screen — and hands focus back to the hamburger when it closes. Above 1024 px both of those
+surfaces are off and the rail takes over: the same list standing up in a 248 px column down the
+left, full height, every section named in full, the current one marked with `aria-current="page"`.
+The sections and their icons are declared once, in `src/components/Navigation.tsx`, and all three
+paths render from that list — the rail and the drawer share the item itself (`.navitem`).
+**Assistente** and **Configurazione** are `inBar: false`, because seven labels do not fit the bar's
+five columns and the drawer names each of them in full.
 
 ## Assistente
 
@@ -68,8 +72,8 @@ and *Regge?* on a budget row open it with that figure as the context (`POST /api
 ## Configurazione
 
 The setup wizard (desiderata 5.10) takes a fresh install to a reconciled ledger without a text editor,
-and it is a section of the app rather than a separate page: `Configurazione` in the drawer,
-`inBar: false`. Five steps, in this order:
+and it is a section of the app rather than a separate page: `Configurazione` in the drawer and in the
+rail, `inBar: false`. Five steps, in this order:
 
 1. **Credenziali** — the Enable Banking application id, the private key pasted as PEM, the redirect
    URL (prefilled with the one on the file, or with `window.location.origin + "/callback"` when
@@ -100,7 +104,8 @@ and it is a section of the app rather than a separate page: `Configurazione` in 
 Gating: while `GET /api/setup` answers `configured: false` the wizard replaces the app shell and
 opens at the first step whose requirement is unmet — *Credenziali* when the application id or the key
 is missing, *Banca* when only the accounts are. It stays reachable once the system is configured, from
-the same drawer entry, starting at *Conti* so a bank can be added or a consent renewed. `?setup=1` at
+the same entry — the drawer, or the rail above 1024 px — starting at *Conti* so a bank can be added
+or a consent renewed. `?setup=1` at
 boot forces it open and lands on *Conti* when `last_connect` is present: that is how the browser comes
 back from the bank, since `/callback` answers 303 to `/?setup=1` instead of a JSON document.
 
@@ -503,8 +508,9 @@ under 2 px, and at the foot of every section the last block clears the floating 
 **Above 1024 px the window gets the column it deserves.** One phone column centred in a wide window
 wastes most of it: measured before this layer existed, the column was 720 px of 1484 — 382 px empty
 per side — with every panel, card and list row 692 px wide, one per row. The cap is a single token,
-`--shell` (720 px, then 1100 from 1024, 1240 from 1440), and the top bar and the bottom bar read it
-too, because they are the frame of that column and not two unrelated measures. From 1024 the screen
+`--shell` (720 px, then 1100 from 1024, 1240 from 1440), and the top bar reads it too — the bottom
+bar below 1024, the rail's own `--rail` above — because they are the frame of that column and not
+unrelated measures. From 1024 the screen
 becomes a two-column grid, and the panels that share a row are marked where they are written
 (`panel--pair`: the two period charts, the accounts and the budgets) rather than guessed from what
 they contain — with two charts drawn instead of three, or one of the two lists missing, a guess
@@ -517,5 +523,19 @@ metric tiles fit on one row (145 px each; the longest figure asks for 103 of the
 a wide window exists for. Prose keeps a book's measure: `.chart-note`, `.screen__subtitle` and
 `.assistant__answer` cap at 72 `ch`, and at 1484 the widest note measures 72 characters a line.
 
-Below 1024 nothing moves, and that is checked rather than hoped: every visible element's box at 390
-and 768 is compared with the previous build, 526 to 796 elements per screen, and no box differs.
+**And the sections get a rail instead of a floating pill.** A bottom bar of five words in the
+middle of a window, plus a drawer for the two names that did not fit, is the phone's answer to a
+question the window already answers: from 1024 the same list stands up in a column 248 px wide
+down the left — full height, the drawer's shape (rounded on the right) and the bottom bar's glass,
+every section named in full, the queue's badge on the one that has one. 248 and not the 232 a first
+pass used: with 232 the label "Da confermare" plus the badge asked for 115 px of the 109 it had and
+wrapped, leaving "Da" alone on a line. The rail is not centred in the window, and neither is
+anything else any more: `.app` carries the rail's width as padding, so the column, the top bar, the
+toast and the space reserved at the foot (which no bar needs now) all sit on the axis to its right.
+The three shapes are one list — the item is shared by the drawer and the rail, and the bottom bar
+keeps its compact variant, which is why a two-line "Da / confermare" is right there and wrong
+here.
+
+Below 1024 nothing moves, and that is checked rather than hoped: on the same ledger, against the
+build before the change, every visible element's box at 390 and 768 is compared — 530, 796 and 278
+per screen, no box differs — and all six screenshots come out byte-identical.

@@ -438,7 +438,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   401/403, and its session listing still answered with four uids. Sync reports
   the error and continues with the other accounts, and the import path stays the
   recovery when the bank cannot be reached at all. Renewing means the wizard
-  again — **Configurazione** in the drawer starts at *Conti*, and *Banca* is one
+  again — **Configurazione** (the drawer, or the rail above 1024) starts at *Conti*, and *Banca* is one
   tap back (`POST /api/setup/connect`) — or
   `<that address>/connect?bank=FinecoBank&country=IT`, which is the same
   authorization at the URL level for a script or a bookmark. Either way it only
@@ -590,12 +590,25 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   the engine's own, square-cornered and highlighted in the platform's blue.
 - **The desktop is a layer, not a second layout.** Everything the wide window gets lives in one
   section at the foot of `web/src/styles.css`, above 1024 px (and one step more above 1440), and
-  the cap of the content column is the single token `--shell` — read by `.app__main`, the top bar
-  and the bottom bar together, because they frame that column. Panels that share a row say so
-  where they are written (`panel--pair`), and are not guessed from their contents or their
+  the cap of the content column is the single token `--shell` — read by `.app__main` and the top
+  bar (and, below 1024, the bottom bar) because they frame that column, while above 1024 the frame
+  is the rail, whose width is its own token and is paid for by `.app`'s
+  `padding-left`. Panels that share a row say so where they are written
+  (`panel--pair`), and are not guessed from their contents or their
   neighbours: two charts drawn instead of three, or one of two lists missing, is enough to leave
   a panel half-wide beside an empty half. Below the threshold nothing at all may move, and that is
   verified by comparing every element's box at 390 and 768 against the previous build, not by eye.
+- **The three shapes of the section list are one list.** `SECTIONS` in
+  `web/src/components/Navigation.tsx` draws the rail (above 1024), the bottom bar (below) and the
+  drawer — the item's look is declared once (`.navitem`), and the bar keeps the compact variant
+  because a column 70 px wide has room for one short word and a wrap, not for a full name. Above
+  1024 the rail's width is a token too (`--rail`), paid for by `.app`'s `padding-left`; the top bar
+  and the toast are `fixed`, so they repeat the same measure by hand.
+- **Two builds are compared on the same ledger, with no focus lying around.** A comparison at 390
+  and 768 is only worth the words if both sides saw the same data — a sync clicked between the two
+  captures moved a balance and changed four elements, which looked exactly like a regression. And
+  before a pixel comparison, blur the active element: the focus ring a previous interaction left on
+  a button is a state of the session, not of the bundle, and cost one round of chasing it.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same
@@ -655,7 +668,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|
 |Regenerate parsing fixtures|`uv run python tools/dump_raw.py` then `uv run python tools/anonymize_dump.py dumps`|
-|Connect a new bank|**Configurazione** in the app's drawer, *Banca* step (`POST /api/setup/connect`, then the login happens at the bank) — or `http://<host>:8000/connect?bank=Revolut&country=IT`, the same route for a script. Then `uv run amonhen sync`, unless the wizard's *Primo sync* step already did it|
+|Connect a new bank|**Configurazione** in the app (the drawer, or the rail above 1024), *Banca* step (`POST /api/setup/connect`, then the login happens at the bank) — or `http://<host>:8000/connect?bank=Revolut&country=IT`, the same route for a script. Then `uv run amonhen sync`, unless the wizard's *Primo sync* step already did it|
 |First setup on a fresh install|The app opens on the wizard by itself while `/api/setup` answers `configured: false` — *Credenziali* (application id, PEM key, redirect URL, holder: the URL it shows is what goes into the Enable Banking dashboard), *Banca*, *Conti*, *Primo sync*, *Saldi e verifica*. `PUT /api/setup/credentials` creates `accounts.json` and `private.pem`, so there is nothing to write by hand|
 |Add or change a categorization rule|The **Categorie e regole** section of the app, under the category it assigns, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
 |Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|

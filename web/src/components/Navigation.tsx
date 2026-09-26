@@ -272,15 +272,52 @@ function CloseIcon() {
 }
 
 /**
+ * Il rail: la stessa lista di sezioni, in piedi, per una finestra larga.
+ *
+ * Sette nomi per esteso in 248 px, che è il posto che la barra in basso non ha.
+ * Non è una seconda lista: è la terza forma della stessa, e la voce è quella del
+ * cassetto (`navitem`) senza il suggerimento, che il rail può permettersi di
+ * omettere solo perché il nome per esteso è già lì. Sopra i 1024 prende il posto
+ * della barra in basso; sotto non esiste — è `.apprail` a essere spento, e la
+ * forma visibile gliela dà la sezione del desktop in fondo al foglio.
+ */
+function AppRail({ active, reviewCount, onChange }: SectionNavProps) {
+  return (
+    <nav className="apprail" aria-label="Sezioni">
+      {SECTIONS.map((section) => (
+        <button
+          key={section.id}
+          type="button"
+          className="navitem"
+          aria-current={active === section.id ? "page" : undefined}
+          aria-label={menuLabel(section, reviewCount)}
+          onClick={() => onChange(section.id)}
+        >
+          <section.Icon />
+          <span className="navitem__label">{section.label}</span>
+          {section.id === "review" && reviewCount > 0 ? (
+            <span className="navitem__count" aria-hidden="true">
+              {reviewCount}
+            </span>
+          ) : null}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/**
  * The hamburger, and the drawer it opens.
  *
- * The bottom bar switches sections in one tap, which is what a phone is for, but
- * five columns leave room for one word each. The drawer is the other half: it
- * names the sections in full and says what is inside them, so a section you have
- * not opened before is not a guess. Both paths call the same `onChange`, and the
- * sections themselves are declared once above.
+ * A phone switches sections from the bottom bar in one tap, and the drawer is
+ * the other half of that: it names the sections in full and says what is inside
+ * them, so a section you have not opened before is not a guess. A wide window
+ * has neither — the rail above does both jobs, because seven full names fit in
+ * 248 px and there is no reason to keep a pill floating in the middle of a
+ * window. All three call the same `onChange`, and the sections are declared once
+ * above.
  *
- * The bar also carries the one control that is not a section: asking Enable
+ * The top bar also carries the one control that is not a section: asking Enable
  * Banking for the data now, instead of waiting for the scheduled pass.
  */
 export function Navigation({ active, reviewCount, onChange, syncing, onSync }: NavProps) {
@@ -307,6 +344,8 @@ export function Navigation({ active, reviewCount, onChange, syncing, onSync }: N
 
   return (
     <>
+      <AppRail active={active} reviewCount={reviewCount} onChange={onChange} />
+
       <header className="appbar">
         <div className="appbar__inner">
           <button
@@ -363,7 +402,7 @@ export function Navigation({ active, reviewCount, onChange, syncing, onSync }: N
               <li key={section.id}>
                 <button
                   type="button"
-                  className="drawer__item"
+                  className="navitem"
                   aria-current={active === section.id ? "page" : undefined}
                   aria-label={menuLabel(section, reviewCount)}
                   onClick={() => {
@@ -372,12 +411,12 @@ export function Navigation({ active, reviewCount, onChange, syncing, onSync }: N
                   }}
                 >
                   <section.Icon />
-                  <span className="drawer__text">
-                    <span className="drawer__label">{section.label}</span>
-                    <span className="drawer__hint">{section.hint}</span>
+                  <span className="navitem__text">
+                    <span className="navitem__label">{section.label}</span>
+                    <span className="navitem__hint">{section.hint}</span>
                   </span>
                   {section.id === "review" && reviewCount > 0 ? (
-                    <span className="drawer__count" aria-hidden="true">
+                    <span className="navitem__count" aria-hidden="true">
                       {reviewCount}
                     </span>
                   ) : null}
