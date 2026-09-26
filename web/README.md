@@ -193,7 +193,13 @@ the API returns the sums, the components only turn strings into numbers.
 - **Spese per categoria** — the month's spending as a donut with the total in the middle, from
   `GET /api/spending` over the filtered period. The legend beside it carries name, share and amount.
   `Uncategorized` is a slice like any other, so the total matches what actually left the
-  accounts.
+  accounts. The middle figure is sized in `cqmin` — the shorter side of that box — because the
+  ring's radius follows the shorter side too: sized in `vw` it grew with the window while the
+  hole stayed put, and on a wide window the amount crossed the arcs. The hole is 68% of the
+  radius and the factor is 8, tuned by measuring the longest figure the ledger can produce
+  (seven digits, separators and the symbol) inside the inner circle at 390 and at 846 px: 20 px
+  of clearance for the live total, 7 px for a million. The currency symbol is drawn at 72% of
+  the figure, which is width the digits get to use.
 - **Entrate e uscite** — paired bars per month from `GET /api/flows`: income in green,
   expenses in red. The series is clipped to the months the ledger covers, and the month still
   running is dimmed, because a short bar there is a month that has not finished rather than a

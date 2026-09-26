@@ -89,6 +89,13 @@ export function SpendingPie({ categories, total }: SpendingPieProps) {
     name: categoryText(item.category),
     value: toAmount(item.amount),
   }));
+  // The currency symbol is one character the figure does not need at full size:
+  // it is drawn smaller, which is room the digits get to use. Intl separates it
+  // with a non-breaking space, and ICU uses the narrow one just as often.
+  const written = formatAmount(total);
+  const parts = written.match(/^(.*?)[\s\u00a0\u202f]+(\S+)$/);
+  const amount = parts ? parts[1] : written;
+  const symbol = parts ? parts[2] : "";
 
   return (
     <div className="chart chart--pie">
@@ -116,8 +123,8 @@ export function SpendingPie({ categories, total }: SpendingPieProps) {
             data={data}
             dataKey="value"
             nameKey="name"
-            innerRadius="63%"
-            outerRadius="86%"
+            innerRadius="68%"
+            outerRadius="88%"
             paddingAngle={3}
             cornerRadius={6}
             stroke="none"
@@ -132,7 +139,10 @@ export function SpendingPie({ categories, total }: SpendingPieProps) {
       </ResponsiveContainer>
       <div className="chart__center" aria-hidden="true">
         <span className="chart__center-label">Speso</span>
-        <span className="chart__center-value">{formatAmount(total)}</span>
+        <span className="chart__center-value">
+          {amount}
+          {symbol !== "" ? <span className="chart__center-symbol"> {symbol}</span> : null}
+        </span>
       </div>
     </div>
   );

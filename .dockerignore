@@ -15,6 +15,7 @@ __pycache__
 .env
 accounts.json
 /config
+/backups
 amonhen.db
 dumps
 mytest*

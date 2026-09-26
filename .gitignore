@@ -3,6 +3,7 @@ accounts.json
 # own accounts.json and private.pem there. Anchored, because the fixtures keep a
 # `config/` folder of their own.
 /config/
+/backups/
 mytest*
 *.pem
 *.crt

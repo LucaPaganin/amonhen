@@ -1808,6 +1808,11 @@ button.txn:active {
 
 .chart--pie {
   height: 200px;
+  /* The ring is drawn inside the smaller side of this box, so the hole follows
+     the height here, not the width of the window: a figure sized in `vw` grows
+     on a wide screen while the hole it sits in does not, and a long amount ends
+     up across the arcs. Container units tie the two together. */
+  container-type: size;
 }
 
 .chart__center {
@@ -1827,11 +1832,25 @@ button.txn:active {
   font-weight: 700;
 }
 
-/* La cifra più grande del cruscotto: il totale a cui sommano tutte le fette. */
+/* La cifra più grande del cruscotto: il totale a cui sommano tutte le fette.
+   `cqmin` è il lato minore del riquadro, cioè quello su cui la torta è
+   disegnata: la cifra cresce e cala con il buco invece che con la finestra, e
+   un importo lungo resta dentro il cerchio invece di attraversarlo. Il fattore
+   è tarato sul buco al 68% del raggio, con la cifra più lunga che il ledger può
+   produrre — sette cifre e i separatori — misurata dentro il cerchio a 390px e
+   a 846px. */
 .chart__center-value {
-  font-size: clamp(1.2rem, 5.2vw, 1.55rem);
+  font-size: 8cqmin;
   font-weight: 800;
   letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+/* Il simbolo si legge, ma non occupa lo spazio delle cifre. */
+.chart__center-symbol {
+  color: var(--muted);
+  font-size: 0.72em;
+  font-weight: 600;
 }
 
 .chart-legend {

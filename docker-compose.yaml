@@ -44,6 +44,11 @@ services:
       # private.pem into it from the setup screen. `pem_path` in accounts.json
       # is resolved relative to that file, so it finds the key beside it.
       - ./config:/config
+      # Where `amonhen backup` writes. A bind mount and not a named volume: the
+      # point of a snapshot is that something outside this container can read
+      # it, and the NAS backup job that carries it off the machine only sees a
+      # folder it can reach from the host.
+      - ./backups:/backups
 
   # Optional, read-only-by-default MCP bridge to the existing Actual server.
   # Actual Budget is no longer a dependency of this app; the bridge stays for

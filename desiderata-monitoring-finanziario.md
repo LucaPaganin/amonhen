@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.4 — settembre 2026
+Versione 1.5 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -57,6 +57,15 @@ primo avvio e resta raggiungibile dopo, perché un consenso scade e una banca si
 aggiunge. Compose monta la cartella di configurazione e non i due file, così un
 container appena creato può far nascere `accounts.json`; `/callback` torna
 nell'app invece di rispondere JSON grezzo.*
+*1.5 · il backup smette di essere una cosa che non c'era (§5.11): snapshot datati
+e consistenti del ledger e della configurazione, presi con l'API di SQLite perché
+il server può stare scrivendo, con la ritenzione che li tiene bounded, il
+ripristino scritto come procedura e la copia sul NAS che il cron comanda. La
+stessa fetta porta una prova locale in container dell'intero primo avvio —
+l'immagine costruita dal checkout, la cartella di configurazione con la proprietà
+che ha il NAS, il wizard percorso contro una banca finta che serve le fixture
+anonimizzate — perché il primo avvio non si prova la prima volta sul NAS e il
+ripristino non si prova la prima volta che serve.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -249,6 +258,19 @@ Restano fuori, ciascuna per una ragione diversa: l'import degli export storici (
 
 *Fatto quando*: davanti a un'installazione nuova, dall'app e senza terminale, si arriva a un conto collegato, sincronizzato e verificato dalla §5.4, e l'unico passo che resta a una persona è registrare l'indirizzo di ritorno nel dashboard della banca.
 
+### 5.11 Backup e ripristino *(costruita)*
+
+Il ledger vive in un volume del container e la configurazione in una cartella montata, e nessuno dei due era copiato da niente. Il rischio che conta non è il disco rotto: è il sync che riscrive un periodo, un conto tolto per sbaglio, un `DELETE` digitato male. Senza una copia l'unica risposta è rifare il backfill e rimettere a mano le decisioni prese in mesi di coda.
+
+**Cosa si copia.** Il database del ledger e la configurazione che lo rende ripristinabile — `accounts.json` e la chiave privata che `pem_path` nomina — perché un ledger senza le sessioni che lo alimentano non si rilegge da nessuna banca da solo. Non l'`.env`: quella è configurazione della macchina, non del ledger, e una copia in più di un file con le chiavi dell'assistente è un rischio senza contropartita.
+
+**Come.** Una cartella per snapshot, nominata con il momento in cui è stato preso (`2026-09-26T101500Z`), che contiene il database, i file di configurazione e un `manifest.json` con l'ora, la provenienza, lo sha256 di quello che ha scritto, i conteggi delle righe e l'elenco di cosa ha copiato. Il database si copia con l'API di backup di SQLite e non leggendo il file: il server può stare scrivendo, e una copia presa in quel momento può risultare strappata — una copia che sembra un backup e contiene mezzo movimento è peggio di nessun backup. La scrittura passa da una cartella temporanea e prende il nome definitivo solo alla fine, quindi un giro interrotto non lascia qualcosa che sembra uno snapshot buono, e una cartella senza nome non conta nemmeno per la ritenzione. La ritenzione tiene gli N più recenti (quattordici per impostazione predefinita) e non tocca niente quando è a zero: senza, la cartella cresce di un database alla volta per sempre.
+
+**Dove, e cosa non è ancora.** Sul NAS la copia la fa il cron, dentro il container, scrivendo nella cartella `backups/` che l'host monta. Uno snapshot sul disco del NAS **non è ancora un backup**: sta sugli stessi dischi del ledger. Portarlo fuori è compito dello strumento di backup del NAS puntato su quella cartella, o di un `docker compose cp` a mano. Il prodotto scrive la copia e la rende leggibile; la ridondanza è dell'ambiente, e non si finge.
+
+**Come si torna indietro.** Si ferma l'app — fermarla è ciò che chiude il database, quindi mentre la copia atterra non sta scrivendo nessuno — si copia `amonhen.db` dallo snapshot al posto di quello vivo, si rimette la proprietà dell'utente del container e si riaccende. Un ripristino mai provato non è un ripristino: per questo la prova locale qui sotto include il giro intero, snapshot, guasto e ritorno, invece di fermarsi al comando che scrive la cartella.
+
+*Fatto quando*: dopo un errore che ha rovinato il ledger si torna allo stato di ieri sera con la procedura di ripristino, senza risincronizzare e senza rimettere a mano le decisioni; e la prova locale dimostra quel giro — snapshots, guasto e ritorno — prima che serva davvero, non solo che i comandi esistano.
 
 ## 6. Modello dati minimo
 
@@ -354,10 +376,26 @@ tag e il NAS la tira.
 terminale; cancellare un movimento sbagliato non viene disfatto dal sync
 successivo e il conto dice che la differenza è quella; un tag fa girare i test e
 pubblica l'immagine (`linux/amd64`). Il primo deploy di quell'immagine sul NAS
-resta lavoro aperto, perché l'immagine non è mai stata costruita su questa
-macchina.
+resta lavoro aperto, perché nessuna immagine è ancora stata messa in esercizio lì.
 
-**Stato (settembre 2026).** Fasi 0-6 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la §5.4 che spiega la differenza lasciata da una cancellazione a mano. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
+**Fase 7 — il primo setup è guidato.** *(fatta)*
+La configurazione si scrive dall'app (§5.10): credenziali Enable Banking con la
+chiave privata incollata, istituto scelto fra quelli che il provider accetta,
+conti da tenere con il nome che il ledger userà e la data da cui importarli,
+primo sync con l'esito per conto, saldo dichiarato e apertura allineata. Gate al
+primo avvio e sezione raggiungibile dopo, per aggiungere una banca o rinnovare un
+consenso. Compose monta la cartella di configurazione, così un container appena
+creato può far nascere `accounts.json`, e `/callback` torna nell'app invece di
+rispondere JSON.
+*Fatto quando*: un'installazione nuova arriva dall'app a un conto sincronizzato e
+verificato senza toccare la riga di comando, e l'unico passo manuale che resta è
+la registrazione della callback nel dashboard della banca.
+
+**Fase 8 — il ledger si copia, e si torna indietro.** *(fatta)*
+Snapshot datati e consistenti del ledger e della configurazione (§5.11): il comando che li scrive da dentro il container con l'API di backup di SQLite, la ritenzione che li tiene bounded, il ripristino scritto come procedura, e il cron sul NAS che li comanda. La stessa fetta porta una prova locale in container dell'intero primo avvio — l'immagine costruita dal checkout, la cartella di configurazione con la proprietà che ha il NAS, il wizard percorso contro una banca finta che serve le fixture anonimizzate — perché il primo avvio non si prova la prima volta sul NAS, e il ripristino non si prova la prima volta che serve.
+*Fatto quando*: uno snapshot si rilegge come un ledger — `validate` passa, i conti e i movimenti ci sono — e la prova locale arriva dal wizard al ripristino senza toccare né una banca vera né il ledger vero.
+
+**Stato (settembre 2026).** Fasi 0-8 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la §5.4 che spiega la differenza lasciata da una cancellazione a mano. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. La fase 7 ha aggiunto il setup guidato di §5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (§5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
 
 ## 10. Rischi
 
