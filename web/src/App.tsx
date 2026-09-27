@@ -10,6 +10,7 @@ import { AccountsScreen } from "./screens/Accounts";
 import { AssistantScreen } from "./screens/Assistant";
 import { DashboardScreen } from "./screens/Dashboard";
 import { MovementsScreen } from "./screens/Movements";
+import { ImportScreen } from "./screens/Import";
 import { ReviewQueueScreen } from "./screens/ReviewQueue";
 import { CategoryRulesScreen } from "./screens/CategoryRules";
 import { SetupScreen, setupStartStep } from "./screens/Setup";
@@ -26,7 +27,7 @@ import { useSetup } from "./useSetup";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 18;
+const REQUIRED_API_VERSION = 19;
 
 export default function App() {
   // `?setup=1` is where the bank sends the browser back after a login, and the
@@ -246,6 +247,7 @@ export default function App() {
         {tab === "accounts" ? (
           <AccountsScreen onAskAssistant={openAssistant} refreshToken={syncedAt} />
         ) : null}
+        {tab === "import" ? <ImportScreen onImported={noteWrote} /> : null}
         {tab === "assistant" ? (
           <AssistantScreen
             context={assistantContext}

@@ -462,3 +462,39 @@ export interface SetupBanks {
   country: string;
   banks: SetupBank[];
 }
+
+/** One row of a CSV as the chosen mapping reads it, before anything is written. */
+export interface CsvPreviewRow {
+  line: number;
+  date: string;
+  amount: string;
+  description: string;
+}
+
+/** A row the mapping could not read: the line in the file and why. */
+export interface CsvRejectedRow {
+  line: number;
+  reason: string;
+}
+
+/** What the file would become: the columns to choose from, and the first rows. */
+export interface CsvPreview {
+  ready: boolean;
+  problem: string | null;
+  columns: string[];
+  rows: CsvPreviewRow[];
+  parsed: number;
+  rejected: CsvRejectedRow[];
+}
+
+/** What the import wrote, and what it left alone. */
+export interface CsvImportOutcome {
+  account: string;
+  filename: string;
+  parsed: number;
+  /** How many rows each thing happened to: inserted, duplicate, and the rest. */
+  actions: Record<string, number>;
+  rejected: CsvRejectedRow[];
+  passthrough: number;
+  rules: number;
+}

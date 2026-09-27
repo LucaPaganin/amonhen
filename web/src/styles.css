@@ -2204,6 +2204,106 @@ button.txn:active {
   gap: 10px;
 }
 
+/* L'import da CSV: un modulo che si compila guardando il file, e le righe che
+   l'anteprima mostra prima che qualcosa venga scritto. */
+.import-map {
+  display: grid;
+  gap: 12px;
+}
+
+.import-map .field {
+  margin: 0;
+}
+
+.import-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  color: var(--muted);
+  font-size: var(--text-ui);
+}
+
+.field input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+/* Il selettore di file è del browser: qui prende la forma di un bottone, o
+   resta l'unico angolo vivo della schermata. */
+.file-field input[type="file"] {
+  width: 100%;
+  min-height: var(--tap);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.file-field input[type="file"]::file-selector-button {
+  min-height: var(--tap);
+  margin-right: 12px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--pill);
+  background: var(--fill-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .file-field input[type="file"]::file-selector-button:hover {
+    background: var(--fill-3);
+  }
+}
+
+.csv-rows,
+.csv-rejected {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.csv-row {
+  display: grid;
+  grid-template-columns: 2.5rem 6.5rem 7.5rem minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  font-size: var(--text-sm);
+}
+
+.csv-row .amount {
+  text-align: right;
+}
+
+/* Un filo fra due righe: la stessa linea che separa due movimenti. */
+.csv-row + .csv-row,
+.csv-rejected li + li {
+  box-shadow: inset 0 1px 0 var(--sep);
+}
+
+.csv-row__line {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.csv-row__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-rejected li {
+  padding: 6px 0;
+  color: var(--out);
+  font-size: var(--text-sm);
+}
+
 .account-form__actions {
   display: flex;
   flex-wrap: wrap;
@@ -2736,6 +2836,16 @@ button.txn:active {
 
   .txn__figures {
     grid-column: 4;
+  }
+
+  /* Il modulo dell'import, su due colonne: sono undici scelte, e in fila
+     facevano una pagina lunga per un file solo. */
+  .import-map {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .import-map .field--wide {
+    grid-column: 1 / -1;
   }
 
   /* Un paragrafo largo quanto la finestra non si legge: nei testi la riga resta

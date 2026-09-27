@@ -19,13 +19,14 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from amonhen import assistant, db
 from amonhen.anomalies import detect_anomalies
 from amonhen.classifier import apply_proposals, propose_categories
 from amonhen.config import (
     MonitorConfig,
+    Passthrough,
     UnknownConfiguredAccount,
     load_config,
     remove_account,
@@ -33,6 +34,13 @@ from amonhen.config import (
     save_account,
     save_credentials,
     setup_state,
+)
+from amonhen.csv_import import (
+    csv_file,
+    missing_from_mapping,
+    preview_csv,
+    profile_from_mapping,
+    read_mapped,
 )
 from amonhen.ledger import UNCATEGORIZED_WHERE, BalanceCheck, Ledger
 from amonhen.llm import LlmOff, llm_config
@@ -61,15 +69,22 @@ from amonhen.providers.enable_banking import (
 from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED
 from amonhen.suggestions import propose_for_unseen
 from amonhen.sync import SyncBusy, SyncResult, SyncService
-from amonhen.transfers import pair_candidates
+from amonhen.transfers import link_passthrough_legs, link_transfers, pair_candidates
 
 WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 
 # Bump when a response shape changes: the PWA compares this with the version it
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
-# Python process keeps running its old code, so the two can drift.
-API_VERSION = 18
+# Python process keeps running its old code, so the two can drift. Version 19 is
+# the CSV import: a bundle built for it posts to /api/import/csv, a route an
+# older server does not have.
+API_VERSION = 19
+
+# A statement pasted into a JSON body. Far larger than any bank exports, and
+# small enough that the copy the body already is and the file it becomes stay a
+# request's worth of memory.
+MAX_CSV_BYTES = 8_000_000
 
 # Where an in-flight authorization waits between /connect and /callback.
 PENDING_OAUTH = "pending_oauth"
@@ -210,6 +225,36 @@ class SetupConnectRequest(BaseModel):
 class SetupAccountRequest(BaseModel):
     name: str
     start_sync_date: str | None = None
+
+
+class CsvMapping(BaseModel):
+    """The column map the import screen built, one field per choice it offered.
+
+    An empty column means "not chosen": a statement carries either one signed
+    amount column or a debit and a credit pair, and the half left blank is what
+    the preview reports back as a problem.
+    """
+
+    delimiter: str = Field(",", min_length=1, max_length=1)
+    skip_rows: int = Field(0, ge=0)
+    date_column: str = ""
+    date_format: str = "%Y-%m-%d"
+    amount_column: str = ""
+    debit_column: str = ""
+    credit_column: str = ""
+    decimal_separator: Literal[".", ","] = "."
+    description_columns: list[str] = []
+    external_id_column: str = ""
+    invert_sign: bool = False
+
+
+class CsvImportRequest(BaseModel):
+    """A statement pasted as text, the account it belongs to, and its map."""
+
+    filename: str = ""
+    content: str
+    account: str
+    mapping: CsvMapping
 
 
 def create_app(
@@ -1224,8 +1269,107 @@ def create_app(
                 raise HTTPException(status_code=409, detail=str(exc))
             return _sync_payload(ledger, result)
 
+    @app.post("/api/import/csv/preview")
+    def csv_import_preview(body: CsvImportRequest) -> dict:
+        """What the statement would become, before anything is written.
+
+        The column names come back even when the mapping is not finished: they
+        are what the screen needs in order to finish choosing.
+        """
+        _refuse_oversized(body.content)
+        mapping = body.mapping.model_dump()
+        problem = missing_from_mapping(mapping)
+        with ledger_scope() as ledger:
+            account = _import_account(ledger, body.account)
+            with csv_file(body.content) as path:
+                payload = preview_csv(
+                    path,
+                    mapping=mapping,
+                    account_id=account["id"],
+                    balancing_account_id=ledger.uncategorized(),
+                )
+        return {"ready": problem is None, "problem": problem, **payload}
+
+    @app.post("/api/import/csv")
+    def csv_import(body: CsvImportRequest) -> dict:
+        """Write the mapped rows, then link and categorize them as `import` does.
+
+        The pipeline is the CLI's, in the same order: the rows land, the matcher
+        pairs what it can, the configured passthrough labels take their legs out
+        of spending and income, and the rules classify what is left.
+        """
+        _refuse_oversized(body.content)
+        mapping = body.mapping.model_dump()
+        problem = missing_from_mapping(mapping)
+        if problem is not None:
+            raise HTTPException(status_code=422, detail=problem)
+        profile = profile_from_mapping(mapping)
+        with ledger_scope() as ledger:
+            account = _import_account(ledger, body.account)
+            with csv_file(body.content) as path:
+                transactions, errors = read_mapped(
+                    path,
+                    profile=profile,
+                    account_id=account["id"],
+                    balancing_account_id=ledger.uncategorized(),
+                    source_file=body.filename or None,
+                )
+            counts = ledger.record_batch(transactions)
+            links = link_transfers(ledger)
+            legs = link_passthrough_legs(ledger, _passthrough(config_path))
+            ledger.validate()
+            applied = categorize(ledger, RuleBook(ledger.conn))
+            return {
+                "account": account["name"],
+                "filename": body.filename,
+                "parsed": len(transactions),
+                "actions": counts,
+                "rejected": [{"line": error.line, "reason": error.reason} for error in errors],
+                "links": links,
+                "passthrough": legs,
+                "rules": applied,
+            }
+
     _mount_pwa(app, web_dist if web_dist is not None else WEB_DIST)
     return app
+
+
+def _refuse_oversized(content: str) -> None:
+    if len(content) > MAX_CSV_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "the file is larger than 8 MB: import it from the command line "
+                "(uv run amonhen import <file> --account <name>)"
+            ),
+        )
+
+
+def _import_account(ledger: Ledger, name: str) -> sqlite3.Row:
+    """The account the rows belong to. A missing one is the caller's to add.
+
+    An import never creates its account, for the same reason the CLI refuses:
+    a typo that silently opens a second account is worse than a refusal.
+    """
+    account = ledger.find_account(name=name)
+    if account is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"no account named {name}: add it in Conti first, or import from the command line",
+        )
+    return account
+
+
+def _passthrough(config_path: str | Path) -> tuple[Passthrough, ...]:
+    """The configured passthrough labels, or none when the file cannot be read.
+
+    The movements are already written when this runs, so a configuration that
+    will not load must not fail an import that is otherwise done.
+    """
+    try:
+        return load_config(config_path).passthrough
+    except (OSError, KeyError, ValueError):
+        return ()
 
 
 def _sync_payload(ledger: Ledger, result: SyncResult) -> dict:

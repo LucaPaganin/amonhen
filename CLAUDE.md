@@ -72,6 +72,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/providers/enable_banking.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances)|
 |`amonhen/providers/eb_normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` (pure)|
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
+|`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
 |`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
@@ -372,7 +373,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   (`/api/spending` lost its `month`, `/api/flows` its `months`, and an account
   row gained `opening_balance`). 18 is the first setup: `/api/setup` and the four
   writes around it, and `/callback` answering a 303 into the app instead of the
-  JSON document nobody saw.
+  JSON document nobody saw. 19 is the CSV import: `/api/import/csv` and its
+  preview, routes an older server does not have.
 - **A rule is a text the description contains, and writing one rewrites the
   ledger.** `rules.key` is the text as it is matched — `rule_key` trims,
   collapses runs of spaces and lower cases it, so a text typed by a human still
@@ -633,6 +635,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   inside the card (below 1024, where the card is the detail) and inside the docked pane (above, where
   the pane is); the stylesheet hides whichever the width does not need, so there is one implementation
   and one set of controls on screen at a time.
+- **The app's CSV import is the command line's pipeline, with the mapping chosen on the file.** The
+  browser sends the statement as text — JSON, capped at 8 MB, because the repo has no multipart — plus
+  the columns a person picked; `amonhen/csv_import.py` turns that mapping into a `CsvProfile`, so a
+  bank layout is data rather than a constant, and the rows go through the same `read_csv` →
+  `record_batch` → `link_transfers` → `categorize` path as `amonhen import`. Idempotency is the
+  content hash, so importing the same file twice writes nothing. One deliberate difference from
+  `parse_csv`: a row that does not read is reported with its line (and the parser's own English
+  sentence) instead of refusing the whole file.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same
@@ -683,7 +693,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Deploy a new image to the NAS|Tag `v*` and let CI publish, then `docker compose pull && docker compose up -d` on the NAS (the NAS needs no checkout)|
 |Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|
 |Rehearse the first start before the NAS does|`tools/rehearse_local.sh` inside WSL: it builds from the checkout, serves `tools/eb_stub.py` as the bank, and prints what to walk in the browser|
-|Add a bank's CSV layout|Add a `CsvProfile` in `adapters/csv_adapter.py` plus a synthetic fixture|
+|Map a bank's CSV layout|The **Importa** section of the app: choose the file, then the columns — or add a `CsvProfile` in `adapters/csv_adapter.py` plus a synthetic fixture when the layout must be a named profile|
 |Reset an account|Delete its rows / the database file, then `sync` and `import` again|
 |Re-derive the opening balance|`uv run amonhen balances` then `uv run amonhen anchor`|
 |Check duplicates or gaps|`uv run amonhen validate`, `uv run amonhen balance-check`|

@@ -1,4 +1,4 @@
-import type { Deletion, SyncAccountResult, SyncOutcome } from "./types";
+import type { CsvImportOutcome, Deletion, SyncAccountResult, SyncOutcome } from "./types";
 
 /**
  * What the toast says after a sync.
@@ -67,4 +67,33 @@ export function deletionNotice(deleted: Deletion): string {
   return deleted.unlinked_pair
     ? "Movimento cancellato: il giroconto è stato annullato e l'altra gamba è tornata in coda"
     : "Movimento cancellato: è nel cestino del conto, in Conti";
+}
+
+/**
+ * What the toast says after a CSV import.
+ *
+ * The row count is the file's; what entered is what the ledger did not have.
+ * A count of zero is not news, so it is left out — except the inserted count,
+ * which is the whole answer when a file was already imported once.
+ */
+export function importSummary(outcome: CsvImportOutcome): string {
+  const inserted = outcome.actions.inserted ?? 0;
+  const promoted = outcome.actions.promoted ?? 0;
+  const reimported = outcome.actions.reimported ?? 0;
+  const duplicate = outcome.actions.duplicate ?? 0;
+  const suppressed = outcome.actions.suppressed ?? 0;
+  const entered = inserted + promoted + reimported;
+  const extras = [
+    promoted === 0 ? null : `${promoted} aggiornati`,
+    reimported === 0 ? null : `${reimported} riportati dal cestino`,
+    duplicate === 0 ? null : `${duplicate} già presenti`,
+    suppressed === 0 ? null : `${suppressed} cancellati a mano, lasciati fuori`,
+    outcome.rejected.length === 0
+      ? null
+      : `${outcome.rejected.length} ${outcome.rejected.length === 1 ? "riga" : "righe"} da rileggere`,
+    outcome.rules === 0 ? null : `${outcome.rules} categorizzati dalle regole`,
+    outcome.passthrough === 0 ? null : `${outcome.passthrough} verso un conto dichiarato`,
+  ].filter((extra): extra is string => extra !== null);
+
+  return [`${entered} movimenti entrati su ${outcome.parsed}`, ...extras].join(" · ");
 }

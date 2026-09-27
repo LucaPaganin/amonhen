@@ -2,7 +2,7 @@
 
 Mobile-first React PWA over the `amonhen` FastAPI backend. Five screens in the bottom bar,
 reachable from there or from the hamburger in the top bar — and above 1024 px from the rail, which
-carries all seven — plus the drawer entries with no column for them — **Assistente** (its own
+carries all eight — plus the entries with no column for them: **Importa**, **Assistente** (its own
 section below) and **Configurazione**, the setup wizard:
 
 - **Da confermare** — the review queue: the merchant proposals to accept or dismiss, each with the
@@ -46,8 +46,26 @@ surfaces are off and the rail takes over: the same list standing up in a 248 px 
 left, full height, every section named in full, the current one marked with `aria-current="page"`.
 The sections and their icons are declared once, in `src/components/Navigation.tsx`, and all three
 paths render from that list — the rail and the drawer share the item itself (`.navitem`).
-**Assistente** and **Configurazione** are `inBar: false`, because seven labels do not fit the bar's
-five columns and the drawer names each of them in full.
+**Importa**, **Assistente** and **Configurazione** are `inBar: false`, because eight labels do not fit
+the bar's five columns and the drawer names each of them in full.
+
+## Importa
+
+The historical import (desiderata 5.1, *path B*) as a screen: a bank's CSV export is brought in by
+hand, with the columns named on the file. Choose the file, and `POST /api/import/csv/preview` answers
+with the column names the header carries — which is what the menus need before anything can be
+chosen — plus the first rows the mapping reads and the count it would write. Eleven choices, in the
+order a statement reads: the delimiter, how many header rows to skip, the date column and its format
+(seven shapes offered, from `2026-09-27` to `27/09/2026 14:30:00`), the amount column — or a *Dare*
+and an *Avere* pair, which is what an Italian export carries — the decimal separator, one or two
+description columns, an optional provider id, and the sign, for statements where money out is what is
+positive. The account is a separate choice: a file does not say which account it belongs to. The
+preview lists the rows with their line numbers and the amounts as the rest of the app shows money,
+and *Importa* posts the whole statement as text to `POST /api/import/csv`, which is the command
+line's pipeline (`read_csv` into `record_batch`, then transfers, passthrough labels and rules) — so
+importing the same file twice writes nothing, the identity being the same content hash. A row the
+mapping cannot read is listed with its line and does not stop the import; its reason is the parser's
+own sentence, in English, as every backend `detail` is shown.
 
 ## Assistente
 
@@ -141,8 +159,8 @@ command to restart it, instead of rendering against response shapes it cannot re
 constants together whenever an endpoint's payload changes — or the meaning of a request field does,
 as when `POST /api/rules` learned that a pattern between slashes is an expression: a server that
 stored it as text would answer 201 and hold nothing, which is the silent misbehaviour the handshake
-exists to prevent. The two constants stand at **18** today: the first-setup payloads (`/api/setup`
-and the routes around it) are what last moved them.
+exists to prevent. The two constants stand at **19** today: the CSV import (`/api/import/csv` and its
+preview) is what last moved them.
 
 ```bash
 npm run preview   # serve the built bundle locally

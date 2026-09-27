@@ -25,9 +25,9 @@ CSV / OFX export ─────┘
   Enable Banking, with RS256 JWT auth, 30-day windows and continuation-key
   pagination. Banks cap history at roughly 90 days, so this path covers the
   present, not the past.
-- **File import** (`uv run amonhen import`): CSV (one profile per bank layout) and
-  OFX/QFX exports. This is how deep history is seeded, and how a bank is
-  recovered when a PSD2 consent expires.
+- **File import** (CSV from the **Importa** section of the app; CSV with a named profile per bank
+  layout, or OFX/QFX, from `uv run amonhen import`). This is how deep history is seeded, and how a
+  bank is recovered when a PSD2 consent expires.
 - Both paths converge on the same `transactions` table and the same dedup
   rule, and both keep the raw payload on disk in the database.
 - **Review and categorize** (`uv run amonhen serve`): a mobile-first PWA over the
@@ -95,10 +95,10 @@ update can look like it never happened.
 
 The app has five sections in the bottom bar, reachable in one tap there or from the hamburger in the
 top bar; the drawer it opens names each section in full, says what the section holds and carries the
-count of what is waiting, which is more than a fifth of the screen can, and adds the two sections
-with no column there — **Assistente** and **Configurazione**, the setup wizard (see *Connecting a
-bank*). Above 1024 px both of those surfaces are off and the same list stands up as a rail down the
-left, with all seven sections named in full. The wizard is what a fresh install opens on: with
+count of what is waiting, which is more than a fifth of the screen can, and adds the three sections
+with no column there — **Importa**, **Assistente** and **Configurazione**, the setup wizard (see
+*Connecting a bank*). Above 1024 px both of those surfaces are off and the same list stands up as a rail down the
+left, with all eight sections named in full. The wizard is what a fresh install opens on: with
 nothing configured it replaces the app shell and starts at the first step whose requirement is
 unmet, and `?setup=1` in the address forces it open, which is how the browser comes back from a
 bank. Afterwards the same entry is where a bank
@@ -179,8 +179,9 @@ what was deleted here (the fourth outcome, §5.4), `non torna sui sospesi`,
 balance was ever declared, which is not the same as verified: an assertion nobody
 can see is not one you can lean on.
 
-CSV profiles: `revolut`, `fineco`, `actual`. Missing one? Add an adapter
-rather than transforming the file by hand.
+CSV profiles: `revolut`, `fineco`, `actual` for the command line. Missing one? Map it in the app's
+**Importa** section rather than transforming the file by hand, or add an adapter when the layout has
+to be a named profile.
 
 The top bar carries one control that is not a section: **Sincronizza** asks Enable
 Banking for the accounts now, inside the request, and answers with what it wrote —

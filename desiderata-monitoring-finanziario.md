@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.8 — settembre 2026
+Versione 1.9 — settembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -90,6 +90,13 @@ cima mentre si scorre, invece di una riga che si allarga fino a mille e duecento
 pixel. La coda si guarda in due: l'elenco delle proposte a sinistra, il dettaglio
 di quella scelta a destra con i suoi comandi, così si decide senza aprire niente.
 Sotto i 1024 px le due schermate restano quelle del telefono.*
+*1.9 · l'import di un estratto conto si comanda dall'app: un file CSV, le
+colonne mappate a mano — data, importo o Dare e Avere, descrizione, formato della
+data e dei decimali — l'anteprima di cosa diventano le righe prima che qualcosa
+venga scritto, e l'esito con quante ne sono entrate e quante erano già presenti.
+L'idempotenza è la stessa impronta di contenuto del percorso da riga di comando,
+quindi reimportare lo stesso file non scrive niente; una riga che non si legge si
+riporta con la sua riga invece di fermare il file.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
@@ -153,8 +160,9 @@ Due percorsi distinti che **devono convergere nella stessa tabella e condividere
 
 Requisiti comuni a entrambi i percorsi:
 
-- Idempotenza: `external_id` del provider quando presente, con fallback `hash(data, importo, descrizione, conto)`. L'export CSV non contiene l'`external_id`, quindi il fallback è il solo discriminante nella zona di sovrapposizione tra i due percorsi: va testato esplicitamente reimportando un periodo già sincronizzato e verificando che il conteggio non cambi.
+- Idempotenza: `external_id` del provider quando presente, con fallback `hash(data, importo, descrizione, conto)`. L'export CSV di solito non contiene l'`external_id`, e allora il fallback è il solo discriminante nella zona di sovrapposizione tra i due percorsi: va testato esplicitamente reimportando un periodo già sincronizzato e verificando che il conteggio non cambi. Quando invece l'estratto una colonna di identificativo ce l'ha, la sezione **Importa** la mappa e quell'identificativo prende il posto dell'impronta come identità.
 - Un adattatore per formato di export, che normalizza verso lo schema comune. I formati differiscono per istituto (colonne, segno dell'importo, formato data, separatore decimale).
+- L'adattatore si può scegliere invece di scriverlo: dalla sezione **Importa** dell'app si dice quali colonne sono la data, l'importo (o Dare e Avere), la descrizione, il formato della data e dei decimali, e l'identificativo della banca quando c'è, e l'anteprima mostra le prime righe mappate prima che qualcosa venga scritto. Le righe che non si leggono si contano con la loro riga invece di fermare il file; i profili scritti per banca restano per la riga di comando.
 - Gestione della transizione pending → booked senza duplicare la transazione.
 - Payload grezzo conservato integralmente, con indicazione del percorso di provenienza, per poter riprocessare senza ri-fetchare né ri-scaricare.
 - **Una cancellazione è una decisione che il sync rispetta.** Un movimento si cancella dal ledger e resta in `deleted_transactions` con l'identità con cui il ledger deduplica (l'identificativo della banca, altrimenti l'impronta di contenuto così com'era), il payload, la nota, com'era la riga e quando è stata tolta: senza quella copia il sync successivo riscriverebbe il movimento, e a mano non resta niente da rileggere. Un `PDNG` cancellato sopprime anche il `BOOK` che la banca manda dopo, anche quando lo contabilizza con un altro riferimento e un'altra data. La soppressione riconosce il movimento in tre modi, e sono le relazioni che il ledger conosce già: l'identificativo con cui è stato cancellato, lo stesso contenuto che arriva dall'*altro* percorso di ingest — è la zona di sovrapposizione di §5.1, dove l'impronta è il solo discriminante — e la gamba contabilizzata di un movimento in attesa cancellato qui, che la banca manda giorni dopo con un altro riferimento e un'altra data. Esatta ovunque altro: quattro accrediti identici nello stesso giorno sono quattro movimenti, e cancellarne uno non deve sopprimere il suo gemello, quindi un movimento dello stesso stato non si riconosce mai dal solo contenuto. Una leg di un giroconto non si cancella lasciando l'altra appesa al conto di clearing: il link si rifiuta, l'altra gamba torna in coda, e la cancellazione lo dice. Il cestino di un conto elenca ciò che è stato tolto — data, importo, descrizione, nota e quando è sparito — e il ripristino di una riga la rimette nel ledger dal payload conservato, con la sua nota: una seconda volta è rifiutata, e il ripristino passa dalle stesse regole dell'ingest, quindi un movimento che il ledger già tiene non viene scritto due volte. Quello che il ripristino non può sapere è un movimento tornato sotto un'identità che il tombstone non porta — il limite dell'impronta nella zona di sovrapposizione — e il posto dove accorgersene è la lista del cestino.
@@ -278,7 +286,7 @@ Il primo avvio era una decina di passi a mano e nessuno di essi stava nel prodot
 
 **Un avvio a freddo deve poter partire.** Un container appena creato non ha né `accounts.json` né `private.pem`, quindi compose monta la cartella di configurazione e non i due file: è la differenza tra un primo avvio possibile e un `up` che pretende che il setup sia già stato fatto da riga di comando. Per la stessa ragione `/connect` e `/callback` con la configurazione incompleta dicono cosa manca invece di rispondere 500, e il ritorno dal login è un 303 dentro l'app invece del JSON grezzo che nessuno leggeva: la schermata che ha iniziato l'autorizzazione è quella che deve dire cosa è arrivato.
 
-Restano fuori, ciascuna per una ragione diversa: l'import degli export storici (è un percorso di recupero con i suoi adattatori di formato, e resta sulla riga di comando), la configurazione dell'assistente (il modello è configurazione d'ambiente, §5.9, e l'app in container non scrive l'`.env` dell'host) e le dichiarazioni `passthrough` (§5.3: si capiscono dai testi che la banca stampa, che al primo avvio non ci sono ancora).
+Restano fuori, ciascuna per una ragione diversa: la configurazione dell'assistente (il modello è configurazione d'ambiente, §5.9, e l'app in container non scrive l'`.env` dell'host) e le dichiarazioni `passthrough` (§5.3: si capiscono dai testi che la banca stampa, che al primo avvio non ci sono ancora).
 
 *Fatto quando*: davanti a un'installazione nuova, dall'app e senza terminale, si arriva a un conto collegato, sincronizzato e verificato dalla §5.4, e l'unico passo che resta a una persona è registrare l'indirizzo di ritorno nel dashboard della banca.
 

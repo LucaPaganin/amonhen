@@ -7,6 +7,7 @@ export type TabId =
   | "movements"
   | "accounts"
   | "categories"
+  | "import"
   | "assistant"
   | "setup";
 
@@ -65,6 +66,14 @@ const SECTIONS: Section[] = [
     Icon: RulesIcon,
   },
   {
+    id: "import",
+    label: "Importa",
+    short: "Importa",
+    hint: "Un estratto conto in CSV, con le colonne scelte a mano",
+    inBar: false,
+    Icon: ImportIcon,
+  },
+  {
     id: "assistant",
     label: "Assistente",
     short: "Assistente",
@@ -100,6 +109,26 @@ function menuLabel(section: Section, reviewCount: number): string {
     return `${section.label}: ${reviewCount} da gestire`;
   }
   return section.label;
+}
+
+function ImportIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 15V4" />
+      <path d="m8 8 4-4 4 4" />
+      <path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+    </svg>
+  );
 }
 
 function AssistantIcon() {

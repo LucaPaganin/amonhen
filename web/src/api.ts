@@ -7,6 +7,8 @@ import type {
   AssistantState,
   Budget,
   Category,
+  CsvImportOutcome,
+  CsvPreview,
   DashboardFilters,
   Declaration,
   Flows,
@@ -112,6 +114,34 @@ function transactionSearch(query: TransactionQuery): string {
 export interface SplitInput {
   category: string;
   amount: string;
+}
+
+/** The column map the import screen built: one field per choice it offered.
+ *
+ * An empty column means "not chosen": a statement carries either one signed
+ * amount column or a debit and a credit pair, and the half left blank is what
+ * the preview reports back as a problem.
+ */
+export interface CsvMapping {
+  delimiter: string;
+  skip_rows: number;
+  date_column: string;
+  date_format: string;
+  amount_column: string;
+  debit_column: string;
+  credit_column: string;
+  decimal_separator: string;
+  description_columns: string[];
+  external_id_column: string;
+  invert_sign: boolean;
+}
+
+/** A statement pasted as text, the account it belongs to, and its map. */
+export interface CsvImportRequest {
+  filename: string;
+  content: string;
+  account: string;
+  mapping: CsvMapping;
 }
 
 export interface ReviewQuery {
@@ -222,6 +252,8 @@ export const api = {
   removeRule: (pattern: string) =>
     send<{ pattern: string; held: number }>("POST", "/rules/remove", { pattern }),
   createCategory: (name: string) => send<{ id: number; name: string }>("POST", "/categories", { name }),
+  csvPreview: (body: CsvImportRequest) => send<CsvPreview>("POST", "/import/csv/preview", body),
+  csvImport: (body: CsvImportRequest) => send<CsvImportOutcome>("POST", "/import/csv", body),
   categorize: () => send<{ applied: number }>("POST", "/categorize", {}),
   budgets: (month?: string, signal?: AbortSignal) =>
     get<Budget[]>(month ? `/budgets?month=${encodeURIComponent(month)}` : "/budgets", signal),

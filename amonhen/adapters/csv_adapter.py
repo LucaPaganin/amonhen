@@ -60,14 +60,31 @@ ACTUAL = CsvProfile(
 )
 
 
-def parse_csv(
+class RowError(ValueError):
+    """One row that could not be read, and the line it was on."""
+
+    def __init__(self, line: int, reason: str) -> None:
+        super().__init__(reason)
+        self.line = line
+        self.reason = reason
+
+
+def read_csv(
     path: str | Path,
     *,
     account_id: int,
     balancing_account_id: int,
     profile: CsvProfile,
     source_file: str | None = None,
-) -> list[IncomingTransaction]:
+) -> tuple[list[IncomingTransaction], list[RowError]]:
+    """Read every row it can, and say which ones it could not.
+
+    `parse_csv` is this read with no patience: the first broken row refuses the
+    whole file, which is right for a scheduled import. A file chosen by hand in
+    the app wants the other half — the good rows written, the broken ones
+    reported with their line — so the two share this body and differ in what
+    they do with the errors.
+    """
     path = Path(path)
     with path.open("r", encoding=profile.encoding, newline="") as handle:
         reader = csv.reader(handle, delimiter=profile.delimiter)
@@ -80,11 +97,42 @@ def parse_csv(
 
         columns = [name.strip() for name in header]
         _require_columns(path, columns, profile)
-        return [
-            _parse_row(path, reader.line_num, columns, row, profile, account_id, balancing_account_id, source_file)
-            for row in reader
-            if row
-        ]
+        transactions: list[IncomingTransaction] = []
+        errors: list[RowError] = []
+        for row in reader:
+            if not row:
+                continue
+            try:
+                transactions.append(
+                    _parse_row(
+                        reader.line_num, columns, row, profile,
+                        account_id, balancing_account_id, source_file,
+                    )
+                )
+            except RowError as exc:
+                errors.append(exc)
+        return transactions, errors
+
+
+def parse_csv(
+    path: str | Path,
+    *,
+    account_id: int,
+    balancing_account_id: int,
+    profile: CsvProfile,
+    source_file: str | None = None,
+) -> list[IncomingTransaction]:
+    transactions, errors = read_csv(
+        path,
+        account_id=account_id,
+        balancing_account_id=balancing_account_id,
+        profile=profile,
+        source_file=source_file,
+    )
+    if errors:
+        first = errors[0]
+        raise ValueError(f"{Path(path)}: line {first.line}: {first.reason}")
+    return transactions
 
 
 def _require_columns(path: Path, columns: list[str], profile: CsvProfile) -> None:
@@ -102,7 +150,6 @@ def _require_columns(path: Path, columns: list[str], profile: CsvProfile) -> Non
 
 
 def _parse_row(
-    path: Path,
     line_number: int,
     columns: list[str],
     row: list[str],
@@ -112,15 +159,13 @@ def _parse_row(
     source_file: str | None,
 ) -> IncomingTransaction:
     if len(row) != len(columns):
-        raise ValueError(
-            f"{path}: line {line_number}: expected {len(columns)} fields, got {len(row)}"
-        )
+        raise RowError(line_number, f"expected {len(columns)} fields, got {len(row)}")
     record = dict(zip(columns, row))
     try:
         date = _parse_date(record, profile)
         amount = _parse_amount(record, profile)
     except ValueError as exc:
-        raise ValueError(f"{path}: line {line_number}: {exc}") from exc
+        raise RowError(line_number, str(exc)) from exc
 
     external_id = None
     if profile.external_id_column is not None:
