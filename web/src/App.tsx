@@ -36,7 +36,9 @@ export default function App() {
   const [tab, setTab] = useState<TabId>(() => (hasSetupParam() ? "setup" : "dashboard"));
   const [staleServer, setStaleServer] = useState(false);
   // What the assistant was opened from, when it was opened from a screen: the
-  // question is born there, and the section is handed the thing it is about.
+  // question is composed there, and the section is handed the thing it is about.
+  // The section asks it only when a button is pressed, so this survives until
+  // the person asks it or drops it.
   const [assistantContext, setAssistantContext] = useState<AssistantContext | null>(null);
   // A sync writes movements underneath every screen, so a number that counts
   // them is bumped and the screens that read the ledger fetch again. A key that
@@ -251,7 +253,7 @@ export default function App() {
         {tab === "assistant" ? (
           <AssistantScreen
             context={assistantContext}
-            onContextUsed={clearAssistantContext}
+            onContextDone={clearAssistantContext}
           />
         ) : null}
         {tab === "categories" ? (

@@ -326,6 +326,14 @@ were asked about and the categories that already exist. Without a URL the featur
 is off and the API answers 503 with an explanation; nothing else depends on it,
 and it is never part of a sync.
 
+**Nothing reaches the model by itself.** Every call is one a person asked for:
+the *Chiedi al modello* button in the queue, *Chiedi* in **Assistente**, the
+`llm-suggest` command, and the question a budget row composes when it opens the
+section — that one arrives ready and waits for its own press. No effect, timer or
+background loop asks in someone else's place, and in **Assistente** the button
+names the model while the request is in flight, so a call to a third party is
+always something you did and something you saw.
+
 `passthrough` declares the money that is neither spending nor income: what you
 move to an account that is **not** connected to Enable Banking, and what arrives
 because somebody else is paying their share or giving a bill back. Each
@@ -397,10 +405,12 @@ per day (`CALL_LIMIT`, 20) and the count is on the screen; the model, the
 fingerprint and the answer are kept in `assistant_readings`, so a reading can be
 read again in six months knowing what it was based on.
 
-Where the question is born, the section is reachable from there: **Cosa è
-cambiato?** on the dashboard, **Regge?** on a budget row. Either one opens the
-section and asks about *that* figure. Without `AMONHEN_LLM_URL` the section says
-it is off, and nothing else in the app depends on it.
+Where the question is composed, the section is reachable from there: **Regge?** on
+a budget row opens it with *that* budget as the context, and the question it
+composes — *Questo budget regge?* — arrives in a panel that names the model and
+carries the button that asks it and one that drops it. Opening the section asks
+nothing: the panel waits. Without `AMONHEN_LLM_URL` the section says it is off,
+and nothing else in the app depends on it.
 
 ## On the NAS
 

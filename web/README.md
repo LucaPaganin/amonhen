@@ -83,9 +83,13 @@ confirmed in **Da confermare**, where every proposal is, and a budget proposal h
 history lists what has been asked, with the model and the refusal, and the state line under the
 title says how many calls the day has left.
 
-The section is also reachable from where the question is born: *Cosa è cambiato?* on the dashboard
-and *Regge?* on a budget row open it with that figure as the context (`POST /api/assistant/ask` with
-`context`).
+The section is also reachable from where the question is composed: *Regge?* on a budget row opens it
+with that budget as the context. The question the row implies — *Questo budget regge?* — arrives in a
+panel of its own that names the model that would answer it, with two buttons, *Chiedi* and *Lascia
+perdere*; nothing reaches `POST /api/assistant/ask` until the first is pressed, the button that sent
+it names the model while the request is in flight, and a call that fails leaves the panel standing so
+the question can be tried again. No effect, timer or background loop asks in the person's place; the
+reading says whether it was a new call or one already had.
 
 ## Configurazione
 

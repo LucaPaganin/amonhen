@@ -285,6 +285,15 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `AMONHEN_LLM_MODEL` must both be set; the API answers 503 with the reason
   otherwise. The endpoint is treated as OpenAI-compatible chat completions and
   the answer is validated against the closed category list before it is stored.
+- **No call to the model starts by itself.** `/api/assistant/ask` and
+  `/api/llm-suggest` are reached from a click or a submit in the app, and from the
+  `llm-suggest` command; there is no effect, timer or background loop that asks in
+  someone's place. The entry point from a budget row composes the question and
+  shows it with the button that asks it (`AssistantScreen`, the *Domanda pronta*
+  panel) instead of asking on mount, and in **Assistente** the button that sent the
+  request names the model while it is in flight. A question whose data fingerprint
+  matches a stored reading returns that reading and spends no call, and a call that
+  fails leaves the composed question in its panel to be tried again.
 - **Anomalies are deterministic and explainable.** Robust z-score on MAD per
   category, with a p95 fallback when MAD is zero, and every anomaly carries the
   sentence the UI shows. No model is involved (desiderata 5.7).

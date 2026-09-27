@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { categoryText } from "../category";
 import { formatAmount } from "../format";
@@ -18,26 +18,54 @@ function questionFor(context: AssistantContext): string {
   return "Cosa è cambiato questo mese?";
 }
 
+/** Where the question came from, in the words of the screen that sent it. */
+function originOf(context: AssistantContext): string {
+  if (context.kind === "budget") return "Arriva dal pulsante «Regge?» di un budget";
+  if (context.kind === "movimento") return "Arriva dalla scheda di un movimento";
+  return "Arriva da un'altra schermata";
+}
+
 interface AssistantScreenProps {
   /** What the section was opened from, when it was opened from somewhere. */
   context: AssistantContext | null;
-  /** Said once the context has been asked about, so it is not asked twice. */
-  onContextUsed: () => void;
+  /** Said when the proposed question has been asked or let go, so it goes away. */
+  onContextDone: () => void;
 }
 
-export function AssistantScreen({ context, onContextUsed }: AssistantScreenProps) {
+export function AssistantScreen({ context, onContextDone }: AssistantScreenProps) {
   const assistant = useAssistant();
   const [question, setQuestion] = useState("");
   const questionId = useId();
   const { ask, decide } = assistant;
-
-  useEffect(() => {
-    if (context === null) return;
-    void ask(questionFor(context), context);
-    onContextUsed();
-  }, [context, ask, onContextUsed]);
-
   const state = assistant.state;
+
+  // La domanda che un'altra schermata ha portato qui è composta, non chiesta:
+  // una chiamata parte da un pulsante e da nient'altro, perché esce dalla
+  // macchina verso un fornitore esterno ed è contata. Il pannello dice cosa
+  // verrebbe domandato e a chi, e a mandarla è il dito.
+  const suggestion =
+    context === null
+      ? null
+      : { context, question: questionFor(context), origin: originOf(context) };
+
+  const askSuggestion = async () => {
+    if (suggestion === null) return;
+    // Il pannello resta in piedi se la chiamata non riesce: la domanda composta
+    // non si perde, e si riprova senza tornare alla riga che l'aveva portata qui.
+    if (await ask(suggestion.question, suggestion.context)) onContextDone();
+  };
+
+  // Chiedere qualcos'altro lascia cadere la domanda che era in attesa: in
+  // schermata se ne tiene una sola, quella a cui si sta rispondendo.
+  const askFromTheScreen = (asked: string) => {
+    void ask(asked, { kind: "cruscotto" });
+    if (suggestion !== null) onContextDone();
+  };
+
+  // Il modello si nomina mentre la richiesta è in volo: chi ha premuto vede chi
+  // sta rispondendo, invece di un'attesa senza soggetto. Prima che lo stato
+  // arrivi non c'è ancora un nome, e la frase deve restare in italiano.
+  const askingLabel = state?.model ? `Chiedo a ${state.model}…` : "Chiedo al modello…";
 
   return (
     <section className="screen">
@@ -74,6 +102,34 @@ export function AssistantScreen({ context, onContextUsed }: AssistantScreenProps
         </div>
       ) : null}
 
+      {suggestion === null ? null : (
+        <section className="panel">
+          <h2 className="section-title">Domanda pronta</h2>
+          <p>{suggestion.question}</p>
+          <p className="chart-note">
+            {suggestion.origin}
+            {state?.configured === false
+              ? ": l'assistente è spento, quindi la domanda resta qui e non parte."
+              : `: a rispondere è ${state?.model ?? "il modello configurato"}, e lo manda il ` +
+                "pulsante qui sotto. Se la stessa domanda sugli stessi numeri ha già una " +
+                "risposta, torna quella e non parte nessuna chiamata."}
+          </p>
+          <div className="card__actions">
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={assistant.asking || state?.configured === false}
+              onClick={() => void askSuggestion()}
+            >
+              {assistant.asking ? askingLabel : "Chiedi"}
+            </button>
+            <button type="button" className="button" onClick={onContextDone}>
+              Lascia perdere
+            </button>
+          </div>
+        </section>
+      )}
+
       <section className="panel">
         <h2 className="section-title">Cosa vuoi sapere</h2>
         <p className="chart-note">
@@ -87,7 +143,7 @@ export function AssistantScreen({ context, onContextUsed }: AssistantScreenProps
               type="button"
               className="chip chip--toggle"
               disabled={assistant.asking || state?.configured === false}
-              onClick={() => void ask(prompt.question, { kind: "cruscotto" })}
+              onClick={() => askFromTheScreen(prompt.question)}
             >
               {prompt.label}
             </button>
@@ -97,7 +153,7 @@ export function AssistantScreen({ context, onContextUsed }: AssistantScreenProps
           className="filters"
           onSubmit={(event) => {
             event.preventDefault();
-            void ask(question.trim(), { kind: "cruscotto" });
+            askFromTheScreen(question.trim());
           }}
         >
           <div className="field field--wide">
@@ -116,7 +172,7 @@ export function AssistantScreen({ context, onContextUsed }: AssistantScreenProps
             className="button button--primary"
             disabled={assistant.asking || state?.configured === false}
           >
-            {assistant.asking ? "Leggo…" : "Chiedi"}
+            {assistant.asking ? askingLabel : "Chiedi"}
           </button>
         </form>
       </section>

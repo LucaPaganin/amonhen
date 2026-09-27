@@ -16,7 +16,8 @@ export interface AssistantController {
   askError: string | null;
   history: AssistantHistoryEntry[];
   notice: string | null;
-  ask: (question: string, context: AssistantContext | null) => Promise<void>;
+  /** False when the call failed: the caller keeps what it was about to ask. */
+  ask: (question: string, context: AssistantContext | null) => Promise<boolean>;
   decide: (category: string, decision: "accept" | "dismiss") => Promise<void>;
   reloadState: () => void;
   dismissNotice: () => void;
@@ -61,14 +62,16 @@ export function useAssistant(): AssistantController {
   }, [reloads]);
 
   const ask = useCallback(
-    async (question: string, context: AssistantContext | null) => {
+    async (question: string, context: AssistantContext | null): Promise<boolean> => {
       setAsking(true);
       setAskError(null);
       try {
         setReading(await api.askAssistant(question, context));
         reloadState();
+        return true;
       } catch (error) {
         setAskError(errorMessage(error));
+        return false;
       } finally {
         setAsking(false);
       }

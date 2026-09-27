@@ -19,7 +19,7 @@ import { useAccounts } from "../useAccounts";
 import { categoryText } from "../category";
 
 interface AccountsScreenProps {
-  /** Opens the assistant on one budget: the question is born at that row. */
+  /** Opens the assistant on one budget: the question is composed at that row. */
   onAskAssistant: (context: AssistantContext) => void;
   /** Bumped after a sync: the balances and the 5.4 verdict are read again. */
   refreshToken: number;
