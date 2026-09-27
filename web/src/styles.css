@@ -1235,7 +1235,14 @@ button.txn:active {
   min-width: 0;
 }
 
-.proposal .card__actions .button {
+/* I comandi di una proposta — nella scheda, dove li usa il telefono, e nel
+   dettaglio, dove li usa la finestra — tengono la larghezza delle loro parole:
+   la tendina si prende lo spazio che resta e il pulsante non se lo divide con
+   lei. Con la regola dei pulsanti in fila (`flex: 1`) e accanto una tendina
+   larga quanto la sua opzione più lunga, al pulsante restava niente e «Accetta»
+   diventava una macchia colorata senza la scritta. */
+.proposal .card__actions .button,
+.queue-detail__controls .button {
   flex: 0 0 auto;
 }
 

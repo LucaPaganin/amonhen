@@ -582,7 +582,10 @@ inside it rather than spilling over the account beside it. In the review queue t
 the left and the one you pick is shown on the right — merchant, source, the category in force, the
 stake, what accepting would write, and the controls themselves — while the card in the list keeps only
 its head (its stake sentence would be the same sentence twice). The controls are written once and
-placed in both, and the stylesheet hides the one the width does not need.
+placed in both, and the stylesheet hides the one the width does not need; the size rule travels with
+them, because a copy that lands outside `.proposal` inherits the generic button row — where the button
+shares the space — and next to a select as wide as its longest option that leaves the label no room at
+all.
 
 Below 1024 nothing moves, and that is checked rather than hoped: on the same ledger, against the
 build before the change, every visible element's box at 390 and 768 is compared — 530, 796 and 278
