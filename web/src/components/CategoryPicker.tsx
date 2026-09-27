@@ -218,7 +218,7 @@ export function CategoryPicker({
             ) : null}
 
             {merchant ? (
-              <label className="sheet__rule">
+              <label className="rule-toggle">
                 <input
                   type="checkbox"
                   checked={rule}

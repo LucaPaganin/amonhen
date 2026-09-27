@@ -561,7 +561,7 @@ def test_budgets_refuse_a_non_category(api):
     assert response.status_code == 422
 
 
-def test_suggestions_can_be_reviewed_and_accepting_creates_a_rule(api):
+def test_suggestions_can_be_reviewed_and_accepting_decides_the_movements(api):
     client, db_path = api
     from amonhen.db import open_ledger_db
     from amonhen.ledger import Ledger
@@ -589,16 +589,23 @@ def test_suggestions_can_be_reviewed_and_accepting_creates_a_rule(api):
     )
 
     assert accepted.status_code == 200
+    assert accepted.json() == {
+        "merchant": "EKOM",
+        "decision": "accept",
+        "category": "Groceries",
+        "rule": None,
+        "movements": 1,
+    }
     assert client.get("/api/suggestions").json() == []
-    assert client.get("/api/rules").json() == [
-        {"pattern": "EKOM", "category": "Groceries", "count": 1}
-    ]
+    # The decision is about the movements and nothing else: no rule was asked
+    # for, so none is written, and the next EKOM movement comes back to the queue.
+    assert client.get("/api/rules").json() == []
     assert client.get("/api/transactions", params={"category": "Groceries"}).json()["total"] == 1
 
 
 def test_a_proposal_can_be_accepted_with_a_category_that_corrects_it(api):
     """The proposal is a starting point: a person may correct it, and the rule
-    that is written carries the category that was chosen, not the proposed one."""
+    they asked for carries the category that was chosen, not the proposed one."""
     client, db_path = api
     from amonhen.db import open_ledger_db
     from amonhen.ledger import Ledger
@@ -609,7 +616,7 @@ def test_a_proposal_can_be_accepted_with_a_category_that_corrects_it(api):
 
     accepted = client.post(
         "/api/suggestions/decision",
-        json={"merchant": "EKOM", "decision": "accept", "category": "Trasporti"},
+        json={"merchant": "EKOM", "decision": "accept", "category": "Trasporti", "rule": "EKOM"},
     )
 
     assert accepted.status_code == 200
@@ -618,6 +625,139 @@ def test_a_proposal_can_be_accepted_with_a_category_that_corrects_it(api):
     ]
     movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
     assert movement["category"] == "Trasporti"
+
+
+def test_the_text_written_for_a_rule_is_the_rule(api):
+    """A rule is written with the text someone wrote for it, not with the
+    merchant name: that text is what decides the movements no bank has printed
+    yet, and it is the difference between one rule and a rule per spelling."""
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    Ledger(conn).record_suggestion("EKOM", "Groceries", "classifier")
+    conn.close()
+
+    accepted = client.post(
+        "/api/suggestions/decision",
+        json={"merchant": "EKOM", "decision": "accept", "rule": "/ekom/" },
+    )
+
+    assert accepted.status_code == 200
+    assert accepted.json()["rule"] == "/ekom/"
+    assert client.get("/api/rules").json() == [
+        {"pattern": "/ekom/", "category": "Groceries", "count": 1}
+    ]
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    assert movement["category"] == "Groceries"
+
+
+def test_a_decision_about_a_merchant_is_not_overruled_by_a_later_rule(api):
+    """What accepting without a rule writes is a person's decision, and a rule
+    that assigns a different category never claims it. A rule that assigns the
+    same category does adopt it: that is what the rule's count is about."""
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    Ledger(conn).record_suggestion("EKOM", "Groceries", "classifier")
+    conn.close()
+
+    client.post("/api/suggestions/decision", json={"merchant": "EKOM", "decision": "accept"})
+
+    # The classifier's own pass, and then a rule that claims the same movement.
+    assert client.post("/api/categorize").json() == {"applied": 0}
+    client.post("/api/rules", json={"pattern": "Cart", "category": "Shopping"})
+
+    assert client.get("/api/rules").json() == [
+        {"pattern": "Cart", "category": "Shopping", "count": 0}
+    ]
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    assert movement["category"] == "Groceries"
+
+    # The same pattern pointed at what the person decided now holds the movement
+    # — the rule is keyed by its text, so this changes the rule rather than adding one.
+    adopted = client.post("/api/rules", json={"pattern": "Cart", "category": "Groceries"})
+    assert adopted.json()["count"] == 1
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    assert movement["category"] == "Groceries"
+
+
+def test_a_split_is_not_flattened_by_a_merchant_decision(api):
+    """A split is the person's own division of a movement: accepting its merchant
+    takes the movements one category can carry and steps over it, and the stake
+    does not claim money this gesture cannot settle."""
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    Ledger(conn).record_suggestion("EKOM", "Groceries", "classifier")
+    conn.close()
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    split = client.put(
+        f"/api/transactions/{movement['id']}/splits",
+        json={
+            "splits": [
+                {"category": "Groceries", "amount": "30.00"},
+                # The other part is still undecided, so the row stays in the queue.
+                {"category": "Uncategorized", "amount": "12.50"},
+            ]
+        },
+    )
+    assert split.status_code == 200
+    assert client.get("/api/suggestions").json()[0]["stake"]["movements"] == 0
+
+    accepted = client.post(
+        "/api/suggestions/decision", json={"merchant": "EKOM", "decision": "accept"}
+    )
+
+    assert accepted.status_code == 200
+    assert accepted.json()["movements"] == 0
+    assert client.get(f"/api/transactions/{movement['id']}").json()["splits"] == [
+        {"category": "Groceries", "amount": "30.00"},
+        {"category": "Uncategorized", "amount": "12.50"},
+    ]
+    # A rule that claims the description does not touch it either.
+    client.post("/api/rules", json={"pattern": "EKOM", "category": "Shopping"})
+    assert client.get(f"/api/transactions/{movement['id']}").json()["splits"] == [
+        {"category": "Groceries", "amount": "30.00"},
+        {"category": "Uncategorized", "amount": "12.50"},
+    ]
+
+
+def test_a_rule_text_that_does_not_compile_writes_nothing(api):
+    client, db_path = api
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+
+    conn = open_ledger_db(db_path)
+    Ledger(conn).record_suggestion("EKOM", "Groceries", "classifier")
+    conn.close()
+
+    refused = client.post(
+        "/api/suggestions/decision",
+        json={
+            "merchant": "EKOM",
+            "decision": "accept",
+            # A category no account has yet, and between the slashes an
+            # expression that does not compile.
+            "category": "Nuova",
+            "rule": "/ekom(/",
+        },
+    )
+
+    assert refused.status_code == 422
+    assert client.get("/api/rules").json() == []
+    # A refused rule is a message, not a half-made decision: not even the
+    # category it would have pointed at is left behind for the pickers.
+    assert "Nuova" not in [item["name"] for item in client.get("/api/categories").json()]
+    # The proposal and the movement are where they were.
+    assert [item["merchant"] for item in client.get("/api/suggestions").json()] == ["EKOM"]
+    movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
+    assert movement["category"] == "Uncategorized"
 
 
 def test_a_proposal_cannot_be_accepted_into_the_review_bucket(api):
@@ -704,7 +844,8 @@ def test_the_classifier_endpoint_records_proposals_without_applying_them(api):
 
 
 def test_a_merchant_with_a_slash_can_still_be_decided(api):
-    """Merchant names come from the bank and routinely contain a slash."""
+    """Merchant names come from the bank and routinely contain a slash: the
+    merchant travels in the body, and so does the text of a rule asked for."""
     client, db_path = api
     from amonhen.db import open_ledger_db
     from amonhen.ledger import Ledger
@@ -715,7 +856,11 @@ def test_a_merchant_with_a_slash_can_still_be_decided(api):
 
     response = client.post(
         "/api/suggestions/decision",
-        json={"merchant": "1051455028466/paypal", "decision": "accept"},
+        json={
+            "merchant": "1051455028466/paypal",
+            "decision": "accept",
+            "rule": "1051455028466/paypal",
+        },
     )
 
     assert response.status_code == 200

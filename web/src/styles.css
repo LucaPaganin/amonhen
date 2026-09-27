@@ -1399,7 +1399,9 @@ button.txn:active {
   letter-spacing: -0.02em;
 }
 
-.sheet__rule {
+/* La casella che decide se nasce una regola: sta nel foglio di un movimento e
+   accanto ai comandi di una proposta, ed è la stessa decisione nei due posti. */
+.rule-toggle {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1408,7 +1410,7 @@ button.txn:active {
   font-size: var(--text-ui);
 }
 
-.sheet__rule input {
+.rule-toggle input {
   width: 22px;
   height: 22px;
   accent-color: var(--accent);

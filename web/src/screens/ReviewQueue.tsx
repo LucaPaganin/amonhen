@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { api, errorMessage } from "../api";
 import { deletionNotice } from "../notices";
@@ -47,7 +47,9 @@ const NEW_CATEGORY = "__new__";
 function stakeText(stake: Suggestion["stake"]): string {
   const { movements, total, first_date: first, last_date: last } = stake;
   if (movements === 0 || first === null || last === null) {
-    return "Nessun movimento in attesa: per questo merchant la coda non ha più niente da decidere.";
+    // Nothing the acceptance could settle: the row may be a split, whose parts
+    // are decided by opening it, or a merchant whose money is already decided.
+    return "Nessun movimento in attesa che un sì possa decidere.";
   }
   if (movements === 1) return `${formatAmount(total)} · speso il ${formatDate(last)}`;
   const span = first === last ? `il ${formatDate(last)}` : `dal ${formatDate(first)} al ${formatDate(last)}`;
@@ -80,6 +82,24 @@ export function ReviewQueueScreen({
   const [newFor, setNewFor] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  // Se una regola nasce da un'accettazione lo decide la casella, che è spenta di
+  // default: una regola per ogni proposta accettata è una regola per ogni modo in
+  // cui una banca stampa lo stesso esercente, e le regole si contano in Categorie.
+  const [withRule, setWithRule] = useState<Record<string, boolean>>({});
+  // La proposta che aspetta la sua regola: il dialogo si apre qui, e il testo si
+  // edita prima di scriverlo, perché è quello che deciderà i movimenti prossimi.
+  const [ruleFor, setRuleFor] = useState<{ suggestion: Suggestion; category: string } | null>(null);
+  const [ruleText, setRuleText] = useState("");
+  const [savingRule, setSavingRule] = useState(false);
+  const ruleDialogRef = useRef<HTMLDialogElement>(null);
+  const ruleFieldId = useId();
+
+  // Il dialogo è montato solo mentre c'è una regola da scrivere, quindi si apre
+  // appena arriva: `showModal` porta con sé l'Esc, il backdrop e la trappola del
+  // fuoco, che è la stessa forma dei fogli dell'app.
+  useEffect(() => {
+    if (ruleFor !== null && !ruleDialogRef.current?.open) ruleDialogRef.current?.showModal();
+  }, [ruleFor]);
 
   // What needs a decision: an automatic pass produced something and waits for a
   // yes or a no. The rest is backlog to work through, not a queue of decisions.
@@ -134,23 +154,62 @@ export function ReviewQueueScreen({
     }
   };
 
-  const decideSuggestion = async (
+  // Che cosa una decisione ha fatto: la categoria, la regola se è stata scritta,
+  // e quanti movimenti tiene. Il dialogo resta aperto quando il ledger rifiuta il
+  // testo della regola — il testo scritto non si perde — quindi il chiamante sa
+  // se la decisione è stata registrata.
+  const recordDecision = async (
     suggestion: Suggestion,
     decision: SuggestionDecision,
-    category?: string,
-  ) => {
-    const error = await suggestions.decide(suggestion, decision, category);
-    if (error) {
+    options: { category?: string; rule?: string } = {},
+  ): Promise<boolean> => {
+    const { error, outcome } = await suggestions.decide(suggestion, decision, options);
+    if (error !== null) {
       review.notify(`Proposta non registrata: ${error}`);
+      return false;
+    }
+    if (decision === "dismiss") {
+      review.notify(`Proposta rifiutata: ${suggestion.merchant}`);
+      return true;
+    }
+    const decided = outcome?.movements ?? 0;
+    const movements = decided === 1 ? "1 movimento" : `${decided} movimenti`;
+    review.notify(
+      outcome?.rule
+        ? `Regola salvata: ${outcome.rule} → ${outcome.category} · ${movements}`
+        : `Categoria salvata: ${outcome?.category} · ${movements}`,
+    );
+    // The movements the decision covered left the queue, so it is read again.
+    await review.reload();
+    return true;
+  };
+
+  /** Il dito sul pulsante della proposta: decide, o apre prima la sua regola. */
+  const acceptSuggestion = (suggestion: Suggestion, category: string) => {
+    if (withRule[suggestion.merchant]) {
+      setRuleText(suggestion.merchant);
+      setRuleFor({ suggestion, category });
       return;
     }
-    if (decision === "accept") {
-      review.notify(`Regola salvata: ${suggestion.merchant} → ${category ?? suggestion.category}`);
-      // The rule just categorized matching transactions, so the queue shrank.
-      await review.reload();
-    } else {
-      review.notify(`Proposta rifiutata: ${suggestion.merchant}`);
-    }
+    void recordDecision(suggestion, "accept", { category });
+  };
+
+  const closeRuleDialog = () => {
+    setRuleFor(null);
+    setRuleText("");
+  };
+
+  const saveRule = async () => {
+    if (ruleFor === null || savingRule) return;
+    const text = ruleText.trim();
+    if (text === "") return;
+    setSavingRule(true);
+    const recorded = await recordDecision(ruleFor.suggestion, "accept", {
+      category: ruleFor.category,
+      rule: text,
+    });
+    if (recorded) closeRuleDialog();
+    setSavingRule(false);
   };
 
   // The right answer for a merchant may be a category that does not exist yet.
@@ -172,17 +231,35 @@ export function ReviewQueueScreen({
     }
   };
 
-  // I comandi di una proposta: la scelta della categoria e il pulsante che la
-  // conferma, con il campo che ne crea una nuova. Sono gli stessi dentro la
-  // scheda (dove li usa il telefono) e nel dettaglio (dove li usa la finestra),
-  // quindi si scrivono una volta e il foglio spegne il posto che non serve. Il
-  // posto entra nell'id del campo perché le due copie stanno nello stesso
-  // documento, e un id ripetuto manda l'etichetta al campo sbagliato.
+  // I comandi di una proposta: la casella che decide se nasce una regola, la
+  // scelta della categoria e il pulsante che la conferma, con il campo che ne
+  // crea una nuova. Sono gli stessi dentro la scheda (dove li usa il telefono) e
+  // nel dettaglio (dove li usa la finestra), quindi si scrivono una volta e il
+  // foglio spegne il posto che non serve. Il posto entra negli id perché le due
+  // copie stanno nello stesso documento, e un id ripetuto manda l'etichetta al
+  // campo sbagliato.
   const proposalControls = (suggestion: Suggestion, place: "card" | "detail") => {
     const choice = chosen[suggestion.merchant] ?? suggestion.category;
     const rejecting = choice === "";
+    const wantsRule = Boolean(withRule[suggestion.merchant]);
     return (
       <>
+        {rejecting ? null : (
+          <label className="rule-toggle" htmlFor={`rule-${place}-${suggestion.merchant}`}>
+            <input
+              id={`rule-${place}-${suggestion.merchant}`}
+              type="checkbox"
+              checked={wantsRule}
+              onChange={(event) =>
+                setWithRule((current) => ({
+                  ...current,
+                  [suggestion.merchant]: event.target.checked,
+                }))
+              }
+            />
+            <span>Crea una regola per «{suggestion.merchant}»</span>
+          </label>
+        )}
         <div className="card__actions">
           <select
             className="input"
@@ -206,13 +283,13 @@ export function ReviewQueueScreen({
           <button
             type="button"
             className={rejecting ? "button button--danger" : "button button--primary"}
-            onClick={() =>
-              void decideSuggestion(
-                suggestion,
-                rejecting ? "dismiss" : "accept",
-                rejecting ? undefined : choice,
-              )
-            }
+            onClick={() => {
+              if (rejecting) {
+                void recordDecision(suggestion, "dismiss");
+              } else {
+                acceptSuggestion(suggestion, choice);
+              }
+            }}
           >
             {rejecting ? "Rifiuta" : "Accetta"}
           </button>
@@ -384,7 +461,7 @@ export function ReviewQueueScreen({
               <p className="hint">
                 {activeChoice === ""
                   ? "Rifiutarla lascia il merchant senza categoria e fuori dalla coda."
-                  : `Accettarla scrive la regola: ${active.merchant} → ${activeChoice}.`}
+                  : `Accettarla assegna «${activeChoice}» ai movimenti in attesa; la regola si scrive solo se la chiedi.`}
               </p>
               <div className="queue-detail__controls">{proposalControls(active, "detail")}</div>
             </>
@@ -531,6 +608,81 @@ export function ReviewQueueScreen({
         }}
         onClose={() => setPickerFor(null)}
       />
+
+      {/* La regola che sta per nascere, prima che nasca: il testo è quello che
+          deciderà ogni movimento che la banca stamperà dopo, quindi si scrive qui
+          invece di essere il nome del merchant, ed è editabile. Annullare non
+          lascia niente a metà: la proposta resta in coda e i movimenti restano
+          dov'erano. */}
+      {ruleFor === null ? null : (
+        <dialog
+          ref={ruleDialogRef}
+          className="sheet"
+          aria-labelledby={`${ruleFieldId}-title`}
+          onCancel={(event) => {
+            event.preventDefault();
+            closeRuleDialog();
+          }}
+          onClose={closeRuleDialog}
+          onClick={(event) => {
+            if (event.target === ruleDialogRef.current) closeRuleDialog();
+          }}
+        >
+          <div className="sheet__panel">
+            <header className="sheet__header">
+              <h2 className="sheet__title" id={`${ruleFieldId}-title`}>
+                La regola per «{ruleFor.suggestion.merchant}»
+              </h2>
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={closeRuleDialog}
+                aria-label="Chiudi"
+              >
+                ✕
+              </button>
+            </header>
+            <form
+              className="sheet__new"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveRule();
+              }}
+            >
+              <label className="sheet__new-label" htmlFor={ruleFieldId}>
+                Testo della regola
+              </label>
+              <input
+                id={ruleFieldId}
+                className="input"
+                type="text"
+                value={ruleText}
+                autoComplete="off"
+                onChange={(event) => setRuleText(event.target.value)}
+              />
+              <p className="hint">
+                Vale per ogni movimento la cui descrizione contiene questo testo, senza badare alle
+                maiuscole; fra barre è un&apos;espressione regolare —{" "}
+                <code>/amazon (eu|payments)/</code> prende una famiglia che la banca scrive in
+                troppi modi. La regola assegna «{ruleFor.category}», come la categoria scelta qui
+                accanto.
+              </p>
+              <div className="card__actions">
+                <button
+                  type="submit"
+                  className="button button--primary"
+                  disabled={savingRule || ruleText.trim() === ""}
+                >
+                  {savingRule ? "Salvo…" : "Accetta e crea la regola"}
+                </button>
+                <button type="button" className="button" onClick={closeRuleDialog} disabled={savingRule}>
+                  Annulla
+                </button>
+              </div>
+            </form>
+          </div>
+        </dialog>
+      )}
     </section>
   );
 }

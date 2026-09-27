@@ -394,6 +394,16 @@ export interface Suggestion {
 
 export type SuggestionDecision = "accept" | "dismiss";
 
+/** What a decision did: the category it assigned, the rule it wrote when one was
+ * asked for, and how many movements that rule holds. A dismissal did nothing. */
+export interface SuggestionDecisionOutcome {
+  merchant: string;
+  decision: SuggestionDecision;
+  category: string | null;
+  rule: string | null;
+  movements: number;
+}
+
 /** A saved text -> category rule and how many movements it currently holds. */
 export interface Rule {
   pattern: string;

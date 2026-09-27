@@ -120,8 +120,12 @@ uncategorized backlog with a filter and an amber flag on the movements that no
 rule, proposal or transfer pairing claimed. Each proposal card carries what the
 decision is about, because a proposal covers a merchant and not one movement: how
 much is waiting, over how many movements, and when they ran. The proposed category
-is a starting point: it is editable, accepting writes the rule with the category
-you chose, and choosing none is what rejecting the proposal means — **Movimenti** the
+is a starting point: it is editable, and accepting assigns the category you chose
+to the movements waiting for that merchant. A rule is a different thing — a
+statement about the movements the bank has not printed yet — so it is written only
+when the checkbox asks for it, off by default: ticking it opens a dialog whose
+field arrives with the merchant name and is editable, and what you write there is
+the rule. Choosing none of the categories is what rejecting the proposal means — **Movimenti** the
 filterable
 transaction list, each transfer row marked with the account its other half sits
 on and narrowable to the transfers alone, where opening a row confirms, undoes or

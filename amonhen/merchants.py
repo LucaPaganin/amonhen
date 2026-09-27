@@ -44,6 +44,16 @@ _METADATA_SEGMENT = re.compile(
 )
 _WHITESPACE = re.compile(r"\s+")
 
+# What one category can decide: a movement whose balancing side is a single
+# posting. It rides on `UNCATEGORIZED_WHERE`, whose rows are the queue's, and it
+# is shared by the stake and by the acceptance so the two cannot disagree about
+# what a merchant's yes would settle. A split is what it leaves out: several
+# category postings are the person's own division of the movement, and pointing
+# it at one category would throw the parts away.
+DECIDABLE_BY_ONE_CATEGORY = """
+    AND (SELECT COUNT(*) FROM postings p JOIN accounts a ON a.id = p.account_id
+         WHERE p.transaction_id = t.id AND a.type = 'category') = 1"""
+
 
 @dataclass(frozen=True)
 class Rule:
@@ -190,7 +200,7 @@ def uncovered_spending(ledger: Ledger) -> dict[str, Stake]:
     stakes: dict[str, Stake] = {}
     for row in ledger.conn.execute(
         f"SELECT t.description, t.date, t.amount FROM transactions t {UNCATEGORIZED_WHERE}"
-        " ORDER BY t.date",
+        f" {DECIDABLE_BY_ONE_CATEGORY} ORDER BY t.date",
         (UNCATEGORIZED,),
     ):
         merchant = merchant_name(row["description"])
@@ -297,6 +307,59 @@ def categorize(ledger: Ledger, book: RuleBook) -> int:
     """
     rules = book.rules()
     return _apply_rules(ledger, rules, rules)
+
+
+def waiting_transactions(ledger: Ledger, merchant: str) -> list[int]:
+    """The ids of a merchant's queue rows that one category can decide.
+
+    The predicate is the queue's, so a decision covers what the figure beside
+    the proposal was about. What neither counts is a movement a single category
+    cannot take: a split carries several category postings, its parts are a
+    decision of the person, and pointing the movement at one category would
+    throw them away. Such a row waits in the queue with the rest and is decided
+    by opening it.
+    """
+    return [
+        row["id"]
+        for row in ledger.conn.execute(
+            f"SELECT t.id, t.description FROM transactions t {UNCATEGORIZED_WHERE}"
+            f" {DECIDABLE_BY_ONE_CATEGORY} ORDER BY t.date",
+            (UNCATEGORIZED,),
+        )
+        if merchant_name(row["description"]) == merchant
+    ]
+
+
+def accept_merchant(
+    ledger: Ledger, merchant: str, category: str, *, rule: str | None = None
+) -> dict:
+    """Decide one merchant's waiting movements, writing a rule only when asked.
+
+    An acceptance is a decision about the movements the queue was holding: they
+    take the chosen category one by one, as a person's own decision, and a
+    person's decision is what the rules never overrule. The text of a rule is a
+    statement about the movements the bank has not printed yet, and a rule for
+    every accepted proposal would grow a rule for every spelling of every shop,
+    so one is written only when `rule` carries the text someone wrote for it —
+    and then the movements follow it instead.
+
+    Returns what the decision did: the category, the rule if one was written,
+    and how many movements it holds.
+    """
+    if category == UNCATEGORIZED:
+        raise ValueError("a decision cannot point at the review bucket: it would decide nothing")
+    if rule is not None:
+        # `set_rule` refuses the review bucket, the empty text and an expression
+        # that does not compile, and resolves the category itself: a rule that is
+        # refused must not leave a category account behind for the pickers to offer.
+        held = RuleBook(ledger.conn).set_rule(rule, category, ledger)
+        return {"category": category, "rule": rule, "movements": held}
+    account = ledger.category(category)
+    decided = 0
+    for transaction_id in waiting_transactions(ledger, merchant):
+        ledger.set_category(transaction_id, account)
+        decided += 1
+    return {"category": category, "rule": None, "movements": decided}
 
 
 def _candidate_rules(description: str, rules: Sequence[Rule]) -> list[Rule]:

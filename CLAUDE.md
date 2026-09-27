@@ -274,13 +274,22 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   a leg the client cannot predict.
 - **Proposals are never applied on their own.** The classifier and the LLM both
   write a `merchant -> category` row into `merchant_suggestions` with a
-  `source`, and only `POST /api/suggestions/decision` with `{"merchant": …,
-  "decision": "accept"}` turns it into a rule whose pattern is that merchant
-  name (the merchant travels in the body, because names contain slashes).
-  `propose_categories` and
-  `propose_for_unseen` write nothing to `transactions`. This is desiderata 5.5
-  step 4 and section 8: discrete, confirmable labels, never numbers, never in
-  the sync path.
+  `source`, and only `POST /api/suggestions/decision` decides one — always with
+  the merchant in the body, because names contain slashes. `accept` assigns the
+  chosen category to the movements the queue was holding for that merchant, one
+  by one, as the person's own decision, and writes **no rule**: a rule is a
+  statement about the movements the bank has not printed yet, so it is written
+  only when the request carries `rule` with the text to use, and that text is the
+  rule (`merchants.accept_merchant`). The queue's checkbox is off by default and
+  its dialog edits that text; the single-movement sheet has the same checkbox.
+  Because what a ruleless acceptance writes is a person's decision,
+  `_apply_rules` leaves it alone: a later rule that assigns a *different*
+  category cannot claim the movement. A rule that assigns the same category does
+  adopt it — that is what the rule's `count` means — and deleting that rule puts
+  the movement back in the queue, which is the rules machinery working as
+  documented. `propose_categories` and `propose_for_unseen` write nothing to
+  `transactions`. This is desiderata 5.5 step 4 and section 8: discrete,
+  confirmable labels, never numbers, never in the sync path.
 - **The LLM feature is off unless configured.** `AMONHEN_LLM_URL` and
   `AMONHEN_LLM_MODEL` must both be set; the API answers 503 with the reason
   otherwise. The endpoint is treated as OpenAI-compatible chat completions and

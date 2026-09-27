@@ -27,6 +27,7 @@ import type {
   DeletedMovement,
   Deletion,
   SuggestionDecision,
+  SuggestionDecisionOutcome,
   SyncOutcome,
   Transaction,
   TransactionPage,
@@ -265,13 +266,20 @@ export const api = {
     ),
   anomalies: (days = 31, signal?: AbortSignal) => get<Anomaly[]>(`/anomalies?days=${days}`, signal),
   suggestions: (signal?: AbortSignal) => get<Suggestion[]>("/suggestions", signal),
-  decideSuggestion: (merchant: string, decision: SuggestionDecision, category?: string) =>
+  decideSuggestion: (
+    merchant: string,
+    decision: SuggestionDecision,
+    options: { category?: string; rule?: string } = {},
+  ) =>
     // The merchant travels in the body: names routinely contain a slash. The
-    // category travels with it because a person may correct the proposal.
-    send<{ merchant: string; decision: SuggestionDecision }>("POST", "/suggestions/decision", {
+    // category travels with it because a person may correct the proposal, and
+    // the rule only when its text was written for it: without one the ledger
+    // decides the movements and leaves `rules` alone.
+    send<SuggestionDecisionOutcome>("POST", "/suggestions/decision", {
       merchant,
       decision,
-      category: category ?? null,
+      category: options.category ?? null,
+      rule: options.rule ?? null,
     }),
   propose: () => send<{ considered: number; recorded: number }>("POST", "/propose", {}),
   llmSuggest: () => send<{ recorded: number }>("POST", "/llm-suggest", {}),

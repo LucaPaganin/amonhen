@@ -295,8 +295,8 @@ export function CategoryRulesScreen({
                     {
                     entry.rules.length === 0 ? (
                       <p className="rule-group__empty">
-                        Nessuna regola per questa categoria: ne nasce una accettando una proposta in
-                        coda, oppure si scrive qui sotto.
+                        Nessuna regola per questa categoria: si scrive qui sotto, o si chiede
+                        mentre si accetta una proposta in coda.
                       </p>
                     ) : (
                       <ul className="rule-group__rules">

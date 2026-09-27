@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "./api";
-import type { Suggestion, SuggestionDecision } from "./types";
+import type { Suggestion, SuggestionDecision, SuggestionDecisionOutcome } from "./types";
 
 export interface SuggestionController {
   suggestions: Suggestion[];
@@ -10,13 +10,20 @@ export interface SuggestionController {
   reload: () => Promise<void>;
   /**
    * Optimistic: the proposal leaves the list, a failed decision puts it back.
-   * `category` corrects the proposal before accepting it.
+   * `category` corrects the proposal before accepting it; `rule` is the text of
+   * the rule to write, and without it the decision is about the movements alone.
    */
   decide: (
     suggestion: Suggestion,
     decision: SuggestionDecision,
-    category?: string,
-  ) => Promise<string | null>;
+    options?: { category?: string; rule?: string },
+  ) => Promise<SuggestionDecisionResult>;
+}
+
+/** The server's message when the decision was refused, and what it did when it was not. */
+export interface SuggestionDecisionResult {
+  error: string | null;
+  outcome: SuggestionDecisionOutcome | null;
 }
 
 export function useSuggestions(): SuggestionController {
@@ -49,18 +56,18 @@ export function useSuggestions(): SuggestionController {
     async (
       suggestion: Suggestion,
       decision: SuggestionDecision,
-      category?: string,
-    ): Promise<string | null> => {
+      options: { category?: string; rule?: string } = {},
+    ): Promise<SuggestionDecisionResult> => {
       setSuggestions((current) => current.filter((item) => item.merchant !== suggestion.merchant));
       try {
-        await api.decideSuggestion(suggestion.merchant, decision, category);
+        const outcome = await api.decideSuggestion(suggestion.merchant, decision, options);
         void load();
-        return null;
+        return { error: null, outcome };
       } catch (error) {
         setSuggestions((current) =>
           [...current, suggestion].sort((a, b) => a.merchant.localeCompare(b.merchant)),
         );
-        return errorMessage(error);
+        return { error: errorMessage(error), outcome: null };
       }
     },
     [load],

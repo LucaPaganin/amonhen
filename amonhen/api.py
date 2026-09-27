@@ -47,6 +47,7 @@ from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
     RuleBook,
     Stake,
+    accept_merchant,
     categorize,
     merchant_name,
     rule_usage,
@@ -76,10 +77,12 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # Bump when a response shape changes: the PWA compares this with the version it
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
-# Python process keeps running its old code, so the two can drift. Version 19 is
-# the CSV import: a bundle built for it posts to /api/import/csv, a route an
-# older server does not have.
-API_VERSION = 19
+# Python process keeps running its old code, so the two can drift. Version 20 is
+# the queue's decision: the request carries the text of a rule to write and the
+# answer says what the decision did, and an older server would take the text as
+# absent — writing a rule named after the merchant, which is the behaviour this
+# version removed.
+API_VERSION = 20
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -200,6 +203,10 @@ class SuggestionDecisionRequest(BaseModel):
     # The category a person chose instead of the proposed one. Absent (or empty)
     # means the proposal was right; on a dismissal it is not read at all.
     category: str | None = None
+    # The text of a rule to write for this merchant, when one was asked for.
+    # Absent means the decision is about the movements alone: `rules` is not
+    # touched, and the next movements of that merchant come back to the queue.
+    rule: str | None = None
 
 
 class SetupCredentialsRequest(BaseModel):
@@ -782,15 +789,19 @@ def create_app(
                     ).fetchone()
                     if suggestion is None:
                         raise KeyError(f"no suggestion for {merchant!r}")
-                    # A proposal is a starting point: the rule carries the category
-                    # that was chosen, and the ledger refuses one that is not a
-                    # category of its own.
+                    # A proposal is a starting point: the decision carries the
+                    # category that was chosen, and the ledger refuses one that is
+                    # not a category of its own. The rule is written only when its
+                    # text came with the request, and that text is the rule.
                     chosen = (body.category or suggestion["category"]).strip()
-                    RuleBook(ledger.conn).set_rule(merchant, chosen, ledger)
-                ledger.decide_suggestion(merchant, "accepted" if body.decision == "accept" else "dismissed")
+                    outcome = accept_merchant(ledger, merchant, chosen, rule=body.rule or None)
+                    ledger.decide_suggestion(merchant, "accepted")
+                else:
+                    outcome = {"category": None, "rule": None, "movements": 0}
+                    ledger.decide_suggestion(merchant, "dismissed")
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
-            return {"merchant": merchant, "decision": body.decision}
+            return {"merchant": merchant, "decision": body.decision, **outcome}
 
     @app.post("/api/propose")
     def propose() -> dict:

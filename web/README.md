@@ -385,10 +385,9 @@ backlog and never a function of the filter, so a narrow view cannot make the wor
 The review screen opens with the **Proposte da confermare** block fed by `GET /api/suggestions`:
 one card per merchant with the proposed category and its source (`classificatore` or `modello`),
 and *Accetta* / *Rifiuta* wired to `POST /api/suggestions/decision` (the merchant travels in the
-body). Accepting creates
-a rule whose pattern is that merchant name, which categorizes matching transactions, so the block
-and the queue are both refetched afterwards; dismissing only drops the proposal. Both decisions are
-optimistic.
+body). Accepting assigns the chosen category to the movements waiting for that merchant — the rule
+is a separate thing the checkbox asks for — so the block and the queue are both refetched
+afterwards; dismissing only drops the proposal. Both decisions are optimistic.
 
 Every card carries the **stake** of the decision (`stake` in the response): the total waiting for
 that merchant, how many movements it is, and the span they cover — one amount and one date when
@@ -397,8 +396,15 @@ would settle; when nothing is waiting any more the card says so instead of showi
 is read with the queue's own predicate, so it cannot contradict the list underneath.
 
 The category on a card is an editable select, pre-filled with the proposal, and *Accetta*
-(`POST /api/suggestions/decision` with a `category`) writes the rule with the category that was
-chosen rather than the one proposed. The select's last option is *"Nessuna categoria: rifiuta la
+(`POST /api/suggestions/decision` with a `category`) assigns that category to the movements waiting
+for the merchant. A **Crea una regola per «merchant»** checkbox sits above the row, off by default:
+left alone, accepting writes nothing to `rules`, because a rule is a statement about the movements the
+bank has not printed yet and one per accepted proposal would be one per spelling. Ticked, *Accetta*
+opens a dialog whose field arrives with the merchant name and is editable — what is written there is
+the rule's pattern, and `/…/` makes it an expression — and *Accetta e crea la regola* writes both the
+decision and the rule; *Annulla*, the ✕ or Escape leave the proposal and its movements untouched. The
+same checkbox decides the single-movement sheet, which writes the merchant name as the rule's text
+with no dialog. The select's last option is *"Nessuna categoria: rifiuta la
 proposta"*: with it the button becomes *Rifiuta* and the same call sends `dismiss`, because the two
 outcomes are one gesture apart. The review bucket is never offered — a rule may not point at it — and
 the app learns its name from the handshake instead of assuming it.
