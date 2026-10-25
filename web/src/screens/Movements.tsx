@@ -3,11 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { deletionNotice } from "../notices";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { RuleSheet, merchantDraft } from "../components/RuleSheet";
 import { Toast } from "../components/Toast";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferPanel } from "../components/TransferPanel";
 import { currentMonth, formatAmount, formatMonth, monthBounds, shiftMonth, toAmount } from "../format";
-import type { Account, Category, Transaction } from "../types";
+import type { Account, Category, RuleDraft, Transaction } from "../types";
 import type { ReviewQueueController } from "../useReviewQueue";
 import { categoryText } from "../category";
 
@@ -22,6 +23,8 @@ interface MovementsScreenProps {
   onReviewReload: () => void;
   /** Bumped after a sync: the list is what the ledger now holds, not what it held. */
   refreshToken: number;
+  /** Writes a rule; answers the error to show in its sheet, or null once saved. */
+  onSaveRule: (draft: RuleDraft) => Promise<string | null>;
 }
 
 function chronological(a: Transaction, b: Transaction): number {
@@ -36,6 +39,7 @@ export function MovementsScreen({
   onCategorize,
   onReviewReload,
   refreshToken,
+  onSaveRule,
 }: MovementsScreenProps) {
   const [month, setMonth] = useState(currentMonth);
   const [accountId, setAccountId] = useState("");
@@ -53,6 +57,15 @@ export function MovementsScreen({
   const [transferFilter, setTransferFilter] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // The rule a movement's sheet asked for: it opens once the category is chosen,
+  // with the merchant's text to edit, and writes nothing until it is saved.
+  const [ruleFor, setRuleFor] = useState<{ transaction: Transaction; category: string } | null>(null);
+  // Choosing rows for one action on all of them: a tap picks instead of opening.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchCategory, setBatchCategory] = useState("");
+  const [confirmingBatchDelete, setConfirmingBatchDelete] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
   const latestRequest = useRef(0);
 
   const bounds = useMemo(() => monthBounds(month), [month]);
@@ -80,6 +93,9 @@ export function MovementsScreen({
         setItems(page.items);
         setTotal(page.total);
         setOffset(page.items.length);
+        // A selection is of the rows on screen: a new page is new rows.
+        setSelected(new Set());
+        setConfirmingBatchDelete(false);
         setLoadError(null);
         setLoading(false);
       })
@@ -150,9 +166,95 @@ export function MovementsScreen({
   );
 
   const openRow = (transaction: Transaction) => {
+    if (selecting) {
+      toggleSelected(transaction.id);
+      return;
+    }
     // A leg has no category to pick: its panel says what it is attached to.
     if (transaction.transfer !== null) setTransferFor(transaction);
     else setPickerFor(transaction);
+  };
+
+  const toggleSelected = (id: number) => {
+    setConfirmingBatchDelete(false);
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = displayed.length > 0 && displayed.every((item) => selected.has(item.id));
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+    setConfirmingBatchDelete(false);
+  };
+
+  // What the ledger holds changed under the list, and the queue's counts with it.
+  const reloadAll = () => {
+    setOffset(0);
+    setItems([]);
+    setReloadKey((key) => key + 1);
+    onReviewReload();
+  };
+
+  const deleteSelected = async () => {
+    if (selected.size === 0 || batchBusy) return;
+    setBatchBusy(true);
+    try {
+      const outcome = await api.deleteTransactions([...selected]);
+      const what =
+        outcome.deleted === 1 ? "Cancellato 1 movimento" : `Cancellati ${outcome.deleted} movimenti`;
+      setNotice(
+        `${what}: sono nel cestino dei loro conti, in Conti.${
+          outcome.unlinked_pairs > 0 ? " I giroconti di cui facevano parte sono stati sciolti." : ""
+        }`,
+      );
+      stopSelecting();
+      reloadAll();
+    } catch (error) {
+      setNotice(`Movimenti non cancellati: ${errorMessage(error)}`);
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  const categorizeSelected = async () => {
+    if (selected.size === 0 || batchCategory === "" || batchBusy) return;
+    setBatchBusy(true);
+    try {
+      const outcome = await api.categorizeTransactions([...selected], batchCategory);
+      const done = `${outcome.categorized} ${outcome.categorized === 1 ? "movimento" : "movimenti"}`;
+      const left =
+        outcome.skipped > 0
+          ? ` · ${outcome.skipped} lasciati com'erano: giroconti o divisi in più categorie, si decidono aprendoli`
+          : "";
+      setNotice(`${categoryText(batchCategory)}: ${done}${left}`);
+      stopSelecting();
+      reloadAll();
+    } catch (error) {
+      setNotice(`Categoria non assegnata: ${errorMessage(error)}`);
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  const saveRule = async (draft: RuleDraft): Promise<string | null> => {
+    const asked = ruleFor;
+    const message = await onSaveRule(draft);
+    if (message !== null) return message;
+    setRuleFor(null);
+    // The movement the rule was asked from takes the category chosen for it even
+    // when the text was edited so that the rule no longer reaches it.
+    if (asked !== null && draft.action === "category" && draft.target) {
+      await onCategorize(asked.transaction, draft.target);
+    }
+    setNotice(`Regola salvata: «${draft.pattern}»`);
+    reloadAll();
+    return null;
   };
 
   return (
@@ -164,6 +266,16 @@ export function MovementsScreen({
             {formatMonth(month)} · {items.length} movimenti · totale {formatAmount(loadedTotal)}
             {items.length < total ? " (parziale)" : ""}
           </p>
+        </div>
+        <div className="screen__actions">
+          <button
+            type="button"
+            className="button"
+            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+            disabled={!selecting && displayed.length === 0}
+          >
+            {selecting ? "Fine" : "Seleziona"}
+          </button>
         </div>
       </header>
 
@@ -265,6 +377,78 @@ export function MovementsScreen({
           nominare (sopra i 1024) e solo quando c'è almeno una riga sotto. Le
           righe dicono già tutto nella loro etichetta, quindi questa non c'è per
           chi ascolta. */}
+      {selecting ? (
+        <div className="batch-bar" role="region" aria-label="Azioni sui movimenti selezionati">
+          <p className="batch-bar__count">
+            {selected.size === 0
+              ? "Tocca i movimenti da scegliere"
+              : `${selected.size} ${selected.size === 1 ? "selezionato" : "selezionati"}`}
+          </p>
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              setConfirmingBatchDelete(false);
+              setSelected(allSelected ? new Set() : new Set(displayed.map((item) => item.id)));
+            }}
+            disabled={displayed.length === 0 || batchBusy}
+          >
+            {allSelected ? "Deseleziona tutti" : `Seleziona tutti (${displayed.length})`}
+          </button>
+          <select
+            className="input"
+            aria-label="Categoria da assegnare ai selezionati"
+            value={batchCategory}
+            onChange={(event) => setBatchCategory(event.target.value)}
+            disabled={batchBusy}
+          >
+            <option value="">Categoria…</option>
+            {categories.map((item) => (
+              <option key={item.id} value={item.name}>
+                {categoryText(item.name)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="button"
+            onClick={() => void categorizeSelected()}
+            disabled={selected.size === 0 || batchCategory === "" || batchBusy}
+          >
+            Assegna
+          </button>
+          {confirmingBatchDelete ? (
+            <>
+              <button
+                type="button"
+                className="button button--danger"
+                onClick={() => void deleteSelected()}
+                disabled={batchBusy}
+              >
+                {batchBusy ? "Cancello…" : `Sì, cancella ${selected.size}`}
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => setConfirmingBatchDelete(false)}
+                disabled={batchBusy}
+              >
+                No
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="button button--danger"
+              onClick={() => setConfirmingBatchDelete(true)}
+              disabled={selected.size === 0 || batchBusy}
+            >
+              Cancella
+            </button>
+          )}
+        </div>
+      ) : null}
+
       {displayed.length > 0 ? (
         <div className="txn-head" aria-hidden="true">
           <span>Data</span>
@@ -282,6 +466,7 @@ export function MovementsScreen({
             transaction={transaction}
             runningTotal={runningTotals.get(transaction.id)}
             onSelect={openRow}
+            selected={selecting ? selected.has(transaction.id) : undefined}
           />
         ))}
       </ul>
@@ -337,10 +522,16 @@ export function MovementsScreen({
           const transaction = pickerFor;
           setPickerFor(null);
           if (!transaction) return;
+          if (options.rule) {
+            // The rule is a statement about movements the bank has not printed
+            // yet, so its text is written before anything is saved.
+            setRuleFor({ transaction, category: chosenCategory });
+            return;
+          }
           setItems((current) =>
             current.map((item) => (item.id === transaction.id ? { ...item, category: chosenCategory } : item)),
           );
-          void onCategorize(transaction, chosenCategory, options).then((saved) => {
+          void onCategorize(transaction, chosenCategory).then((saved) => {
             if (saved) return;
             setItems((current) =>
               current.map((item) => (item.id === transaction.id ? { ...item, category: transaction.category } : item)),
@@ -354,6 +545,19 @@ export function MovementsScreen({
         }}
         onClose={() => setPickerFor(null)}
       />
+
+      {ruleFor === null ? null : (
+        <RuleSheet
+          title={`Una regola da «${ruleFor.transaction.merchant ?? ruleFor.transaction.description}»`}
+          initial={merchantDraft(
+            ruleFor.transaction.merchant ?? ruleFor.transaction.description,
+            ruleFor.category,
+          )}
+          categories={categories}
+          onSave={saveRule}
+          onClose={() => setRuleFor(null)}
+        />
+      )}
 
       <TransferPanel
         open={transferFor !== null}

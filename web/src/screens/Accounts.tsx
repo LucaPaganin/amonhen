@@ -4,23 +4,18 @@ import type { MouseEvent } from "react";
 import { api, errorMessage, isAbortError } from "../api";
 import { Toast } from "../components/Toast";
 import { Toggle } from "../components/Toggle";
-import { currentMonth, formatAmount, formatDate, formatMonth, shiftMonth, toAmount } from "../format";
+import { formatAmount, formatDate, toAmount } from "../format";
 import type {
   Account,
   AccountVerification,
-  AssistantContext,
-  Budget,
   DeclaredBalanceCheck,
   Declaration,
   DeletedMovement,
   NewAccount,
 } from "../types";
 import { useAccounts } from "../useAccounts";
-import { categoryText } from "../category";
 
 interface AccountsScreenProps {
-  /** Opens the assistant on one budget: the question is composed at that row. */
-  onAskAssistant: (context: AssistantContext) => void;
   /** Bumped after a sync: the balances and the 5.4 verdict are read again. */
   refreshToken: number;
 }
@@ -429,7 +424,7 @@ function NewAccountSheet({ open, onClose, onCreate }: NewAccountSheetProps) {
   );
 }
 
-export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenProps) {
+export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
   const {
     accounts,
     error: accountsError,
@@ -447,33 +442,11 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
   const [declareFor, setDeclareFor] = useState<Account | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const [month, setMonth] = useState(currentMonth);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [budgetsLoading, setBudgetsLoading] = useState(true);
-  const [budgetsError, setBudgetsError] = useState<string | null>(null);
-  const [editingBudget, setEditingBudget] = useState<number | null>(null);
-  const [budgetDraft, setBudgetDraft] = useState("");
-  const [pendingBudget, setPendingBudget] = useState<number | null>(null);
-
-  const loadBudgets = useCallback(async (value: string, signal?: AbortSignal) => {
-    setBudgetsLoading(true);
-    try {
-      setBudgets(await api.budgets(value, signal));
-      setBudgetsError(null);
-    } catch (caught) {
-      if (isAbortError(caught)) return;
-      setBudgetsError(errorMessage(caught));
-    } finally {
-      setBudgetsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadBudgets(month, controller.signal);
-    return () => controller.abort();
-  }, [loadBudgets, month, refreshToken]);
+  // Deleting an account cannot be undone from here, so it asks for the name:
+  // a tap on the wrong row must not take a bank's whole history with it.
+  const [deletingFor, setDeletingFor] = useState<number | null>(null);
+  const [typedName, setTypedName] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // A sync declares balances under this screen, so the token says to read them
   // again: the first render is not a refresh, the mount effect above is.
@@ -516,34 +489,6 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
     }
   };
 
-  const applyBudget = async (budget: Budget, amount: string | null) => {
-    if (pendingBudget !== null) return;
-    setPendingBudget(budget.id);
-    try {
-      const updated = await api.setBudget(budget.id, amount, month);
-      setBudgets((current) => current.map((row) => (row.id === budget.id ? updated : row)));
-      setEditingBudget(null);
-      setNotice(
-        amount === null
-          ? `Budget di ${categoryText(budget.category)} rimosso`
-          : `Budget di ${categoryText(budget.category)} salvato`,
-      );
-    } catch (caught) {
-      setNotice(`Budget non salvato: ${errorMessage(caught)}`);
-    } finally {
-      setPendingBudget(null);
-    }
-  };
-
-  const saveBudget = async (budget: Budget) => {
-    const value = budgetDraft.trim().replace(",", ".");
-    if (!/^\d+(\.\d{1,2})?$/.test(value)) {
-      setNotice("Importo non valido: usa cifre e al massimo due decimali.");
-      return;
-    }
-    await applyBudget(budget, value);
-  };
-
   const toggleFlag = async (
     account: Account,
     flags: { investment?: boolean; reimport_deleted?: boolean },
@@ -578,6 +523,33 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
     );
   };
 
+  const askDelete = (account: Account) => {
+    setDeletingFor(account.id);
+    setTypedName("");
+    setDeleteError(null);
+  };
+
+  const deleteAccount = async (account: Account) => {
+    if (typedName.trim() !== account.name || pendingAccounts.includes(account.id)) return;
+    setPendingAccounts((current) => [...current, account.id]);
+    setDeleteError(null);
+    try {
+      const outcome = await api.deleteAccount(account.id);
+      setDeletingFor(null);
+      setNotice(
+        `Conto ${outcome.name} eliminato con ${outcome.movements} ${
+          outcome.movements === 1 ? "movimento" : "movimenti"
+        }${outcome.disconnected ? ": il sync non lo chiede più alla banca" : ""}`,
+      );
+      reloadAccounts();
+      void loadTrash();
+    } catch (caught) {
+      setDeleteError(errorMessage(caught));
+    } finally {
+      setPendingAccounts((current) => current.filter((id) => id !== account.id));
+    }
+  };
+
   const handleCreate = async (body: NewAccount): Promise<string | null> => {
     const message = await createAccount(body);
     if (message !== null) return message;
@@ -589,14 +561,12 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
     <section className="screen">
       <header className="screen__header">
         <div>
-          <h1 className="screen__title">Conti e budget</h1>
-          <p className="screen__subtitle">
-            I conti reali, il loro saldo di partenza e quanto hai deciso di spendere.
-          </p>
+          <h1 className="screen__title">Conti</h1>
+          <p className="screen__subtitle">I conti reali, il loro saldo e il saldo di partenza.</p>
         </div>
       </header>
 
-      <section className="panel panel--pair">
+      <section className="panel">
         <h2 className="section-title">
           Conti <span className="count">{accounts.length}</span>
         </h2>
@@ -710,7 +680,66 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
                         {`Allinea il saldo iniziale (${KIND_LABELS[check.kind].toLowerCase()})`}
                       </button>
                     ))}
+                    {deletingFor === account.id ? null : (
+                      <button
+                        type="button"
+                        className="button button--danger"
+                        disabled={pending}
+                        onClick={() => askDelete(account)}
+                      >
+                        Elimina conto
+                      </button>
+                    )}
                   </div>
+                  {deletingFor === account.id ? (
+                    <form
+                      className="account-delete"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void deleteAccount(account);
+                      }}
+                    >
+                      <p className="hint">
+                        Elimina il conto con tutti i suoi movimenti, il cestino, i saldi dichiarati e
+                        le regole ristrette a lui; se è collegato a una banca, il sync smette di
+                        chiederlo. I giroconti con gli altri conti tornano da confermare. Non si
+                        annulla: per tornare indietro serve uno snapshot.
+                      </p>
+                      <label className="field__label" htmlFor={`delete-${account.id}`}>
+                        Scrivi «{account.name}» per confermare
+                      </label>
+                      <input
+                        id={`delete-${account.id}`}
+                        className="input"
+                        type="text"
+                        autoComplete="off"
+                        value={typedName}
+                        onChange={(event) => setTypedName(event.target.value)}
+                      />
+                      {deleteError === null ? null : (
+                        <p className="state state--error" role="alert">
+                          Conto non eliminato: {deleteError}
+                        </p>
+                      )}
+                      <div className="account-row__actions">
+                        <button
+                          type="submit"
+                          className="button button--danger"
+                          disabled={pending || typedName.trim() !== account.name}
+                        >
+                          {pending ? "Elimino…" : "Elimina conto e movimenti"}
+                        </button>
+                        <button
+                          type="button"
+                          className="button"
+                          disabled={pending}
+                          onClick={() => setDeletingFor(null)}
+                        >
+                          Annulla
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                 </li>
               );
             })}
@@ -720,170 +749,6 @@ export function AccountsScreen({ onAskAssistant, refreshToken }: AccountsScreenP
           <p className="state state--error" role="alert">
             Cestino non leggibile: {trashError}
           </p>
-        )}
-      </section>
-
-      <section className="panel panel--pair">
-        <h2 className="section-title">
-          Budget <span className="count">{formatMonth(month)}</span>
-        </h2>
-        <div className="month-picker">
-          <button
-            type="button"
-            className="button"
-            onClick={() => setMonth(shiftMonth(month, -1))}
-            aria-label="Mese precedente"
-          >
-            ‹
-          </button>
-          <label className="visually-hidden" htmlFor="budget-month">
-            Mese
-          </label>
-          <input
-            id="budget-month"
-            className="month-picker__input"
-            type="month"
-            value={month}
-            onChange={(event) => {
-              if (event.target.value !== "") setMonth(event.target.value);
-            }}
-          />
-          <button
-            type="button"
-            className="button"
-            onClick={() => setMonth(shiftMonth(month, 1))}
-            aria-label="Mese successivo"
-          >
-            ›
-          </button>
-        </div>
-        {budgetsError !== null ? (
-          <div className="state state--error" role="alert">
-            <p>Impossibile caricare i budget: {budgetsError}</p>
-            <button type="button" className="button" onClick={() => void loadBudgets(month)}>
-              Riprova
-            </button>
-          </div>
-        ) : budgetsLoading && budgets.length === 0 ? (
-          <p className="state" aria-busy="true">
-            Caricamento…
-          </p>
-        ) : budgets.length === 0 ? (
-          <p className="state">Nessuna categoria su cui impostare un budget.</p>
-        ) : (
-          <>
-            {budgets.every((row) => row.budget === null) ? (
-              <p className="state">
-                Nessun budget impostato: apri una categoria per fissare quanto vuoi spendere questo
-                mese.
-              </p>
-            ) : null}
-            <ul className="budget-list">
-              {budgets.map((budget) => {
-                const remaining = budget.remaining === null ? null : toAmount(budget.remaining);
-                const overspend = remaining !== null && remaining < 0 ? -remaining : null;
-                const editing = editingBudget === budget.id;
-                const pending = pendingBudget === budget.id;
-                return (
-                  <li
-                    className={overspend !== null ? "budget-row budget-row--over" : "budget-row"}
-                    key={budget.id}
-                  >
-                    <div className="budget-row__head">
-                      <span className="budget-row__name">{categoryText(budget.category)}</span>
-                      <span className="budget-row__spent">{formatAmount(budget.spent)} spesi</span>
-                    </div>
-                    <p className="budget-row__status">
-                      {budget.budget === null ? (
-                        "Nessun budget impostato"
-                      ) : overspend !== null ? (
-                        <>
-                          Budget {formatAmount(budget.budget)} ·{" "}
-                          <strong className="budget-row__over">
-                            sforato di {formatAmount(overspend)}
-                          </strong>
-                        </>
-                      ) : (
-                        <>
-                          Budget {formatAmount(budget.budget)} · restano{" "}
-                          {formatAmount(remaining ?? 0)}
-                        </>
-                      )}
-                    </p>
-                    {editing ? (
-                      <form
-                        className="budget-editor"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void saveBudget(budget);
-                        }}
-                      >
-                        <label className="visually-hidden" htmlFor={`budget-${budget.id}`}>
-                          Budget mensile per {categoryText(budget.category)}
-                        </label>
-                        <input
-                          id={`budget-${budget.id}`}
-                          className="input"
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          value={budgetDraft}
-                          onChange={(event) => setBudgetDraft(event.target.value)}
-                          autoFocus
-                        />
-                        <button
-                          type="submit"
-                          className="button button--primary"
-                          disabled={pending || budgetDraft.trim() === ""}
-                        >
-                          {pending ? "Salvo…" : "Salva"}
-                        </button>
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={() => setEditingBudget(null)}
-                        >
-                          Annulla
-                        </button>
-                        {budget.budget !== null ? (
-                          <button
-                            type="button"
-                            className="button button--danger"
-                            disabled={pending}
-                            onClick={() => void applyBudget(budget, null)}
-                          >
-                            Rimuovi
-                          </button>
-                        ) : null}
-                      </form>
-                    ) : (
-                      <div className="budget-row__actions">
-                        {budget.budget === null ? null : (
-                          <button
-                            type="button"
-                            className="button"
-                            onClick={() => onAskAssistant({ kind: "budget", id: budget.id })}
-                          >
-                            Regge?
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={() => {
-                            setEditingBudget(budget.id);
-                            setBudgetDraft(budget.budget === null ? "" : budget.budget);
-                          }}
-                        >
-                          {budget.budget === null ? "Imposta budget" : "Modifica"}
-                        </button>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </>
         )}
       </section>
 

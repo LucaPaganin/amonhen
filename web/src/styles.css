@@ -1084,6 +1084,44 @@ button.txn {
   cursor: pointer;
 }
 
+/* Una riga scelta per un'azione in blocco: lo stato è il suo colore al 15%,
+   come un chip, e il chip «Selezionato» lo dice a parole. */
+.txn--selected {
+  background: rgba(240, 201, 122, 0.15);
+}
+
+.chip--selected {
+  background: rgba(240, 201, 122, 0.15);
+  color: var(--accent);
+}
+
+/* La barra delle azioni in blocco resta a portata mentre si scorre la pagina. */
+.batch-bar {
+  position: sticky;
+  top: 72px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--menu);
+}
+
+.batch-bar__count {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.batch-bar .input {
+  flex: 1 1 12rem;
+  width: auto;
+}
+
 /* L'intestazione di una tabella che esiste solo sopra i 1024, e i due gruppi di
    pillole dentro la riga: sotto, quei gruppi non esistono per il layout e le
    pillole stanno in fila dentro la descrizione come sono sempre state. */
@@ -1878,6 +1916,8 @@ button.txn:active {
 
 .budget-row__actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .budget-row__actions .button {
@@ -1893,6 +1933,247 @@ button.txn:active {
 .budget-editor .input {
   flex: 1;
   min-width: 0;
+}
+
+.budget-editor__actions {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Le voci pianificate dentro il budget di una categoria (sezione 5.12): ognuna è un
+   bottone che apre il suo modulo, e una voce che non ci sta più resta leggibile
+   ma si spegne, con il chip che dice perché. */
+.budget-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.budget-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--fill-1);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .budget-item:hover {
+    background: var(--fill-2);
+  }
+}
+
+.budget-item--out .budget-item__name,
+.budget-item--out .budget-item__amount {
+  color: var(--muted);
+}
+
+.budget-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.budget-item__name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.budget-item__note {
+  font-style: italic;
+}
+
+.budget-item__amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* La priorità con le tinte già misurate: l'ambra di ciò che non si salta, il
+   neutro di ciò che conta, l'azzurro di ciò che può aspettare. */
+.chip--priority-essential {
+  background: rgba(240, 201, 122, 0.15);
+  color: var(--accent);
+}
+
+.chip--priority-deferrable {
+  background: rgba(142, 211, 240, 0.15);
+  color: var(--split);
+}
+
+/* Copiare una voce da un movimento passato: la ricerca sta sopra il modulo. */
+.budget-copy {
+  margin-bottom: 14px;
+}
+
+.budget-copy__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.budget-copy__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-copy__meta {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+/* L'editor di una regola (sezione 5.5): il testo, le condizioni che lo
+   restringono, cosa ne segue, e sotto i movimenti che prenderebbe adesso. */
+.rule-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rule-sheet__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@media (min-width: 560px) {
+  .rule-sheet__pair {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.field__label {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.rule-sheet__range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.rule-sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rule-sheet__actions legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.rule-sheet__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 8px 14px;
+  border-radius: var(--pill);
+  background: var(--fill-2);
+  cursor: pointer;
+}
+
+.rule-sheet__action:has(input:checked) {
+  background: var(--fill-3);
+  font-weight: 700;
+}
+
+.rule-sheet__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-sheet__count {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.rule-sheet__items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.rule-sheet__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--fill-1);
+}
+
+.rule-sheet__item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rule-sheet__item-description {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-sheet__item-meta {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.rule-sheet__item-amount {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .anomaly {
@@ -2118,6 +2399,14 @@ button.txn:active {
   gap: 12px;
 }
 
+/* Cosa fa una regola oltre a combaciare: l'azione, e le condizioni che la
+   restringono. */
+.rule-row__does {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
 .rule-row__pattern {
   overflow: hidden;
   font-weight: 600;
@@ -2188,7 +2477,7 @@ button.txn:active {
   font-size: var(--text-sm);
 }
 
-/* Conti e budget */
+/* Conti */
 
 .account-actions {
   display: flex;
@@ -2205,6 +2494,15 @@ button.txn:active {
 
 .account-row__actions .button {
   min-height: var(--tap);
+}
+
+/* La conferma di un conto da eliminare: chiede il nome, sotto i pulsanti della
+   riga e alla loro larghezza. */
+.account-delete {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .account-form {

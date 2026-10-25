@@ -1,4 +1,4 @@
-"""Ledger schema: accounts, transactions, postings, transfer links, balances."""
+"""Ledger schema: accounts, transactions, postings, transfer links, balances, budgets."""
 import os
 import sqlite3
 from contextlib import contextmanager, nullcontext
@@ -104,13 +104,24 @@ CREATE TABLE IF NOT EXISTS transfer_links (
     PRIMARY KEY (leg_a, leg_b)
 );
 
--- A rule is a piece of text the description contains, and the category that
--- follows from it. `key` is that text as it is matched (spaces collapsed, lower
--- case) and `pattern` keeps what a person typed, for the list.
+-- A rule is a piece of text the description contains, the conditions that
+-- narrow it (an account, a range of amounts), and what follows from it: a
+-- category, a deletion, or a transfer to a destination. `key` is the text as it
+-- is matched (spaces collapsed, lower case) and `pattern` keeps what a person
+-- typed, for the list. `target` is the category or the destination, NULL for a
+-- deletion. One rule per text and conditions: the unique index is in
+-- `_generalize_rules`, because it needs the columns a ledger written before
+-- them does not have yet.
 CREATE TABLE IF NOT EXISTS rules (
-    key TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
+    key TEXT NOT NULL,
     pattern TEXT NOT NULL,
-    category TEXT NOT NULL
+    action TEXT NOT NULL DEFAULT 'category'
+        CHECK (action IN ('category', 'delete', 'transfer')),
+    target TEXT,
+    account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+    amount_min TEXT,
+    amount_max TEXT
 );
 
 CREATE TABLE IF NOT EXISTS account_balances (
@@ -128,11 +139,39 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 
+-- Desiderata 5.12. A category's default ceiling holds from `from_month` (YYYY-MM)
+-- until the next row, so changing it never rewrites a month already lived; a
+-- NULL amount removes the default from that month on. One month may override
+-- the default for itself, and the items are the expenses planned inside it.
 CREATE TABLE IF NOT EXISTS budgets (
-    category_id INTEGER PRIMARY KEY REFERENCES accounts(id),
-    amount TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    category_id INTEGER NOT NULL REFERENCES accounts(id),
+    from_month TEXT NOT NULL,
+    amount TEXT,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (category_id, from_month)
 );
+
+CREATE TABLE IF NOT EXISTS budget_months (
+    category_id INTEGER NOT NULL REFERENCES accounts(id),
+    month TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (category_id, month)
+);
+
+CREATE TABLE IF NOT EXISTS budget_items (
+    id INTEGER PRIMARY KEY,
+    category_id INTEGER NOT NULL REFERENCES accounts(id),
+    month TEXT NOT NULL,
+    description TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    date TEXT,
+    priority TEXT NOT NULL CHECK (priority IN ('essential', 'important', 'deferrable')),
+    note TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS budget_items_month ON budget_items(month, category_id);
 
 -- Proposals are never applied on their own: a classifier or an LLM writes a
 -- merchant -> category pair here and a human accepts or dismisses it.
@@ -255,7 +294,9 @@ def initialize(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     _add_missing_columns(conn)
     _migrate_rules(conn)
+    _generalize_rules(conn)
     _widen_balance_key(conn)
+    _date_budgets(conn)
     _drop_obsolete(conn)
     conn.commit()
     _restrict_to_owner(conn)
@@ -273,12 +314,52 @@ def _migrate_rules(conn: sqlite3.Connection) -> None:
     tables = {row["name"] for row in conn.execute("PRAGMA table_list")}
     if "merchants" not in tables:
         return
+    # A ledger old enough to hold `merchants` may have had no rules table, in
+    # which case the schema has just created the general one.
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(rules)")}
+    target = "target" if "target" in columns else "category"
     conn.execute(
-        """INSERT OR IGNORE INTO rules (key, pattern, category)
+        f"""INSERT OR IGNORE INTO rules (key, pattern, {target})
            SELECT raw_pattern, normalized_name, default_category
            FROM merchants WHERE default_category IS NOT NULL AND raw_pattern <> ''"""
     )
     conn.execute("DROP TABLE merchants")
+
+
+def _generalize_rules(conn: sqlite3.Connection) -> None:
+    """Give a rule an action and conditions, keeping every rule it already had.
+
+    A rule was a text and a category, keyed by the text. It can now delete or
+    move to a destination, and be narrowed to an account or a range of amounts,
+    so the same text may hold several rules and the key moves to an id. Every old
+    rule becomes a category rule with no condition: it decides what it decided.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(rules)")}
+    if "action" not in columns:
+        conn.executescript(
+            """
+            ALTER TABLE rules RENAME TO rules_legacy;
+            CREATE TABLE rules (
+                id INTEGER PRIMARY KEY,
+                key TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                action TEXT NOT NULL DEFAULT 'category'
+                    CHECK (action IN ('category', 'delete', 'transfer')),
+                target TEXT,
+                account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+                amount_min TEXT,
+                amount_max TEXT
+            );
+            INSERT INTO rules (key, pattern, action, target)
+                SELECT key, pattern, 'category', category FROM rules_legacy;
+            DROP TABLE rules_legacy;
+            """
+        )
+    conn.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS rules_identity ON rules (
+               key, COALESCE(account_id, 0), COALESCE(amount_min, ''), COALESCE(amount_max, '')
+           )"""
+    )
 
 
 def _widen_balance_key(conn: sqlite3.Connection) -> None:
@@ -305,6 +386,34 @@ def _widen_balance_key(conn: sqlite3.Connection) -> None:
         INSERT INTO account_balances (account_id, date, balance, source)
             SELECT account_id, date, balance, source FROM account_balances_legacy;
         DROP TABLE account_balances_legacy;
+        """
+    )
+
+
+def _date_budgets(conn: sqlite3.Connection) -> None:
+    """Turn the single budget per category into a default that has always held.
+
+    A budget was one amount for every month, keyed by category alone. Rebuilt
+    rather than patched, like the balance key: each old amount becomes a default
+    valid from `0000-00`, which every YYYY-MM compares greater than, so every
+    month reads what it read before.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(budgets)")}
+    if "from_month" in columns:
+        return
+    conn.executescript(
+        """
+        ALTER TABLE budgets RENAME TO budgets_legacy;
+        CREATE TABLE budgets (
+            category_id INTEGER NOT NULL REFERENCES accounts(id),
+            from_month TEXT NOT NULL,
+            amount TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (category_id, from_month)
+        );
+        INSERT INTO budgets (category_id, from_month, amount, updated_at)
+            SELECT category_id, '0000-00', amount, updated_at FROM budgets_legacy;
+        DROP TABLE budgets_legacy;
         """
     )
 

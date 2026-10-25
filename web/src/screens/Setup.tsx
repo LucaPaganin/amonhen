@@ -103,7 +103,7 @@ function verificationText(verification: AccountVerification): string {
       return `verificato al ${formatDate(verification.date)}`;
     case "suppressed":
       // The same words the Conti panel uses, count and amount included: the
-      // difference §5.4 explains is this one, and it is what the first sync
+      // difference section 5.4 explains is this one, and it is what the first sync
       // shows here.
       return `al ${formatDate(verification.date)}: ${suppressedLabel(verification.checks)}`;
     case "mismatch":

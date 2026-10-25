@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 
 import { api, errorMessage } from "../api";
 import { bucketName, categoryText } from "../category";
+import { RuleSheet, draftOf } from "../components/RuleSheet";
 import { Toggle } from "../components/Toggle";
-import type { Category, Rule } from "../types";
+import { formatAmount } from "../format";
+import type { Category, Rule, RuleDraft } from "../types";
 import type { CategoryFlags } from "../useCategories";
 import type { RulesController } from "../useRules";
 
@@ -11,6 +13,38 @@ import type { RulesController } from "../useRules";
 function plural(count: number, singular: string, pluralForm: string): string {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
+
+/** What narrows a rule besides its text, in the words the row prints. */
+function conditionsText(rule: Rule): string | null {
+  const parts: string[] = [];
+  if (rule.account !== null) parts.push(`solo ${rule.account}`);
+  if (rule.amount_min !== null && rule.amount_max !== null) {
+    parts.push(
+      rule.amount_min === rule.amount_max
+        ? `di ${formatAmount(rule.amount_min)}`
+        : `da ${formatAmount(rule.amount_min)} a ${formatAmount(rule.amount_max)}`,
+    );
+  } else if (rule.amount_min !== null) {
+    parts.push(`da ${formatAmount(rule.amount_min)} in su`);
+  } else if (rule.amount_max !== null) {
+    parts.push(`fino a ${formatAmount(rule.amount_max)}`);
+  }
+  return parts.length === 0 ? null : parts.join(" · ");
+}
+
+/** What a rule that does not assign a category does, said in a line. */
+function actionText(rule: Rule): string {
+  return rule.action === "delete" ? "Cancella" : `Giroconto verso ${rule.target ?? ""}`;
+}
+
+const EMPTY_DRAFT: RuleDraft = {
+  pattern: "",
+  action: "category",
+  target: null,
+  account_id: null,
+  amount_min: null,
+  amount_max: null,
+};
 
 interface CategoryRulesScreenProps {
   rules: RulesController;
@@ -26,6 +60,10 @@ interface CategoryRulesScreenProps {
  * open inside it. A category and the rules that fill it are the same decision
  * seen from its two ends, so they are one screen and one list.
  */
+function needleOf(query: string): string {
+  return query.trim().toLowerCase();
+}
+
 export function CategoryRulesScreen({
   rules,
   categories,
@@ -44,8 +82,24 @@ export function CategoryRulesScreen({
   const [failedFor, setFailedFor] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // The rule open in the editor: a new one, or a saved one being changed.
+  const [editing, setEditing] = useState<{ title: string; draft: RuleDraft } | null>(null);
+
+  // The rules that do something other than assign a category have no category
+  // to sit under, so they are a list of their own above the categories.
+  const actionRules = useMemo(
+    () =>
+      rules.rules.filter(
+        (rule) =>
+          rule.action !== "category" &&
+          (needleOf(query) === "" ||
+            rule.pattern.toLowerCase().includes(needleOf(query)) ||
+            (rule.target ?? "").toLowerCase().includes(needleOf(query))),
+      ),
+    [rules.rules, query],
+  );
 
   const total = useMemo(
     () => rules.rules.reduce((sum, rule) => sum + rule.count, 0),
@@ -62,7 +116,9 @@ export function CategoryRulesScreen({
     () =>
       categories
         .map((item) => {
-          const own = rules.rules.filter((rule) => rule.category === item.name);
+          const own = rules.rules.filter(
+            (rule) => rule.action === "category" && rule.category === item.name,
+          );
           const named = needle !== "" && categoryText(item.name).toLowerCase().includes(needle);
           const shown =
             needle === "" || named
@@ -126,26 +182,68 @@ export function CategoryRulesScreen({
     setSavingFor(item.name);
     setNotice(null);
     setFailedFor(null);
-    const saved = await rules.add(text, item.name);
+    const failed = await rules.add({ ...EMPTY_DRAFT, pattern: text, target: item.name });
     setSavingFor(null);
-    setFailedFor(saved ? null : item.name);
-    if (saved) setDrafts((current) => ({ ...current, [item.name]: "" }));
+    setFailedFor(failed === null ? null : item.name);
+    if (failed === null) setDrafts((current) => ({ ...current, [item.name]: "" }));
   };
 
   const changeCategory = (rule: Rule, next: string) => {
     setNotice(null);
     setFailedFor(null);
-    void rules.add(rule.pattern, next);
+    void rules.add({ ...draftOf(rule), target: next });
   };
 
   const confirmRemove = async (rule: Rule) => {
     setFailedFor(null);
-    const held = await rules.remove(rule.pattern);
+    const held = await rules.remove(rule.id);
     setConfirming(null);
-    if (held !== null) {
-      setNotice(`Regola rimossa: ${plural(held, "movimento", "movimenti")} alle altre regole, o in coda`);
-    }
+    if (held === null) return;
+    setNotice(
+      rule.action === "delete"
+        ? `Regola rimossa: ${plural(held, "movimento cancellato", "movimenti cancellati")} da lei restano nel cestino, e ora si possono ripristinare`
+        : `Regola rimossa: ${plural(held, "movimento", "movimenti")} alle altre regole, o in coda`,
+    );
   };
+
+  const saveEdited = async (draft: RuleDraft): Promise<string | null> => {
+    const failed = await rules.add(draft);
+    if (failed !== null) return failed;
+    setEditing(null);
+    setNotice(`Regola salvata: «${draft.pattern}»`);
+    onReloadCategories();
+    return null;
+  };
+
+  const removeControls = (rule: Rule) =>
+    confirming === rule.id ? (
+      <div className="rule-row__confirm">
+        <p>
+          {rule.action === "delete"
+            ? "Sicuro? I movimenti che ha cancellato restano nel cestino, e i prossimi non verranno più tolti"
+            : `Sicuro? La regola lascia ${plural(rule.count, "movimento", "movimenti")} alle altre regole, o in coda`}
+        </p>
+        <button type="button" className="button button--danger" onClick={() => void confirmRemove(rule)}>
+          Rimuovi
+        </button>
+        <button type="button" className="button" onClick={() => setConfirming(null)}>
+          Annulla
+        </button>
+      </div>
+    ) : (
+      <>
+        <button
+          type="button"
+          className="button"
+          onClick={() => setEditing({ title: `La regola «${rule.pattern}»`, draft: draftOf(rule) })}
+        >
+          Modifica
+        </button>
+        <button type="button" className="button button--danger" onClick={() => setConfirming(rule.id)}>
+          Rimuovi
+        </button>
+      </>
+    );
 
   const reload = () => {
     rules.reload();
@@ -164,6 +262,13 @@ export function CategoryRulesScreen({
           </p>
         </div>
         <div className="screen__actions">
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => setEditing({ title: "Nuova regola", draft: EMPTY_DRAFT })}
+          >
+            Nuova regola
+          </button>
           <button type="button" className="button" onClick={reload} disabled={rules.loading}>
             Aggiorna
           </button>
@@ -216,8 +321,9 @@ export function CategoryRulesScreen({
       </form>
       <p className="chart-note">
         Una categoria non categorizza niente da sola: è il posto dove i movimenti possono finire.
-        <em>Episodica</em> dice che ci finisce un fatto raro, la cui spesa si accantona invece di
-        entrare nella media; <em>Incomprimibile</em> che è la parte di spesa che non si taglierebbe.
+        <em>Spesa rara</em> dice che ci finisce qualcosa che capita poco (un viaggio, una
+        riparazione), che va nella riserva invece che nella spesa tipica; <em>Irrinunciabile</em>
+        che è spesa che non taglieresti.
       </p>
 
       <div className="filters">
@@ -230,6 +336,38 @@ export function CategoryRulesScreen({
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
+
+      {actionRules.length > 0 ? (
+        <section className="card rule-group" aria-labelledby="action-rules-title">
+          <div className="rule-group__head">
+            <h2 className="rule-group__category" id="action-rules-title">
+              Cancellano o registrano un giroconto
+            </h2>
+          </div>
+          <ul className="rule-group__rules">
+            {actionRules.map((rule) => {
+              const narrowed = conditionsText(rule);
+              return (
+                <li className="rule-row" key={rule.id}>
+                  <div className="rule-row__head">
+                    <span className="rule-row__pattern">{rule.pattern}</span>
+                    <span className="rule-row__count">
+                      {rule.action === "delete"
+                        ? `${plural(rule.count, "movimento", "movimenti")} nel cestino`
+                        : plural(rule.count, "movimento", "movimenti")}
+                    </span>
+                  </div>
+                  <p className="rule-row__does">
+                    {actionText(rule)}
+                    {narrowed === null ? "" : ` · ${narrowed}`}
+                  </p>
+                  <div className="rule-row__controls">{removeControls(rule)}</div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {categoriesError !== null ? (
         <div className="state state--error" role="alert">
@@ -274,15 +412,15 @@ export function CategoryRulesScreen({
                   </button>
                   <div className="rule-group__flags">
                     <Toggle
-                      label="Episodica"
-                      ariaLabel={`Episodica ${name}`}
+                      label="Spesa rara"
+                      ariaLabel={`Spesa rara ${name}`}
                       checked={entry.category.episodic}
                       disabled={busy}
                       onChange={(next) => void toggleFlag(entry.category, "episodic", next)}
                     />
                     <Toggle
-                      label="Incomprimibile"
-                      ariaLabel={`Incomprimibile ${name}`}
+                      label="Irrinunciabile"
+                      ariaLabel={`Irrinunciabile ${name}`}
                       checked={entry.category.essential}
                       disabled={busy}
                       onChange={(next) => void toggleFlag(entry.category, "essential", next)}
@@ -301,18 +439,21 @@ export function CategoryRulesScreen({
                     ) : (
                       <ul className="rule-group__rules">
                         {entry.rules.map((rule) => (
-                          <li className="rule-row" key={rule.pattern}>
+                          <li className="rule-row" key={rule.id}>
                             <div className="rule-row__head">
                               <span className="rule-row__pattern">{rule.pattern}</span>
                               <span className="rule-row__count">
                                 {plural(rule.count, "movimento", "movimenti")}
                               </span>
                             </div>
+                            {conditionsText(rule) === null ? null : (
+                              <p className="rule-row__does">{conditionsText(rule)}</p>
+                            )}
                             <div className="rule-row__controls">
                               <select
                                 className="input"
                                 aria-label={`Categoria per ${rule.pattern}`}
-                                value={rule.category}
+                                value={rule.category ?? ""}
                                 disabled={options.length === 0}
                                 onChange={(event) => changeCategory(rule, event.target.value)}
                               >
@@ -323,37 +464,7 @@ export function CategoryRulesScreen({
                                 ))}
                               </select>
 
-                              {confirming === rule.pattern ? (
-                                <div className="rule-row__confirm">
-                                  <p>
-                                    Sicuro? La regola lascia{" "}
-                                    {plural(rule.count, "movimento", "movimenti")} alle altre regole, o
-                                    in coda
-                                  </p>
-                                  <button
-                                    type="button"
-                                    className="button button--danger"
-                                    onClick={() => void confirmRemove(rule)}
-                                  >
-                                    Rimuovi
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="button"
-                                    onClick={() => setConfirming(null)}
-                                  >
-                                    Annulla
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="button button--danger"
-                                  onClick={() => setConfirming(rule.pattern)}
-                                >
-                                  Rimuovi
-                                </button>
-                              )}
+                              {removeControls(rule)}
                             </div>
                           </li>
                         ))}
@@ -408,8 +519,22 @@ export function CategoryRulesScreen({
         combaciano vince il più lungo, testo o espressione che sia. Fra barre è invece
         un'espressione regolare — /amazon (eu|payments)/ prende una famiglia che la banca scrive in
         troppi modi. Correggere una regola sposta i movimenti che teneva; rimuoverla li lascia alla
-        regola più ampia che combacia ancora, o in coda.
+        regola più ampia che combacia ancora, o in coda. Una regola si può restringere a un conto e a
+        un intervallo di importi, e a parità di testo vince quella più ristretta; oltre ad assegnare
+        una categoria può cancellare i movimenti, che finiscono nel cestino, o registrarli come
+        giroconto verso una destinazione. Se più regole combaciano, cancellare vince su giroconto e
+        giroconto su categoria.
       </p>
+
+      {editing === null ? null : (
+        <RuleSheet
+          title={editing.title}
+          initial={editing.draft}
+          categories={categories}
+          onSave={saveEdited}
+          onClose={() => setEditing(null)}
+        />
+      )}
 
     </section>
   );

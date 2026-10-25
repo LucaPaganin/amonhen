@@ -1,10 +1,10 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.11 — settembre 2026
+Versione 1.14 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
-gestibili, invariante di §5.4 esposta per figura, rata del mutuo rimossa.
+gestibili, invariante della sezione 5.4 esposta per figura, rata del mutuo rimossa.
 0.3 · filtri del cruscotto (periodo, conti, categorie) e sezione Conti e budget,
 con creazione di un conto e dichiarazione dei saldi dall'app.
 0.4 · la prova dei giroconti è l'IBAN che ciascuna banca stampa sulla propria
@@ -12,17 +12,17 @@ gamba, e l'IBAN del conto si legge dall'endpoint dei dettagli; le cinque sezioni
 si raggiungono dalla barra in basso o dal menu in alto, che le nomina per esteso
 e dice cosa contengono. Le due vie sono una decisione: la barra cambia sezione
 con un tocco, il menu sta dove una quinta parte di schermo non arriva.
-0.5 · l'assistente di §5.9 è specificato — una lettura in prosa dei numeri
+0.5 · l'assistente della sezione 5.9 è specificato — una lettura in prosa dei numeri
 calcolati altrove, con proposte confermabili e nessuna aritmetica propria — e la
 ri-autorizzazione di un conto rinfresca la voce che ha già invece di accodarne
 una seconda.
-0.6 · l'assistente di §5.9 è costruito, con i suoi guardiani in codice; il denaro
-che non è né spesa né entrata si dichiara invece di indovinarlo (§5.3), comprese
+0.6 · l'assistente della sezione 5.9 è costruito, con i suoi guardiani in codice; il denaro
+che non è né spesa né entrata si dichiara invece di indovinarlo (sezione 5.3), comprese
 le quote della cointestata e i rimborsi; i confini rimasti sono rinominati —
 pacchetto `amonhen`, variabili `AMONHEN_*`, database `amonhen.db`.
 0.7 · la coda dice cosa una proposta decide — quanto denaro, su quanti movimenti e
 quando — e le regole si presentano raggruppate per la categoria che assegnano.
-Il modello di §5.9 è configurato e ha risposto alla sua prima domanda vera: `.env`
+Il modello della sezione 5.9 è configurato e ha risposto alla sua prima domanda vera: `.env`
 viene letto all'avvio, da `uv run` e da docker compose allo stesso modo.
 0.8 · la categoria di una proposta si corregge prima di accettarla, e non
 sceglierne nessuna è il rifiuto: accettare scrive la regola con la categoria
@@ -40,24 +40,24 @@ famiglia che la banca scrive in troppi modi per elencarli, vede lo stesso testo
 delle regole — spazi collassati, maiuscole ignorate — e vince su un testo;
 un'espressione che non compila si rifiuta invece di restare lì a non combaciare.
 1.2 · il progetto prende il nome del prodotto anche fuori: il repository su
-GitHub e la cartella locale sono `amonhen`, non più `bank-connector`, e §7
+GitHub e la cartella locale sono `amonhen`, non più `bank-connector`, e la sezione 7
 perde la frase che diceva il contrario.
 1.3 · la fase 6: il ledger si aggiorna da un pulsante nell'app invece che da un
 terminale, un movimento porta una nota locale che il sync non tocca, si cancella
 davvero — con il tombstone che tiene il sync dal rimetterlo, una flag per conto
-che decide se può tornare e un cestino che lo ripristina — e la §5.4 spiega la
+che decide se può tornare e un cestino che lo ripristina — e la sezione 5.4 spiega la
 differenza che una cancellazione lascia invece di gridare mismatch. L'immagine
 la costruisce la CI su un tag, e il NAS la tira: non ha più bisogno del repo.*
-*1.4 · il primo setup è guidato dall'app (§5.10): le credenziali Enable Banking
+*1.4 · il primo setup è guidato dall'app (sezione 5.10): le credenziali Enable Banking
 — chiave privata incollata compresa —, l'istituto scelto fra quelli che il
 provider accetta invece che a memoria, i conti da tenere con il nome che il
 ledger userà, il primo sync con l'esito per conto e il saldo dichiarato che fa
-passare la §5.4 da `non verificato` a `verificato`. La schermata è un gate al
+passare la sezione 5.4 da `non verificato` a `verificato`. La schermata è un gate al
 primo avvio e resta raggiungibile dopo, perché un consenso scade e una banca si
 aggiunge. Compose monta la cartella di configurazione e non i due file, così un
 container appena creato può far nascere `accounts.json`; `/callback` torna
 nell'app invece di rispondere JSON grezzo.*
-*1.5 · il backup smette di essere una cosa che non c'era (§5.11): snapshot datati
+*1.5 · il backup smette di essere una cosa che non c'era (sezione 5.11): snapshot datati
 e consistenti del ledger e della configurazione, presi con l'API di SQLite perché
 il server può stare scrivendo, con la ritenzione che li tiene bounded, il
 ripristino scritto come procedura e la copia sul NAS che il cron comanda. La
@@ -72,7 +72,7 @@ di restare 720 px in mezzo al vuoto, il cruscotto affianca i due grafici del
 periodo, la coda va a due colonne e poi a tre, e da 1440 le otto tessere stanno
 su una riga. Le sezioni smettono di essere una pillola in fondo alla finestra: la
 stessa lista sale in un rail laterale, che sostituisce la barra in basso e il menu
-— le due vie di §0.4 restano quelle del telefono, che sotto i 1024 px è ancora la
+— le due vie della sezione 0.4 restano quelle del telefono, che sotto i 1024 px è ancora la
 forma dell'app. E il contenuto non si allarga fino a sciogliere ciò che è stretto
 per natura: i paragrafi tengono le 72 battute di una riga di libro, e il setup,
 che è un modulo, resta una colonna.*
@@ -98,12 +98,12 @@ L'idempotenza è la stessa impronta di contenuto del percorso da riga di comando
 quindi reimportare lo stesso file non scrive niente; una riga che non si legge si
 riporta con la sua riga invece di fermare il file.*
 *1.10 · una chiamata al modello parte solo da un tocco. L'ingresso dal budget
-(«Regge?», §5.9) apriva la sezione e chiedeva da sé, mentre la schermata si
+(«Regge?», sezione 5.9) apriva la sezione e chiedeva da sé, mentre la schermata si
 disegnava: una chiamata esterna spesa senza che nessuno l'avesse chiesta e senza
 che si vedesse. Ora la domanda che il contesto compone arriva pronta, con il
 pulsante che la manda e uno che la lascia cadere, il modello si nomina mentre la
 richiesta è in volo, e la lettura continua a dire se è nuova o già avuta — e una
-chiamata che non riesce non porta via la domanda composta. È la regola di §8
+chiamata che non riesce non porta via la domanda composta. È la regola della sezione 8
 scritta dove il prodotto la può rispettare: nessun effetto, nessun timer e nessun
 giro automatico chiede al modello al posto della persona.*
 *1.11 · accettare una proposta decide i movimenti e non scrive una regola se non
@@ -115,9 +115,39 @@ precompilato con il nome del merchant, che è un punto di partenza e non la rego
 Quello che l'accettazione senza regola scrive è una decisione della persona, e le
 regole non la sovrascrivono: è ciò che rende la casella spenta una scelta invece di
 un rinvio.*
+*1.12 · il budget si pianifica mese per mese e ha una sezione sua. L'importo di
+una categoria era uno solo, uguale per tutti i mesi, e cambiarlo riscriveva anche
+i mesi passati: ora è un default che vale da un mese in avanti, che un mese può
+sovrascrivere per sé, e i mesi già vissuti tengono il tetto che avevano. Dentro
+il tetto si possono scrivere delle voci — descrizione, importo, data facoltativa,
+priorità essenziale / importante / rimandabile — scritte da zero, copiate da un
+movimento passato o dal mese prima, e sempre modificabili; quando superano il
+tetto la sezione dice quali ci stanno, a partire dalle essenziali, e non sceglie
+cosa tagliare. Lo speso resta per categoria: una voce non si collega al
+movimento che la realizza. Conti e budget si separano: la sezione Conti tiene i
+conti, la sezione Budget la pianificazione (sezione 5.12).*
+
+*1.13 · le metriche si chiamano con parole che dicono cosa misurano: spesa
+mensile tipica, riserva per spese rare, spesa mensile attesa, mesi di autonomia,
+spesa irrinunciabile e tagliabile, investito — al posto di burn, runway,
+accantonamento episodico, quota incomprimibile e discrezionale, flusso di
+risparmio. I flag delle categorie diventano *spesa rara* e *irrinunciabile*.
+L'app, l'assistente e questo file usano gli stessi nomi; i nomi interni del
+codice e dell'API restano quelli di prima. Una sezione si scrive con la parola,
+non con il simbolo.*
+
+*1.14 · una regola fa una cosa a certe condizioni: oltre ad assegnare una
+categoria può cancellare i movimenti — quelli che ci sono, dopo averli mostrati, e
+quelli che arriveranno — o registrarli come giroconto verso una destinazione, e si
+restringe a un conto e a un intervallo di importi (sezione 5.5). La regola chiesta
+da un movimento aperto si scrive in un dialogo, come quella chiesta da una
+proposta, invece di nascere in silenzio con il nome del merchant. Un conto si
+elimina con i suoi movimenti, e se è collegato a una banca il sync smette di
+chiederlo; i movimenti di una pagina si scelgono tutti insieme, per cancellarli o
+dar loro una categoria.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
-i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (§9). `CLAUDE.md`
+i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
 dice come è fatto: architettura, invarianti, comandi. Quando una decisione cambia
 il prodotto, questo file si aggiorna **nello stesso cambiamento** del codice — una
 specifica che insegue il codice smette di essere la fonte, e la fetta successiva
@@ -135,8 +165,8 @@ Il sintomo è "non so quanto spendo davvero". La causa è assenza di riconciliaz
 
 ## 2. Obiettivi
 
-1. **Vista unificata del flusso.** Tutti i conti collegati confluiscono in un unico ledger riconciliato, con storico profondo abbastanza da rendere calcolabili le metriche di §5.6.
-2. **Burn rate robusto alla varianza mensile**, con separazione esplicita tra componente ricorrente e componente episodica.
+1. **Vista unificata del flusso.** Tutti i conti collegati confluiscono in un unico ledger riconciliato, con storico profondo abbastanza da rendere calcolabili le metriche della sezione 5.6.
+2. **Una spesa mensile che un mese strano non sposta**, con le spese ricorrenti separate da quelle rare.
 3. **Riconciliazione automatica dei trasferimenti** tra conti: un movimento interno appare una volta sola e non conta come spesa.
 4. **Ripetibilità**: il dato si aggiorna da solo, senza download manuali. Il sync Enable Banking è **parte del sistema**, non un servizio esterno a cui il sistema si appoggia.
 5. **Interfaccia propria.** Il sistema ha una UI mobile-first da cui rivedere le categorie, correggere gli split e leggere le metriche. Non è un requisito opzionale: è il modo in cui il sistema viene effettivamente usato.
@@ -150,7 +180,7 @@ Esplicitamente fuori scope, per evitare scope creep:
 - Previsioni di spesa, forecasting, ottimizzazione automatica del budget.
 - Categorizzazione completamente automatica senza revisione umana.
 - Multi-utente, multi-valuta, condivisione.
-- Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: **un rimborso o una quota non sono entrate**, si dichiarano (§5.3) e restano fuori dalle entrate come i giroconti — verso l'altra gamba quando il conto è collegato, verso una destinazione dichiarata quando non lo è. Quello che non si modella è la *coppia*: l'accredito esce dalle entrate, ma niente dice quale spesa compensi, quindi la categoria che avrebbe ridotto resta com'è.
+- Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: **un rimborso o una quota non sono entrate**, si dichiarano (sezione 5.3) e restano fuori dalle entrate come i giroconti — verso l'altra gamba quando il conto è collegato, verso una destinazione dichiarata quando non lo è. Quello che non si modella è la *coppia*: l'accredito esce dalle entrate, ma niente dice quale spesa compensi, quindi la categoria che avrebbe ridotto resta com'è.
 - App nativa. La UI è una PWA.
 
 ## 4. Vincoli
@@ -173,7 +203,7 @@ Due percorsi distinti che **devono convergere nella stessa tabella e condividere
 
 **Percorso B — import file (bootstrap e recupero).** Import di export CSV/OFX scaricati manualmente da ciascun istituto. Serve a due cose:
 
-1. **Seed dello storico.** Le API PSD2 restituiscono tipicamente una finestra limitata (ordine dei 90 giorni; verificato: chiedendo il 2026-01-01 sono tornati movimenti dal 2026-06-14). Le metriche di §5.6 richiedono 6 mesi per la mediana mobile e 24 mesi per l'accantonamento episodico: senza backfill da export non sono calcolabili prima di due anni di esercizio. L'import storico è quindi un prerequisito, non un extra.
+1. **Seed dello storico.** Le API PSD2 restituiscono tipicamente una finestra limitata (ordine dei 90 giorni; verificato: chiedendo il 2026-01-01 sono tornati movimenti dal 2026-06-14). Le metriche della sezione 5.6 richiedono 6 mesi per la spesa mensile tipica e 24 mesi per la riserva per spese rare: senza backfill da export non sono calcolabili prima di due anni di esercizio. L'import storico è quindi un prerequisito, non un extra.
 2. **Recupero.** Consenso PSD2 scaduto, istituto temporaneamente indisponibile, buchi nel sync.
 
 Requisiti comuni a entrambi i percorsi:
@@ -183,7 +213,8 @@ Requisiti comuni a entrambi i percorsi:
 - L'adattatore si può scegliere invece di scriverlo: dalla sezione **Importa** dell'app si dice quali colonne sono la data, l'importo (o Dare e Avere), la descrizione, il formato della data e dei decimali, e l'identificativo della banca quando c'è, e l'anteprima mostra le prime righe mappate prima che qualcosa venga scritto. Le righe che non si leggono si contano con la loro riga invece di fermare il file; i profili scritti per banca restano per la riga di comando.
 - Gestione della transizione pending → booked senza duplicare la transazione.
 - Payload grezzo conservato integralmente, con indicazione del percorso di provenienza, per poter riprocessare senza ri-fetchare né ri-scaricare.
-- **Una cancellazione è una decisione che il sync rispetta.** Un movimento si cancella dal ledger e resta in `deleted_transactions` con l'identità con cui il ledger deduplica (l'identificativo della banca, altrimenti l'impronta di contenuto così com'era), il payload, la nota, com'era la riga e quando è stata tolta: senza quella copia il sync successivo riscriverebbe il movimento, e a mano non resta niente da rileggere. Un `PDNG` cancellato sopprime anche il `BOOK` che la banca manda dopo, anche quando lo contabilizza con un altro riferimento e un'altra data. La soppressione riconosce il movimento in tre modi, e sono le relazioni che il ledger conosce già: l'identificativo con cui è stato cancellato, lo stesso contenuto che arriva dall'*altro* percorso di ingest — è la zona di sovrapposizione di §5.1, dove l'impronta è il solo discriminante — e la gamba contabilizzata di un movimento in attesa cancellato qui, che la banca manda giorni dopo con un altro riferimento e un'altra data. Esatta ovunque altro: quattro accrediti identici nello stesso giorno sono quattro movimenti, e cancellarne uno non deve sopprimere il suo gemello, quindi un movimento dello stesso stato non si riconosce mai dal solo contenuto. Una leg di un giroconto non si cancella lasciando l'altra appesa al conto di clearing: il link si rifiuta, l'altra gamba torna in coda, e la cancellazione lo dice. Il cestino di un conto elenca ciò che è stato tolto — data, importo, descrizione, nota e quando è sparito — e il ripristino di una riga la rimette nel ledger dal payload conservato, con la sua nota: una seconda volta è rifiutata, e il ripristino passa dalle stesse regole dell'ingest, quindi un movimento che il ledger già tiene non viene scritto due volte. Quello che il ripristino non può sapere è un movimento tornato sotto un'identità che il tombstone non porta — il limite dell'impronta nella zona di sovrapposizione — e il posto dove accorgersene è la lista del cestino.
+- **Una cancellazione è una decisione che il sync rispetta.** Un movimento si cancella dal ledger e resta in `deleted_transactions` con l'identità con cui il ledger deduplica (l'identificativo della banca, altrimenti l'impronta di contenuto così com'era), il payload, la nota, com'era la riga e quando è stata tolta: senza quella copia il sync successivo riscriverebbe il movimento, e a mano non resta niente da rileggere. Un `PDNG` cancellato sopprime anche il `BOOK` che la banca manda dopo, anche quando lo contabilizza con un altro riferimento e un'altra data. La soppressione riconosce il movimento in tre modi, e sono le relazioni che il ledger conosce già: l'identificativo con cui è stato cancellato, lo stesso contenuto che arriva dall'*altro* percorso di ingest — è la zona di sovrapposizione della sezione 5.1, dove l'impronta è il solo discriminante — e la gamba contabilizzata di un movimento in attesa cancellato qui, che la banca manda giorni dopo con un altro riferimento e un'altra data. Esatta ovunque altro: quattro accrediti identici nello stesso giorno sono quattro movimenti, e cancellarne uno non deve sopprimere il suo gemello, quindi un movimento dello stesso stato non si riconosce mai dal solo contenuto. Una leg di un giroconto non si cancella lasciando l'altra appesa al conto di clearing: il link si rifiuta, l'altra gamba torna in coda, e la cancellazione lo dice. Il cestino di un conto elenca ciò che è stato tolto — data, importo, descrizione, nota e quando è sparito — e il ripristino di una riga la rimette nel ledger dal payload conservato, con la sua nota: una seconda volta è rifiutata, e il ripristino passa dalle stesse regole dell'ingest, quindi un movimento che il ledger già tiene non viene scritto due volte. Quello che il ripristino non può sapere è un movimento tornato sotto un'identità che il tombstone non porta — il limite dell'impronta nella zona di sovrapposizione — e il posto dove accorgersene è la lista del cestino.
+- **Si cancella anche in blocco.** Nei movimenti si sceglie una pagina intera, o le righe che servono, e si cancellano insieme — ognuna come se fosse cancellata da sola, tombstone compreso, in una transazione sola — o si dà a tutte la stessa categoria come decisione della persona. Un giroconto e un movimento diviso restano com'erano: una categoria sola nasconderebbe il giroconto o butterebbe le parti, e si decidono aprendoli. Una riga che nel frattempo non c'è più ferma tutto il blocco prima che si scriva qualcosa: una pagina vecchia non cancella metà di quello che mostrava.
 - **Il ritorno di una cancellazione è una decisione del conto.** Una flag per conto — spenta, perché cancellare deve significare cancellare — dice se il sync successivo riporta i movimenti cancellati: accesa, li riscrive dal tombstone con la loro nota e segna che sono tornati; spenta, li lascia fuori e l'esito del sync li conta fra i soppressi. Si accende per un conto solo, perché la ragione è la storia di quel conto — un consenso rinnovato, un periodo cancellato per sbaglio — non una proprietà del ledger, e spegnerla di nuovo non ricancella ciò che è tornato.
 - **La ri-autorizzazione rinfresca, non accoda.** Un consenso può morire mentre la sessione che lo contiene è ancora valida, e rinnovarlo produce una sessione nuova mentre l'uid del conto resta lo stesso: la voce di `accounts.json` che ha quell'uid si aggiorna sul posto — nome e data d'inizio restano, perché il primo è il nome con cui il ledger conosce il conto e la seconda è la storia che ha già importato — e solo un conto mai visto viene aggiunto. Accodare una seconda voce significava, per un ledger che riconosce i conti per nome, un secondo conto con la stessa storia dentro.
 
@@ -202,9 +233,9 @@ Ogni movimento è composto da N *postings* la cui somma è zero.
 - L'IBAN del conto si legge da `GET /accounts/{uid}/details` — la sessione elenca gli uid e nient'altro — e il sync lo registra sul conto quando manca. Senza quell'IBAN la prova non è disponibile, e i candidati si ordinano solo per chi nomina una controparte: entrambe le gambe (più forte), una sola, nessuna. Il metodo del link dice quale dei tre casi è stato (`…-unverified` quando il confronto non era possibile).
 - Mai match sulle descrizioni (incoerenti tra istituti).
 - In caso di ambiguità (più candidati compatibili), risoluzione via matching bipartito di peso massimo, non greedy.
-- Ogni link ha un livello di confidenza e resta rivedibile a mano: si conferma, si annulla, si registra una gamba sola verso una destinazione dichiarata (§5.3) e si abbinano due gambe a mano. L'abbinamento manuale accetta solo le coppie che il matcher stesso accetterebbe: conti reali diversi, importi uguali e opposti, nessuna split da perdere.
+- Ogni link ha un livello di confidenza e resta rivedibile a mano: si conferma, si annulla, si registra una gamba sola verso una destinazione dichiarata (sezione 5.3) e si abbinano due gambe a mano. L'abbinamento manuale accetta solo le coppie che il matcher stesso accetterebbe: conti reali diversi, importi uguali e opposti, nessuna split da perdere.
 - Annullare una coppia **rifiuta** il link invece di cancellarlo, così il matcher non la ripropone al sync successivo; annullare una gamba sola la riporta in coda, senza categoria.
-- **Il denaro che non è né spesa né entrata si dichiara.** Una voce di `passthrough` in `accounts.json` nomina una destinazione — il conto virtuale in cui finisce il lato non reale — e i testi che la banca stampa su quei movimenti, con `incoming_only` per le etichette che nominano una persona o una ditta: lo stesso nome vale nelle due direzioni, e il nome di una ditta porterebbe fuori dal burn il premio oltre al rimborso. Serve perché i due casi non si riconoscono altrimenti: un conto proprio non collegato non ha una contro-gamba da appaiare, e un accredito da fuori non ha un addebito che lo compensi. Sulla contabilità viva nessuno degli accrediti di un mese di prova ha un addebito di pari importo: quello che hanno in comune è chi li manda, non cosa pagano. Restano quindi fuori dalle entrate e fuori dalle spese, la loro categoria non viene toccata, e restano sul libro col nome della destinazione.
+- **Il denaro che non è né spesa né entrata si dichiara.** Una voce di `passthrough` in `accounts.json` nomina una destinazione — il conto virtuale in cui finisce il lato non reale — e i testi che la banca stampa su quei movimenti, con `incoming_only` per le etichette che nominano una persona o una ditta: lo stesso nome vale nelle due direzioni, e il nome di una ditta porterebbe fuori dalla spesa il premio oltre al rimborso. Serve perché i due casi non si riconoscono altrimenti: un conto proprio non collegato non ha una contro-gamba da appaiare, e un accredito da fuori non ha un addebito che lo compensi. Sulla contabilità viva nessuno degli accrediti di un mese di prova ha un addebito di pari importo: quello che hanno in comune è chi li manda, non cosa pagano. Restano quindi fuori dalle entrate e fuori dalle spese, la loro categoria non viene toccata, e restano sul libro col nome della destinazione.
 
 ### 5.4 Invariante di correttezza
 
@@ -233,28 +264,36 @@ Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno
 
 **La proposta si corregge.** La categoria proposta è un punto di partenza, non un verdetto: si cambia prima di accettare, e accettare assegna la categoria *scelta* ai movimenti che la coda teneva per quel merchant. Non sceglierne nessuna è il rifiuto, perché è lo stesso gesto con l'esito opposto: una proposta che non merita una categoria non deve restare in coda per sempre. Il modello e il classificatore sbagliano su merchant che non hanno mai visto — misurato: il classificatore indovina l'86% dei merchant tenuti fuori dall'addestramento contro il 47% della categoria più frequente, e il 92% di ciò che propone sopra la soglia di confidenza — quindi la correzione è il modo in cui la coda resta utile mentre i due proponenti migliorano con quello che la persona decide.
 
-**La regola è una cosa che si chiede.** Una regola è un'affermazione sui movimenti che la banca non ha ancora stampato, e una regola per ogni proposta accettata è una regola per ogni modo in cui un istituto scrive lo stesso esercente: il loro numero crescerebbe con la coda invece che con le decisioni prese. La casella che la chiede è quindi **spenta** quando la coda si apre: accettare assegna la categoria ai movimenti in attesa e non tocca `rules`. Accesa, accettare apre un dialogo con il testo della regola — precompilato con il nome del merchant, **modificabile**, ed è quel testo a essere scritto — e la regola assegna la categoria scelta nella riga. Annullare non lascia niente a metà: la proposta resta in coda e i movimenti restano dov'erano. Quello che un'accettazione senza regola scrive è una decisione della persona, e le regole non la sovrascrivono: riempiono il vuoto, seguono i propri cambiamenti, e un movimento già deciso a mano non cambia categoria per una regola che ne assegna un'altra. Una regola che assegna la *stessa* categoria invece lo adotta — è quella che lo tiene, ed è quello che la sua riga conta — e togliere quella regola lo rimanda in coda: è ciò che rende la casella spenta una scelta, non un rinvio.
+**La regola è una cosa che si chiede.** Una regola è un'affermazione sui movimenti che la banca non ha ancora stampato, e una regola per ogni proposta accettata è una regola per ogni modo in cui un istituto scrive lo stesso esercente: il loro numero crescerebbe con la coda invece che con le decisioni prese. La casella che la chiede è quindi **spenta** quando la coda si apre: accettare assegna la categoria ai movimenti in attesa e non tocca `rules`. Accesa, accettare apre un dialogo con il testo della regola — precompilato con il nome del merchant, **modificabile**, ed è quel testo a essere scritto — e la regola assegna la categoria scelta nella riga. Annullare non lascia niente a metà: la proposta resta in coda e i movimenti restano dov'erano. Quello che un'accettazione senza regola scrive è una decisione della persona, e le regole non la sovrascrivono: riempiono il vuoto, seguono i propri cambiamenti, e un movimento già deciso a mano non cambia categoria per una regola che ne assegna un'altra. Una regola che assegna la *stessa* categoria invece lo adotta — è quella che lo tiene, ed è quello che la sua riga conta — e togliere quella regola lo rimanda in coda: è ciò che rende la casella spenta una scelta, non un rinvio. Dal movimento aperto vale lo stesso: con la casella accesa, scegliere la categoria apre il dialogo della regola — testo precompilato dal merchant, condizioni e azione modificabili, e l'elenco dei movimenti che prenderebbe — e il movimento prende la categoria solo quando la regola si salva; chiudere il dialogo non scrive niente.
 
-**Categorie e regole sono una sezione sola.** Ciò che una categoria è e ciò che ci finisce sono la stessa decisione vista dai due capi, e stanno in un elenco solo: una voce per categoria, con i due flag che le metriche leggono — episodica, incomprimibile — e quante regole e quanti movimenti tiene. Sotto si aprono i testi che le assegnano, e in fondo al gruppo la riga che ne scrive uno: una regola assegna la categoria sotto cui sta, quindi non c'è niente da scegliere. Trenta pattern sono trenta decisioni, otto categorie sono un budget. Cercare apre i gruppi che hanno trovato qualcosa, e una categoria la cui regola si corregge si sposta da sola. Una categoria si crea qui, dove si guarda, e dalla tendina con cui una proposta si corregge: una categoria non categorizza niente da sola, è il posto dove i movimenti possono finire, e ci arrivano da una proposta, da una regola o da un movimento aperto.
+**Categorie e regole sono una sezione sola.** Ciò che una categoria è e ciò che ci finisce sono la stessa decisione vista dai due capi, e stanno in un elenco solo: una voce per categoria, con i due flag che le metriche leggono — spesa rara, irrinunciabile — e quante regole e quanti movimenti tiene. Sotto si aprono i testi che le assegnano, e in fondo al gruppo la riga che ne scrive uno: una regola assegna la categoria sotto cui sta, quindi non c'è niente da scegliere. Trenta pattern sono trenta decisioni, otto categorie sono un budget. Cercare apre i gruppi che hanno trovato qualcosa, e una categoria la cui regola si corregge si sposta da sola. Una categoria si crea qui, dove si guarda, e dalla tendina con cui una proposta si corregge: una categoria non categorizza niente da sola, è il posto dove i movimenti possono finire, e ci arrivano da una proposta, da una regola o da un movimento aperto.
 
 **Una regola è un testo, o un'espressione.** Scritta fra barre — `/amazon (eu|payments)/` — la regola è un'espressione regolare: una sola regola per la famiglia che la banca scrive in troppi modi per elencarli. L'espressione vede lo stesso testo che vedono le regole — spazi collassati, maiuscole ignorate — perché una parola e un'espressione devono descrivere gli stessi movimenti. Il tipo di una regola sta nel suo pattern, non in una colonna: quel che si è scritto è quel che si rilegge, nell'elenco come nella rimozione. Un'espressione che non compila si rifiuta quando la si scrive — l'API risponde 422 con il motivo, e la riga in fondo al gruppo lo mostra — perché una regola che non potrà mai combaciare non deve arrivare al ledger. Dove due pattern combaciano vince il più lungo — la più stretta — che sia un testo o un'espressione: un'espressione scritta per nominare una famiglia è più lunga delle parole che sostituisce e ne prende i movimenti, una più larga non ruba niente a un testo più stretto che combacia ancora. Una barra sola e `//` restano testo, così un pattern che contiene una barra non diventa un'espressione per sbaglio.
 
+**Una regola fa una cosa, a certe condizioni.** Oltre al testo, una regola si restringe a un conto e a un intervallo di importi — letti senza segno, perché una persona dice «fra 5 e 10 euro» — e a parità di testo vince quella con più condizioni, che è l'affermazione più stretta. Lo stesso testo con le stesse condizioni è una regola sola. Quello che segue è una di tre azioni: assegnare una categoria, **cancellare** il movimento, **registrarlo come giroconto** verso una destinazione. Dove più regole combaciano, cancellare vince su giroconto e giroconto su categoria: un movimento che non c'è non ha categoria, e un giroconto non è spesa da categorizzare.
+
+- *Cancellare.* Prima di salvarla, la regola mostra quanti e quali movimenti prenderebbe — l'elenco lo calcola il backend, come ogni confronto fra regole e movimenti — e il pulsante che la salva dice quanti ne cancella. Salvata, li porta nel cestino del loro conto, come una cancellazione a mano; a ogni sync quelli nuovi che combaciano ci finiscono da soli, e il tombstone tiene fuori quelli già tolti. Finché la regola c'è un movimento che prende non si ripristina — tornerebbe nel cestino al sync dopo, e un ripristino che si annulla da solo non è un ripristino — e la risposta nomina la regola; togliere la regola lascia nel cestino quello che ha preso, ora ripristinabile. La verifica della sezione 5.4 conta queste cancellazioni come le altre: una differenza che spiegano è spiegata. Un conto con la flag di reimport accesa riporterebbe i movimenti a ogni sync e la regola li ritoglierebbe: vince la regola.
+- *Giroconto.* La destinazione è un conto virtuale, come per le dichiarazioni `passthrough` di `accounts.json`, che restano dove sono: il movimento esce dalle spese, dalle entrate e dalla coda, e resta registrato. Una regola tolta rimanda in coda i movimenti che aveva registrato, dove le regole di categoria li ritrovano. Una destinazione non può essere una categoria né un conto reale.
+- *Categoria.* Come sempre: riempie il vuoto, segue i propri cambiamenti, non sovrascrive una decisione presa a mano.
+
+Le regole che cancellano o registrano un giroconto non stanno sotto una categoria, quindi la sezione Categorie e regole le elenca a parte, sopra le categorie; un pulsante «Nuova regola» apre lo stesso dialogo da zero, e ogni regola si apre per cambiarla.
+
 ### 5.6 Metriche esposte
 
-Solo queste, in ordine di priorità:
+Solo queste, in ordine di priorità. Ognuna si chiama con parole che dicono cosa misura, nell'app come qui e nelle letture dell'assistente; fra parentesi il nome con cui la conosce il codice.
 
-- **Burn ricorrente**: mediana mobile a 6 mesi delle spese non episodiche.
-- **Accantonamento episodico**: somma one-off ultimi 24 mesi / 24. Gli eventi rari non vanno rimossi, vanno modellati come processo separato con frequenza propria.
-- **Burn atteso** = burn ricorrente + accantonamento episodico.
-- **Runway stressato** = liquidità / burn atteso. La rata del mutuo non è più una voce fissa del denominatore: un pagamento del mutuo è un movimento come gli altri, e se deve contare sta in una categoria.
-- **Quota incomprimibile vs discrezionale**: quanto sarebbe tagliabile se servisse.
-- **Flusso di risparmio**: trasferimenti verso conti di investimento. È l'unico ponte tra monitoring delle spese e monitoring del patrimonio. PAC, contributi al fondo pensione e TFR non sono spese.
+- **Spesa mensile tipica** (*burn ricorrente*): quanto si spende di solito in un mese, senza le spese rare — la mediana mobile a 6 mesi delle spese delle categorie non segnate come rare.
+- **Riserva per spese rare** (*accantonamento episodico*): le spese rare degli ultimi 24 mesi divise per 24, cioè quanto mettere da parte ogni mese per quando tornano. Gli eventi rari non vanno rimossi, vanno modellati come processo separato con frequenza propria.
+- **Spesa mensile attesa** (*burn atteso*) = spesa mensile tipica + riserva per spese rare: quanto costa davvero un mese.
+- **Mesi di autonomia** (*runway*) = liquidità / spesa mensile attesa: per quanti mesi si va avanti se le entrate si fermano. La rata del mutuo non è più una voce fissa del denominatore: un pagamento del mutuo è un movimento come gli altri, e se deve contare sta in una categoria.
+- **Spesa irrinunciabile e spesa tagliabile** (*quota incomprimibile e discrezionale*): la spesa tipica divisa fra le categorie segnate come irrinunciabili e le altre, cioè quanto sarebbe tagliabile se servisse.
+- **Investito** (*flusso di risparmio*): quanto va verso i conti segnati come investimento. È l'unico ponte tra le spese e il patrimonio. PAC, contributi al fondo pensione e TFR non sono spese.
 
 Il cruscotto mostra tre serie osservate — spesa per categoria (con la fetta "senza categoria" in evidenza), entrate e uscite per mese, patrimonio osservato — e i grafici non fanno aritmetica: ogni serie si calcola nel backend, così una torta non può risultare più piccola del denaro che è uscito. Il cruscotto si filtra per periodo, per conti e per categoria, e i tre filtri non pesano uguale: il **periodo** decide cosa mostrano grafici e serie; i **conti** restringono tutto ciò che è di conto — le spese attribuite al conto che le ha pagate, la liquidità, il risparmio, il patrimonio; la **categoria** restringe solo le spese, perché una categoria non descrive il denaro che entra né quello che i conti valgono. Il cruscotto si legge dall'alto: prima i grafici, con il solo periodo sempre in vista e il resto dei filtri a un tocco di distanza, poi le metriche in griglia — etichetta e cifra, con quello che significano dietro un solo *Come si calcolano*. Un pannello di cinque campi sopra i grafici li spingeva fuori dalla schermata, che è il contrario di quello per cui la schermata esiste.
 
-Le card di §5.6 non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista, e ogni card dichiara la finestra che ha usato. Un filtro si applica nel backend, mai nel browser.
+Le card della sezione 5.6 non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista, e ogni card dichiara la finestra che ha usato. Un filtro si applica nel backend, mai nel browser.
 
-Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con saldo, figura iniziale ed esito della verifica, la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante di §5.4 torni a valere, la creazione di un conto reale a mano (il broker, o una banca non collegata), il budget mensile di ogni categoria. I flag delle categorie e la loro creazione stanno invece nella sezione che le categorie le definisce insieme alle regole che le riempiono (§5.5).
+Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con saldo, figura iniziale ed esito della verifica, la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante della sezione 5.4 torni a valere, la creazione di un conto reale a mano (il broker, o una banca non collegata) e la sua eliminazione. Eliminare un conto toglie i suoi movimenti, il suo cestino, i saldi dichiarati e le regole ristrette a lui, e se è collegato a una banca lo toglie anche da `accounts.json`, altrimenti il sync successivo lo ricreerebbe con tutta la sua storia; l'altra gamba di un giroconto non si cancella — quel denaro è davvero entrato o uscito da un altro conto — e torna in coda. Non c'è cestino per un conto: si conferma scrivendone il nome, e per tornare indietro serve uno snapshot (sezione 5.11). Il budget di ogni categoria ha una sezione sua (sezione 5.12). I flag delle categorie e la loro creazione stanno invece nella sezione che le categorie le definisce insieme alle regole che le riempiono (sezione 5.5).
 
 Esplicitamente escluse perché decorative: patrimonio a frequenza giornaliera, medie su singolo mese, rendimenti calcolati internamente.
 
@@ -264,7 +303,7 @@ Detection statistica deterministica, non LLM: z-score robusto su MAD per categor
 
 ### 5.8 Patrimonio
 
-Patrimonio **osservato**, non ricostruito: `account_balances` tiene ciò che la banca dichiara per un conto in una data, e lo scrivono il sync (per ogni conto raggiungibile), `balances` su richiesta e `anchor` per una dichiarazione a mano. La serie somma l'ultimo saldo noto di ogni conto reale tracciato, e un conto conta dalla sua prima osservazione: la curva comincia dove cominciano i dati, senza back-fill né interpolazioni. Liquidità, runway e patrimonio contano solo i conti reali tracciati.
+Patrimonio **osservato**, non ricostruito: `account_balances` tiene ciò che la banca dichiara per un conto in una data, e lo scrivono il sync (per ogni conto raggiungibile), `balances` su richiesta e `anchor` per una dichiarazione a mano. La serie somma l'ultimo saldo noto di ogni conto reale tracciato, e un conto conta dalla sua prima osservazione: la curva comincia dove cominciano i dati, senza back-fill né interpolazioni. Liquidità, mesi di autonomia e patrimonio contano solo i conti reali tracciati.
 
 Quello che una banca non dichiara — il broker — entra come conto reale con un saldo dichiarato a mano, non con una tabella separata: l'aggiornamento resta manuale e raro, e ha lo scopo fiscale di fine anno (valore di fine anno e giacenza) finché il broker è su entità estera in regime dichiarativo.
 
@@ -274,11 +313,11 @@ Motivazione della separazione: spese e patrimonio sono processi con frequenza di
 
 Una sezione dell'app che discute i numeri che il backend ha già calcolato — spese, budget, patrimonio, coda — e le proposte che ne derivano. Non è una chat generica sul mondo, e non è un secondo motore di calcolo.
 
-**Cosa fa.** Riceve una domanda, o un contesto che la contiene già, insieme ai dati *già calcolati* che servono a rispondere: le serie del cruscotto, i totali, le categorie, i budget, e i movimenti che li compongono. Restituisce una lettura in prosa: perché questo mese è diverso, cosa ha spinto il burn, quale categoria sta scivolando, se quel budget regge, da dove cominciare nella coda. Può anche **proporre**: una categoria per un merchant che nessuna regola copre (la strada che esiste da §5.5), un budget mensile per una categoria che non ne ha, una regola da scrivere quando lo stesso merchant torna tre volte.
+**Cosa fa.** Riceve una domanda, o un contesto che la contiene già, insieme ai dati *già calcolati* che servono a rispondere: le serie del cruscotto, i totali, le categorie, i budget, e i movimenti che li compongono. Restituisce una lettura in prosa: perché questo mese è diverso, cosa ha spinto la spesa, quale categoria sta scivolando, se quel budget regge, da dove cominciare nella coda. Può anche **proporre**: una categoria per un merchant che nessuna regola copre (la strada che esiste dalla sezione 5.5), un budget mensile per una categoria che non ne ha, una regola da scrivere quando lo stesso merchant torna tre volte.
 
-**Come tratta i numeri.** L'unica aritmetica ammessa è quella del backend. L'assistente non somma, non stima, non arrotonda a occhio: cita le cifre che riceve, e ogni cifra che compare nella sua prosa è una di quelle. Un numero che non è nella risposta dell'API non può comparire nel testo; se serve, si calcola prima e si passa dopo. Non è un proposito: la lettura si confronta cifra per cifra con quelle passate — separatori italiani e date comprese — e una che ne citi un'altra si rifiuta, si registra e non si mostra. Il testo generato è marcato come tale nell'interfaccia, così una cifra dentro una frase non viene mai letta come una cifra calcolata — è la stessa regola di §8, vista dal lato di chi legge.
+**Come tratta i numeri.** L'unica aritmetica ammessa è quella del backend. L'assistente non somma, non stima, non arrotonda a occhio: cita le cifre che riceve, e ogni cifra che compare nella sua prosa è una di quelle. Un numero che non è nella risposta dell'API non può comparire nel testo; se serve, si calcola prima e si passa dopo. Non è un proposito: la lettura si confronta cifra per cifra con quelle passate — separatori italiani e date comprese — e una che ne citi un'altra si rifiuta, si registra e non si mostra. Il testo generato è marcato come tale nell'interfaccia, così una cifra dentro una frase non viene mai letta come una cifra calcolata — è la stessa regola della sezione 8, vista dal lato di chi legge.
 
-**Cosa non può fare.** Non scrive nel ledger: nessuna categoria, nessun budget, nessuna regola, nessuno split, nessun giroconto. Ogni sua proposta è una riga da confermare con lo stesso gesto delle proposte di §5.5, e finché non è confermata non cambia niente. Non gira nel percorso del sync (§8). Non risponde con SQL: le query restano scritte a mano. Non vede identificativi: niente IBAN, niente numeri di conto, niente nomi di controparte che non siano già il merchant normalizzato, e il payload grezzo non esce dalla macchina.
+**Cosa non può fare.** Non scrive nel ledger: nessuna categoria, nessun budget, nessuna regola, nessuno split, nessun giroconto. Ogni sua proposta è una riga da confermare con lo stesso gesto delle proposte della sezione 5.5, e finché non è confermata non cambia niente. Non gira nel percorso del sync (sezione 8). Non risponde con SQL: le query restano scritte a mano. Non vede identificativi: niente IBAN, niente numeri di conto, niente nomi di controparte che non siano già il merchant normalizzato, e il payload grezzo non esce dalla macchina.
 
 **Come si difende dagli input.** Le descrizioni dei movimenti sono testo che arriva da fuori: un merchant può chiamarsi come un'istruzione. Entrano quindi come dati, dentro la struttura della domanda, e l'unica risposta accettata è quella conforme a ciò che è stato chiesto — merchant che erano nella domanda, categorie che esistono, campi dello schema previsto. Una risposta fuori schema si scarta, si registra, e non si esegue.
 
@@ -290,7 +329,7 @@ Una sezione dell'app che discute i numeri che il backend ha già calcolato — s
 
 ### 5.10 Primo setup guidato *(costruita)*
 
-Il primo avvio era una decina di passi a mano e nessuno di essi stava nel prodotto: creare `accounts.json` da un template, mettere la chiave privata accanto, far combaciare tre indirizzi (quello che il browser raggiunge, `redirect_url` nel file, la callback registrata nel dashboard), aprire a mano `/connect` scrivendo il nome dell'ASPSP a memoria, poi editare lo stesso file per tenere solo i conti voluti fra i quattro che una banca risponde, poi sincronizzare, e infine dichiarare un saldo o il conto restava `non verificato` per la §5.4. L'app conosce già il proprio indirizzo, la lista degli istituti che Enable Banking accetta e i conti che un'autorizzazione ha appena scritto: quasi tutti quei passi chiedevano a una persona qualcosa che il sistema sa.
+Il primo avvio era una decina di passi a mano e nessuno di essi stava nel prodotto: creare `accounts.json` da un template, mettere la chiave privata accanto, far combaciare tre indirizzi (quello che il browser raggiunge, `redirect_url` nel file, la callback registrata nel dashboard), aprire a mano `/connect` scrivendo il nome dell'ASPSP a memoria, poi editare lo stesso file per tenere solo i conti voluti fra i quattro che una banca risponde, poi sincronizzare, e infine dichiarare un saldo o il conto restava `non verificato` per la sezione 5.4. L'app conosce già il proprio indirizzo, la lista degli istituti che Enable Banking accetta e i conti che un'autorizzazione ha appena scritto: quasi tutti quei passi chiedevano a una persona qualcosa che il sistema sa.
 
 **Il gate è la prima schermata, non un manuale.** Quando la configurazione manca, l'app apre il setup al posto delle sezioni, al primo passo che ha qualcosa da chiedere; a sistema configurato la stessa schermata resta raggiungibile dal menu, perché un consenso PSD2 scade e una banca si aggiunge, e il passo utile in quel momento è quello dei conti. Il wizard non è una modalità che si chiude per sempre: è dove la configurazione si guarda e si cambia.
 
@@ -299,16 +338,16 @@ Il primo avvio era una decina di passi a mano e nessuno di essi stava nel prodot
 1. *Credenziali.* Application ID, chiave privata incollata, indirizzo di ritorno, nome dell'intestatario. L'indirizzo lo propone l'app dalla propria origine — è quello che il browser raggiunge, quindi è quello giusto per costruzione — e la chiave si carica subito: una che non è una chiave privata si rifiuta lì, dove è stata incollata, invece di diventare un sync che fallisce domani. Resta a mano **una** cosa, ed è l'unica che il sistema non può scrivere al posto tuo: registrare quell'indirizzo nel dashboard Enable Banking, carattere per carattere. La schermata mostra la stringa esatta, e il rifiuto della banca (`Redirect URI not allowed`) torna verbatim.
 2. *Banca.* Il nome dell'ASPSP deve combaciare con quello che Enable Banking conosce, e chiederlo a memoria era un modo per sbagliarlo: la lista arriva dall'API, filtrata per paese, e si sceglie da lì. L'autorizzazione si apre nella stessa scheda, perché è lì che il ritorno deve arrivare.
 3. *Conti.* Una banca risponde con tutti i conti che l'autorizzazione copre — Fineco ne dà quattro — e prima si potavano editando il file a mano. Qui si tiene quello che serve, si dà a ciascuno il nome con cui il ledger lo conoscerà e la data da cui importarne la storia. Il nome è la chiave del ledger: un nome che un'altra voce già usa si rifiuta, invece di scoprire nel ledger che due conti erano uno.
-4. *Primo sync.* Il pulsante chiede i movimenti adesso e risponde per conto con quello che ha scritto, come quello della barra in alto (§5.4 compresa): il primo sync non è un passaggio a vuoto, è la prima volta che si vede cosa è arrivato.
-5. *Saldi e verifica.* Un conto senza saldo dichiarato è `non verificato` (§5.4), e un ledger che nessuno ha confrontato con la banca non è ancora affidabile: qui si dichiara il saldo letto dall'istituto, si allinea l'apertura e si legge l'esito per conto. Il setup si può chiudere con un conto ancora non verificato, ma lo dice.
+4. *Primo sync.* Il pulsante chiede i movimenti adesso e risponde per conto con quello che ha scritto, come quello della barra in alto (sezione 5.4 compresa): il primo sync non è un passaggio a vuoto, è la prima volta che si vede cosa è arrivato.
+5. *Saldi e verifica.* Un conto senza saldo dichiarato è `non verificato` (sezione 5.4), e un ledger che nessuno ha confrontato con la banca non è ancora affidabile: qui si dichiara il saldo letto dall'istituto, si allinea l'apertura e si legge l'esito per conto. Il setup si può chiudere con un conto ancora non verificato, ma lo dice.
 
 **Chi scrive la configurazione.** `accounts.json` ha due scrittori, e la scrittura è la stessa: il callback OAuth aggiunge o rinfresca le voci delle autorizzazioni, il setup scrive le credenziali e cura le voci; le chiavi che il sistema non conosce sopravvivono a entrambi. La chiave privata si scrive accanto al file, dove `pem_path` la indica, e **non torna mai indietro**: l'API dice se c'è e se si carica, non la restituisce, non la registra. `load_config` resta severo — chi legge la configurazione per lavorare continua a fallire forte — mentre lo stato del setup si legge anche da un documento assente, perché "non c'è ancora niente" e "questo server è rotto" sono due cose diverse.
 
 **Un avvio a freddo deve poter partire.** Un container appena creato non ha né `accounts.json` né `private.pem`, quindi compose monta la cartella di configurazione e non i due file: è la differenza tra un primo avvio possibile e un `up` che pretende che il setup sia già stato fatto da riga di comando. Per la stessa ragione `/connect` e `/callback` con la configurazione incompleta dicono cosa manca invece di rispondere 500, e il ritorno dal login è un 303 dentro l'app invece del JSON grezzo che nessuno leggeva: la schermata che ha iniziato l'autorizzazione è quella che deve dire cosa è arrivato.
 
-Restano fuori, ciascuna per una ragione diversa: la configurazione dell'assistente (il modello è configurazione d'ambiente, §5.9, e l'app in container non scrive l'`.env` dell'host) e le dichiarazioni `passthrough` (§5.3: si capiscono dai testi che la banca stampa, che al primo avvio non ci sono ancora).
+Restano fuori, ciascuna per una ragione diversa: la configurazione dell'assistente (il modello è configurazione d'ambiente, sezione 5.9, e l'app in container non scrive l'`.env` dell'host) e le dichiarazioni `passthrough` (sezione 5.3: si capiscono dai testi che la banca stampa, che al primo avvio non ci sono ancora).
 
-*Fatto quando*: davanti a un'installazione nuova, dall'app e senza terminale, si arriva a un conto collegato, sincronizzato e verificato dalla §5.4, e l'unico passo che resta a una persona è registrare l'indirizzo di ritorno nel dashboard della banca.
+*Fatto quando*: davanti a un'installazione nuova, dall'app e senza terminale, si arriva a un conto collegato, sincronizzato e verificato dalla sezione 5.4, e l'unico passo che resta a una persona è registrare l'indirizzo di ritorno nel dashboard della banca.
 
 ### 5.11 Backup e ripristino *(costruita)*
 
@@ -324,11 +363,29 @@ Il ledger vive in un volume del container e la configurazione in una cartella mo
 
 *Fatto quando*: dopo un errore che ha rovinato il ledger si torna allo stato di ieri sera con la procedura di ripristino, senza risincronizzare e senza rimettere a mano le decisioni; e la prova locale dimostra quel giro — snapshots, guasto e ritorno — prima che serva davvero, non solo che i comandi esistano.
 
+### 5.12 Pianificazione del budget *(costruita)*
+
+Un budget per categoria dice quanto si vuole spendere in un mese, non in cosa. La pianificazione è lo stesso budget visto più da vicino: dentro il tetto di una categoria si scrivono le spese che si sa già di dover fare, e la sezione dice quanta parte del tetto hanno già preso e se ci stanno. Non è una previsione (sezione 3): il sistema non stima entrate né spese, mostra ciò che una persona ha scritto accanto a ciò che è già uscito.
+
+**Il tetto è per mese, con un default.** Ogni categoria ha un importo di default che vale da un mese in avanti: cambiarlo guardando novembre lo cambia da novembre in poi e lascia ottobre con quello che aveva, perché un budget riscritto all'indietro cancella la storia che si voleva tenere. Togliere il default è la stessa scrittura, con importo vuoto. Un mese può sovrascrivere il default per sé solo — dicembre con più regali — e togliere la sovrascrittura lo riporta al default. I budget scritti prima di questa versione diventano default validi da sempre.
+
+**Le voci stanno dentro il tetto.** Una voce appartiene a una categoria e a un mese, e porta descrizione, importo, una data facoltativa dentro quel mese, una priorità e una nota. Una categoria senza voci è il budget di prima, senza niente in più; con le voci il tetto si legge in tre parti: quanto è pianificato, quanto resta libero, quanto è già stato speso. Se le voci superano il tetto la categoria lo segnala, e il tetto non si alza da solo: è una decisione, e la prende la persona.
+
+**La priorità ordina, non taglia.** Tre livelli — essenziale, importante, rimandabile. Dentro una categoria le voci si leggono in quell'ordine, a parità per data (le voci senza data in fondo) e poi per ordine di inserimento; scorrendole così, una voce *ci sta* finché la somma di quelle prima più lei non supera il tetto. Il calcolo è del backend, come ogni somma (sezione 5.6). Il sistema non propone cosa togliere né cosa spostare: è l'ottimizzazione che la sezione 3 esclude.
+
+**Una voce nasce in tre modi, e resta modificabile.** Scritta da zero; copiata da un movimento passato — descrizione, importo senza segno, categoria, e il giorno riportato nel mese che si sta pianificando —, con il modulo aperto sui campi copiati prima che qualcosa venga salvato; oppure copiando le voci di una categoria dal mese precedente, con le date spostate nello stesso modo. La copia è una copia: modificare la voce non tocca il movimento né il mese da cui viene, e copiare due volte non duplica una voce con la stessa descrizione e lo stesso importo. Una voce si sposta di mese o di categoria dal suo modulo.
+
+**Lo speso resta per categoria.** Una voce non sa se è stata spesa: lo speso è quello di sempre, le uscite contabilizzate della categoria nel mese, ed è il confronto con il tetto che conta. Collegare una voce al movimento che la realizza è un lavoro che si fa solo se lo storico lo chiede.
+
+**Lo storico è il mese.** Ogni mese si riapre con il suo tetto, le sue voci e il suo speso; niente si blocca, perché un mese passato si corregge come uno presente.
+
+*Fatto quando*: si pianifica il mese prossimo da una sezione dell'app — tetto, voci e priorità — e il mese prima resta leggibile com'era, anche dopo aver cambiato il default.
+
 ## 6. Modello dati minimo
 
 ```
 accounts             (id, nome, tipo: reale|virtuale|categoria, istituto, iban, uid_esterno, valuta,
-                      saldo_iniziale, data_iniziale, flag: episodico | incomprimibile | investimento,
+                      saldo_iniziale, data_iniziale, flag: spesa rara | irrinunciabile | investimento,
                       ripristina_cancellati)
 transactions         (id, conto, data, importo, descrizione, stato BOOK|PDNG, external_id, content_hash,
                       origine psd2|import, payload_grezzo, controparte, conto_controparte, nota)
@@ -337,9 +394,12 @@ deleted_transactions (id, conto, chiave, data, importo, descrizione, stato, exte
                       origine, payload_grezzo, controparte, conto_controparte, nota, cancellato_il,
                       ripristinato_il)
 transfer_links       (leg_a, leg_b, confidenza, metodo, confermato_da_umano: 1 confermato, 0 da rivedere, -1 rifiutato)
-rules                (chiave, testo, categoria)
+rules                (id, chiave, testo, azione: categoria | cancella | giroconto,
+                      destinazione o categoria, conto?, importo minimo?, importo massimo?)
 account_balances     (conto, data, saldo, origine)
-budgets              (categoria, importo, aggiornato_il)
+budgets              (categoria, dal_mese, importo — vuoto toglie il default da quel mese, aggiornato_il)
+budget_months        (categoria, mese, importo, aggiornato_il)
+budget_items         (id, categoria, mese, descrizione, importo, data, priorità, nota, creato_il)
 merchant_suggestions (merchant, categoria, origine, decisione: pending | accepted | dismissed)
 settings             (chiave, valore)
 ```
@@ -353,7 +413,7 @@ stessa riga, e alla riimportazione del periodo. L'unica scrittura che non viene 
 il tombstone che restituisce a un movimento appena ricreato la nota che quello cancellato aveva,
 nel reimport e nel ripristino. È l'unico campo del
 movimento che una persona può modificare: importo, data e descrizione sono ciò che la banca ha
-dichiarato, e la verifica di §5.4 confronta proprio quella dichiarazione con il ledger.
+dichiarato, e la verifica della sezione 5.4 confronta proprio quella dichiarazione con il ledger.
 
 Vincolo deliberato: `content_hash` **non** è unico. La stessa spesa può ripetersi identica nello stesso giorno, e il percorso di import ha bisogno che l'hash di base resti riutilizzabile.
 
@@ -386,8 +446,8 @@ Conseguenze da accettare consapevolmente:
 - Mai per produrre numeri. Solo per produrre etichette discrete, sempre confermabili.
 - Niente query in linguaggio naturale: SQL scritto a mano su uno schema pulito è più veloce e più affidabile.
 - Niente anomaly detection generativa quando esiste una statistica robusta.
-- Mai lasciare che la prosa dell'assistente contenga un numero che il backend non ha calcolato, o che venga letto come se l'avesse calcolato: le cifre nel testo sono citazioni di cifre già calcolate, e il testo è marcato come generato (§5.9).
-- Mai da sola. Nessun timer, nessun effetto e nessun giro automatico chiede al modello al posto della persona: una chiamata parte da un tocco, e mentre avviene la schermata dice a quale modello si sta chiedendo (§5.9).
+- Mai lasciare che la prosa dell'assistente contenga un numero che il backend non ha calcolato, o che venga letto come se l'avesse calcolato: le cifre nel testo sono citazioni di cifre già calcolate, e il testo è marcato come generato (sezione 5.9).
+- Mai da sola. Nessun timer, nessun effetto e nessun giro automatico chiede al modello al posto della persona: una chiamata parte da un tocco, e mentre avviene la schermata dice a quale modello si sta chiedendo (sezione 5.9).
 
 ## 9. Roadmap
 
@@ -406,13 +466,13 @@ Transfer matching, normalizzazione merchant, regole deterministiche. UI minima: 
 *Fatto quando*: si può categorizzare una settimana di movimenti dal telefono senza toccare il database a mano.
 
 **Fase 3 — metriche e cruscotto.** *(fatta)*
-Calcolo di burn ricorrente, accantonamento episodico, runway stressato, quota incomprimibile. Schermata di sintesi mensile. Editing degli split.
+Calcolo di spesa mensile tipica, riserva per spese rare, mesi di autonomia, spesa irrinunciabile. Schermata di sintesi mensile. Editing degli split.
 
 **Fase 4 — budget e affinamenti.** *(fatta)*
 Budget mensili per categoria, anomalie su statistica robusta, classificatore statistico sulla coda, LLM per la normalizzazione dei merchant mai visti.
 
 **Fase 5 — assistente.** *(fatta)*
-La sezione di §5.9: una lettura in prosa delle serie e dei budget già calcolati, con proposte confermabili e nessuna aritmetica propria.
+Quanto descritto nella sezione 5.9: una lettura in prosa delle serie e dei budget già calcolati, con proposte confermabili e nessuna aritmetica propria.
 *Fatto quando*: davanti a un mese strano una schermata spiega cosa è cambiato citando solo cifre già calcolate, e almeno una proposta si conferma con un gesto.
 
 Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la successiva esista per avere senso.
@@ -422,7 +482,7 @@ Un pulsante in cima all'app chiede i conti adesso e risponde con quello che ha
 scritto, per conto; ogni movimento porta una nota locale che nessun percorso di
 ingest scrive; un movimento si cancella davvero, e il tombstone che ne resta tiene
 il sync dal rimetterlo, con una flag per conto che decide se può tornare e un
-cestino che lo ripristina riga per riga; la verifica di §5.4 dice quando la
+cestino che lo ripristina riga per riga; la verifica della sezione 5.4 dice quando la
 differenza è ciò che qualcuno ha cancellato. L'immagine si costruisce in CI a ogni
 tag e il NAS la tira.
 *Fatto quando*: un movimento appena fatto si legge dall'app senza aprire un
@@ -432,7 +492,7 @@ pubblica l'immagine (`linux/amd64`). Il primo deploy di quell'immagine sul NAS
 resta lavoro aperto, perché nessuna immagine è ancora stata messa in esercizio lì.
 
 **Fase 7 — il primo setup è guidato.** *(fatta)*
-La configurazione si scrive dall'app (§5.10): credenziali Enable Banking con la
+La configurazione si scrive dall'app (sezione 5.10): credenziali Enable Banking con la
 chiave privata incollata, istituto scelto fra quelli che il provider accetta,
 conti da tenere con il nome che il ledger userà e la data da cui importarli,
 primo sync con l'esito per conto, saldo dichiarato e apertura allineata. Gate al
@@ -445,10 +505,14 @@ verificato senza toccare la riga di comando, e l'unico passo manuale che resta �
 la registrazione della callback nel dashboard della banca.
 
 **Fase 8 — il ledger si copia, e si torna indietro.** *(fatta)*
-Snapshot datati e consistenti del ledger e della configurazione (§5.11): il comando che li scrive da dentro il container con l'API di backup di SQLite, la ritenzione che li tiene bounded, il ripristino scritto come procedura, e il cron sul NAS che li comanda. La stessa fetta porta una prova locale in container dell'intero primo avvio — l'immagine costruita dal checkout, la cartella di configurazione con la proprietà che ha il NAS, il wizard percorso contro una banca finta che serve le fixture anonimizzate — perché il primo avvio non si prova la prima volta sul NAS, e il ripristino non si prova la prima volta che serve.
+Snapshot datati e consistenti del ledger e della configurazione (sezione 5.11): il comando che li scrive da dentro il container con l'API di backup di SQLite, la ritenzione che li tiene bounded, il ripristino scritto come procedura, e il cron sul NAS che li comanda. La stessa fetta porta una prova locale in container dell'intero primo avvio — l'immagine costruita dal checkout, la cartella di configurazione con la proprietà che ha il NAS, il wizard percorso contro una banca finta che serve le fixture anonimizzate — perché il primo avvio non si prova la prima volta sul NAS, e il ripristino non si prova la prima volta che serve.
 *Fatto quando*: uno snapshot si rilegge come un ledger — `validate` passa, i conti e i movimenti ci sono — e la prova locale arriva dal wizard al ripristino senza toccare né una banca vera né il ledger vero.
 
-**Stato (settembre 2026).** Fasi 0-8 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la §5.4 che spiega la differenza lasciata da una cancellazione a mano. L'assistente di §5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. La fase 7 ha aggiunto il setup guidato di §5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (§5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Una chiamata al modello parte solo da un tocco: l'ingresso dal budget propone la domanda invece di chiederla, e la schermata nomina il modello mentre la richiesta è in volo. Accettare una proposta decide i movimenti e basta: una regola nasce solo se la casella la chiede, e con il testo che si scrive nel dialogo. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
+**Fase 9 — il budget si pianifica.** *(fatta)*
+Quanto descritto nella sezione 5.12: un tetto per categoria e per mese con il suo default, le voci dentro il tetto con data e priorità, la copia da un movimento passato o dal mese prima, e i mesi passati che restano quello che erano.
+*Fatto quando*: il mese prossimo si pianifica dall'app e cambiare un default non riscrive i mesi già vissuti.
+
+**Stato (ottobre 2026).** Fasi 0-9 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la sezione 5.4 che spiega la differenza lasciata da una cancellazione a mano. L'assistente della sezione 5.9 è configurato e ha risposto alla sua prima domanda vera, e il modello si accende da `.env`, che ora è letto all'avvio sia da `uv run` sia da docker compose. La fase 7 ha aggiunto il setup guidato della sezione 5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (sezione 5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Una chiamata al modello parte solo da un tocco: l'ingresso dal budget propone la domanda invece di chiederla, e la schermata nomina il modello mentre la richiesta è in volo. Accettare una proposta decide i movimenti e basta: una regola nasce solo se la casella la chiede, e con il testo che si scrive nel dialogo. La fase 9 ha dato al budget una sezione sua e la pianificazione della sezione 5.12. Le metriche si chiamano con parole che dicono cosa misurano invece che burn e runway. Una regola può cancellare o registrare un giroconto, ristretta a un conto e a un intervallo di importi; un conto si elimina dall'app, e i movimenti si cancellano o si categorizzano in blocco. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
 
 ## 10. Rischi
 
@@ -462,11 +526,11 @@ Snapshot datati e consistenti del ledger e della configurazione (§5.11): il com
 | Perdita delle funzioni che Actual dava gratis (budget, split, mobile) | Le fasi successive le ricostruiscono; ogni fase resta usabile da sola |
 | Deriva verso l'over-engineering | Ogni feature nuova deve rispondere a "quale decisione mi fa cambiare?" |
 | La specifica insegue il codice, e la fetta successiva implementa il prodotto vecchio | La specifica si aggiorna nello stesso cambiamento in cui la decisione cambia, e la versione sale |
-| Il testo dell'assistente viene letto come un calcolo | Le cifre nella prosa sono citazioni delle serie del backend, il testo è marcato come generato (§5.9), e una lettura che citi una cifra non calcolata viene rifiutata invece che mostrata |
-| Dati finanziari personali a un fornitore terzo | Passano solo aggregati, merchant normalizzati e nomi di categoria: nessun IBAN, nessun payload grezzo, e la funzione si può tenere spenta (§5.9) |
-| Un merchant che si chiama come un'istruzione | Le descrizioni entrano come dati, e l'unica risposta accettata è quella che rispetta lo schema: merchant e categorie già noti (§5.9) |
-| Costo e latenza che scivolano | Domanda limitata, chiamate contate, nessuna ripetizione della stessa domanda sugli stessi dati, e l'assistente fuori dal percorso del sync (§5.9) |
-| Le regole crescono con la coda invece che con le decisioni prese | La casella è spenta di default: accettare assegna la categoria ai movimenti in attesa e non scrive niente in `rules`; la regola nasce solo se la si chiede, con il testo che si edita nel dialogo (§5.5) |
+| Il testo dell'assistente viene letto come un calcolo | Le cifre nella prosa sono citazioni delle serie del backend, il testo è marcato come generato (sezione 5.9), e una lettura che citi una cifra non calcolata viene rifiutata invece che mostrata |
+| Dati finanziari personali a un fornitore terzo | Passano solo aggregati, merchant normalizzati e nomi di categoria: nessun IBAN, nessun payload grezzo, e la funzione si può tenere spenta (sezione 5.9) |
+| Un merchant che si chiama come un'istruzione | Le descrizioni entrano come dati, e l'unica risposta accettata è quella che rispetta lo schema: merchant e categorie già noti (sezione 5.9) |
+| Costo e latenza che scivolano | Domanda limitata, chiamate contate, nessuna ripetizione della stessa domanda sugli stessi dati, e l'assistente fuori dal percorso del sync (sezione 5.9) |
+| Le regole crescono con la coda invece che con le decisioni prese | La casella è spenta di default: accettare assegna la categoria ai movimenti in attesa e non scrive niente in `rules`; la regola nasce solo se la si chiede, con il testo che si edita nel dialogo (sezione 5.5) |
 | Un rimborso gonfia le Entrate (giugno 2026: cinque accrediti che erano denaro altrui contati come le entrate del mese) | Si dichiara, come il giroconto verso un conto proprio: la voce esce dalle entrate e resta visibile a parte. La coppia con l'addebito compensato non si modella, perché la contabilità viva non ne mostra nessuna |
-| La chiave privata Enable Banking passa dall'app: si incolla in un campo e il server la scrive su disco | Il traffico è quello del tailnet e basta (§4: nessuna esposizione pubblica); la chiave non torna mai in una risposta e non finisce nei log, e il campo mostra solo se una chiave c'è e se si carica. Resta possibile metterla a mano dove `pem_path` la indica |
+| La chiave privata Enable Banking passa dall'app: si incolla in un campo e il server la scrive su disco | Il traffico è quello del tailnet e basta (sezione 4: nessuna esposizione pubblica); la chiave non torna mai in una risposta e non finisce nei log, e il campo mostra solo se una chiave c'è e se si carica. Resta possibile metterla a mano dove `pem_path` la indica |
 | Un setup interrotto a metà lascia una configurazione incompleta | Lo stato si rilegge da `/api/setup` e ogni passo è riprendibile; una scrittura rifiutata non tocca il file, quindi una chiave sbagliata non sostituisce una buona, e `/connect` con la configurazione incompleta dice cosa manca invece di fallire |

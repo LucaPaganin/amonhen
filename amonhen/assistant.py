@@ -20,7 +20,6 @@ What is never sent: IBANs, account numbers, raw payloads, and counterparty names
 that are not already the normalized merchant (they are scrubbed before the
 packet leaves this module).
 """
-import calendar
 import datetime as dt
 import hashlib
 import json
@@ -29,6 +28,7 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
+from amonhen.budgets import budget_status, month_of, set_default
 from amonhen.ledger import Ledger
 from amonhen.llm import LlmConfig, LlmOff, chat_json
 from amonhen.merchants import merchant_name
@@ -63,6 +63,8 @@ SYSTEM_PROMPT = (
     "Vincoli: cita soltanto cifre che sono nel json, con le stesse unità; non "
     "sommare, non stimare, non arrotondare e non calcolare percentuali; non "
     "inventare movimenti, conti o identificativi che non ti sono stati dati.\n"
+    "Chiama le metriche con i nomi che hanno nel json, che sono quelli che la "
+    "persona vede nella app: niente burn, runway o altro gergo finanziario.\n"
     "Rispondi con un oggetto json di questa forma:\n"
     '{"lettura": "il testo in italiano", "proposte": ['
     '{"tipo": "categoria", "merchant": "un merchant del json", "categoria": "una categoria del json"}, '
@@ -159,7 +161,7 @@ def _context_figures(ledger: Ledger, context: dict | None, today: dt.date) -> di
     kind = str((context or {}).get("kind", "") or "cruscotto")
     identifier = (context or {}).get("id")
     if kind == "budget" and identifier is not None:
-        for status in ledger.budget_status(*_month_of(today)):
+        for status in budget_status(ledger, month_of(today)):
             if status["id"] == identifier:
                 return {
                     "tipo": "budget",
@@ -185,12 +187,6 @@ def _context_figures(ledger: Ledger, context: dict | None, today: dt.date) -> di
     return {"tipo": "cruscotto"}
 
 
-def _month_of(day: dt.date) -> tuple[dt.date, dt.date]:
-    """The first and last day of the month a day falls in."""
-    last = calendar.monthrange(day.year, day.month)[1]
-    return dt.date(day.year, day.month, 1), dt.date(day.year, day.month, last)
-
-
 def data_packet(
     ledger: Ledger,
     today: dt.date,
@@ -207,17 +203,19 @@ def data_packet(
         "periodo": {"dal": start.isoformat(), "al": today.isoformat()},
         # The keys are words a model can repeat in a sentence: an identifier
         # comes back verbatim, and the reading ends up saying "il burn_atteso è".
+        # They are the names the dashboard cards print, so the reading and the
+        # screen beside it call a figure the same way.
         "metriche": {
             "mesi di storico": metrics.months_of_history,
             "parziale": metrics.partial,
-            "burn ricorrente": _figure(metrics.recurring_burn),
-            "accantonamento episodico": _figure(metrics.episodic_accrual),
-            "burn atteso": _figure(metrics.expected_burn),
-            "runway mesi": _figure(metrics.runway_months),
+            "spesa mensile tipica": _figure(metrics.recurring_burn),
+            "riserva per spese rare": _figure(metrics.episodic_accrual),
+            "spesa mensile attesa": _figure(metrics.expected_burn),
+            "mesi di autonomia": _figure(metrics.runway_months),
             "liquidità": _figure(metrics.liquidity),
-            "quota incomprimibile": _figure(metrics.essential_monthly),
-            "quota discrezionale": _figure(metrics.discretionary_monthly),
-            "flusso di risparmio": _figure(metrics.savings_flow),
+            "spesa irrinunciabile": _figure(metrics.essential_monthly),
+            "spesa tagliabile": _figure(metrics.discretionary_monthly),
+            "investito in 6 mesi": _figure(metrics.savings_flow),
         },
         "flussi_mensili": [
             {
@@ -239,7 +237,7 @@ def data_packet(
                 "speso": row["spent"],
                 "rimasto": row["remaining"],
             }
-            for row in ledger.budget_status(*_month_of(today))
+            for row in budget_status(ledger, month_of(today))
         ],
         "saldi": [
             {"conto": balance.account, "saldo": _figure(balance.balance)}
@@ -316,14 +314,11 @@ def unsupported_numbers(text: str, allowed: set[str]) -> list[str]:
 PROPOSAL_KINDS = ("budget", "categoria")
 
 
-def _budget_proposal_is_new(ledger: Ledger, category: str) -> bool:
-    row = ledger.conn.execute(
-        """SELECT b.amount AS amount FROM accounts a
-           LEFT JOIN budgets b ON b.category_id = a.id
-           WHERE a.type = 'category' AND a.name = ?""",
-        (category,),
-    ).fetchone()
-    return row is not None and not row["amount"]
+def _budget_proposal_is_new(packet: dict, category: str) -> bool:
+    """A budget is proposed only where the month the model read had none."""
+    return any(
+        row["categoria"] == category and row["budget"] is None for row in packet["budget"]
+    )
 
 
 def _record_proposals(ledger: Ledger, raw: object, packet: dict) -> tuple[list[dict], list[str]]:
@@ -356,7 +351,7 @@ def _record_proposals(ledger: Ledger, raw: object, packet: dict) -> tuple[list[d
             ledger.record_suggestion(merchant, category, "llm")
             accepted.append({"kind": "categoria", "merchant": merchant, "category": category})
             continue
-        if not _budget_proposal_is_new(ledger, category):
+        if not _budget_proposal_is_new(packet, category):
             rejected.append(f"budget già presente per {category!r}")
             continue
         try:
@@ -481,8 +476,14 @@ def readings(ledger: Ledger, limit: int = 10) -> list[dict]:
     return ledger.readings(limit)
 
 
-def decide_budget_proposal(ledger: Ledger, category: str, decision: str) -> dict:
-    """Apply or drop a budget the assistant proposed. Nothing else changes."""
+def decide_budget_proposal(
+    ledger: Ledger, category: str, decision: str, today: dt.date | None = None
+) -> dict:
+    """Apply or drop a budget the assistant proposed. Nothing else changes.
+
+    An accepted proposal becomes the category's default from the current month
+    on: the months already lived keep the budget they had (desiderata 5.12).
+    """
     if decision not in ("accept", "dismiss"):
         raise ValueError(f"unknown decision {decision!r}")
     if decision == "accept":
@@ -492,6 +493,7 @@ def decide_budget_proposal(ledger: Ledger, category: str, decision: str) -> dict
         row = ledger.find_account(name=category)
         if row is None or row["type"] != "category":
             raise KeyError(f"{category!r} is not a category")
-        ledger.set_budget(row["id"], parse_decimal(proposal["amount"]))
+        month = month_of(today or dt.date.today())
+        set_default(ledger, row["id"], month, parse_decimal(proposal["amount"]))
     ledger.decide_budget_proposal(category, "accepted" if decision == "accept" else "dismissed")
     return {"category": category, "decision": decision}

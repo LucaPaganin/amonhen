@@ -14,6 +14,14 @@ from amonhen.models import Account, IncomingTransaction
 from amonhen.transfers import link_transfers
 
 
+
+def _rules(client) -> list[dict]:
+    """The rules as the tests before conditions and actions read them."""
+    return [
+        {"pattern": rule["pattern"], "category": rule["category"], "count": rule["count"]}
+        for rule in client.get("/api/rules").json()
+    ]
+
 def make_txn(ledger, account_id, date, amount, description, status="BOOK"):
     return IncomingTransaction(
         account_id=account_id,
@@ -335,9 +343,15 @@ def test_a_rule_can_be_added_and_applied(api):
     # Adding a rule applies it on the spot, so a later pass has nothing to do.
     applied = client.post("/api/categorize").json()
     assert applied["applied"] == 0
-    assert client.get("/api/rules").json() == [
-        {"pattern": "EKOM", "category": "Groceries", "count": 1}
-    ]
+    [rule] = client.get("/api/rules").json()
+    assert {key: rule[key] for key in ("pattern", "action", "target", "category", "count")} == {
+        "pattern": "EKOM",
+        "action": "category",
+        "target": "Groceries",
+        "category": "Groceries",
+        "count": 1,
+    }
+    assert rule["account"] is None and rule["amount_min"] is None
     assert client.get("/api/transactions", params={"category": "Groceries"}).json()["total"] == 1
 
 
@@ -531,10 +545,12 @@ def test_budgets_report_spent_and_remaining(api):
     transaction_id = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]["id"]
     client.post(f"/api/transactions/{transaction_id}/category", json={"category": "Groceries"})
 
-    saved = client.put(f"/api/budgets/{groceries['id']}", json={"amount": "100.00"})
+    # A default holds from the month it is written for, so it is written for the
+    # month of the movement: from the current one it would not reach back.
+    month = client.get("/api/transactions").json()["items"][0]["date"][:7]
+    saved = client.put(f"/api/budgets/{groceries['id']}", params={"month": month}, json={"amount": "100.00"})
     assert saved.status_code == 200
 
-    month = client.get("/api/transactions").json()["items"][0]["date"][:7]
     status = {row["category"]: row for row in client.get("/api/budgets", params={"month": month}).json()}
     assert status["Groceries"]["budget"] == "100.00"
     assert status["Groceries"]["spent"] == "42.50"
@@ -552,6 +568,115 @@ def test_a_budget_can_be_cleared_and_cannot_be_negative(api):
 
     status = {row["category"]: row for row in client.get("/api/budgets").json()}
     assert status["Groceries"]["budget"] is None
+
+
+def test_a_budget_default_holds_from_the_month_it_was_set_in(api):
+    client, _ = api
+    client.post("/api/categories", json={"name": "Groceries"})
+    groceries = next(c for c in client.get("/api/categories").json() if c["name"] == "Groceries")
+
+    client.put(f"/api/budgets/{groceries['id']}", params={"month": "2026-01"}, json={"amount": "400.00"})
+    answer = client.put(
+        f"/api/budgets/{groceries['id']}", params={"month": "2026-11"}, json={"amount": "300.00"}
+    ).json()
+
+    assert next(row for row in answer if row["category"] == "Groceries")["budget"] == "300.00"
+    october = client.get("/api/budgets", params={"month": "2026-10"}).json()
+    assert next(row for row in october if row["category"] == "Groceries")["budget"] == "400.00"
+
+
+def test_a_month_override_and_its_items_come_back_with_the_month(api):
+    client, _ = api
+    client.post("/api/categories", json={"name": "Gifts"})
+    gifts = next(c for c in client.get("/api/categories").json() if c["name"] == "Gifts")
+    client.put(f"/api/budgets/{gifts['id']}", params={"month": "2026-01"}, json={"amount": "50.00"})
+
+    client.put(f"/api/budgets/{gifts['id']}/override", params={"month": "2026-12"}, json={"amount": "100.00"})
+    created = client.post(
+        "/api/budget-items",
+        json={
+            "category_id": gifts["id"],
+            "month": "2026-12",
+            "description": "Regalo mamma",
+            "amount": "80.00",
+            "date": "2026-12-20",
+            "priority": "essential",
+        },
+    )
+    assert created.status_code == 201
+    client.post(
+        "/api/budget-items",
+        json={"category_id": gifts["id"], "month": "2026-12", "description": "Cena", "amount": "40.00",
+              "priority": "deferrable"},
+    )
+
+    row = next(row for row in created.json() if row["category"] == "Gifts")
+    assert (row["budget"], row["default"], row["override"]) == ("100.00", "50.00", "100.00")
+    december = next(
+        row for row in client.get("/api/budgets", params={"month": "2026-12"}).json()
+        if row["category"] == "Gifts"
+    )
+    assert [(item["description"], item["fits"]) for item in december["items"]] == [
+        ("Regalo mamma", True),
+        ("Cena", False),
+    ]
+    assert (december["planned"], december["free"], december["over_plan"]) == ("120.00", "-20.00", True)
+
+
+def test_a_budget_item_is_edited_moved_and_deleted(api):
+    client, _ = api
+    client.post("/api/categories", json={"name": "Gifts"})
+    gifts = next(c for c in client.get("/api/categories").json() if c["name"] == "Gifts")
+    body = {"category_id": gifts["id"], "month": "2026-11", "description": "Regalo", "amount": "80.00"}
+    row = next(row for row in client.post("/api/budget-items", json=body).json() if row["category"] == "Gifts")
+    item_id = row["items"][0]["id"]
+
+    moved = client.put(
+        f"/api/budget-items/{item_id}",
+        params={"month": "2026-11"},
+        json={**body, "month": "2026-12", "note": "rimandato"},
+    ).json()
+
+    assert next(row for row in moved if row["category"] == "Gifts")["items"] == []
+    december = client.get("/api/budgets", params={"month": "2026-12"}).json()
+    assert next(row for row in december if row["category"] == "Gifts")["items"][0]["note"] == "rimandato"
+
+    assert client.delete(f"/api/budget-items/{item_id}").status_code == 200
+    assert client.delete(f"/api/budget-items/{item_id}").status_code == 404
+    assert client.put(f"/api/budget-items/{item_id}", json=body).status_code == 404
+
+
+def test_a_budget_item_out_of_its_month_or_without_a_category_is_refused(api):
+    client, _ = api
+    client.post("/api/categories", json={"name": "Gifts"})
+    gifts = next(c for c in client.get("/api/categories").json() if c["name"] == "Gifts")
+    revolut = next(a for a in client.get("/api/accounts").json() if a["name"] == "Revolut")
+    body = {"category_id": gifts["id"], "month": "2026-11", "description": "Regalo", "amount": "80.00"}
+
+    assert client.post("/api/budget-items", json={**body, "date": "2026-12-01"}).status_code == 422
+    assert client.post("/api/budget-items", json={**body, "amount": "-1"}).status_code == 422
+    assert client.post("/api/budget-items", json={**body, "month": "novembre"}).status_code == 422
+    assert client.post("/api/budget-items", json={**body, "category_id": revolut["id"]}).status_code == 422
+    assert client.post("/api/budget-items", json={**body, "category_id": 99999}).status_code == 404
+
+
+def test_budget_items_are_copied_from_the_month_before(api):
+    client, _ = api
+    client.post("/api/categories", json={"name": "Gifts"})
+    gifts = next(c for c in client.get("/api/categories").json() if c["name"] == "Gifts")
+    client.post(
+        "/api/budget-items",
+        json={"category_id": gifts["id"], "month": "2026-10", "description": "Regalo",
+              "amount": "80.00", "date": "2026-10-31"},
+    )
+
+    answer = client.post(
+        f"/api/budgets/{gifts['id']}/copy", json={"from_month": "2026-10", "to_month": "2026-11"}
+    ).json()
+
+    assert answer["copied"] == 1
+    items = next(row for row in answer["budgets"] if row["category"] == "Gifts")["items"]
+    assert [(item["description"], item["date"]) for item in items] == [("Regalo", "2026-11-30")]
 
 
 def test_budgets_refuse_a_non_category(api):
@@ -601,7 +726,7 @@ def test_suggestions_can_be_reviewed_and_accepting_decides_the_movements(api):
     assert client.get("/api/suggestions").json() == []
     # The decision is about the movements and nothing else: no rule was asked
     # for, so none is written, and the next EKOM movement comes back to the queue.
-    assert client.get("/api/rules").json() == []
+    assert _rules(client) == []
     assert client.get("/api/transactions", params={"category": "Groceries"}).json()["total"] == 1
 
 
@@ -622,7 +747,7 @@ def test_a_proposal_can_be_accepted_with_a_category_that_corrects_it(api):
     )
 
     assert accepted.status_code == 200
-    assert client.get("/api/rules").json() == [
+    assert _rules(client) == [
         {"pattern": "EKOM", "category": "Trasporti", "count": 1}
     ]
     movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
@@ -648,7 +773,7 @@ def test_the_text_written_for_a_rule_is_the_rule(api):
 
     assert accepted.status_code == 200
     assert accepted.json()["rule"] == "/ekom/"
-    assert client.get("/api/rules").json() == [
+    assert _rules(client) == [
         {"pattern": "/ekom/", "category": "Groceries", "count": 1}
     ]
     movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
@@ -673,7 +798,7 @@ def test_a_decision_about_a_merchant_is_not_overruled_by_a_later_rule(api):
     assert client.post("/api/categorize").json() == {"applied": 0}
     client.post("/api/rules", json={"pattern": "Cart", "category": "Shopping"})
 
-    assert client.get("/api/rules").json() == [
+    assert _rules(client) == [
         {"pattern": "Cart", "category": "Shopping", "count": 0}
     ]
     movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
@@ -752,7 +877,7 @@ def test_a_rule_text_that_does_not_compile_writes_nothing(api):
     )
 
     assert refused.status_code == 422
-    assert client.get("/api/rules").json() == []
+    assert _rules(client) == []
     # A refused rule is a message, not a half-made decision: not even the
     # category it would have pointed at is left behind for the pickers.
     assert "Nuova" not in [item["name"] for item in client.get("/api/categories").json()]
@@ -779,7 +904,7 @@ def test_a_proposal_cannot_be_accepted_into_the_review_bucket(api):
     )
 
     assert refused.status_code == 422
-    assert client.get("/api/rules").json() == []
+    assert _rules(client) == []
 
 
 def test_a_proposal_for_a_merchant_with_nothing_waiting_has_a_zero_stake(api):
@@ -813,7 +938,7 @@ def test_dismissing_a_suggestion_leaves_no_rule(api):
     assert dismissed.status_code == 200
 
     assert client.get("/api/suggestions").json() == []
-    assert client.get("/api/rules").json() == []
+    assert _rules(client) == []
 
 
 def test_reviewing_an_unknown_suggestion_is_404(api):
@@ -867,7 +992,7 @@ def test_a_merchant_with_a_slash_can_still_be_decided(api):
 
     assert response.status_code == 200
     assert client.get("/api/suggestions").json() == []
-    assert client.get("/api/rules").json() == [
+    assert _rules(client) == [
         {"pattern": "1051455028466/paypal", "category": "Spesa", "count": 0}
     ]
 
@@ -1020,7 +1145,7 @@ def test_a_rule_reports_how_many_movements_it_holds(api):
 
     assert created.status_code == 201
     assert created.json()["count"] == 1
-    assert client.get("/api/rules").json() == [
+    assert _rules(client) == [
         {"pattern": "EKOM", "category": "Trasporti", "count": 1}
     ]
 
@@ -1031,7 +1156,11 @@ def test_a_rule_matches_a_fragment_of_the_description(api):
 
     created = client.post("/api/rules", json={"pattern": "cart", "category": "Groceries"})
 
-    assert created.json() == {"pattern": "cart", "category": "Groceries", "count": 1}
+    assert {key: created.json()[key] for key in ("pattern", "category", "count")} == {
+        "pattern": "cart",
+        "category": "Groceries",
+        "count": 1,
+    }
     movement = client.get("/api/transactions", params={"search": "ekom"}).json()["items"][0]
     assert movement["category"] == "Groceries"
 
@@ -1055,7 +1184,7 @@ def test_an_expression_that_does_not_compile_is_refused(api):
 
     assert refused.status_code == 422
     assert "espressione" in refused.json()["detail"]
-    assert client.get("/api/rules").json() == []
+    assert _rules(client) == []
 
 
 def test_creating_a_rule_takes_its_movements_out_of_the_queue(api):
@@ -1075,7 +1204,7 @@ def test_editing_a_rule_moves_what_it_held(api):
     edited = client.post("/api/rules", json={"pattern": "Bar Centrale", "category": "Ristoranti"})
 
     assert edited.json()["count"] == 1
-    assert client.get("/api/rules").json() == [
+    assert _rules(client) == [
         {"pattern": "Bar Centrale", "category": "Ristoranti", "count": 1}
     ]
     movement = client.get("/api/transactions", params={"search": "Bar Centrale"}).json()["items"][0]
@@ -1090,7 +1219,7 @@ def test_removing_a_rule_sends_its_movements_back_to_the_queue(api):
 
     assert removed.status_code == 200
     assert removed.json()["held"] == 1
-    assert client.get("/api/rules").json() == []
+    assert _rules(client) == []
     queue = client.get("/api/review").json()
     assert {item["merchant"] for item in queue["uncategorized"]} == {"EKOM", "Bar Centrale"}
     assert client.post("/api/rules/remove", json={"pattern": "Bar Centrale"}).status_code == 404

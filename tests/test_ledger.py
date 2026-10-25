@@ -804,35 +804,6 @@ def test_a_category_needs_a_name(ledger):
         ledger.category("   ")
 
 
-def test_budget_status_reports_spent_and_remaining(ledger):
-    account = ledger.ensure_account(Account(name="Revolut", type="real"))
-    groceries = ledger.category("Groceries")
-    ledger.record(make_txn(ledger, account, "2026-01-05", "-42.50", "EKOM"))
-    ledger.set_category(1, groceries)
-    ledger.set_budget(groceries, Decimal("100.00"))
-
-    status = {row["category"]: row for row in ledger.budget_status(JAN, dt.date(2026, 1, 31))}
-
-    assert status["Groceries"]["budget"] == "100.00"
-    assert status["Groceries"]["spent"] == "42.50"
-    assert status["Groceries"]["remaining"] == "57.50"
-
-
-def test_a_budget_can_be_cleared_and_must_be_a_category(ledger):
-    account = ledger.ensure_account(Account(name="Revolut", type="real"))
-    groceries = ledger.category("Groceries")
-    ledger.set_budget(groceries, Decimal("100.00"))
-
-    ledger.set_budget(groceries, None)
-
-    status = {row["category"]: row for row in ledger.budget_status(JAN, dt.date(2026, 1, 31))}
-    assert status["Groceries"]["budget"] is None
-    with pytest.raises(ValueError, match="not a category"):
-        ledger.set_budget(account, Decimal("10.00"))
-    with pytest.raises(ValueError, match="cannot be negative"):
-        ledger.set_budget(groceries, Decimal("-1.00"))
-
-
 def test_suggestions_are_recorded_pending_and_decided(ledger):
     ledger.record_suggestion("EKOM", "Groceries", "classifier")
 

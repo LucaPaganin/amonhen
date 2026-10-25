@@ -3,11 +3,19 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { deletionNotice } from "../notices";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { RuleSheet, merchantDraft } from "../components/RuleSheet";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferCard } from "../components/TransferCard";
 import { bucketName } from "../category";
 import { formatAmount, formatDate } from "../format";
-import type { Category, ReviewState, Suggestion, SuggestionDecision, Transaction } from "../types";
+import type {
+  Category,
+  ReviewState,
+  RuleDraft,
+  Suggestion,
+  SuggestionDecision,
+  Transaction,
+} from "../types";
 import type { ReviewQueueController } from "../useReviewQueue";
 import { useSuggestions } from "../useSuggestions";
 
@@ -16,6 +24,8 @@ interface ReviewQueueScreenProps {
   categories: Category[];
   categoriesError: string | null;
   onReloadCategories: () => void;
+  /** Writes a rule; answers the error to show in its sheet, or null once saved. */
+  onSaveRule: (draft: RuleDraft) => Promise<string | null>;
 }
 
 /** The list filter, in the order the work usually gets done. */
@@ -61,8 +71,12 @@ export function ReviewQueueScreen({
   categories,
   categoriesError,
   onReloadCategories,
+  onSaveRule,
 }: ReviewQueueScreenProps) {
   const [pickerFor, setPickerFor] = useState<Transaction | null>(null);
+  const [movementRule, setMovementRule] = useState<{ transaction: Transaction; category: string } | null>(
+    null,
+  );
   const [autoRunning, setAutoRunning] = useState(false);
   const [proposing, setProposing] = useState<"classifier" | "llm" | null>(null);
   const suggestions = useSuggestions();
@@ -604,10 +618,38 @@ export function ReviewQueueScreen({
         onSelect={(category, options) => {
           const transaction = pickerFor;
           setPickerFor(null);
-          if (transaction) void review.categorize(transaction, category, options);
+          if (!transaction) return;
+          // The rule's text is written before anything is saved: it decides the
+          // movements the bank has not printed yet, so it is not just the merchant.
+          if (options.rule) setMovementRule({ transaction, category });
+          else void review.categorize(transaction, category);
         }}
         onClose={() => setPickerFor(null)}
       />
+
+      {movementRule === null ? null : (
+        <RuleSheet
+          title={`Una regola da «${movementRule.transaction.merchant ?? movementRule.transaction.description}»`}
+          initial={merchantDraft(
+            movementRule.transaction.merchant ?? movementRule.transaction.description,
+            movementRule.category,
+          )}
+          categories={categories}
+          onSave={async (draft) => {
+            const asked = movementRule;
+            const message = await onSaveRule(draft);
+            if (message !== null) return message;
+            setMovementRule(null);
+            if (draft.action === "category" && draft.target) {
+              await review.categorize(asked.transaction, draft.target);
+            }
+            review.notify(`Regola salvata: «${draft.pattern}»`);
+            await review.reload();
+            return null;
+          }}
+          onClose={() => setMovementRule(null)}
+        />
+      )}
 
       {/* La regola che sta per nascere, prima che nasca: il testo è quello che
           deciderà ogni movimento che la banca stamperà dopo, quindi si scrive qui

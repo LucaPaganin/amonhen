@@ -5,6 +5,7 @@ export type TabId =
   | "dashboard"
   | "review"
   | "movements"
+  | "budget"
   | "accounts"
   | "categories"
   | "import"
@@ -19,7 +20,7 @@ interface Section {
   short: string;
   /** What the section holds, in the room a drawer has and the bar does not. */
   hint: string;
-  /** In the bottom bar, or only in the menu: seven labels do not fit five columns. */
+  /** In the bottom bar, or only in the menu: nine labels do not fit five columns. */
   inBar: boolean;
   Icon: () => ReactElement;
 }
@@ -50,11 +51,19 @@ const SECTIONS: Section[] = [
     Icon: ListIcon,
   },
   {
-    id: "accounts",
-    label: "Conti e budget",
-    short: "Conti",
-    hint: "Saldi, budget e categorie",
+    id: "budget",
+    label: "Budget",
+    short: "Budget",
+    hint: "Quanto spendere in un mese, e in cosa",
     inBar: true,
+    Icon: BudgetIcon,
+  },
+  {
+    id: "accounts",
+    label: "Conti",
+    short: "Conti",
+    hint: "Saldi, saldo di partenza e cestino",
+    inBar: false,
     Icon: WalletIcon,
   },
   {
@@ -247,6 +256,26 @@ function WalletIcon() {
   );
 }
 
+function BudgetIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="4" y="5" width="16" height="15" rx="2" />
+      <path d="M4 10h16M9 3v4M15 3v4" />
+      <path d="M8 14h4M8 17h7" />
+    </svg>
+  );
+}
+
 function RulesIcon() {
   return (
     <svg
@@ -303,7 +332,7 @@ function CloseIcon() {
 /**
  * Il rail: la stessa lista di sezioni, in piedi, per una finestra larga.
  *
- * Sette nomi per esteso in 248 px, che è il posto che la barra in basso non ha.
+ * Nove nomi per esteso in 248 px, che è il posto che la barra in basso non ha.
  * Non è una seconda lista: è la terza forma della stessa, e la voce è quella del
  * cassetto (`navitem`) senza il suggerimento, che il rail può permettersi di
  * omettere solo perché il nome per esteso è già lì. Sopra i 1024 prende il posto
@@ -341,7 +370,7 @@ function AppRail({ active, reviewCount, onChange }: SectionNavProps) {
  * A phone switches sections from the bottom bar in one tap, and the drawer is
  * the other half of that: it names the sections in full and says what is inside
  * them, so a section you have not opened before is not a guess. A wide window
- * has neither — the rail above does both jobs, because seven full names fit in
+ * has neither — the rail above does both jobs, because nine full names fit in
  * 248 px and there is no reason to keep a pill floating in the middle of a
  * window. All three call the same `onChange`, and the sections are declared once
  * above.

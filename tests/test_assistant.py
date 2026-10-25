@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 import responses as responses_lib
 
-from amonhen import assistant
+from amonhen import assistant, budgets
 from amonhen.llm import LlmConfig
 from amonhen.models import Account, IncomingTransaction
 
@@ -268,17 +268,22 @@ def test_a_budget_proposal_is_applied_only_when_a_person_accepts_it(ledger):
     assert [(item["category"], item["amount"], item["source"]) for item in proposals] == [
         ("Transport", "50.00", "llm")
     ]
-    start, end = dt.date(2026, 9, 1), dt.date(2026, 9, 30)
-    transport = next(row for row in ledger.budget_status(start, end) if row["category"] == "Transport")
+    month = budgets.month_of(TODAY)
+    transport = next(row for row in budgets.budget_status(ledger, month) if row["category"] == "Transport")
     assert transport["budget"] is None
 
-    assistant.decide_budget_proposal(ledger, "Transport", "accept")
+    assistant.decide_budget_proposal(ledger, "Transport", "accept", today=TODAY)
 
-    transport = next(row for row in ledger.budget_status(start, end) if row["category"] == "Transport")
+    transport = next(row for row in budgets.budget_status(ledger, month) if row["category"] == "Transport")
     assert transport["budget"] == "50.00"
+    # An accepted proposal holds from the month it was accepted in, not backwards.
+    previous = budgets.month_of(TODAY.replace(day=1) - dt.timedelta(days=1))
+    assert next(
+        row for row in budgets.budget_status(ledger, previous) if row["category"] == "Transport"
+    )["budget"] is None
     assert assistant.budget_proposals(ledger) == []
     with pytest.raises(KeyError):
-        assistant.decide_budget_proposal(ledger, "Transport", "accept")
+        assistant.decide_budget_proposal(ledger, "Transport", "accept", today=TODAY)
 
 
 # -- how it is controlled ---------------------------------------------------
@@ -338,3 +343,14 @@ def test_an_http_failure_reaches_the_caller_as_an_error(ledger):
             assistant.ask(ledger, config(), "", today=TODAY)
 
     assert ledger.readings() == []
+
+
+def test_the_metrics_reach_the_model_by_the_names_the_dashboard_prints(ledger):
+    seed(ledger)
+
+    names = " ".join(packet_of(ledger)["metriche"])
+
+    assert "spesa mensile attesa" in names
+    assert "mesi di autonomia" in names
+    assert "burn" not in names
+    assert "runway" not in names

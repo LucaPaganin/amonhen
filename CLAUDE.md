@@ -10,11 +10,16 @@ path (actualpy client, rule patches, `state.json`, Flask server, scheduler)
 was removed in the phase 1 cutover and is gone from the branch.
 
 The product definition is `desiderata-monitoring-finanziario.md` (Italian):
-read the sections a slice touches **before** implementing it, and §9 for the
+read the sections a slice touches **before** implementing it, and section 9 for the
 order of work and the status of each phase. Keep it true in the same change —
 a decision that adds, removes or changes a requirement edits the spec alongside
 the code, bumps its version line and says what changed. A spec that trails the
 code is worse than none, because the next slice implements the old product.
+
+A section of the spec is written as a word, never with the section sign:
+"sezione 5.12" in Italian, "section 5.12" in English — in replies, the spec,
+`CLAUDE.md`, the README, the backlog, commit messages and comments alike. The
+person reading asked for it.
 
 ## Stack
 
@@ -53,7 +58,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, budgets, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
@@ -62,6 +67,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/matching.py`|Exact maximum-weight bipartite matching (Hungarian)|
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
 |`amonhen/metrics.py`|Burn, episodic accrual, runway, savings flow, and the dashboard series|
+|`amonhen/budgets.py`|Desiderata 5.12: a ceiling per category and month (a default from a month on, a month's own override) and the expenses planned inside it|
 |`amonhen/anomalies.py`|Deterministic, explained spending outliers|
 |`amonhen/classifier.py`|Char n-gram logistic proposals for uncovered merchants|
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
@@ -96,8 +102,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`|
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
-|`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `RuleBook`, `categorize`, `rule_usage`|
+|`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
 |`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
+|`budgets`|`budget_status`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
@@ -252,9 +259,20 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   person read off the bank as `manual:available` or `manual:booked`, the same tag
   a hand-typed `--declared` carries; `PUT /api/accounts/{id}/opening` derives the
   opening from a declaration, which is the `anchor` path and now lives in
-  `Ledger.anchor_opening` so the CLI and the app share one implementation. The
-  Conti section of the PWA is their only writer; budgets stay
-  `PUT /api/budgets/{category_id}`.
+  `Ledger.anchor_opening` so the CLI and the app share one implementation.
+  `DELETE /api/accounts/{id}` is `Ledger.delete_account`: a real account goes with
+  its movements, trash, declared balances and the rules narrowed to it, the other
+  leg of each pair it took part in is rejected back to the queue, and a connected
+  account is also removed from `accounts.json` (matched by name) — otherwise the
+  next sync would recreate it and import its history again. Nothing is kept to
+  restore; the app asks for the name typed back. The
+  Conti section of the PWA is their only writer. Budgets have a section of their
+  own, **Budget**, in the bottom bar where Conti used to be (Conti moved to the
+  menu): `PUT /api/budgets/{category_id}?month=` is the default from that month,
+  `PUT …/override?month=` the month's own ceiling, `POST /api/budgets/{id}/copy`
+  the copy from another month, and `POST|PUT|DELETE /api/budget-items` the items.
+  Every one of them answers with the whole month, because a default or a moved
+  item changes more than the row that was touched.
 - **Metrics read spending, not category postings.** `metrics.py` filters to
   transactions whose account posting is negative, exactly like
   `Ledger.spend_between`; without that filter an incoming salary's negative
@@ -262,6 +280,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   negative. Windows are clipped to the months the ledger actually covers and
   the shortfall is reported through `partial` / `episodic_partial` rather than
   padding past months with zeros.
+- **A metric is called in the code what it was called first, and on screen what it
+  measures.** `recurring_burn`, `episodic_accrual`, `expected_burn`, `runway_months`,
+  `essential_monthly`, `discretionary_monthly` and `savings_flow` stay as they are in
+  `metrics.py` and the API; a person reads *Spesa mensile tipica*, *Riserva per spese
+  rare*, *Spesa mensile attesa*, *Mesi di autonomia*, *Spesa irrinunciabile*, *Spesa
+  tagliabile* and *Investito*, and the category flags read *Spesa rara* and
+  *Irrinunciabile*. The dashboard cards, the assistant's packet keys and its prompt,
+  and the spec use those words — no "burn" or "runway" anywhere a person reads.
 - **Episodic and essential are category flags, not per-transaction ones.** A
   rare event is modelled by putting it in an `episodic` category, which the
   accrual then spreads over 24 months; `essential` marks the part of spending
@@ -306,9 +332,31 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 - **Anomalies are deterministic and explainable.** Robust z-score on MAD per
   category, with a p95 fallback when MAD is zero, and every anomaly carries the
   sentence the UI shows. No model is involved (desiderata 5.7).
-- **Budgets are monthly and per category.** One amount per category, applied to
-  every month; `budget_status` reports the current month's spend against it,
-  counting outflows only, like `spend_between`.
+- **A budget is a ceiling per category and month, and it has a history.**
+  `budgets` holds a default per `(category_id, from_month)`: the default of a
+  month is the row with the greatest `from_month` up to it, and a NULL amount
+  removes it from then on. `set_default` writes from a month on and deletes the
+  later rows — "from this month on" must not let an older change resurface —
+  and never touches the months before, which is the whole reason the table has a
+  month: one amount for every month rewrote the past each time it changed.
+  `budget_months` is one month's own ceiling, which wins over the default. A
+  ledger written before months existed is rebuilt by `_date_budgets`, each old
+  amount becoming a default from `0000-00`, before every month. The assistant's
+  accepted proposal and the `budget` command both write a default from the
+  current month. Spending is still per category — settled outflows, like
+  `spend_between` — and an item never learns whether it was paid.
+- **Items sit inside the ceiling, and the priority orders without cutting.**
+  `budget_items` are expenses planned for one category and month (description,
+  positive amount, optional date inside the month, `essential` / `important` /
+  `deferrable`, note). `budget_status` reads them by priority, then date with
+  undated last, then id, and `fitting` marks each one as fitting while the
+  running total stays within the ceiling (`None` without a ceiling); `planned`,
+  `free` and `over_plan` are computed there too, so the screen never sums. The
+  system never proposes what to drop (desiderata section 3). `copy_items` moves the day
+  into the target month (clipped to its last day) and skips an item the target
+  already holds with the same description and amount, so a second press copies
+  nothing. Prefilling from a past movement is the client's: it fills the form,
+  and nothing is written until the person saves.
 - **Net worth is observed, never reconstructed.** `account_balances` holds what
   a bank reported for an account on a date: `sync` writes the balance Enable
   Banking returns for every reachable account, `balances` does it on demand,
@@ -392,7 +440,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   row gained `opening_balance`). 18 is the first setup: `/api/setup` and the four
   writes around it, and `/callback` answering a 303 into the app instead of the
   JSON document nobody saw. 19 is the CSV import: `/api/import/csv` and its
-  preview, routes an older server does not have.
+  preview, routes an older server does not have. 21 is the budget planned by
+  month: a budget row gained `default`, `override`, `planned`, `free`,
+  `over_plan` and `items`, and the budget writes answer with the month's list.
+  22 is the general rule: a rule row gained `id`, `action`, `target`,
+  `account_id`/`account` and `amount_min`/`amount_max`, removal takes an `id`, and
+  `/api/rules/preview`, `DELETE /api/accounts/{id}`,
+  `POST /api/transactions/delete` and `POST /api/transactions/category` are new.
 - **A rule is a text the description contains, and writing one rewrites the
   ledger.** `rules.key` is the text as it is matched — `rule_key` trims,
   collapses runs of spaces and lower cases it, so a text typed by a human still
@@ -536,7 +590,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   real ledger lives outside version control: `dumps/` and `mytest*` are
   gitignored. Copy it before a destructive experiment, point the command at the
   copy with the global `--db` (`uv run amonhen --db dumps/verify.db serve …`),
-  delete the copy when done. `amonhen.db` in the repo root is an **empty shell**,
+  delete the copy when done. **The configuration needs a copy too**: `--db` moves
+  the ledger only, and the app writes `accounts.json` — deleting an account, the
+  setup wizard, the OAuth callback — so a server on a copied ledger still edits the
+  real configuration. Serve with `AMONHEN_CONFIG_FILE` pointing at a copy whose
+  `pem_path` is absolute (relative, it resolves next to the copy and the app opens
+  on the wizard). A UI walk of the account deletion once took a real entry out of
+  the checkout's `accounts.json`; it had to be rebuilt from `dumps/`. `amonhen.db` in the repo root is an **empty shell**,
   so a command that finds nothing is usually pointed at it. Never commit raw
   dumps, or real names, IBANs and amounts — `tools/anonymize_dump.py` turns a
   dump into a fixture and needs `dumps/.anonymize-salt`, which is deliberately
@@ -686,11 +746,43 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   fragment, so the figure on a proposal cannot contradict the list under it. A proposal
   is per merchant, so a stake is a total, a count and a span — never one amount.
 
-- **A rule's kind is in its pattern, not in a column.** A pattern written between slashes is a regular expression (§5.5), matched with `re.search(..., re.IGNORECASE)` against the same collapsed, lower-cased description the plain rules compare, compiled once per source through an `lru_cache` because a sync runs the whole book against every description. `Rule.expression` and `rule_pattern()` are the only readers of the slashes, so the store, the API and the CLI carry no new field. The longest pattern wins, counted on what it says (the text, or the expression inside the slashes), so an expression that names a family is longer than the words it replaces while a broader one steals nothing from a narrower text; `set_rule` refuses an expression that does not compile (`ValueError`, which the app's handler turns into a 422), so a rule that could never match is never stored.
+- **A rule does one of three things, under conditions.** `Rule.action` is
+  `category`, `delete` or `transfer`; `account_id`, `amount_min` and `amount_max`
+  narrow the text (amounts compare `abs(amount)`), and between two rules of the
+  same text the one with more conditions wins (`matching_rule`'s key after the
+  length). The same text and conditions are one rule: `set_rule` without an `id`
+  updates that row. `apply_rule_changes(before, after)` is the one place rules
+  touch movements, in one `deferred_commits` transaction and in the order the
+  actions win — deletions (`delete_transaction`, so a tombstone, on every movement
+  a deleting rule matches, splits and legs included), then transfers
+  (`move_to_virtual_account` on a single-sided, unpaired movement, whatever its
+  category; a leg a removed rule had recorded goes back to `Uncategorized`), then
+  categories (the old `_apply_rules` semantics, unchanged). `categorize` is that
+  same call with `before == after`, which is how a sync deletes a new movement a
+  rule matches: it is written, then tombstoned in the same run, and the tombstone
+  keeps it out from then on. A movement a deleting rule matches cannot be restored
+  (`POST /api/deleted/{id}/restore` answers 409 naming the rule) — it would be back
+  in the trash at the next sync. `reimport_deleted` and a deleting rule fight on
+  every sync; the rule wins, at the cost of a reimport and a re-deletion each run.
+  The `passthrough` declarations in `accounts.json` are untouched: a transfer
+  rule is the app's way to say the same thing, and both may coexist.
+  `/api/rules/preview` answers what a rule would take before it is written —
+  the sheet (`web/src/components/RuleSheet.tsx`) shows it, and the save button of
+  a deleting rule says how many it deletes. The same sheet opens from a movement
+  (the picker's checkbox, after the category is chosen: the movement takes the
+  category only when the rule is saved) and from **Categorie e regole**.
+- **Movements are deleted and categorized in batches too.**
+  `POST /api/transactions/delete` is `Ledger.delete_transactions`: each id as the
+  single delete does it, in one transaction, and an id that is not in the ledger
+  refuses the whole batch before anything is written. `POST
+  /api/transactions/category` gives the chosen rows one category as a person's
+  decision and skips transfer legs and splits, counting them. **Movimenti** has a
+  *Seleziona* mode: a tap picks a row, *Seleziona tutti* takes the loaded page.
+- **A rule's kind is in its pattern, not in a column.** A pattern written between slashes is a regular expression (section 5.5), matched with `re.search(..., re.IGNORECASE)` against the same collapsed, lower-cased description the plain rules compare, compiled once per source through an `lru_cache` because a sync runs the whole book against every description. `Rule.expression` and `rule_pattern()` are the only readers of the slashes, so the store, the API and the CLI carry no new field. The longest pattern wins, counted on what it says (the text, or the expression inside the slashes), so an expression that names a family is longer than the words it replaces while a broader one steals nothing from a narrower text; `set_rule` refuses an expression that does not compile (`ValueError`, which the app's handler turns into a 422), so a rule that could never match is never stored.
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), twelve tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), fourteen tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
@@ -702,9 +794,11 @@ by construction.
 |`postings`|5|The double-entry legs: `transaction_id`, `account_id`, `amount`, `note`. A spend is one leg on the real account and one on a category account; a transfer is one leg on each real account, or on the virtual clearing account when only one side is in the ledger; a split is several category legs on one transaction|
 |`deleted_transactions`|18|A movement a person deleted, copied whole: the identity the ledger dedupes by, the bank's payload, the note, when it went and when it came back. It is what keeps the next sync from writing the movement in again|
 |`transfer_links`|5|A pairing, proposed or confirmed: the two legs, `confidence`, `method`, `confirmed_by_human`|
-|`rules`|3|`key` (what the upsert conflicts on: the text lower-cased, or the expression as typed — case is part of an expression, `\D` is not `\d`), `pattern` (what a person typed: a text, or `/an expression/`), `category`|
+|`rules`|8|`id`; `key` (the text lower-cased, or the expression as typed — case is part of an expression, `\D` is not `\d`); `pattern` (what a person typed: a text, or `/an expression/`); `action` (`category` / `delete` / `transfer`); `target` (the category or the destination, NULL for a deletion); `account_id`, `amount_min`, `amount_max` (the conditions, sizes without sign). One rule per text and conditions: the unique index `rules_identity` is created by `_generalize_rules`, which also rebuilt the old `key, pattern, category` table|
 |`account_balances`|4|What a bank declared, one row per `(account, date, source)`: the available and booked figures coexist so the 5.4 assertion can check each|
-|`budgets`|3|`category_id` → `amount`, `updated_at`|
+|`budgets`|4|A category's default ceiling from `from_month` (YYYY-MM) on; a NULL `amount` removes it from that month|
+|`budget_months`|4|One month's own ceiling for a category, over the default|
+|`budget_items`|9|An expense planned inside a category's ceiling for one month: description, amount, optional date, priority, note|
 |`merchant_suggestions`|5|A merchant → category proposal with its `source` and `decision` (`pending` / `accepted` / `dismissed`)|
 |`budget_proposals`|5|The assistant's budget proposals, decided the same way|
 |`assistant_readings`|7|A reading, the model that wrote it, the fingerprint of the data it read, and `refused` when a guard rejected it|
@@ -722,12 +816,12 @@ there are several), `merchant` is the normalized name, and `review_state` /
 
 |Task|Where to look|
 |---|---|
-|Change what the product must do|The spec (`desiderata-monitoring-finanziario.md`) first, then the code — §9 holds the order of work and the status of each phase|
+|Change what the product must do|The spec (`desiderata-monitoring-finanziario.md`) first, then the code — section 9 holds the order of work and the status of each phase|
 |Change the sync cadence|`AMONHEN_SYNC_INTERVAL_HOURS` or `daemon --interval-hours`|
 |Ask the banks for data now|The **Sincronizza** button in the app's top bar (`POST /api/sync`), or `uv run amonhen sync`|
 |Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
 |Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|
-|Deploy a new image to the NAS|Tag `v*` and let CI publish, then `docker compose pull && docker compose up -d` on the NAS (the NAS needs no checkout)|
+|Deploy a new image to the NAS|Follow README, *Updating safely*: rehearse any migration on a copy of a recent snapshot, tag `v*` and let CI publish, snapshot right before, pin `AMONHEN_TAG`, then `docker compose pull && docker compose up -d` and verify. A schema change is one-way, so its rollback restores the snapshot as well as the tag|
 |Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, removing `amonhen.db-wal`/`-shm`, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|
 |Rehearse the first start before the NAS does|`tools/rehearse_local.sh` inside WSL: it builds from the checkout, serves `tools/eb_stub.py` as the bank, and prints what to walk in the browser|
 |Map a bank's CSV layout|The **Importa** section of the app: choose the file, then the columns — or add a `CsvProfile` in `adapters/csv_adapter.py` plus a synthetic fixture when the layout must be a named profile|
@@ -736,12 +830,13 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Check duplicates or gaps|`uv run amonhen validate`, `uv run amonhen balance-check`|
 |Inspect the ledger|`sqlite3 amonhen.db` — accounts, transactions, postings, transfer_links (see *Ledger schema* above)|
 |See the balances behind the net worth|`sqlite3 amonhen.db "select * from account_balances"` — written by `sync`, `balances` and `anchor`|
+|Plan a month|The **Budget** section: a category's ceiling (*Da questo mese in poi* or *Solo questo mese*), then *Aggiungi voce* — from scratch or from a past movement — or *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|
 |Regenerate parsing fixtures|`uv run python tools/dump_raw.py` then `uv run python tools/anonymize_dump.py dumps`|
 |Connect a new bank|**Configurazione** in the app (the drawer, or the rail above 1024), *Banca* step (`POST /api/setup/connect`, then the login happens at the bank) — or `http://<host>:8000/connect?bank=Revolut&country=IT`, the same route for a script. Then `uv run amonhen sync`, unless the wizard's *Primo sync* step already did it|
 |First setup on a fresh install|The app opens on the wizard by itself while `/api/setup` answers `configured: false` — *Credenziali* (application id, PEM key, redirect URL, holder: the URL it shows is what goes into the Enable Banking dashboard), *Banca*, *Conti*, *Primo sync*, *Saldi e verifica*. `PUT /api/setup/credentials` creates `accounts.json` and `private.pem`, so there is nothing to write by hand|
-|Add or change a categorization rule|The **Categorie e regole** section of the app, under the category it assigns, or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
+|Add or change a categorization rule|The **Categorie e regole** section of the app — under the category it assigns, or *Nuova regola* for a rule with conditions or one that deletes or records a transfer (the sheet previews what it takes) — or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
 |Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|
 |Run the UI locally|`uv run amonhen serve` and `npm --prefix web run dev` (Vite proxies `/api`)|
 |Build the PWA|`npm --prefix web run build` — the API serves `web/dist`|

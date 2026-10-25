@@ -10,6 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from amonhen.backup import make_snapshot
+from amonhen.budgets import budget_status, month_of, set_default
 from amonhen.config import load_config
 from amonhen.ledger import Ledger, balance_kind
 from amonhen.merchants import RuleBook, categorize, rule_usage
@@ -75,11 +76,14 @@ def build_parser() -> argparse.ArgumentParser:
     setting.add_argument("key")
     setting.add_argument("value")
 
-    budget = sub.add_parser("budget", help="set or clear a category's monthly budget")
+    budget = sub.add_parser("budget", help="set or clear a category's default monthly budget")
     budget.add_argument("category")
     budget.add_argument("amount", nargs="?", help="omit to clear the budget")
+    budget.add_argument(
+        "--from", dest="from_month", help="YYYY-MM it holds from (default: the current month)"
+    )
 
-    budgets = sub.add_parser("budgets", help="budget, spent and remaining per category")
+    budgets = sub.add_parser("budgets", help="budget, planned, spent and remaining per category")
     budgets.add_argument("--month", help="YYYY-MM (default: the current month)")
 
     anomalies = sub.add_parser("anomalies", help="explain unusually large movements")
@@ -277,7 +281,9 @@ def cmd_rules(ledger: Ledger, args) -> int:
     rules = book.rules()
     usage = rule_usage(ledger, rules)
     for rule in rules:
-        print(f"{rule.pattern:<40} {rule.category:<20} {usage.get(rule.key, 0):>4} movements")
+        does = {"category": rule.target, "delete": "(delete)", "transfer": f"-> {rule.target}"}[rule.action]
+        narrowed = " [conditions]" if rule.conditions else ""
+        print(f"{rule.pattern:<40} {does:<20} {usage.get(rule.id, 0):>4} movements{narrowed}")
     return 0
 
 
@@ -345,27 +351,37 @@ def cmd_set(ledger: Ledger, args) -> int:
 
 
 def cmd_budget(ledger: Ledger, args) -> int:
+    """Set a default from a month on: the months before it keep what they had."""
+    month = args.from_month or month_of(dt.date.today())
     try:
         account_id = ledger.category(args.category)
-        if args.amount is None:
-            ledger.set_budget(account_id, None)
-            print(f"{args.category}: budget cleared")
-            return 0
-        ledger.set_budget(account_id, parse_decimal(args.amount))
+        amount = None if args.amount is None else parse_decimal(args.amount)
+        set_default(ledger, account_id, month, amount)
     except (ValueError, ArithmeticError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    print(f"{args.category}: budget {args.amount}")
+    if amount is None:
+        print(f"{args.category}: budget cleared from {month}")
+    else:
+        print(f"{args.category}: budget {args.amount} from {month}")
     return 0
 
 
 def cmd_budgets(ledger: Ledger, args) -> int:
-    start, end = month_range(args.month) if args.month else current_month_range()
-    print(f"{start}..{end}")
-    for row in ledger.budget_status(start, end):
+    month = args.month or month_of(dt.date.today())
+    try:
+        rows = budget_status(ledger, month)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    print(month)
+    for row in rows:
         budget = row["budget"] if row["budget"] is not None else "—"
         remaining = row["remaining"] if row["remaining"] is not None else "—"
-        print(f"{row['category']:<28} {budget:>10}  spent {row['spent']:>10}  left {remaining:>10}")
+        print(
+            f"{row['category']:<28} {budget:>10}  planned {row['planned']:>10}"
+            f"  spent {row['spent']:>10}  left {remaining:>10}"
+        )
     return 0
 
 
@@ -636,13 +652,6 @@ def month_range(month: str | None) -> tuple[dt.date, dt.date]:
         year, number = previous.year, previous.month
     last_day = calendar.monthrange(year, number)[1]
     return dt.date(year, number, 1), dt.date(year, number, last_day)
-
-
-def current_month_range() -> tuple[dt.date, dt.date]:
-    """The month in progress, which is what a budget is measured against."""
-    today = dt.date.today()
-    last_day = calendar.monthrange(today.year, today.month)[1]
-    return today.replace(day=1), dt.date(today.year, today.month, last_day)
 
 
 HANDLERS = {

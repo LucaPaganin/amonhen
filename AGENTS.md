@@ -114,7 +114,7 @@ A shipping change is complete when its behavior satisfies the requirement, the i
 
 `desiderata-monitoring-finanziario.md` is the product definition: what the system
 must do, its constraints, its non-goals, the order of work and the status of each
-phase (§9). Read the sections a slice touches before implementing it, not after.
+phase (section 9). Read the sections a slice touches before implementing it, not after.
 
 Keep it true. When a decision adds, removes or changes a requirement, edit the
 spec **in the same change as the code**, bump its version line and say what
@@ -124,6 +124,9 @@ statement rather than leaving both versions standing.
 
 The spec answers *what* and *why*; `CLAUDE.md` answers *how* (architecture,
 invariants, commands). A decision recorded in neither did not happen.
+
+Write a section of the spec as a word ("sezione 5.12", "section 5.12"), never with
+the section sign — in replies, docs, backlog tasks, commits and comments.
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.51.0 -->

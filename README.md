@@ -77,8 +77,8 @@ uv run python -m amonhen metrics         # burn, accrual, runway, savings flow
 uv run python -m amonhen category-flags Salute --episodic
 uv run python -m amonhen account-flags "Fondo pensione" --investment
 uv run python -m amonhen split 42 Groceries=30.00 Household=12.50
-uv run python -m amonhen budget Groceries 300   # monthly budget
-uv run python -m amonhen budgets                # budget, spent, left
+uv run python -m amonhen budget Groceries 300   # default budget from this month on
+uv run python -m amonhen budgets --month 2026-11  # budget, planned, spent, left
 uv run python -m amonhen anomalies              # explained outliers
 uv run python -m amonhen suggest                # classifier proposals
 uv run python -m amonhen llm-suggest            # needs AMONHEN_LLM_*
@@ -134,9 +134,14 @@ person may write, and the one the sync never touches — and **deletes it** into
 account's trash, **Conti** the management section — every real account with its
 balance, its opening figure and the 5.4 outcome, where you declare a balance read
 off the bank, align the opening so the invariant holds again, add an account by
-hand (the broker, or a bank that is not connected here), set a category's monthly
-budget, empty the trash one movement at a time and decide, per account, whether the
-next sync brings back the movements deleted from it — and **Categorie e regole**,
+hand (the broker, or a bank that is not connected here) or delete one with its
+movements — a connected one also leaves `accounts.json`, so the sync stops asking
+for it — empty the trash one movement at a time and decide, per account, whether the
+next sync brings back the movements deleted from it — **Budget**, where a month is
+planned: each category's ceiling (a default that holds from a month on, or one for
+that month only) and the expenses already known inside it, with a priority and a
+date, written by hand or copied from a past movement or the month before — and
+**Categorie e regole**,
 where a category is
 defined and what falls into it is decided. A rule is a text the description
 contains, plus the category that follows from it, and the two are one list: each
@@ -158,7 +163,12 @@ left alone: that one is a person's decision.
 Creating a rule categorizes what was waiting, correcting one moves the movements
 it held, removing it passes them to the broader rule
 that still matches, or back to the queue — so the list and the ledger never
-disagree. Every number in a
+disagree. A rule can also be narrowed to an account and a range of amounts, and
+do something else than categorize: **delete** what it matches (into the trash,
+now and at every later sync, after the sheet has listed what it takes) or record
+it as a **transfer** to a destination; those rules are listed above the
+categories, and *Nuova regola* writes one. In **Movimenti**, *Seleziona* picks
+rows — or the whole loaded page — to delete or categorize at once. Every number in a
 chart comes from the API already summed — no aggregation happens in the browser,
 and a series with no data shows a sentence instead of an empty axis.
 
@@ -178,7 +188,7 @@ you type by hand has no bank tag to say which of the two it is, so `--kind
 available|booked` says it (default `available`, the pending-inclusive one). The
 app shows the outcome per account in the **Conti** section — `verificato al …`,
 `d'accordo salvo N movimenti cancellati a mano` when the difference is exactly
-what was deleted here (the fourth outcome, §5.4), `non torna sui sospesi`,
+what was deleted here (the fourth outcome, section 5.4), `non torna sui sospesi`,
 `non torna sul contabile`, `discrepanza …`, or `saldo non verificato` when no
 balance was ever declared, which is not the same as verified: an assertion nobody
 can see is not one you can lean on.
@@ -514,6 +524,17 @@ tailscale serve --bg localhost:8000    # https://<node>.<tailnet>.ts.net
 tailscale serve status
 ```
 
+On the UGREEN NAS (UGOS) port 443 is not free even for Tailscale: the system's own
+nginx listens on `0.0.0.0:443`, the tailnet address included, and answers with a
+self-signed certificate before `tailscale serve` sees the request. The live
+deployment serves on 10000 instead, one of the three ports Tailscale allows for
+HTTPS (8443 is taken by Caddy there), so the callback carries the port:
+
+```bash
+sudo tailscale serve --bg --https=10000 http://127.0.0.1:8010
+# redirect_url: https://dxp4800plus-bfd.<tailnet>.ts.net:10000/callback
+```
+
 The image declares a `HEALTHCHECK` on `/api/health`, so `docker ps` says
 `healthy` while the process is up: the quickest way to tell a working app from a
 crashed one without a shell on the NAS. The Python and the bundle live in the
@@ -528,6 +549,65 @@ owned by that user, but a bind mount keeps the host's own ownership and mode: on
 Linux NAS make those folders writable by 10001 (`chown 10001:10001 config backups`,
 or `chmod 775` with the container's group), or the wizard's save will fail with a
 permission error while everything else works.
+
+On UGOS the `chown` is not enough. `/home` and `/volume1` are btrfs mounted with
+`ugacl`, and a folder created there inherits UGOS's own ACL (the `+` after the
+mode): to a uid the NAS does not know, such as 10001, it reads `d---------`
+whatever the owner and the mode say, and the container dies with `Permission
+denied: '/config/accounts.json'`. `setfacl -b` does not remove it; an explicit
+`chmod` does, and the folder then behaves like any other:
+
+```bash
+sudo chown -R 10001:10001 config backups
+sudo chmod 770 config && sudo chmod 775 backups
+sudo chmod 640 config/accounts.json && sudo chmod 600 config/private.pem
+```
+
+### Updating safely
+
+Every update of the live NAS follows these rules, whoever prepares the release.
+
+1. **Know what the release does to the ledger.** Read the diff since the tag the
+   NAS runs for `amonhen/db.py`: a table rebuilt or a column added in
+   `initialize` runs at the first start of the new image and is **one-way** — the
+   older image may not write the new shape, so going back means restoring the
+   snapshot, not only the tag. Say so in the release's commit or tag message.
+2. **Rehearse the migration on a copy of a recent snapshot first**, on the PC:
+   copy a `backups/<timestamp>/amonhen.db` off the NAS, `uv run amonhen --db
+   <copy> serve`, and check that the sections the release touches show what they
+   showed before. Delete the copy afterwards; it is the real ledger.
+3. **Release only from a green CI.** Commit, tag `vX.Y.Z`, push the tag; the image
+   exists only once `pytest` and the bundle build pass in
+   `.github/workflows/image.yml`. Pushing a tag publishes: do it on purpose.
+4. **Snapshot right before the update, and take it off the NAS.** Not the nightly
+   one — a snapshot taken now, so nothing written since is lost on a rollback:
+
+   ```bash
+   cd /volume1/docker/amonhen
+   docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
+   ```
+
+   Note the folder name and copy it to another machine: on the NAS's own disks it
+   is not yet a backup. Avoid 03:15, when the nightly cron runs.
+5. **Pin the tag.** Note the current `AMONHEN_TAG` in `.env` (that is the
+   rollback target), then set it to the new version — never `latest` on the live
+   NAS, so what is running is always known.
+6. **Update and check health:** `docker compose pull && docker compose up -d`,
+   then `docker ps` must say `healthy` and `docker compose logs amonhen` must show
+   no traceback.
+7. **Verify in the app before using it:** the sections the release touched, the
+   dashboard, and one **Sincronizza**. A phone that still has the old bundle open
+   says the server is stale (the `API_VERSION` handshake): reload it. Do not write
+   anything the release migrated (budgets, rules, …) until this check passes — a
+   rollback would lose it.
+8. **Rollback** is the reverse, and always both halves when the release migrated:
+   `docker compose stop amonhen`, restore `amonhen.db` from the snapshot of step 4
+   (below — the `-wal`/`-shm` files go first), put `AMONHEN_TAG` back to the noted
+   value, `pull`, `up -d`.
+
+One release at a time: when two lines of work are ready (a fix release and a
+feature release), deploy and verify the first before tagging the second, so a
+problem points at one diff.
 
 ### Backup and restore
 
@@ -728,6 +808,6 @@ from raw dumps.
 |4|Budgets, anomalies, classifier and optional LLM proposals|done|
 |UI|Dashboard: spending per category, monthly income/expense, observed net worth|done|
 |UI|Dashboard filters (period, accounts, category) and the Conti section: accounts, declared balances, budgets|done|
-|5|Assistant (§5.9): a prose reading of the computed series, with proposals to confirm|done|
+|5|Assistant (section 5.9): a prose reading of the computed series, with proposals to confirm|done|
 |6|Sync button, a local note on a movement, deletion with tombstone and trash, per-account reimport flag|done|
-|7|First setup guided by the app (§5.10), backup and restore (§5.11), the local Docker rehearsal|done|
+|7|First setup guided by the app (section 5.10), backup and restore (section 5.11), the local Docker rehearsal|done|

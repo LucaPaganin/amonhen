@@ -6,6 +6,7 @@ import type {
   AssistantReading,
   AssistantState,
   Budget,
+  BudgetItemDraft,
   Category,
   CsvImportOutcome,
   CsvPreview,
@@ -19,6 +20,11 @@ import type {
   ReviewQueue,
   ReviewState,
   Rule,
+  RuleDraft,
+  RulePreview,
+  BatchDeletion,
+  BatchCategory,
+  AccountDeletion,
   SetupBanks,
   SetupCredentials,
   SetupState,
@@ -249,21 +255,43 @@ export const api = {
       category,
       decision,
     }),
-  createRule: (pattern: string, category: string) => send<Rule>("POST", "/rules", { pattern, category }),
-  removeRule: (pattern: string) =>
-    send<{ pattern: string; held: number }>("POST", "/rules/remove", { pattern }),
+  // Writing a rule applies it at once — a deleting one empties what it matches —
+  // so the editor asks for the preview first.
+  createRule: (draft: RuleDraft) => send<Rule>("POST", "/rules", draft),
+  previewRule: (draft: RuleDraft) => send<RulePreview>("POST", "/rules/preview", draft),
+  removeRule: (id: number) =>
+    send<{ id: number; pattern: string; held: number }>("POST", "/rules/remove", { id }),
+  deleteTransactions: (ids: number[]) => send<BatchDeletion>("POST", "/transactions/delete", { ids }),
+  categorizeTransactions: (ids: number[], category: string) =>
+    send<BatchCategory>("POST", "/transactions/category", { ids, category }),
+  deleteAccount: (id: number) => drop<AccountDeletion>(`/accounts/${id}`),
   createCategory: (name: string) => send<{ id: number; name: string }>("POST", "/categories", { name }),
   csvPreview: (body: CsvImportRequest) => send<CsvPreview>("POST", "/import/csv/preview", body),
   csvImport: (body: CsvImportRequest) => send<CsvImportOutcome>("POST", "/import/csv", body),
   categorize: () => send<{ applied: number }>("POST", "/categorize", {}),
-  budgets: (month?: string, signal?: AbortSignal) =>
-    get<Budget[]>(month ? `/budgets?month=${encodeURIComponent(month)}` : "/budgets", signal),
-  setBudget: (categoryId: number, amount: string | null, month?: string) =>
-    send<Budget>(
-      "PUT",
-      month ? `/budgets/${categoryId}?month=${encodeURIComponent(month)}` : `/budgets/${categoryId}`,
-      { amount },
-    ),
+  // Every budget write answers with the whole month it was made for: a default
+  // changed from a month, or an item moved to another category, changes more
+  // than the row that was touched.
+  budgets: (month: string, signal?: AbortSignal) =>
+    get<Budget[]>(`/budgets?month=${encodeURIComponent(month)}`, signal),
+  /** The default from `month` on; the months before keep theirs. */
+  setBudget: (categoryId: number, amount: string | null, month: string) =>
+    send<Budget[]>("PUT", `/budgets/${categoryId}?month=${encodeURIComponent(month)}`, { amount }),
+  /** This month only; null hands the month back to the default. */
+  setBudgetOverride: (categoryId: number, amount: string | null, month: string) =>
+    send<Budget[]>("PUT", `/budgets/${categoryId}/override?month=${encodeURIComponent(month)}`, {
+      amount,
+    }),
+  copyBudgetItems: (categoryId: number, fromMonth: string, toMonth: string) =>
+    send<{ copied: number; budgets: Budget[] }>("POST", `/budgets/${categoryId}/copy`, {
+      from_month: fromMonth,
+      to_month: toMonth,
+    }),
+  createBudgetItem: (draft: BudgetItemDraft) => send<Budget[]>("POST", "/budget-items", draft),
+  /** Answers for `month`, the one on screen, even when the item moved out of it. */
+  updateBudgetItem: (id: number, draft: BudgetItemDraft, month: string) =>
+    send<Budget[]>("PUT", `/budget-items/${id}?month=${encodeURIComponent(month)}`, draft),
+  deleteBudgetItem: (id: number) => drop<Budget[]>(`/budget-items/${id}`),
   anomalies: (days = 31, signal?: AbortSignal) => get<Anomaly[]>(`/anomalies?days=${days}`, signal),
   suggestions: (signal?: AbortSignal) => get<Suggestion[]>("/suggestions", signal),
   decideSuggestion: (

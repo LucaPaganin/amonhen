@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "./api";
-import type { Rule } from "./types";
+import type { Rule, RuleDraft } from "./types";
 
 export interface RulesController {
   rules: Rule[];
@@ -10,10 +10,14 @@ export interface RulesController {
   /** Last failed write, shown as-is: the API's `detail` is the message. */
   operationError: string | null;
   reload: () => void;
-  /** Upsert: the same text with another category is an edit of that rule. */
-  add: (pattern: string, category: string) => Promise<boolean>;
+  /**
+   * Upsert: with an id it changes that rule, without one the same text and
+   * conditions are an edit of the rule that has them. Answers the error to
+   * show where the rule was written, or null once it is saved.
+   */
+  add: (draft: RuleDraft) => Promise<string | null>;
   /** How many movements the rule held, or null when the call failed. */
-  remove: (pattern: string) => Promise<number | null>;
+  remove: (id: number) => Promise<number | null>;
 }
 
 /**
@@ -55,26 +59,27 @@ export function useRules(onChanged?: () => void): RulesController {
   }, [load]);
 
   const add = useCallback(
-    async (pattern: string, category: string): Promise<boolean> => {
+    async (draft: RuleDraft): Promise<string | null> => {
       setOperationError(null);
       try {
-        await api.createRule(pattern, category);
+        await api.createRule(draft);
       } catch (error) {
-        setOperationError(errorMessage(error));
-        return false;
+        const message = errorMessage(error);
+        setOperationError(message);
+        return message;
       }
       await load();
       changed.current?.();
-      return true;
+      return null;
     },
     [load],
   );
 
   const remove = useCallback(
-    async (pattern: string): Promise<number | null> => {
+    async (id: number): Promise<number | null> => {
       setOperationError(null);
       try {
-        const { held } = await api.removeRule(pattern);
+        const { held } = await api.removeRule(id);
         await load();
         changed.current?.();
         return held;

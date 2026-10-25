@@ -350,14 +350,52 @@ export interface TransferUnlink {
   transaction: Transaction;
 }
 
+/** Read in this order: what cannot be skipped first, what can wait last. */
+export type BudgetPriority = "essential" | "important" | "deferrable";
+
+/** An expense planned inside a category's budget for one month (desiderata 5.12). */
+export interface BudgetItem {
+  id: number;
+  description: string;
+  amount: string;
+  /** A day inside the item's month, or null when it has none. */
+  date: string | null;
+  priority: BudgetPriority;
+  note: string | null;
+  /** Read in priority order, whether it still fits the budget; null without one. */
+  fits: boolean | null;
+}
+
+/** A category's budget for one month, as the server computed it. */
 export interface Budget {
   id: number;
   category: string;
-  /** null when the category has no budget this month. */
+  /** What holds this month: the override when there is one, else the default. */
   budget: string | null;
+  /** The default the category holds this month, written in this or an earlier one. */
+  default: string | null;
+  /** This month's own budget, when it has one. */
+  override: string | null;
   spent: string;
   /** null when there is no budget; negative when the month is over budget. */
   remaining: string | null;
+  /** The sum of the items. */
+  planned: string;
+  /** The budget the items leave; negative when they exceed it, null without one. */
+  free: string | null;
+  over_plan: boolean;
+  items: BudgetItem[];
+}
+
+/** What a planned expense is written with, new or edited. */
+export interface BudgetItemDraft {
+  category_id: number;
+  month: string;
+  description: string;
+  amount: string;
+  date: string | null;
+  priority: BudgetPriority;
+  note: string | null;
 }
 
 export interface Anomaly {
@@ -404,11 +442,60 @@ export interface SuggestionDecisionOutcome {
   movements: number;
 }
 
-/** A saved text -> category rule and how many movements it currently holds. */
+/** What a rule does to the movements it matches. */
+export type RuleAction = "category" | "delete" | "transfer";
+
+/**
+ * A saved rule and how many movements it currently holds: a text, the conditions
+ * that narrow it, and what follows. `target` is the category or the destination;
+ * `category` repeats it for a category rule only.
+ */
 export interface Rule {
+  id: number;
   pattern: string;
-  category: string;
+  action: RuleAction;
+  target: string | null;
+  category: string | null;
+  account_id: number | null;
+  account: string | null;
+  /** Sizes, sign left out: "between 5 and 10 euro". */
+  amount_min: string | null;
+  amount_max: string | null;
   count: number;
+}
+
+/** A rule as the editor writes it; `id` changes that rule instead of matching by text. */
+export interface RuleDraft {
+  id?: number | null;
+  pattern: string;
+  action: RuleAction;
+  target: string | null;
+  account_id: number | null;
+  amount_min: string | null;
+  amount_max: string | null;
+}
+
+/** The movements a rule would take, before it is written. */
+export interface RulePreview {
+  count: number;
+  items: { id: number; date: string; amount: string; description: string; account: string }[];
+}
+
+export interface BatchDeletion {
+  deleted: number;
+  unlinked_pairs: number;
+}
+
+export interface BatchCategory {
+  categorized: number;
+  skipped: number;
+}
+
+export interface AccountDeletion {
+  name: string;
+  movements: number;
+  /** True when the account was also taken out of the sync's configuration. */
+  disconnected: boolean;
 }
 
 /** What the first setup still has to write, as the machine key that names it. */

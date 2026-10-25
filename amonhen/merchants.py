@@ -4,8 +4,10 @@ Desiderata 5.5 steps 1 and 2: reduce the raw description to the merchant it
 names, then apply the rules. A rule is a piece of text the description contains,
 or a regular expression written between slashes, so one rule covers a family of
 movements the bank spells differently — the merchant name being just one of the
-texts a rule may hold. Both steps are deterministic, so they run inside ingest
-without making it fail when something is unknown.
+texts a rule may hold. A rule may be narrowed to an account and a range of
+amounts, and does one of three things: assign a category, delete the movement,
+or record it as a transfer to a destination. Every step is deterministic, so it
+runs inside ingest without making it fail when something is unknown.
 """
 import re
 import sqlite3
@@ -14,9 +16,15 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Iterable, Sequence
 
-from amonhen.ledger import UNCATEGORIZED_WHERE, Ledger
-from amonhen.models import parse_decimal
+from amonhen.db import deferred_commits
+from amonhen.ledger import TRANSFER_CLEARING, UNCATEGORIZED_WHERE, Ledger
+from amonhen.models import format_decimal, parse_decimal
 from amonhen.settings import UNCATEGORIZED
+
+# What a rule does to a movement it matches. Where several kinds match, a
+# deletion wins over a transfer and a transfer over a category: a movement that
+# is gone has no category, and a transfer is not spending to categorize.
+ACTIONS = ("category", "delete", "transfer")
 
 SEPARATOR = " | "
 
@@ -57,20 +65,43 @@ DECIDABLE_BY_ONE_CATEGORY = """
 
 @dataclass(frozen=True)
 class Rule:
-    """A text the description contains, and the category that follows from it.
+    """A text the description contains, its conditions, and what follows from it.
 
     A pattern written between slashes is a regular expression instead: one rule
     for a family the bank spells in too many ways to list (`/amazon (eu|payments)/`).
+    `target` is the category for a category rule and the destination for a
+    transfer; a deletion has none. The amounts bound the movement's size, sign
+    left out: a person says "between 5 and 10 euro", not "between -10 and -5".
     """
 
     key: str
     pattern: str
-    category: str
+    target: str | None
+    action: str = "category"
+    account_id: int | None = None
+    amount_min: Decimal | None = None
+    amount_max: Decimal | None = None
+    id: int | None = None
 
     @property
     def expression(self) -> str | None:
         """The expression this rule matches with, or None when it is plain text."""
         return _expression_of(self.pattern)
+
+    @property
+    def conditions(self) -> int:
+        """How many conditions narrow the text: the tie-break between two rules."""
+        return sum(
+            value is not None for value in (self.account_id, self.amount_min, self.amount_max)
+        )
+
+
+@dataclass(frozen=True)
+class Movement:
+    """What a rule's conditions read of a movement besides its description."""
+
+    account_id: int
+    amount: Decimal
 
 
 def merchant_name(description: str) -> str:
@@ -144,15 +175,32 @@ def _expression(source: str) -> re.Pattern[str]:
     return re.compile(source, re.IGNORECASE)
 
 
-def _matches(rule: Rule, text: str) -> bool:
-    """Whether the rule claims a description, as the rules compare texts."""
+def _matches(rule: Rule, text: str, movement: Movement | None = None) -> bool:
+    """Whether the rule claims a description, as the rules compare texts.
+
+    Without a movement only the text is compared: that is the question "does a
+    rule know this merchant", which the proposals ask about a name, not a row.
+    """
     source = rule.expression
     if source is None:
-        return bool(rule.key) and rule.key in text
-    return _expression(source).search(text) is not None
+        found = bool(rule.key) and rule.key in text
+    else:
+        found = _expression(source).search(text) is not None
+    if not found or movement is None:
+        return found
+    if rule.account_id is not None and movement.account_id != rule.account_id:
+        return False
+    size = abs(movement.amount)
+    if rule.amount_min is not None and size < rule.amount_min:
+        return False
+    if rule.amount_max is not None and size > rule.amount_max:
+        return False
+    return True
 
 
-def matching_rule(description: str, rules: Iterable[Rule]) -> Rule | None:
+def matching_rule(
+    description: str, rules: Iterable[Rule], movement: Movement | None = None
+) -> Rule | None:
     """The rule that decides for this description, or None when no rule does.
 
     The description is compared as the bank writes it, so a rule can hold text
@@ -168,11 +216,22 @@ def matching_rule(description: str, rules: Iterable[Rule]) -> Rule | None:
     to name a family (`/amazon (eu|payments)/`) is longer than the words it
     replaces and takes their movements, while a broader one steals nothing from a
     narrower text that still matches.
+
+    Between two rules of the same text, the one with more conditions is the
+    narrower statement and wins too.
     """
-    candidates = _candidate_rules(description, rules)
+    candidates = _candidate_rules(description, rules, movement)
     if not candidates:
         return None
-    return min(candidates, key=lambda rule: (-len(rule.expression or rule.key), rule.key))
+    return min(
+        candidates,
+        key=lambda rule: (
+            -len(rule.expression or rule.key),
+            -rule.conditions,
+            rule.key,
+            rule.id or 0,
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -217,32 +276,130 @@ def uncovered_spending(ledger: Ledger) -> dict[str, Stake]:
 
 
 class RuleBook:
-    """The `rules` table: which text belongs to which category."""
+    """The `rules` table: which text, under which conditions, does what."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
 
     def rules(self) -> list[Rule]:
         return [
-            Rule(row["key"], row["pattern"], row["category"])
+            Rule(
+                key=row["key"],
+                pattern=row["pattern"],
+                target=row["target"],
+                action=row["action"],
+                account_id=row["account_id"],
+                amount_min=_amount_or_none(row["amount_min"]),
+                amount_max=_amount_or_none(row["amount_max"]),
+                id=row["id"],
+            )
             for row in self.conn.execute(
-                "SELECT key, pattern, category FROM rules ORDER BY category, pattern"
+                """SELECT id, key, pattern, action, target, account_id, amount_min, amount_max
+                   FROM rules ORDER BY action, target, pattern, id"""
             )
         ]
 
-    def set_rule(self, pattern: str, category: str, ledger: Ledger) -> int:
+    def rule(self, rule_id: int) -> Rule:
+        for rule in self.rules():
+            if rule.id == rule_id:
+                return rule
+        raise KeyError(f"rule {rule_id} not found")
+
+    def set_rule(
+        self,
+        pattern: str,
+        target: str | None,
+        ledger: Ledger,
+        *,
+        action: str = "category",
+        account_id: int | None = None,
+        amount_min: Decimal | None = None,
+        amount_max: Decimal | None = None,
+        rule_id: int | None = None,
+    ) -> int:
         """Create or change a rule, and make the movements agree with it now.
 
-        Everything the rule explains carries its category afterwards, whether it
-        was waiting in the queue or another rule used to hold it: that is what
-        lets one broad rule replace a pile of merchant rules. A category no rule
+        Everything the rule explains follows it afterwards, whether it was
+        waiting in the queue or another rule used to hold it: that is what lets
+        one broad rule replace a pile of merchant rules. A category no rule
         matching the description would assign is a person's decision and stays.
-        An expression that does not compile is refused here, with the reason: a
-        rule that could never match must not reach the ledger.
+        A rule that deletes takes the movements it matches out of the ledger now,
+        into the trash, and every later sync does the same with the new ones.
+        Without `rule_id` a rule with the same text and conditions is the one
+        changed, so writing the same rule twice is one rule.
         Returns how many movements the rule holds afterwards.
         """
-        if category == UNCATEGORIZED:
-            raise ValueError("a rule cannot point at the review bucket: it would categorize nothing")
+        rule = self.checked(
+            pattern,
+            target,
+            ledger,
+            action=action,
+            account_id=account_id,
+            amount_min=amount_min,
+            amount_max=amount_max,
+            rule_id=rule_id,
+        )
+        before = self.rules()
+        values = (
+            rule.key,
+            rule.pattern,
+            rule.action,
+            rule.target,
+            rule.account_id,
+            _amount_text(rule.amount_min),
+            _amount_text(rule.amount_max),
+        )
+        if rule_id is None:
+            rule_id = self._same_identity(rule)
+        try:
+            with self.conn:
+                if rule_id is None:
+                    rule_id = self.conn.execute(
+                        """INSERT INTO rules
+                               (key, pattern, action, target, account_id, amount_min, amount_max)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        values,
+                    ).lastrowid
+                else:
+                    self.conn.execute(
+                        """UPDATE rules SET key = ?, pattern = ?, action = ?, target = ?,
+                               account_id = ?, amount_min = ?, amount_max = ?
+                           WHERE id = ?""",
+                        (*values, rule_id),
+                    )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(
+                "una regola con lo stesso testo e le stesse condizioni c'è già"
+            ) from exc
+        after = self.rules()
+        apply_rule_changes(ledger, before, after)
+        # A pending proposal this rule has just answered: leaving it would leave
+        # the queue asking about a movement the rule has already decided.
+        for row in ledger.suggestions("pending"):
+            if _matches(rule, rule_key(row["merchant"])):
+                ledger.decide_suggestion(row["merchant"], "dismissed")
+        return rule_usage(ledger, after).get(rule_id, 0)
+
+    def checked(
+        self,
+        pattern: str,
+        target: str | None,
+        ledger: Ledger,
+        *,
+        action: str = "category",
+        account_id: int | None = None,
+        amount_min: Decimal | None = None,
+        amount_max: Decimal | None = None,
+        rule_id: int | None = None,
+    ) -> Rule:
+        """The rule as it would be stored, or the reason it cannot be.
+
+        Writes nothing but a category it names, which `Ledger.category` creates.
+        """
+        if action not in ACTIONS:
+            raise ValueError(f"unknown action {action!r}")
+        if rule_id is not None:
+            self.rule(rule_id)
         key, expression = rule_pattern(pattern)
         if not key:
             raise ValueError("a rule needs a text to look for")
@@ -251,62 +408,163 @@ class RuleBook:
                 _expression(expression)
             except re.error as exc:
                 raise ValueError(f"espressione non valida: {exc}") from exc
-        ledger.category(category)
-        rule = Rule(key, _WHITESPACE.sub(" ", pattern.strip()), category)
-        before = self.rules()
-        with self.conn:
-            self.conn.execute(
-                """INSERT INTO rules (key, pattern, category) VALUES (?, ?, ?)
-                   ON CONFLICT (key) DO UPDATE SET
-                       pattern = excluded.pattern, category = excluded.category""",
-                (rule.key, rule.pattern, category),
-            )
-        after = self.rules()
-        _apply_rules(ledger, before, after)
-        # A pending proposal this rule has just answered: leaving it would leave
-        # the queue asking about a movement the rule has already decided.
-        for row in ledger.suggestions("pending"):
-            if _matches(rule, rule_key(row["merchant"])):
-                ledger.decide_suggestion(row["merchant"], "dismissed")
-        return rule_usage(ledger, after).get(rule.key, 0)
+        target = (target or "").strip() or None
+        if action == "category":
+            if target is None:
+                raise ValueError("a category rule needs a category")
+            if target == UNCATEGORIZED:
+                raise ValueError(
+                    "a rule cannot point at the review bucket: it would categorize nothing"
+                )
+            ledger.category(target)
+        elif action == "transfer":
+            if target is None:
+                raise ValueError("a transfer rule needs a destination")
+            if target == TRANSFER_CLEARING:
+                raise ValueError(f"{TRANSFER_CLEARING!r} is the pairing account, not a destination")
+            existing = ledger.find_account(name=target)
+            if existing is not None and existing["type"] != "virtual":
+                raise ValueError(f"{target!r} already names a {existing['type']} account")
+        else:
+            target = None
+        if account_id is not None and ledger.account(account_id)["type"] != "real":
+            raise ValueError(f"account {account_id} is not a real account")
+        for bound in (amount_min, amount_max):
+            if bound is not None and bound < 0:
+                raise ValueError("an amount bound is a size: it cannot be negative")
+        if amount_min is not None and amount_max is not None and amount_min > amount_max:
+            raise ValueError("the minimum amount is above the maximum")
+        return Rule(
+            key=key,
+            pattern=_WHITESPACE.sub(" ", pattern.strip()),
+            target=target,
+            action=action,
+            account_id=account_id,
+            amount_min=amount_min,
+            amount_max=amount_max,
+            id=rule_id,
+        )
+
+    def _same_identity(self, rule: Rule) -> int | None:
+        identity = (rule.key, rule.account_id, rule.amount_min, rule.amount_max)
+        for existing in self.rules():
+            if (existing.key, existing.account_id, existing.amount_min, existing.amount_max) == identity:
+                return existing.id
+        return None
 
     def remove_rule(self, pattern: str, ledger: Ledger) -> int | None:
-        """Drop a rule, and let the rules that still match take its movements.
+        """Drop the rule for a text that has no conditions — the command line's form.
 
-        Returns how many movements it held, or None when there was no rule. A
-        movement no remaining rule explains goes back to the queue.
+        Returns how many movements it held, or None when there was no such rule.
         """
         key = rule_pattern(pattern)[0]
+        for rule in self.rules():
+            if rule.key == key and rule.conditions == 0 and rule.id is not None:
+                return self.remove(rule.id, ledger)
+        return None
+
+    def remove(self, rule_id: int, ledger: Ledger) -> int:
+        """Drop a rule, and let the rules that still match take its movements.
+
+        Returns how many movements it held. A movement no remaining rule explains
+        goes back to the queue — a transfer the rule recorded as well. What a
+        deleting rule took stays in the trash, where it can be restored now.
+        """
         before = self.rules()
-        if not any(rule.key == key for rule in before):
-            return None
-        held = rule_usage(ledger, before).get(key, 0)
+        if not any(rule.id == rule_id for rule in before):
+            raise KeyError(f"rule {rule_id} not found")
+        held = rule_usage(ledger, before).get(rule_id, 0)
         with self.conn:
-            self.conn.execute("DELETE FROM rules WHERE key = ?", (key,))
-        _apply_rules(ledger, before, self.rules())
+            self.conn.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
+        apply_rule_changes(ledger, before, self.rules())
         return held
 
 
-def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[str, int]:
-    """How many movements each rule holds right now, by the rule's key."""
-    usage: dict[str, int] = {}
-    for _, description, category in _categorized_transactions(ledger):
-        rule = matching_rule(description, rules)
-        if rule is None or rule.category != category:
+def preview(ledger: Ledger, rule: Rule, limit: int = 20) -> dict:
+    """The movements a rule would take, before it is written.
+
+    Every movement on a real account whose text and conditions it matches —
+    including the ones another rule decides now, because this one may take them.
+    A deletion is the reason this exists: what it removes is shown first.
+    """
+    found = [
+        row
+        for row in _movement_rows(ledger)
+        if _matches(rule, rule_key(row["description"]), _movement_of(row))
+    ]
+    found.sort(key=lambda row: (row["date"], row["id"]), reverse=True)
+    return {"count": len(found), "items": found[:limit]}
+
+
+def deleting_rule(ledger: Ledger, description: str, account_id: int, amount: Decimal) -> Rule | None:
+    """The deleting rule that would take this movement again, if there is one."""
+    deleting = _by_action(RuleBook(ledger.conn).rules())["delete"]
+    return matching_rule(description, deleting, Movement(account_id, amount))
+
+
+def _amount_or_none(text: str | None) -> Decimal | None:
+    return None if text is None else parse_decimal(text)
+
+
+def _amount_text(amount: Decimal | None) -> str | None:
+    return None if amount is None else format_decimal(amount)
+
+
+def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[int, int]:
+    """How many movements each rule holds right now, by the rule's id.
+
+    A category rule holds the movements it decides and that carry its category;
+    a transfer rule the ones recorded to its destination that it matches; a
+    deleting rule the deleted movements, still in the trash, that it matches.
+    """
+    usage: dict[int, int] = {}
+
+    def count(rule: Rule | None) -> None:
+        if rule is not None and rule.id is not None:
+            usage[rule.id] = usage.get(rule.id, 0) + 1
+
+    by_action = _by_action(rules)
+    for row in _movement_rows(ledger):
+        if not _decidable(row):
             continue
-        usage[rule.key] = usage.get(rule.key, 0) + 1
+        movement = _movement_of(row)
+        kind = "category" if row["side_type"] == "category" else "transfer"
+        rule = matching_rule(row["description"], by_action[kind], movement)
+        if rule is not None and rule.target == row["side_name"]:
+            count(rule)
+    if by_action["delete"]:
+        for row in ledger.deleted_transactions():
+            movement = Movement(row["account_id"], parse_decimal(row["amount"]))
+            count(matching_rule(row["description"], by_action["delete"], movement))
     return usage
 
 
 def categorize(ledger: Ledger, book: RuleBook) -> int:
-    """Apply the rules to the movements nobody has decided yet.
+    """Apply the rules to what the ledger holds now, and say how many changed.
 
-    The rules have not changed, so nothing moves: what waited in `Uncategorized`
-    takes the category of the rule that explains it, and a merchant no rule
-    knows is left there rather than guessed.
+    The rules have not changed, so nothing a rule already decided moves: what
+    waited in `Uncategorized` takes the category of the rule that explains it, a
+    merchant no rule knows is left there rather than guessed, and what a deleting
+    or transfer rule matches — a movement the last sync brought in — is deleted
+    or recorded to its destination.
     """
     rules = book.rules()
-    return _apply_rules(ledger, rules, rules)
+    return apply_rule_changes(ledger, rules, rules)
+
+
+def apply_rule_changes(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) -> int:
+    """Make the movements say what the rules say, in the order the actions win.
+
+    Deletions first, because a deleted movement has nothing left to decide; then
+    the transfers, because a leg recorded to a destination has no category; then
+    the categories, which see what the two before them left. One transaction:
+    on the NAS every commit is a flush, and a rule can touch hundreds of rows.
+    """
+    with deferred_commits(ledger.conn):
+        changed = _apply_deletions(ledger, after)
+        changed += _apply_transfers(ledger, before, after)
+        changed += _apply_categories(ledger, before, after)
+    return changed
 
 
 def waiting_transactions(ledger: Ledger, merchant: str) -> list[int]:
@@ -362,34 +620,113 @@ def accept_merchant(
     return {"category": category, "rule": None, "movements": decided}
 
 
-def _candidate_rules(description: str, rules: Sequence[Rule]) -> list[Rule]:
+def _candidate_rules(
+    description: str, rules: Iterable[Rule], movement: Movement | None = None
+) -> list[Rule]:
     """Every rule that claims the description: the text it contains, or the
-    expression that matches it."""
+    expression that matches it — and, given a movement, its conditions."""
     text = rule_key(description)
-    return [rule for rule in rules if _matches(rule, text)]
+    return [rule for rule in rules if _matches(rule, text, movement)]
 
 
-def _categorized_transactions(ledger: Ledger) -> list[tuple[int, str, str]]:
-    """(transaction id, description, category) for every movement holding exactly one.
+def _by_action(rules: Iterable[Rule]) -> dict[str, list[Rule]]:
+    grouped: dict[str, list[Rule]] = {action: [] for action in ACTIONS}
+    for rule in rules:
+        grouped[rule.action].append(rule)
+    return grouped
 
-    A split carries several category postings and a transfer leg none, so the
-    join keeps exactly one and both shapes stay out of a rule's reach: neither
-    is a rule's work, and neither should a rule move.
+
+def _movement_rows(ledger: Ledger) -> list[sqlite3.Row]:
+    """Every movement on a real account, with the side a rule may decide.
+
+    `side_type` and `side_name` name the balancing posting when there is exactly
+    one besides the real leg — a category, or a virtual account (a destination,
+    or the clearing account of a pair, which `linked` tells apart); a split has
+    several. Neither a split nor a paired leg is a rule's to decide or to move.
     """
-    rows = ledger.conn.execute(
-        """SELECT t.id AS id, t.description AS description, a.name AS category
-           FROM transactions t
-           JOIN postings p ON p.transaction_id = t.id
-           JOIN accounts a ON a.id = p.account_id
-           WHERE a.type = 'category'
-           GROUP BY t.id
-           HAVING COUNT(*) = 1"""
+    return ledger.conn.execute(
+        """SELECT t.id, t.date, t.amount, t.description, t.account_id,
+                  r.name AS account,
+                  (SELECT COUNT(*) FROM postings p JOIN accounts a ON a.id = p.account_id
+                    WHERE p.transaction_id = t.id AND a.type IN ('category', 'virtual')) AS sides,
+                  (SELECT a.type FROM postings p JOIN accounts a ON a.id = p.account_id
+                    WHERE p.transaction_id = t.id AND a.type IN ('category', 'virtual')
+                    LIMIT 1) AS side_type,
+                  (SELECT a.name FROM postings p JOIN accounts a ON a.id = p.account_id
+                    WHERE p.transaction_id = t.id AND a.type IN ('category', 'virtual')
+                    LIMIT 1) AS side_name,
+                  EXISTS (SELECT 1 FROM transfer_links l
+                           WHERE l.leg_a = t.id OR l.leg_b = t.id) AS linked
+           FROM transactions t JOIN accounts r ON r.id = t.account_id
+           WHERE r.type = 'real'
+           ORDER BY t.date, t.id"""
     ).fetchall()
-    return [(row["id"], row["description"], row["category"]) for row in rows]
 
 
-def _apply_rules(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) -> int:
-    """Make the movements say what the rules say, and answer how many changed.
+def _movement_of(row: sqlite3.Row) -> Movement:
+    return Movement(row["account_id"], parse_decimal(row["amount"]))
+
+
+def _decidable(row: sqlite3.Row) -> bool:
+    """One balancing side and no pair: what a single rule may decide or move."""
+    return row["sides"] == 1 and not row["linked"]
+
+
+def _apply_deletions(ledger: Ledger, rules: Sequence[Rule]) -> int:
+    """Take what a deleting rule matches out of the ledger, into the trash.
+
+    Every movement, a split or a transfer leg included: a person asked for that
+    text to be gone, and `delete_transaction` already knows how to take one leg
+    of a pair without leaving the other hanging.
+    """
+    deleting = _by_action(rules)["delete"]
+    if not deleting:
+        return 0
+    deleted = 0
+    for row in _movement_rows(ledger):
+        if matching_rule(row["description"], deleting, _movement_of(row)) is None:
+            continue
+        ledger.delete_transaction(row["id"])
+        deleted += 1
+    return deleted
+
+
+def _apply_transfers(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) -> int:
+    """Record what a transfer rule matches to its destination, and let go of
+    what a transfer rule no longer claims.
+
+    A leg goes to the destination whatever category it carried: the rule says
+    the money is not spending, which no category can say. A leg a removed rule
+    had recorded goes back to the queue, where the category rules find it.
+    """
+    old = _by_action(before)["transfer"]
+    new = _by_action(after)["transfer"]
+    if not old and not new:
+        return 0
+    changed = 0
+    for row in _movement_rows(ledger):
+        if not _decidable(row):
+            continue
+        movement = _movement_of(row)
+        winner = matching_rule(row["description"], new, movement)
+        current = row["side_name"] if row["side_type"] == "virtual" else None
+        if winner is not None:
+            if winner.target != current:
+                ledger.move_to_virtual_account(row["id"], winner.target)
+                changed += 1
+            continue
+        theirs = current is not None and any(
+            rule.target == current
+            for rule in _candidate_rules(row["description"], old, movement)
+        )
+        if theirs:
+            ledger.set_category(row["id"], ledger.uncategorized())
+            changed += 1
+    return changed
+
+
+def _apply_categories(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) -> int:
+    """Make the categories say what the category rules say.
 
     A movement the rules decided carries the category of the rule that decides
     it now; one still waiting in the queue is decided for the first time; one
@@ -397,17 +734,26 @@ def _apply_rules(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) 
     the description would assign it is a person's decision: the rules fill the
     empty, follow their own changes, and never overrule that.
     """
+    old = _by_action(before)["category"]
+    new = _by_action(after)["category"]
     changed = 0
-    for transaction_id, description, category in _categorized_transactions(ledger):
+    for row in _movement_rows(ledger):
+        if not _decidable(row) or row["side_type"] != "category":
+            continue
+        category = row["side_name"]
+        movement = _movement_of(row)
         # Whose work it was, not who decides it now: a legacy rule shadowed by a
         # longer text still held this movement, and it must follow the winner.
-        theirs = any(rule.category == category for rule in _candidate_rules(description, before))
+        theirs = any(
+            rule.target == category
+            for rule in _candidate_rules(row["description"], old, movement)
+        )
         if category != UNCATEGORIZED and not theirs:
             continue
-        winner = matching_rule(description, after)
-        wanted = winner.category if winner else UNCATEGORIZED
+        winner = matching_rule(row["description"], new, movement)
+        wanted = winner.target if winner else UNCATEGORIZED
         if wanted == category:
             continue
-        ledger.set_category(transaction_id, ledger.category(wanted))
+        ledger.set_category(row["id"], ledger.category(wanted))
         changed += 1
     return changed

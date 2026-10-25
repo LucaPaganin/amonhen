@@ -8,9 +8,17 @@ interface TransactionRowProps {
   onSelect?: (transaction: Transaction) => void;
   /** What the queue already tried on this row, if anything. */
   flag?: { label: string; warning?: boolean };
+  /** Set while the list is choosing rows: a tap then picks the row instead of opening it. */
+  selected?: boolean;
 }
 
-export function TransactionRow({ transaction, runningTotal, onSelect, flag }: TransactionRowProps) {
+export function TransactionRow({
+  transaction,
+  runningTotal,
+  onSelect,
+  flag,
+  selected,
+}: TransactionRowProps) {
   const title = transaction.merchant ?? transaction.description;
   const amount = formatAmount(transaction.amount);
   const income = toAmount(transaction.amount) >= 0;
@@ -67,6 +75,7 @@ export function TransactionRow({ transaction, runningTotal, onSelect, flag }: Tr
                 {flag.label}
               </span>
             ) : null}
+            {selected ? <span className="chip chip--selected">Selezionato</span> : null}
           </span>
         </span>
       </span>
@@ -84,7 +93,8 @@ export function TransactionRow({ transaction, runningTotal, onSelect, flag }: Tr
       {onSelect ? (
         <button
           type="button"
-          className="txn"
+          className={selected ? "txn txn--selected" : "txn"}
+          aria-pressed={selected}
           onClick={() => onSelect(transaction)}
           aria-label={`${title}, ${formatDate(transaction.date)}, ${amount}, ${transaction.account.name}, ${categoryLabel}${
             transaction.notes === null ? "" : `, nota: ${transaction.notes}`

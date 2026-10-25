@@ -306,7 +306,7 @@ class Ledger:
 
         - the same provider identifier it was deleted under;
         - the same content arriving from the *other* ingest path — an export
-          carries no identifier, and §5.1 makes the content hash the only
+          carries no identifier, and section 5.1 makes the content hash the only
           discriminator in the overlap between sync and import;
         - the settled twin of a pending movement deleted here, which the bank
           reports under a new reference and a new date.
@@ -464,6 +464,62 @@ class Ledger:
             )
             self.conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
         return Deletion(transaction_id=transaction_id, unlinked_pair=link is not None)
+
+    def delete_transactions(self, transaction_ids: Iterable[int]) -> list[Deletion]:
+        """Delete several movements in one transaction, each as `delete_transaction`.
+
+        One commit for the lot: on the NAS every commit is a flush, and a page of a
+        hundred movements deleted one by one would hold the ledger for a minute.
+        An id that is not in the ledger stops the whole batch, before anything is
+        written, so a stale page cannot delete half of what it showed.
+        """
+        ids = list(dict.fromkeys(transaction_ids))
+        for transaction_id in ids:
+            if self.conn.execute(
+                "SELECT 1 FROM transactions WHERE id = ?", (transaction_id,)
+            ).fetchone() is None:
+                raise KeyError(f"transaction {transaction_id} not found")
+        with deferred_commits(self.conn):
+            return [self.delete_transaction(transaction_id) for transaction_id in ids]
+
+    def delete_account(self, account_id: int) -> int:
+        """Take a real account out of the ledger, with everything that hangs on it.
+
+        Its movements, its trash, the balances the bank declared for it and the
+        rules narrowed to it all go: the account is not suspended, it is gone, and
+        nothing is kept to restore. The other leg of a transfer it took part in is
+        not deleted — that money did leave or reach another account — so the pair
+        is rejected first and the leg goes back to the queue, as when one leg is
+        deleted by hand. Returns how many movements went with it.
+        """
+        row = self.account(account_id)
+        if row["type"] != "real":
+            raise ValueError(f"{row['name']!r} is not a real account: only those are deleted here")
+        ids = [
+            item["id"]
+            for item in self.conn.execute(
+                "SELECT id FROM transactions WHERE account_id = ?", (account_id,)
+            )
+        ]
+        with deferred_commits(self.conn):
+            for transaction_id in ids:
+                link = self.transfer_link(transaction_id)
+                if link is not None and link["confirmed_by_human"] != -1:
+                    self.set_transfer_review(link["leg_a"], link["leg_b"], "reject")
+            with self.conn:
+                self.conn.execute("DELETE FROM transactions WHERE account_id = ?", (account_id,))
+                # A posting on this account from another movement would leave
+                # that movement unbalanced; nothing writes one, and if something
+                # ever did the delete must stop rather than break the ledger.
+                stray = self.conn.execute(
+                    "SELECT COUNT(*) FROM postings WHERE account_id = ?", (account_id,)
+                ).fetchone()[0]
+                if stray:
+                    raise ValueError(f"{stray} postings of other movements sit on this account")
+                for table in ("deleted_transactions", "account_balances", "rules"):
+                    self.conn.execute(f"DELETE FROM {table} WHERE account_id = ?", (account_id,))
+                self.conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+        return len(ids)
 
     def restore_deleted(self, deleted_id: int) -> int:
         """Put a deleted movement back, with the note it had, and say it came back.
@@ -642,56 +698,6 @@ class Ledger:
                    ON CONFLICT (key) DO UPDATE SET value = excluded.value""",
                 (key, value),
             )
-
-    def set_budget(self, category_id: int, amount: Decimal | None) -> None:
-        """Set the monthly budget of a category; None removes it."""
-        if self.account(category_id)["type"] != "category":
-            raise ValueError(f"account {category_id} is not a category")
-        with self.conn:
-            if amount is None:
-                self.conn.execute("DELETE FROM budgets WHERE category_id = ?", (category_id,))
-                return
-            if amount < 0:
-                raise ValueError("a budget cannot be negative")
-            self.conn.execute(
-                """INSERT INTO budgets (category_id, amount, updated_at) VALUES (?, ?, ?)
-                   ON CONFLICT (category_id) DO UPDATE SET
-                       amount = excluded.amount, updated_at = excluded.updated_at""",
-                (category_id, format_decimal(amount), dt.datetime.now(dt.UTC).isoformat()),
-            )
-
-    def budget_status(self, month_start: dt.date, month_end: dt.date) -> list[dict]:
-        """Per category: the monthly budget, what it has taken, what is left."""
-        rows = self.conn.execute(
-            """SELECT a.id, a.name, b.amount AS budget
-               FROM accounts a LEFT JOIN budgets b ON b.category_id = a.id
-               WHERE a.type = 'category' AND a.name != ?
-               ORDER BY a.name""",
-            (UNCATEGORIZED,),
-        ).fetchall()
-        status = []
-        for row in rows:
-            spent = Decimal(0)
-            for posting in self.conn.execute(
-                """SELECT p.amount FROM postings p
-                   JOIN transactions t ON t.id = p.transaction_id
-                   WHERE p.account_id = ? AND t.status = 'BOOK'
-                     AND CAST(t.amount AS REAL) < 0
-                     AND t.date >= ? AND t.date <= ?""",
-                (row["id"], month_start.isoformat(), month_end.isoformat()),
-            ):
-                spent += parse_decimal(posting["amount"])
-            budget = parse_decimal(row["budget"]) if row["budget"] else None
-            status.append(
-                {
-                    "id": row["id"],
-                    "category": row["name"],
-                    "budget": format_decimal(budget) if budget is not None else None,
-                    "spent": format_decimal(spent),
-                    "remaining": format_decimal(budget - spent) if budget is not None else None,
-                }
-            )
-        return status
 
     def record_suggestion(self, merchant: str, category: str, source: str) -> None:
         """Remember a proposal; a human decides, nothing is applied here."""

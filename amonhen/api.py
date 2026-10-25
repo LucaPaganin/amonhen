@@ -5,7 +5,6 @@ filterable transaction list, the review queue, category changes and the
 confirm/reject decision on a transfer link. No authentication: the app is
 served behind Tailscale, and the ledger never leaves the machine.
 """
-import calendar
 import datetime as dt
 import json
 import sqlite3
@@ -23,6 +22,19 @@ from pydantic import BaseModel, Field
 
 from amonhen import assistant, db
 from amonhen.anomalies import detect_anomalies
+from amonhen.budgets import (
+    ItemFields,
+    add_item,
+    budget_status,
+    copy_items,
+    delete_item,
+    get_item,
+    month_of,
+    parse_month,
+    set_default,
+    set_month_override,
+    update_item,
+)
 from amonhen.classifier import apply_proposals, propose_categories
 from amonhen.config import (
     MonitorConfig,
@@ -45,11 +57,14 @@ from amonhen.csv_import import (
 from amonhen.ledger import UNCATEGORIZED_WHERE, BalanceCheck, Ledger
 from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
+    Rule,
     RuleBook,
     Stake,
     accept_merchant,
     categorize,
+    deleting_rule,
     merchant_name,
+    preview,
     rule_usage,
     uncovered_spending,
 )
@@ -82,8 +97,13 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # the queue's decision: the request carries the text of a rule to write and the
 # answer says what the decision did, and an older server would take the text as
 # absent — writing a rule named after the merchant, which is the behaviour this
-# version removed.
-API_VERSION = 20
+# version removed. 21 is the budget planned by month (desiderata 5.12): a budget
+# row carries its default, its month override and its items, and every budget
+# write answers with the whole month instead of one row. 22 is the general rule
+# (desiderata 5.5): a rule has an id, an action, a target and conditions, and the
+# writes around it are new, with the account deletion and the movements' batch
+# writes beside them.
+API_VERSION = 22
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -147,12 +167,36 @@ class TransferUnlinkRequest(BaseModel):
 
 
 class RuleRequest(BaseModel):
+    """A rule to write. `category` is the old form of `target` for a category rule.
+
+    `id` changes that rule; without it, a rule with the same text and conditions
+    is the one changed. The amounts are sizes, as text, so "12,50" reads too.
+    """
+
     pattern: str
-    category: str
+    action: str = "category"
+    target: str | None = None
+    category: str | None = None
+    account_id: int | None = None
+    amount_min: str | None = None
+    amount_max: str | None = None
+    id: int | None = None
 
 
 class RuleRemoveRequest(BaseModel):
-    pattern: str
+    """The rule to drop: by id, or by the text of a rule without conditions."""
+
+    pattern: str | None = None
+    id: int | None = None
+
+
+class TransactionIdsRequest(BaseModel):
+    ids: list[int]
+
+
+class BatchCategoryRequest(BaseModel):
+    ids: list[int]
+    category: str
 
 
 class CategoryNameRequest(BaseModel):
@@ -196,6 +240,23 @@ class DeclarationRequest(BaseModel):
 
 class BudgetRequest(BaseModel):
     amount: str | None = None
+
+
+class BudgetItemRequest(BaseModel):
+    """A planned expense, whole: an edit may move it to another month or category."""
+
+    category_id: int
+    month: str
+    description: str
+    amount: str
+    date: str | None = None
+    priority: Literal["essential", "important", "deferrable"] = "important"
+    note: str | None = None
+
+
+class BudgetCopyRequest(BaseModel):
+    from_month: str
+    to_month: str
 
 
 class SuggestionDecisionRequest(BaseModel):
@@ -639,36 +700,64 @@ def create_app(
     @app.get("/api/budgets")
     def budgets(month: str | None = None) -> list[dict]:
         with ledger_scope() as ledger:
-            start, end = _month_bounds(month)
-            return ledger.budget_status(start, end)
+            return budget_status(ledger, _budget_month(month))
 
     @app.put("/api/budgets/{category_id}")
-    def put_budget(category_id: int, body: BudgetRequest, month: str | None = None) -> dict:
-        """Set or clear one category's monthly budget, answering for a month.
+    def put_budget(category_id: int, body: BudgetRequest, month: str | None = None) -> list[dict]:
+        """Set or clear a category's default budget from ``month`` on.
 
-        The amount is one per category and applies to every month; ``month``
-        decides which month's spend the answer reports, so a client looking at
-        August is never handed July's figures.
+        The months before it keep the budget they had, which is what makes a
+        past month readable as it was. The answer is that whole month again.
         """
+        month = _budget_month(month)
         with ledger_scope() as ledger:
-            row = ledger.conn.execute(
-                "SELECT type, name FROM accounts WHERE id = ?", (category_id,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(status_code=404, detail=f"account {category_id} not found")
-            if row["type"] != "category" or row["name"] == UNCATEGORIZED:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"account {category_id} is not a category with a budget",
-                )
-            if body.amount is None:
-                ledger.set_budget(category_id, None)
-            else:
-                ledger.set_budget(category_id, parse_decimal(body.amount))
-            start, end = _month_bounds(month)
-            return next(
-                status for status in ledger.budget_status(start, end) if status["id"] == category_id
-            )
+            _require_category(ledger, category_id)
+            set_default(ledger, category_id, month, _budget_amount(body.amount))
+            return budget_status(ledger, month)
+
+    @app.put("/api/budgets/{category_id}/override")
+    def put_budget_override(
+        category_id: int, body: BudgetRequest, month: str | None = None
+    ) -> list[dict]:
+        """Give one month its own budget for a category; an empty amount hands it back."""
+        month = _budget_month(month)
+        with ledger_scope() as ledger:
+            _require_category(ledger, category_id)
+            set_month_override(ledger, category_id, month, _budget_amount(body.amount))
+            return budget_status(ledger, month)
+
+    @app.post("/api/budgets/{category_id}/copy")
+    def copy_budget_items(category_id: int, body: BudgetCopyRequest) -> dict:
+        """Copy a category's planned expenses from one month into another."""
+        with ledger_scope() as ledger:
+            _require_category(ledger, category_id)
+            copied = copy_items(ledger, category_id, body.from_month, body.to_month)
+            return {"copied": copied, "budgets": budget_status(ledger, body.to_month)}
+
+    @app.post("/api/budget-items", status_code=201)
+    def create_budget_item(body: BudgetItemRequest) -> list[dict]:
+        """Plan an expense inside a category's budget; answers with its month."""
+        with ledger_scope() as ledger:
+            _require_category(ledger, body.category_id)
+            add_item(ledger, _item_fields(body))
+            return budget_status(ledger, body.month)
+
+    @app.put("/api/budget-items/{item_id}")
+    def update_budget_item(item_id: int, body: BudgetItemRequest, month: str | None = None) -> list[dict]:
+        """Rewrite a planned expense, answering for ``month`` (by default the one it moved to)."""
+        with ledger_scope() as ledger:
+            _require_budget_item(ledger, item_id)
+            _require_category(ledger, body.category_id)
+            update_item(ledger, item_id, _item_fields(body))
+            return budget_status(ledger, _budget_month(month or body.month))
+
+    @app.delete("/api/budget-items/{item_id}")
+    def delete_budget_item(item_id: int) -> list[dict]:
+        """Drop a planned expense, answering with the month it was in."""
+        with ledger_scope() as ledger:
+            month = _require_budget_item(ledger, item_id)["month"]
+            delete_item(ledger, item_id)
+            return budget_status(ledger, month)
 
     @app.post("/api/accounts", status_code=201)
     def create_account(body: AccountRequest) -> dict:
@@ -701,6 +790,31 @@ def create_app(
                 )
             )
             return _account_payload(ledger, account_id)
+
+    @app.delete("/api/accounts/{account_id}")
+    def delete_account(account_id: int) -> dict:
+        """Delete a real account with its movements, and stop syncing it.
+
+        A connected account is also taken out of `accounts.json`, or the next sync
+        would create it again and import its history from the bank. Nothing is
+        kept to restore: the snapshot is the way back.
+        """
+        with ledger_scope() as ledger:
+            try:
+                name = ledger.account(account_id)["name"]
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+            movements = ledger.delete_account(account_id)
+        disconnected = False
+        try:
+            configured = load_config(config_path).accounts
+        except (FileNotFoundError, ValueError, KeyError):
+            configured = []
+        for entry in configured:
+            if entry.name == name:
+                remove_account(config_path, entry.account_uid)
+                disconnected = True
+        return {"name": name, "movements": movements, "disconnected": disconnected}
 
     @app.put("/api/accounts/{account_id}/declaration")
     def declare_balance(account_id: int, body: DeclarationRequest) -> dict:
@@ -1010,16 +1124,9 @@ def create_app(
     @app.get("/api/rules")
     def rules() -> list[dict]:
         with ledger_scope() as ledger:
-            book = RuleBook(ledger.conn)
-            usage = rule_usage(ledger, book.rules())
-            return [
-                {
-                    "pattern": rule.pattern,
-                    "category": rule.category,
-                    "count": usage.get(rule.key, 0),
-                }
-                for rule in book.rules()
-            ]
+            rules = RuleBook(ledger.conn).rules()
+            usage = rule_usage(ledger, rules)
+            return [_rule_payload(ledger, rule, usage.get(rule.id or 0, 0)) for rule in rules]
 
     # -- writes ------------------------------------------------------------
 
@@ -1066,8 +1173,26 @@ def create_app(
 
     @app.post("/api/deleted/{deleted_id}/restore")
     def restore_deleted(deleted_id: int) -> dict:
-        """Put one deleted movement back, with the note it had when it went."""
+        """Put one deleted movement back, with the note it had when it went.
+
+        Refused while a rule that deletes still matches it: the movement would be
+        back in the trash at the next sync, and a restore that undoes itself is
+        not one. The rule is named, so the person knows what to change.
+        """
         with ledger_scope() as ledger:
+            row = ledger.conn.execute(
+                "SELECT * FROM deleted_transactions WHERE id = ?", (deleted_id,)
+            ).fetchone()
+            if row is not None:
+                rule = deleting_rule(
+                    ledger, row["description"], row["account_id"], parse_decimal(row["amount"])
+                )
+                if rule is not None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"la regola «{rule.pattern}» lo cancellerebbe di nuovo: "
+                        "togli o cambia la regola prima di ripristinarlo",
+                    )
             try:
                 transaction_id = ledger.restore_deleted(deleted_id)
             except KeyError as exc:
@@ -1131,6 +1256,48 @@ def create_app(
             _require_transaction(ledger, transaction_id)
             deletion = ledger.delete_transaction(transaction_id)
             return {"id": deletion.transaction_id, "unlinked_pair": deletion.unlinked_pair}
+
+    @app.post("/api/transactions/delete")
+    def delete_transactions(body: TransactionIdsRequest) -> dict:
+        """Delete several movements at once — a page selected in Movimenti.
+
+        Each one as the single delete does it, tombstone and all, in one
+        transaction; an id the ledger does not hold refuses the whole batch.
+        """
+        if not body.ids:
+            raise HTTPException(status_code=422, detail="no movement to delete")
+        with ledger_scope() as ledger:
+            try:
+                deletions = ledger.delete_transactions(body.ids)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+            return {
+                "deleted": len(deletions),
+                "unlinked_pairs": sum(deletion.unlinked_pair for deletion in deletions),
+            }
+
+    @app.post("/api/transactions/category")
+    def categorize_transactions(body: BatchCategoryRequest) -> dict:
+        """Give several movements one category, as a person's own decision.
+
+        A transfer leg and a split are skipped and counted: one category would
+        hide the transfer or throw the split away, and each is decided by opening
+        it.
+        """
+        if not body.ids:
+            raise HTTPException(status_code=422, detail="no movement to categorize")
+        with ledger_scope() as ledger:
+            for transaction_id in body.ids:
+                _require_transaction(ledger, transaction_id)
+            account = ledger.category(body.category)
+            categorized = 0
+            with db.deferred_commits(ledger.conn):
+                for transaction_id in dict.fromkeys(body.ids):
+                    if ledger.is_transfer(transaction_id) or len(ledger.splits(transaction_id)) > 1:
+                        continue
+                    ledger.set_category(transaction_id, account)
+                    categorized += 1
+            return {"categorized": categorized, "skipped": len(set(body.ids)) - categorized}
 
     @app.put("/api/transactions/{transaction_id}/notes")
     def put_notes(transaction_id: int, body: NotesRequest) -> dict:
@@ -1239,21 +1406,70 @@ def create_app(
 
     @app.post("/api/rules", status_code=201)
     def save_rule(body: RuleRequest) -> dict:
+        """Write a rule and apply it now — a deleting one moves its movements to
+        the trash, which is why the app asks `/api/rules/preview` first."""
         pattern = body.pattern.strip()
         if not pattern:
             raise HTTPException(status_code=422, detail="a rule needs a text to look for")
         with ledger_scope() as ledger:
-            count = RuleBook(ledger.conn).set_rule(pattern, body.category, ledger)
-            return {"pattern": pattern, "category": body.category, "count": count}
+            book = RuleBook(ledger.conn)
+            try:
+                count = book.set_rule(pattern, _rule_target(body), ledger, **_rule_fields(body))
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+            saved = book.checked(pattern, _rule_target(body), ledger, **_rule_fields(body))
+            stored = next(
+                rule
+                for rule in book.rules()
+                if (rule.key, rule.account_id, rule.amount_min, rule.amount_max)
+                == (saved.key, saved.account_id, saved.amount_min, saved.amount_max)
+            )
+            return _rule_payload(ledger, stored, count)
+
+    @app.post("/api/rules/preview")
+    def preview_rule(body: RuleRequest) -> dict:
+        """What a rule would take if it were written now, writing nothing."""
+        pattern = body.pattern.strip()
+        if not pattern:
+            raise HTTPException(status_code=422, detail="a rule needs a text to look for")
+        with ledger_scope() as ledger:
+            fields = _rule_fields(body)
+            # A category named here is not created by a preview: only the text
+            # and the conditions decide which movements a rule would take.
+            rule = RuleBook(ledger.conn).checked(
+                pattern, None, ledger, **{**fields, "action": "delete"}
+            )
+            found = preview(ledger, rule)
+            return {
+                "count": found["count"],
+                "items": [
+                    {
+                        "id": row["id"],
+                        "date": row["date"],
+                        "amount": row["amount"],
+                        "description": row["description"],
+                        "account": row["account"],
+                    }
+                    for row in found["items"]
+                ],
+            }
 
     @app.post("/api/rules/remove")
     def remove_rule(body: RuleRemoveRequest) -> dict:
-        pattern = body.pattern.strip()
         with ledger_scope() as ledger:
-            held = RuleBook(ledger.conn).remove_rule(pattern, ledger)
+            book = RuleBook(ledger.conn)
+            if body.id is not None:
+                try:
+                    rule = book.rule(body.id)
+                except KeyError as exc:
+                    raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+                held = book.remove(body.id, ledger)
+                return {"id": body.id, "pattern": rule.pattern, "held": held}
+            pattern = (body.pattern or "").strip()
+            held = book.remove_rule(pattern, ledger)
         if held is None:
             raise HTTPException(status_code=404, detail=f"no rule for {pattern!r}")
-        return {"pattern": pattern, "held": held}
+        return {"id": None, "pattern": pattern, "held": held}
 
     @app.post("/api/categorize")
     def run_categorize() -> dict:
@@ -1629,15 +1845,83 @@ def _require_transaction(ledger: Ledger, transaction_id: int) -> sqlite3.Row:
     return row
 
 
-def _month_bounds(month: str | None) -> tuple[dt.date, dt.date]:
-    """First and last day of a YYYY-MM month; the current one by default."""
-    if month:
-        year, number = (int(part) for part in month.split("-"))
-    else:
-        today = dt.date.today()
-        year, number = today.year, today.month
-    last_day = calendar.monthrange(year, number)[1]
-    return dt.date(year, number, 1), dt.date(year, number, last_day)
+def _budget_month(month: str | None) -> str:
+    """The month a budget answer is for; the current one by default."""
+    return parse_month(month) if month else month_of(dt.date.today())
+
+
+def _rule_target(body: RuleRequest) -> str | None:
+    """The target the request names: `category` is how the old form said it."""
+    if body.target is not None:
+        return body.target
+    return body.category if body.action == "category" else None
+
+
+def _rule_fields(body: RuleRequest) -> dict:
+    """The keyword arguments `RuleBook.set_rule` and `checked` take from a request."""
+
+    def amount(value: str | None) -> Decimal | None:
+        text = (value or "").strip()
+        return None if text == "" else parse_decimal(text)
+
+    return {
+        "action": body.action,
+        "account_id": body.account_id,
+        "amount_min": amount(body.amount_min),
+        "amount_max": amount(body.amount_max),
+        "rule_id": body.id,
+    }
+
+
+def _rule_payload(ledger: Ledger, rule: Rule, count: int) -> dict:
+    """A rule as the app reads it. `category` stays for the category rules."""
+    account = None
+    if rule.account_id is not None:
+        account = ledger.account(rule.account_id)["name"]
+    return {
+        "id": rule.id,
+        "pattern": rule.pattern,
+        "action": rule.action,
+        "target": rule.target,
+        "category": rule.target if rule.action == "category" else None,
+        "account_id": rule.account_id,
+        "account": account,
+        "amount_min": None if rule.amount_min is None else format_decimal(rule.amount_min),
+        "amount_max": None if rule.amount_max is None else format_decimal(rule.amount_max),
+        "count": count,
+    }
+
+
+def _budget_amount(value: str | None) -> Decimal | None:
+    """None clears; anything else must read as an amount (an empty string does not)."""
+    return None if value is None else parse_decimal(value)
+
+
+def _require_category(ledger: Ledger, category_id: int) -> None:
+    """404 for an account that does not exist; the budget module refuses the rest."""
+    try:
+        ledger.account(category_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from None
+
+
+def _require_budget_item(ledger: Ledger, item_id: int) -> dict:
+    try:
+        return get_item(ledger, item_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from None
+
+
+def _item_fields(body: BudgetItemRequest) -> ItemFields:
+    return ItemFields(
+        category_id=body.category_id,
+        month=body.month,
+        description=body.description,
+        amount=parse_decimal(body.amount),
+        date=None if not body.date else _day(body.date),
+        priority=body.priority,
+        note=body.note,
+    )
 
 
 def _upstream_refusal(exc: Exception) -> str:

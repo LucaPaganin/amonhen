@@ -159,7 +159,7 @@ def test_the_merchant_rules_survive_as_patterns(tmp_path):
 
     # The blank key came from a rule added before the pattern had to be a text;
     # the new code refuses to create one, so it is not carried over.
-    assert [tuple(row) for row in conn.execute("SELECT key, pattern, category FROM rules")] == [
+    assert [tuple(row) for row in conn.execute("SELECT key, pattern, target FROM rules")] == [
         ("ekom", "EKOM", "Groceries")
     ]
     assert not list(conn.execute("SELECT name FROM sqlite_master WHERE name = 'merchants'"))
@@ -219,7 +219,8 @@ def test_a_legacy_rule_shadowed_by_a_longer_text_hands_its_movement_over(tmp_pat
     # zero and the rule would look dead while still holding it.
     assert categorize(ledger, book) == 1
     assert ledger.category_of(movement) == "Household"
-    assert rule_usage(ledger, book.rules()) == {"cart": 1}
+    usage = rule_usage(ledger, book.rules())
+    assert {rule.key: usage[rule.id] for rule in book.rules() if rule.id in usage} == {"cart": 1}
 
     # And removing the winning rule gives it back to the one that still matches.
     assert book.remove_rule("cart", ledger) == 1

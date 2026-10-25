@@ -35,11 +35,7 @@ export interface ReviewQueueController {
   loadError: string | null;
   notice: string | null;
   reload: () => void;
-  categorize: (
-    transaction: Transaction,
-    category: string,
-    options?: { rule?: boolean },
-  ) => Promise<boolean>;
+  categorize: (transaction: Transaction, category: string) => Promise<boolean>;
   decideTransfer: (candidate: TransferCandidate, decision: TransferDecision) => Promise<boolean>;
   notify: (message: string) => void;
   dismissNotice: () => void;
@@ -116,11 +112,7 @@ export function useReviewQueue(): ReviewQueueController {
   // The totals come from the server afterwards, because this function is also
   // used by the Movements screen, where the row was never in the queue.
   const categorize = useCallback(
-    async (
-      transaction: Transaction,
-      category: string,
-      options: { rule?: boolean } = {},
-    ): Promise<boolean> => {
+    async (transaction: Transaction, category: string): Promise<boolean> => {
       setQueue((current) => ({
         ...current,
         uncategorized: current.uncategorized.filter((item) => item.id !== transaction.id),
@@ -136,15 +128,6 @@ export function useReviewQueue(): ReviewQueueController {
         }));
         setNotice(`Categoria non salvata: ${errorMessage(error)}`);
         return false;
-      }
-
-      if (options.rule && transaction.merchant) {
-        try {
-          await api.createRule(transaction.merchant, category);
-          setNotice(`Regola salvata: ${transaction.merchant} → ${category}`);
-        } catch (error) {
-          setNotice(`Categoria salvata, ma la regola non è stata creata: ${errorMessage(error)}`);
-        }
       }
       return true;
     },

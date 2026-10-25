@@ -7,6 +7,7 @@ import { Navigation, TabBar } from "./components/Navigation";
 import type { TabId } from "./components/Navigation";
 import { Toast } from "./components/Toast";
 import { AccountsScreen } from "./screens/Accounts";
+import { BudgetScreen } from "./screens/Budget";
 import { AssistantScreen } from "./screens/Assistant";
 import { DashboardScreen } from "./screens/Dashboard";
 import { MovementsScreen } from "./screens/Movements";
@@ -27,7 +28,7 @@ import { useSetup } from "./useSetup";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 20;
+const REQUIRED_API_VERSION = 22;
 
 export default function App() {
   // `?setup=1` is where the bank sends the browser back after a login, and the
@@ -231,6 +232,7 @@ export default function App() {
             categories={categories}
             categoriesError={categoriesError}
             onReloadCategories={reloadCategories}
+            onSaveRule={rules.add}
           />
         ) : null}
         {tab === "movements" ? (
@@ -241,14 +243,16 @@ export default function App() {
             onCategorize={review.categorize}
             onReviewReload={review.reload}
             refreshToken={syncedAt}
+            onSaveRule={rules.add}
           />
         ) : null}
         {tab === "dashboard" ? (
           <DashboardScreen categories={categories} refreshToken={syncedAt} />
         ) : null}
-        {tab === "accounts" ? (
-          <AccountsScreen onAskAssistant={openAssistant} refreshToken={syncedAt} />
+        {tab === "budget" ? (
+          <BudgetScreen onAskAssistant={openAssistant} refreshToken={syncedAt} />
         ) : null}
+        {tab === "accounts" ? <AccountsScreen refreshToken={syncedAt} /> : null}
         {tab === "import" ? <ImportScreen onImported={noteWrote} /> : null}
         {tab === "assistant" ? (
           <AssistantScreen

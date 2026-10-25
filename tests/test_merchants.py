@@ -114,12 +114,12 @@ def test_the_longest_pattern_decides_when_two_rules_match(ledger):
 def test_two_patterns_of_the_same_length_keep_the_answer_the_same():
     """Neither is narrower, so the alphabetical order decides, not the order written."""
     rules = [
-        Rule(key="carta", pattern="CARTA", category="Uno"),
-        Rule(key="verde", pattern="verde", category="Due"),
+        Rule(key="carta", pattern="CARTA", target="Uno"),
+        Rule(key="verde", pattern="verde", target="Due"),
     ]
 
-    assert matching_rule("PAGAMENTO CARTA VERDE 12", rules).category == "Uno"
-    assert matching_rule("PAGAMENTO CARTA VERDE 12", reversed(rules)).category == "Uno"
+    assert matching_rule("PAGAMENTO CARTA VERDE 12", rules).target == "Uno"
+    assert matching_rule("PAGAMENTO CARTA VERDE 12", reversed(rules)).target == "Uno"
 
 
 def test_an_expression_covers_a_family_the_bank_spells_in_many_ways(ledger):
@@ -252,6 +252,11 @@ def test_a_pattern_that_covers_nothing_is_still_removable(ledger):
     assert book.remove_rule("kart", ledger) is None
 
 
+def _usage_by_key(ledger, book):
+    usage = rule_usage(ledger, book.rules())
+    return {rule.key: usage.get(rule.id, 0) for rule in book.rules()}
+
+
 def test_a_rule_counts_the_movements_it_holds(ledger):
     """The list says how much a rule weighs; a split is a human act, not its work."""
     account = ledger.ensure_account(Account(name="Revolut", type="real"))
@@ -261,7 +266,7 @@ def test_a_rule_counts_the_movements_it_holds(ledger):
     book = RuleBook(ledger.conn)
     book.set_rule("ekom", "Groceries", ledger)
 
-    assert rule_usage(ledger, book.rules())["ekom"] == 3
+    assert _usage_by_key(ledger, book)["ekom"] == 3
 
     ledger.set_splits(
         split_id,
@@ -269,7 +274,7 @@ def test_a_rule_counts_the_movements_it_holds(ledger):
     )
     book.set_rule("ekom", "Travel", ledger)
 
-    assert rule_usage(ledger, book.rules())["ekom"] == 2
+    assert _usage_by_key(ledger, book)["ekom"] == 2
     assert ledger.splits(split_id) != []
 
 

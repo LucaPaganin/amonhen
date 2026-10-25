@@ -180,37 +180,37 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
     return [
       {
         key: "recurring_burn",
-        label: "Burn ricorrente",
+        label: "Spesa mensile tipica",
         value: amount(metrics.recurring_burn),
         empty: "non disponibile",
         explanation:
-          "Mediana mobile delle spese non episodiche degli ultimi 6 mesi: quanto spendi di norma ogni mese.",
+          "Quanto spendi di solito in un mese, senza le spese rare: il valore centrale degli ultimi 6 mesi.",
         warning: partialBurn,
       },
       {
         key: "episodic_accrual",
-        label: "Accantonamento episodico",
+        label: "Riserva per spese rare",
         value: amount(metrics.episodic_accrual),
         empty: "non disponibile",
         explanation:
-          "Somma delle spese una tantum degli ultimi 24 mesi divisa per 24: la quota mensile da mettere da parte per gli imprevisti.",
+          "Le spese rare degli ultimi 24 mesi (un viaggio, una riparazione) divise per 24: quanto mettere da parte ogni mese per quando tornano.",
         warning: partialEpisodic,
       },
       {
         key: "expected_burn",
-        label: "Burn atteso",
+        label: "Spesa mensile attesa",
         value: amount(metrics.expected_burn),
         empty: "non disponibile",
-        explanation: "Burn ricorrente più accantonamento episodico: la spesa mensile attesa.",
+        explanation: "Spesa mensile tipica più riserva per spese rare: quanto costa davvero un mese.",
         warning: partialExpected,
       },
       {
         key: "runway_months",
-        label: "Runway stressato",
+        label: "Mesi di autonomia",
         value: metrics.runway_months === null ? null : formatMonths(metrics.runway_months),
         empty: "non calcolabile",
         explanation:
-          "Liquidità divisa per burn atteso: quanti mesi copri se le entrate si fermano.",
+          "Liquidità divisa per la spesa mensile attesa: per quanti mesi ce la fai se le entrate si fermano.",
         warning: null,
       },
       {
@@ -218,34 +218,34 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
         label: "Liquidità",
         value: amount(metrics.liquidity),
         empty: "non disponibile",
-        explanation: "Somma dei saldi dei conti reali scelti, alla data della stima.",
+        explanation: "Quanto c'è adesso sui conti scelti: la somma dei loro saldi.",
         warning: null,
       },
       {
         key: "essential_monthly",
-        label: "Quota incomprimibile",
+        label: "Spesa irrinunciabile",
         value: amount(metrics.essential_monthly),
         empty: "non disponibile",
         explanation:
-          "Spese non episodiche delle categorie contrassegnate come incomprimibili: quanto non è tagliabile.",
+          "La spesa tipica di un mese nelle categorie segnate come irrinunciabili: quello che non taglieresti.",
         warning: null,
       },
       {
         key: "discretionary_monthly",
-        label: "Quota discrezionale",
+        label: "Spesa tagliabile",
         value: amount(metrics.discretionary_monthly),
         empty: "non disponibile",
         explanation:
-          "Spese non episodiche delle altre categorie: quanto potresti tagliare se servisse.",
+          "La spesa tipica di un mese nelle altre categorie: quanto potresti tagliare se servisse.",
         warning: null,
       },
       {
         key: "savings_flow",
-        label: "Flusso di risparmio",
+        label: "Investito",
         value: amount(metrics.savings_flow),
         empty: "non disponibile",
         explanation:
-          "Trasferimenti verso i conti contrassegnati come investimento: l'unico ponte tra le spese e il patrimonio.",
+          "Quanto è andato negli ultimi 6 mesi verso i conti segnati come investimento: non è spesa, è patrimonio che cresce.",
         warning: null,
       },
     ];
@@ -282,7 +282,7 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
   const activeFilters = scopedAccounts.length + (scopedCategory === "" ? 0 : 1);
 
   const subtitle = metrics
-    ? `${periodChip} · burn su ${metrics.months_of_history} ${
+    ? `${periodChip} · spesa tipica su ${metrics.months_of_history} ${
         metrics.months_of_history === 1 ? "mese" : "mesi"
       } di storico`
     : "Caricamento…";
@@ -522,8 +522,8 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
         <p className="banner banner--warning" role="note">
           Storico parziale: {metrics.months_of_history}{" "}
           {metrics.months_of_history === 1 ? "mese" : "mesi"} disponibili.
-          {metrics.partial ? " Il burn ricorrente usa 6 mesi." : ""}
-          {metrics.episodic_partial ? " L'accantonamento episodico usa 24 mesi." : ""}
+          {metrics.partial ? " La spesa mensile tipica usa 6 mesi." : ""}
+          {metrics.episodic_partial ? " La riserva per spese rare usa 24 mesi." : ""}
         </p>
       ) : null}
 
@@ -545,7 +545,7 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
             ))}
           </ul>
           <details className="metric-help">
-            <summary>Come si calcolano: burn su 6 mesi, accantonamento su 24</summary>
+            <summary>Come si calcolano: spesa tipica su 6 mesi, riserva per spese rare su 24</summary>
             <ul className="metric-help__list">
               {cards.map((card) => (
                 <li key={card.key}>
