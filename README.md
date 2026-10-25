@@ -501,10 +501,13 @@ What it mounts, and why:
   carries it off the machine sees a folder on the host.
 - `web/dist` is built inside the image, so the API serves the PWA itself.
 
-The port is published on `${AMONHEN_BIND_ADDRESS:-127.0.0.1}:8000`: the container
-is reachable from the host, and Tailscale carries it to the phone. To use it from
-outside the house — including the OAuth callback above — serve it over the
-tailnet:
+The port is published on
+`${AMONHEN_BIND_ADDRESS:-127.0.0.1}:${AMONHEN_HOST_PORT:-8000}`: the container is
+reachable from the host, and Tailscale carries it to the phone. When 8000 is
+already taken on the host — on the NAS it is paperless's — set
+`AMONHEN_HOST_PORT` in `.env` (the live NAS uses 8010) and point Tailscale at that
+port. To use it from outside the house — including the OAuth callback above —
+serve it over the tailnet:
 
 ```bash
 tailscale serve --bg localhost:8000    # https://<node>.<tailnet>.ts.net

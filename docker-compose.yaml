@@ -11,8 +11,10 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      # Reachable through Tailscale only; nothing is exposed publicly.
-      - "${AMONHEN_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+      # Reachable through Tailscale only; nothing is exposed publicly. The host
+      # side of the port is a variable because 8000 is often taken already (on
+      # the NAS it is paperless's); inside the container the app stays on 8000.
+      - "${AMONHEN_BIND_ADDRESS:-127.0.0.1}:${AMONHEN_HOST_PORT:-8000}:8000"
     environment:
       AMONHEN_DB_PATH: /data/amonhen.db
       AMONHEN_CONFIG_FILE: /config/accounts.json
