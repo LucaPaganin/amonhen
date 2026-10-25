@@ -183,7 +183,7 @@ Then the part that matters, from ${target}/deploy:
 
   docker compose stop amonhen
   docker compose run --rm --no-deps --user root --entrypoint sh amonhen \\
-    -c 'cp /backups/<stamp>/amonhen.db /data/amonhen.db && chown 10001:10001 /data/amonhen.db'
+    -c 'rm -f /data/amonhen.db-wal /data/amonhen.db-shm && cp /backups/<stamp>/amonhen.db /data/amonhen.db && chown 10001:10001 /data/amonhen.db'
   docker compose up -d amonhen
   # /api/health answers again and the dashboard shows the same movements.
 

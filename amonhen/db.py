@@ -1,6 +1,7 @@
 """Ledger schema: accounts, transactions, postings, transfer links, balances."""
 import os
 import sqlite3
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 SCHEMA = """
@@ -183,10 +184,70 @@ _ADDED_COLUMNS = (
 )
 
 
+class LedgerConnection(sqlite3.Connection):
+    """A connection whose commits a batch can hold back until it ends.
+
+    The ledger writes each movement inside its own ``with conn:``, which is right
+    for one movement and ruinous for a sync: on the NAS's btrfs every commit is a
+    flush to disk, and the first sync of 750 movements took five and a half
+    minutes holding the lock the whole time. Inside ``deferred_commits`` the inner
+    blocks neither commit nor roll back; the batch commits once at its end, and an
+    error anywhere rolls back the whole batch rather than leaving half of it.
+    """
+
+    _deferred = 0
+
+    def __exit__(self, exc_type, exc, tb):
+        if self._deferred:
+            return False
+        return super().__exit__(exc_type, exc, tb)
+
+    def commit(self) -> None:
+        if self._deferred:
+            return
+        super().commit()
+
+    @contextmanager
+    def deferred_commits(self):
+        self._deferred += 1
+        try:
+            yield
+        except BaseException:
+            self._deferred -= 1
+            if not self._deferred:
+                self.rollback()
+            raise
+        self._deferred -= 1
+        if not self._deferred:
+            super().commit()
+
+
+def deferred_commits(conn: sqlite3.Connection):
+    """One transaction for everything inside, on a connection ``connect`` made.
+
+    A plain ``sqlite3.Connection`` (a test that built its own) keeps its commits.
+    """
+    if isinstance(conn, LedgerConnection):
+        return conn.deferred_commits()
+    return nullcontext()
+
+
 def connect(path: str | Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(path))
+    """Open the ledger with the settings the server and the CLI share.
+
+    WAL lets the app keep reading while a sync writes — with the rollback journal
+    every commit locked readers out, and a page opened during the first sync
+    answered 500 with "database is locked" — and ``synchronous = NORMAL`` is the
+    setting WAL is designed for: a commit no longer waits on a flush, which only
+    the checkpoint does, and a power cut can lose the last commits but never
+    corrupt the file. The journal mode is stored in the file, so the WAL files
+    (``-wal``, ``-shm``) sit beside the ledger from the first connection on.
+    """
+    conn = sqlite3.connect(str(path), factory=LedgerConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable, Sequence
 
+from amonhen.db import deferred_commits
 from amonhen.dedup import content_hash
 from amonhen.models import (
     Account,
@@ -282,14 +283,19 @@ class Ledger:
         return transaction_id, action
 
     def record_batch(self, transactions: Iterable[IncomingTransaction]) -> dict[str, int]:
-        """Record a batch, giving identical rows inside it their own identity."""
+        """Record a batch, giving identical rows inside it their own identity.
+
+        The batch is one transaction: one commit at the end instead of one per
+        movement, and nothing written when any of them fails.
+        """
         occurrences: dict[str, int] = {}
         actions: dict[str, int] = {}
-        for txn in transactions:
-            key = content_hash(txn.account_id, txn.date, txn.amount, txn.description)
-            occurrences[key] = occurrences.get(key, 0) + 1
-            _, action = self.record(txn, occurrence=occurrences[key])
-            actions[action] = actions.get(action, 0) + 1
+        with deferred_commits(self.conn):
+            for txn in transactions:
+                key = content_hash(txn.account_id, txn.date, txn.amount, txn.description)
+                occurrences[key] = occurrences.get(key, 0) + 1
+                _, action = self.record(txn, occurrence=occurrences[key])
+                actions[action] = actions.get(action, 0) + 1
         return actions
 
     def _tombstone(self, txn: IncomingTransaction, digest: str) -> sqlite3.Row | None:

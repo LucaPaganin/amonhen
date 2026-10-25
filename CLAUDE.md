@@ -89,7 +89,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
-|`db`|`connect`, `initialize`, `open_ledger_db`|
+|`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
 |`ledger`|`Ledger`, `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount`, `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
@@ -501,6 +501,18 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `key_loads`, whether the file on disk loads as one, and `load_config` hands the
   path to the Enable Banking client. No endpoint returns the key and nothing logs
   it: the file is the only copy.
+- **The ledger is in WAL mode, and a batch is one transaction.** On the NAS's btrfs
+  every commit is a flush, and the ledger commits once per movement (`with
+  self.conn:` throughout `ledger.py`): the first live sync took five and a half
+  minutes for 750 movements, and every page opened meanwhile answered 500 with
+  `database is locked`. `db.connect` opens the file with `journal_mode = WAL` and
+  `synchronous = NORMAL`, so readers never wait on the writer, and returns a
+  `LedgerConnection`, whose `deferred_commits()` makes the inner `with conn:`
+  blocks neither commit nor roll back until the outermost one ends.
+  `record_batch` runs inside it — the sync, `amonhen import` and the app's CSV
+  import all reach it — so a batch commits once and a failure writes none of it.
+  The WAL files sit beside the ledger: a restore removes `-wal`/`-shm` with the
+  copy, and the snapshot is switched back to the rollback journal so it is one file.
 - **A snapshot is taken with SQLite's API, never by copying the file, and it is
   not a backup until it leaves the machine.** `amonhen backup` runs
   `Connection.backup` against the living database because the server may be
@@ -716,7 +728,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
 |Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|
 |Deploy a new image to the NAS|Tag `v*` and let CI publish, then `docker compose pull && docker compose up -d` on the NAS (the NAS needs no checkout)|
-|Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|
+|Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, removing `amonhen.db-wal`/`-shm`, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|
 |Rehearse the first start before the NAS does|`tools/rehearse_local.sh` inside WSL: it builds from the checkout, serves `tools/eb_stub.py` as the bank, and prints what to walk in the browser|
 |Map a bank's CSV layout|The **Importa** section of the app: choose the file, then the columns — or add a `CsvProfile` in `adapters/csv_adapter.py` plus a synthetic fixture when the layout must be a named profile|
 |Reset an account|Delete its rows / the database file, then `sync` and `import` again|

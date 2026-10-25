@@ -567,13 +567,15 @@ docker compose cp amonhen:/backups/2026-09-26T101500Z .
 ```
 
 To go back to one, stop the app first: stopping is what closes the database, so
-nothing is being written while the copy lands.
+nothing is being written while the copy lands. The living ledger is in WAL mode,
+so `/data` may also hold `amonhen.db-wal` and `amonhen.db-shm`: remove them with
+the copy, or SQLite replays the old ledger's log onto the restored file.
 
 ```bash
 cd /volume1/docker/amonhen
 docker compose stop amonhen
 docker compose run --rm --no-deps --user root --entrypoint sh amonhen \
-  -c 'cp /backups/2026-09-26T101500Z/amonhen.db /data/amonhen.db && chown 10001:10001 /data/amonhen.db'
+  -c 'rm -f /data/amonhen.db-wal /data/amonhen.db-shm && cp /backups/2026-09-26T101500Z/amonhen.db /data/amonhen.db && chown 10001:10001 /data/amonhen.db'
 docker compose up -d amonhen
 ```
 

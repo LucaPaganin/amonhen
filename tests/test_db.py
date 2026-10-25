@@ -224,3 +224,26 @@ def test_a_legacy_rule_shadowed_by_a_longer_text_hands_its_movement_over(tmp_pat
     # And removing the winning rule gives it back to the one that still matches.
     assert book.remove_rule("cart", ledger) == 1
     assert ledger.category_of(movement) == "Groceries"
+
+
+def test_the_ledger_is_opened_in_wal_mode(tmp_path):
+    """A page opened while a sync writes must read, not answer "database is locked"."""
+    path = tmp_path / "amonhen.db"
+    writer = connect(path)
+    initialize(writer)
+
+    assert writer.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    assert writer.execute("PRAGMA synchronous").fetchone()[0] == 1  # NORMAL
+
+    writer.execute("INSERT INTO accounts (name, type) VALUES ('Revolut', 'real')")
+    writer.commit()
+    writer.execute("BEGIN IMMEDIATE")
+    writer.execute("INSERT INTO accounts (name, type) VALUES ('Fineco', 'real')")
+    # The write is still open: a reader sees the last commit, without waiting.
+    reader = connect(path)
+    reader.execute("PRAGMA busy_timeout = 0")
+    names = [row["name"] for row in reader.execute("SELECT name FROM accounts WHERE type = 'real'")]
+    assert names == ["Revolut"]
+    writer.commit()
+    reader.close()
+    writer.close()

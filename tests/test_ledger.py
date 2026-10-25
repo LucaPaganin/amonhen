@@ -857,3 +857,38 @@ def test_a_new_suggestion_for_the_same_merchant_replaces_the_decision(ledger):
     assert len(pending) == 1
     assert pending[0]["category"] == "Transport"
     assert pending[0]["source"] == "llm"
+
+
+def test_a_batch_is_written_with_one_commit(ledger):
+    """A sync is one transaction per account, not one flush per movement."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    batch = [make_txn(ledger, account, f"2026-01-0{day}", "-10.00", f"Shop {day}") for day in range(1, 6)]
+    statements: list[str] = []
+    ledger.conn.set_trace_callback(statements.append)
+
+    actions = ledger.record_batch(batch)
+
+    ledger.conn.set_trace_callback(None)
+    assert actions == {"inserted": 5}
+    assert [s for s in statements if s.strip().upper() == "COMMIT"] == ["COMMIT"]
+
+
+def test_a_batch_that_fails_halfway_writes_nothing(ledger, monkeypatch):
+    """Half a statement in the ledger is worse than none: the next sync could not tell."""
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    batch = [make_txn(ledger, account, f"2026-01-0{day}", "-10.00", f"Shop {day}") for day in range(1, 6)]
+    insert = ledger._insert
+    calls = {"n": 0}
+
+    def failing_insert(txn, digest):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            raise RuntimeError("disk gone")
+        return insert(txn, digest)
+
+    monkeypatch.setattr(ledger, "_insert", failing_insert)
+    with pytest.raises(RuntimeError):
+        ledger.record_batch(batch)
+
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 0
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM postings").fetchone()["c"] == 0

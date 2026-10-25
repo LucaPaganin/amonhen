@@ -93,10 +93,15 @@ def _copy_database(conn: sqlite3.Connection, target: Path) -> tuple[str, dict[st
     The counts are read from the copy and not from the living database: this runs
     while the server may be syncing, and a movement committed between the two
     would leave the manifest describing rows the snapshot does not hold.
+
+    The living ledger is in WAL mode and the copy inherits it; switching the copy
+    back to the rollback journal makes the snapshot one file, so restoring it is
+    copying that file and nothing beside it.
     """
     copy = sqlite3.connect(str(target))
     try:
         conn.backup(copy)
+        copy.execute("PRAGMA journal_mode = DELETE")
         counts = {table: _count(copy, table) for table in COUNTED_TABLES}
     finally:
         copy.close()
