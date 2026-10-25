@@ -65,6 +65,7 @@ from amonhen.models import Account, format_decimal, parse_decimal
 from amonhen.providers.enable_banking import (
     ConsentExpiredError,
     EnableBankingClient,
+    refusal_code,
     refusal_detail,
 )
 from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED
@@ -358,7 +359,7 @@ def create_app(
             # than turning it into a server error.
             raise HTTPException(
                 status_code=502,
-                detail=f"Enable Banking refused the request: {_upstream_refusal(exc)}",
+                detail=_auth_refusal(exc, config.redirect_url),
             ) from exc
         with ledger_scope() as ledger:
             ledger.set_setting(
@@ -1644,6 +1645,25 @@ def _upstream_refusal(exc: Exception) -> str:
     if not isinstance(exc, requests.HTTPError) or exc.response is None:
         return str(exc)
     return f"{exc.response.status_code} {refusal_detail(exc.response)}"
+
+
+def _auth_refusal(exc: Exception, redirect_url: str) -> str:
+    """Why `/auth` was refused, naming the redirect URL when that is the reason.
+
+    Enable Banking compares the redirect URL against the application's
+    registered list, which lives in its control panel and not in this file. That
+    is the one refusal a person can repair, and only if they are told which
+    value was sent — the two have to match character for character.
+    """
+    words = f"Enable Banking refused the request: {_upstream_refusal(exc)}"
+    response = exc.response if isinstance(exc, requests.HTTPError) else None
+    if response is None or refusal_code(response) != "REDIRECT_URI_NOT_ALLOWED":
+        return words
+    return (
+        f"{words} — the redirect URL sent was {redirect_url}, from accounts.json "
+        "(step 1 of Configurazione); Enable Banking accepts only the URLs registered "
+        "for the application, character for character"
+    )
 
 
 def _last_connect(ledger: Ledger) -> dict | None:

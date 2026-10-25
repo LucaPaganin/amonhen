@@ -47,6 +47,22 @@ def refusal_detail(response: requests.Response) -> str:
     return response.text[:200]
 
 
+def refusal_code(response: requests.Response) -> str:
+    """Enable Banking's machine-readable reason, empty when it gives none.
+
+    `error` is the fixed half of a refusal where `message` is prose the provider
+    may reword, so a caller that has to react to one reason reads it here
+    instead of matching text.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    if isinstance(body, dict) and isinstance(body.get("error"), str):
+        return body["error"]
+    return ""
+
+
 class EnableBankingClient:
     def __init__(
         self,

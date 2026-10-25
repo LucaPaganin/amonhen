@@ -467,9 +467,16 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   The live file still points at `<tailnet>:3000/callback`, the port of the Flask
   app this one replaced, where nothing listens; the wizard's credentials step is
   what rewrites it, from the origin the browser is on, and registering the derived
-  address in the dashboard stays manual. Tailscale serves it as
+  address in the dashboard stays manual. The step refuses an `http://` address there
+  unless it is on localhost, which only the rehearsal against the stub bank needs —
+  Enable Banking registers none. Tailscale serves it as
   `https://<node>.<tailnet>.ts.net/callback` (`tailscale serve --bg
-  localhost:8000`).
+  localhost:8000`). When the two disagree the app answers `Enable Banking refused
+  the request: 400 Redirect URI not allowed` and names the address it sent
+  (`_auth_refusal`, `refusal_code`); the registered half is readable with `GET
+  /application`, whose `redirect_urls` is the whole allowlist — an application
+  registered for an earlier deployment holds that earlier address and nothing
+  else.
 - **`accounts.json` has two writers, and neither is the only one.** The OAuth
   callback appends and refreshes entries: `save_account` keys on the account
   **uid** — a session id changes at every authorization while the uid does not, so

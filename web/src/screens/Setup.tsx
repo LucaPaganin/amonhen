@@ -388,8 +388,9 @@ function CredentialsStep({ state, onSave }: CredentialsStepProps) {
             onChange={(event) => setRedirectUrl(event.target.value)}
           />
           <p className="hint">
-            L&apos;indirizzo da cui stai usando l&apos;app. Enable Banking deve avere registrato
-            esattamente questo, carattere per carattere.
+            L&apos;indirizzo da cui stai usando l&apos;app. Enable Banking registra solo indirizzi
+            HTTPS — un indirizzo http://… vale per la prova locale con la banca finta, non per la
+            banca vera — e deve combaciare carattere per carattere con quello registrato.
           </p>
           {state.redirect_url !== "" && state.redirect_url !== proposed ? (
             <p className="hint">

@@ -324,7 +324,7 @@ def load_config(path: str | Path = CONFIG_FILE) -> MonitorConfig:
     return MonitorConfig(
         application_id=data["application_id"],
         pem_path=pem_path,
-        redirect_url=data.get("redirect_url", "http://localhost:3000/callback"),
+        redirect_url=data.get("redirect_url", "http://localhost:8000/callback"),
         own_names=parse_own_names(data.get("account_holder_name", "")),
         accounts=tuple(accounts),
         passthrough=parse_passthrough(data.get("passthrough")),
@@ -419,10 +419,22 @@ def _write_private_key(path: Path, payload: bytes) -> Path:
     return path
 
 
+# The one http shape that stays usable: the rehearsal against the stub bank serves
+# the callback from the machine the browser is on, and has no certificate to offer.
+_LOCAL_REDIRECT_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
 def _check_redirect_url(url: str) -> None:
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.netloc:
         raise ValueError(f"the redirect URL is not an http(s) address: {url!r}")
+    if parts.scheme == "http" and parts.hostname not in _LOCAL_REDIRECT_HOSTS:
+        raise ValueError(
+            "the redirect URL must be https: Enable Banking registers no http address, so "
+            "the registered one and this one could never agree. An http address on localhost "
+            "is the exception, for the rehearsal against the stub bank, where the machine "
+            "serving the callback is the one the browser runs on"
+        )
     if parts.path.rstrip("/") != "/callback":
         raise ValueError(
             "the redirect URL must be the app's /callback — scheme, host and port included — "

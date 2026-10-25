@@ -249,12 +249,17 @@ tailscale serve --bg localhost:8000   # https://<node>.<tailnet>.ts.net
 ```
 
 so `redirect_url` is `https://<node>.<tailnet>.ts.net/callback` and that is what
-gets registered. `http://<host>:8000/callback` works too, but Enable Banking
-rejects a non-HTTPS redirect that is not localhost, and that address only resolves
-on the machine running the app. The `:3000/callback` of earlier versions belongs
-to the Flask app this one replaced: nothing listens there, so the bank's redirect
-never arrives — which is what an expired consent looks like when you try to renew
-it.
+gets registered. Enable Banking keeps that list per application, its panel refuses
+any `http://` address, and `POST /auth` accepts nothing outside the list, so a URL
+left over from an earlier deployment — a different host, port or path, like the
+Flask bridge's `…:5006/enablebanking/auth_callback` — stays the only thing accepted
+until it is edited in the panel. An `http://localhost:<port>/callback` value does
+work in `accounts.json` for the rehearsal against the stub bank
+(`tools/rehearse_local.sh`), where the browser only ever talks to the machine it runs
+on; any other `http://` address is refused where it is typed. The `:3000/callback`
+of earlier versions belongs to the Flask app this one
+replaced: nothing listens there, so the bank's redirect never arrives — which is
+what an expired consent looks like when you try to renew it.
 
 The bank sends the browser back to `/callback`, which writes the authorized session
 into `accounts.json` and answers **303 to `/?setup=1`** instead of the JSON it used
@@ -271,7 +276,11 @@ the bank name must match an Enable Banking ASPSP exactly, no guessing; for Finec
 it is `FinecoBank` — so a script or a bookmark can start an authorization without
 the app. It answers 302 to the bank itself, and it forwards the bank's own refusal
 verbatim when something is wrong: `Enable Banking refused the request: 400 Redirect
-URI not allowed` means the registered URL and `accounts.json` disagree.
+URI not allowed` means the registered URL and `accounts.json` disagree, and the
+message goes on to name the address that was sent, since that is the half of the
+comparison this side can change. The other half is readable rather than guessable:
+`GET /application`, with the application's own JWT, answers the registered
+`redirect_urls`.
 
 Then import it:
 
@@ -596,7 +605,10 @@ there. `tools/rehearse_local.sh` reproduces that shape on a development machine 
 the image built from the checkout, a configuration folder the host owns, the ledger
 volume, the wizard — and answers Enable Banking's routes from the anonymized
 fixtures in `tests/fixtures/enable_banking`, so no real consent is spent and the
-bank's dashboard is not touched.
+bank's dashboard is not touched. The redirect URL it walks through is
+`http://localhost:<port>/callback` — an address Enable Banking would refuse to
+register, and the one place in the walkthrough where the stub does not stand in for
+the provider.
 
 ```bash
 # Inside WSL, with Docker Desktop running and WSL integration on for the distro:

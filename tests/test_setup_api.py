@@ -108,7 +108,14 @@ def test_a_key_that_is_not_a_private_key_is_refused_where_it_is_typed(tmp_path):
 def test_an_address_the_bank_could_not_use_is_refused(tmp_path):
     client = make_client(tmp_path)
 
-    for address in ("https://amonhen.example.ts.net/", "amonhen.example.ts.net/callback", "ftp://x/callback"):
+    for address in (
+        "https://amonhen.example.ts.net/",
+        "amonhen.example.ts.net/callback",
+        "ftp://x/callback",
+        # Enable Banking registers https only, so an http address on a name is a
+        # configuration that cannot work, not one to find out about at connect.
+        "http://amonhen.example.ts.net/callback",
+    ):
         response = client.put(
             "/api/setup/credentials",
             json={"application_id": "app-1", "redirect_url": address},
@@ -119,6 +126,21 @@ def test_an_address_the_bank_could_not_use_is_refused(tmp_path):
         "/api/setup/credentials",
         json={"application_id": "app-1", "redirect_url": "https://a.example/"},
     ).json()["detail"]
+
+    assert "https" in client.put(
+        "/api/setup/credentials",
+        json={"application_id": "app-1", "redirect_url": "http://a.example/callback"},
+    ).json()["detail"]
+
+    # http survives on localhost alone: the rehearsal against the stub bank is
+    # served by this machine and has no certificate to offer.
+    assert (
+        client.put(
+            "/api/setup/credentials",
+            json={"application_id": "app-1", "redirect_url": "http://localhost:8000/callback"},
+        ).status_code
+        == 200
+    )
 
 
 def test_the_private_key_never_comes_back_from_the_server(tmp_path, rsa_pem):
@@ -355,6 +377,45 @@ def test_the_setup_asks_for_the_authorization_url_instead_of_redirecting(
     pending = json.loads(Ledger(conn).setting("pending_oauth"))
     conn.close()
     assert pending["bank"] == "FinecoBank"
+
+
+@responses_lib.activate
+def test_a_refused_redirect_says_which_address_was_sent(tmp_path, rsa_pem, monkeypatch):
+    """Enable Banking compares the redirect URL with the application's list.
+
+    Only one half of that comparison is on this machine — the registered URLs
+    live in its control panel — so the refusal has to name the address that was
+    sent, which is the half the person can change here.
+    """
+    pem_path, _ = rsa_pem
+    monkeypatch.setattr(provider, "EB_API", API)
+    client = make_client(tmp_path)
+    client.put(
+        "/api/setup/credentials",
+        json={
+            "application_id": "app-1",
+            "redirect_url": REDIRECT,
+            "private_key": pem_path.read_text(encoding="utf-8"),
+        },
+    )
+    responses_lib.post(
+        f"{API}/auth",
+        status=400,
+        json={
+            "code": 400,
+            "message": "Redirect URI not allowed",
+            "error": "REDIRECT_URI_NOT_ALLOWED",
+            "detail": None,
+        },
+    )
+
+    response = client.post("/api/setup/connect", json={"bank": "FinecoBank", "country": "IT"})
+
+    assert response.status_code == 502
+    detail = response.json()["detail"]
+    assert "Enable Banking refused the request: 400 Redirect URI not allowed" in detail
+    assert REDIRECT in detail
+    assert "accounts.json" in detail
 
 
 def write_accounts(tmp_path: Path, entries: list[dict]) -> None:

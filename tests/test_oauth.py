@@ -202,6 +202,8 @@ def test_a_bank_name_the_provider_rejects_is_reported_as_an_upstream_failure(
 
     assert response.status_code == 502
     assert "Unknown ASPSP" in response.json()["detail"]
+    # Only a redirect refusal names the address: this one has nothing to do with it.
+    assert "redirect URL sent" not in response.json()["detail"]
 
 
 @responses_lib.activate
