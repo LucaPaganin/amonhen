@@ -8,7 +8,7 @@ import pytest
 import requests
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
-from amonhen.providers.enable_banking import ConsentExpiredError
+from amonhen.providers.enable_banking import ConsentExpiredError, FetchedWindow
 from amonhen.sync import SyncBusy, SyncService, _SYNC_LOCK
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "enable_banking" / "revolut_personale.json"
@@ -29,6 +29,7 @@ class FakeClient:
         session_accounts=None,
         details=None,
         details_error=False,
+        failing=(),
     ):
         self.transactions = transactions
         self.expires = expires
@@ -39,15 +40,39 @@ class FakeClient:
         )
         self.details = self.DETAILS if details is None else details
         self.details_error = details_error
+        self.failing = set(failing)
         self.fetch_calls: list[tuple[str, dt.date, dt.date]] = []
+        self.window_calls: list[tuple] = []
         self.balance_calls: list[str] = []
         self.detail_calls: list[str] = []
 
-    def fetch_transactions(self, account_uid, date_from, date_to=None):
+    def fetch_transactions(self, account_uid, date_from, date_to=None, window_days=30):
         self.fetch_calls.append((account_uid, date_from, date_to))
         if self.expires:
             raise ConsentExpiredError("expired")
         return list(self.transactions)
+
+    def fetch_transaction_windows(self, account_uid, date_from, date_to, window_days=30):
+        """The period as the bank would cut it, serving the fixtures by booking date.
+
+        `failing` names the windows (by their first day) the bank refuses.
+        """
+        self.window_calls.append((account_uid, date_from, date_to, window_days))
+        if self.expires:
+            raise ConsentExpiredError("expired")
+        windows = []
+        start = date_from
+        while start <= date_to:
+            end = min(start + dt.timedelta(days=window_days - 1), date_to)
+            if start in self.failing:
+                windows.append(FetchedWindow(start, end, error="400 period too long"))
+            else:
+                windows.append(FetchedWindow(start, end, [
+                    raw for raw in self.transactions
+                    if start <= dt.date.fromisoformat(_booked_on(raw)) <= end
+                ]))
+            start = end + dt.timedelta(days=1)
+        return windows
 
     def fetch_balances(self, account_uid):
         self.balance_calls.append(account_uid)
@@ -63,6 +88,10 @@ class FakeClient:
 
     def list_accounts(self, session_id):
         return list(self.session_accounts)
+
+
+def _booked_on(raw):
+    return (raw.get("booking_date") or raw.get("value_date") or raw.get("transaction_date"))[:10]
 
 
 def reported_balance(amount="304.60", balance_type="ITAV", reference="2026-09-12"):

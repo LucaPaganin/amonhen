@@ -35,6 +35,9 @@ import type {
   SuggestionDecision,
   SuggestionDecisionOutcome,
   SyncOutcome,
+  PeriodSyncOutcome,
+  HeldMovement,
+  RecordAction,
   Transaction,
   TransactionPage,
   TransferDecision,
@@ -186,6 +189,17 @@ export const api = {
   // Synchronous on purpose: the button asked for this run, and the answer is
   // what the run wrote. A second one while it is going answers 409.
   sync: () => send<SyncOutcome>("POST", "/sync", {}),
+  // One connected account over a chosen period; `preview` writes nothing.
+  syncPeriod: (accountId: number, from: string, to: string, preview: boolean) =>
+    send<PeriodSyncOutcome>("POST", "/sync/period", { account_id: accountId, from, to, preview }),
+  // The probable duplicates a period sync held, and the decision on each one.
+  held: (signal?: AbortSignal) => get<HeldMovement[]>("/sync/held", signal),
+  decideHeld: (heldId: number, decision: "write" | "discard") =>
+    send<{ transaction_id: number | null; action: RecordAction | null; held: HeldMovement[] }>(
+      "POST",
+      `/sync/held/${heldId}/${decision}`,
+      {},
+    ),
   accounts: (signal?: AbortSignal) => get<Account[]>("/accounts", signal),
   categories: (signal?: AbortSignal) => get<Category[]>("/categories", signal),
   transactions: (query: TransactionQuery, signal?: AbortSignal) =>

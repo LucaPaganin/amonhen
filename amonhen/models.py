@@ -8,7 +8,10 @@ AccountType = Literal["real", "virtual", "category"]
 TransactionStatus = Literal["BOOK", "PDNG"]
 SourceKind = Literal["psd2", "import"]
 RecordAction = Literal[
-    "inserted", "duplicate", "promoted", "updated", "suppressed", "reimported"
+    "inserted", "duplicate", "promoted", "updated", "suppressed", "reimported",
+    # A period sync holds a movement that looks like one a file import already
+    # wrote under other words, until a person decides; a discarded one stays out.
+    "held", "discarded",
 ]
 
 

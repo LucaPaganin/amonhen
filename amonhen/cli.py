@@ -22,7 +22,7 @@ from amonhen.settings import (
     PORT,
     SYNC_INTERVAL_HOURS,
 )
-from amonhen.sync import SyncBusy, SyncService
+from amonhen.sync import PeriodInvalid, SyncBusy, SyncService
 from amonhen.transfers import link_passthrough_legs, link_transfers
 
 
@@ -33,7 +33,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="log each sync step")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("sync", help="fetch every configured account into the ledger")
+    sync = sub.add_parser(
+        "sync",
+        help="fetch every configured account into the ledger, or one account over a period",
+    )
+    sync.add_argument("--account", help="sync only this connected account (with --from/--to)")
+    sync.add_argument("--from", dest="date_from", type=dt.date.fromisoformat,
+                      help="first day of the period, YYYY-MM-DD")
+    sync.add_argument("--to", dest="date_to", type=dt.date.fromisoformat,
+                      help="last day of the period, YYYY-MM-DD (today at the latest)")
+    sync.add_argument("--preview", action="store_true",
+                      help="with a period: say what each movement would become, write nothing")
     sub.add_parser("validate", help="assert that every transaction balances")
 
     backup = sub.add_parser("backup", help="snapshot the ledger and its configuration")
@@ -160,6 +170,12 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def cmd_sync(ledger: Ledger, args) -> int:
+    period = [getattr(args, name, None) for name in ("account", "date_from", "date_to")]
+    if any(period) or getattr(args, "preview", False):
+        if not all(period):
+            print("a period sync needs --account, --from and --to together", file=sys.stderr)
+            return 2
+        return _sync_period(ledger, args)
     config = load_config(args.config)
     service = SyncService(ledger, build_client(config), config)
     result = service.run()
@@ -172,6 +188,41 @@ def cmd_sync(ledger: Ledger, args) -> int:
     print(f"transfers linked: {result.transfers_linked}")
     print(f"passthrough legs: {result.passthrough_legs}")
     print(f"rules applied: {result.rules_applied}")
+    return 1 if result.errors else 0
+
+
+def _sync_period(ledger: Ledger, args) -> int:
+    """One account over a chosen period: a line per window, then what it wrote.
+
+    A probable duplicate of an imported movement is held, not written; the app's
+    Conti panel is where a person writes or discards each one.
+    """
+    config = load_config(args.config)
+    service = SyncService(ledger, build_client(config), config)
+    try:
+        result = service.run_period(args.account, args.date_from, args.date_to, preview=args.preview)
+    except PeriodInvalid as exc:
+        print(f"cannot sync the period: {exc}", file=sys.stderr)
+        return 2
+    for window in result.windows:
+        outcome = f"error: {window.error}" if window.error else f"fetched={window.fetched}"
+        print(f"{window.date_from}..{window.date_to}: {outcome}")
+    for movement in result.movements:
+        line = f"{movement.date} {movement.amount:>10} {movement.action:<10} {movement.description}"
+        if movement.twin_description:
+            line += f"  (like {movement.twin_source}: {movement.twin_description})"
+        print(line)
+    summary = ", ".join(f"{action}={count}" for action, count in sorted(result.actions.items()))
+    verb = "would be" if result.preview else "written"
+    print(f"{result.account}: {verb} {summary or 'nothing'}")
+    if result.held:
+        print(f"held as probable duplicates of an import: {result.held} (decide in Conti)")
+    if not result.preview:
+        print(f"transfers linked: {result.transfers_linked}")
+        print(f"passthrough legs: {result.passthrough_legs}")
+        print(f"rules applied: {result.rules_applied}")
+    for problem in result.errors:
+        print(problem, file=sys.stderr)
     return 1 if result.errors else 0
 
 

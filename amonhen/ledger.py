@@ -10,7 +10,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Iterable, Sequence
+from typing import Iterable, Iterator, Sequence
 
 from amonhen.db import deferred_commits
 from amonhen.dedup import content_hash
@@ -144,6 +144,67 @@ def _declaration_order(row: sqlite3.Row) -> tuple[str, bool, int]:
     return (row["date"], row["source"].startswith("eb:"), -_source_priority(row["source"]))
 
 
+@dataclass(frozen=True)
+class _Plan:
+    """What `Ledger.record` decided about one movement, before writing it."""
+
+    action: RecordAction
+    digest: str
+    row: sqlite3.Row | None = None
+    tombstone: sqlite3.Row | None = None
+
+
+def _numbered(
+    transactions: Iterable[IncomingTransaction],
+) -> Iterator[tuple[IncomingTransaction, int]]:
+    """Each movement with its occurrence among identical ones in the batch."""
+    occurrences: dict[str, int] = {}
+    for txn in transactions:
+        key = content_hash(txn.account_id, txn.date, txn.amount, txn.description)
+        occurrences[key] = occurrences.get(key, 0) + 1
+        yield txn, occurrences[key]
+
+
+def _movement_json(txn: IncomingTransaction) -> str:
+    """A held movement as it arrived, minus what the ledger assigns on writing."""
+    return json.dumps(
+        {
+            "date": txn.date.isoformat(),
+            "amount": format_decimal(txn.amount),
+            "description": txn.description,
+            "status": txn.status,
+            "source": txn.source,
+            "external_id": txn.external_id,
+            "counterparty": txn.counterparty,
+            "counterparty_account": txn.counterparty_account,
+            "currency": txn.currency,
+            "raw": txn.raw,
+            "source_file": txn.source_file,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _movement_from_json(text: str, account_id: int, balancing_account_id: int) -> IncomingTransaction:
+    data = json.loads(text)
+    return IncomingTransaction(
+        account_id=account_id,
+        date=dt.date.fromisoformat(data["date"]),
+        amount=parse_decimal(data["amount"]),
+        description=data["description"],
+        status=data["status"],
+        source=data["source"],
+        balancing_account_id=balancing_account_id,
+        external_id=data.get("external_id"),
+        counterparty=data.get("counterparty"),
+        counterparty_account=data.get("counterparty_account"),
+        currency=data.get("currency") or "EUR",
+        raw=data.get("raw") or {},
+        source_file=data.get("source_file"),
+    )
+
+
 class Ledger:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
@@ -247,6 +308,15 @@ class Ledger:
         answered as a duplicate instead of being written twice, and only the
         tombstone's veto — the thing being undone — is skipped.
         """
+        return self._carry_out(txn, self._plan(txn, occurrence, restoring=restoring))
+
+    def _plan(self, txn: IncomingTransaction, occurrence: int = 1, *,
+              restoring: bool = False) -> "_Plan":
+        """What `record` would do with this movement, without doing it.
+
+        The one decision the write path and the period sync's preview share: a
+        preview that reasoned on its own could promise what the write does not do.
+        """
         digest = content_hash(txn.account_id, txn.date, txn.amount, txn.description)
         if occurrence > 1:
             # Identical content repeated inside one ingest batch is a second
@@ -265,38 +335,168 @@ class Ledger:
                 digest = f"{digest}:{txn.external_id}"
             else:
                 return self._absorb(twin, txn, digest)
+        # The pending row this settled one promotes, or the settled row this
+        # late pending twin repeats.
         counterpart = self._find_opposite_status(txn)
         if counterpart is not None:
-            return self._merge_status_change(counterpart, txn, digest)
+            return self._absorb(counterpart, txn, digest)
         # The tombstone is read last on purpose: a movement the ledger already
         # holds is a duplicate whatever a person deleted once, and only a row
         # that is really absent can be one a deletion keeps out.
         tombstone = None if restoring else self._tombstone(txn, digest)
-        if tombstone is not None and not tombstone["reimport_deleted"]:
-            return 0, "suppressed"
-        transaction_id = self._insert(txn, digest)
-        if tombstone is not None:
-            action = "reimported"
-            self._mark_restored(tombstone["id"], tombstone["notes"], transaction_id)
-        else:
-            action = "inserted"
-        return transaction_id, action
+        if tombstone is None:
+            return _Plan("inserted", digest)
+        if not tombstone["reimport_deleted"]:
+            return _Plan("suppressed", digest)
+        return _Plan("reimported", digest, tombstone=tombstone)
 
-    def record_batch(self, transactions: Iterable[IncomingTransaction]) -> dict[str, int]:
+    def _carry_out(self, txn: IncomingTransaction, plan: "_Plan") -> tuple[int, RecordAction]:
+        if plan.action == "duplicate":
+            return plan.row["id"], "duplicate"
+        if plan.action == "promoted":
+            return self._promote(plan.row, txn, plan.digest)
+        if plan.action == "suppressed":
+            return 0, "suppressed"
+        transaction_id = self._insert(txn, plan.digest)
+        if plan.tombstone is not None:
+            self._mark_restored(plan.tombstone["id"], plan.tombstone["notes"], transaction_id)
+        return transaction_id, plan.action
+
+    def record_batch(
+        self, transactions: Iterable[IncomingTransaction], *, hold_probable: bool = False
+    ) -> dict[str, int]:
         """Record a batch, giving identical rows inside it their own identity.
 
         The batch is one transaction: one commit at the end instead of one per
         movement, and nothing written when any of them fails.
+
+        With `hold_probable` (the period sync), a movement that would be written
+        but looks like one the other ingest path already wrote under other words
+        is held instead (`held_transactions`), for a person to decide.
         """
-        occurrences: dict[str, int] = {}
         actions: dict[str, int] = {}
         with deferred_commits(self.conn):
-            for txn in transactions:
-                key = content_hash(txn.account_id, txn.date, txn.amount, txn.description)
-                occurrences[key] = occurrences.get(key, 0) + 1
-                _, action = self.record(txn, occurrence=occurrences[key])
+            for txn, occurrence in _numbered(transactions):
+                plan = self._plan(txn, occurrence)
+                twin = (
+                    self.probable_duplicate(txn)
+                    if hold_probable and plan.action == "inserted" else None
+                )
+                if twin is not None:
+                    action = self._hold(txn, occurrence, plan.digest, twin)
+                else:
+                    _, action = self._carry_out(txn, plan)
                 actions[action] = actions.get(action, 0) + 1
         return actions
+
+    def preview_batch(
+        self, transactions: Iterable[IncomingTransaction]
+    ) -> list[tuple[IncomingTransaction, RecordAction, sqlite3.Row | None]]:
+        """What `record_batch(..., hold_probable=True)` would do, writing nothing.
+
+        Each movement comes back with its action and, for a probable duplicate,
+        the row it resembles. Read-only, so a pending row promoted earlier in the
+        same batch is not seen by the rows after it: the preview is per movement
+        against the ledger as it stands.
+        """
+        answers = []
+        for txn, occurrence in _numbered(transactions):
+            plan = self._plan(txn, occurrence)
+            twin = self.probable_duplicate(txn) if plan.action == "inserted" else None
+            action: RecordAction = plan.action
+            if twin is not None:
+                held = self._held_row(txn.account_id, txn.external_id or plan.digest)
+                action = "discarded" if held is not None and held["decision"] == "discarded" else "held"
+            answers.append((txn, action, twin))
+        return answers
+
+    def probable_duplicate(self, txn: IncomingTransaction) -> sqlite3.Row | None:
+        """A row the other ingest path wrote on the same account, day and amount.
+
+        Section 5.1 makes the content hash the only discriminator between sync
+        and file import, and the hash contains the description: when the bank
+        words a movement differently in PSD2 and in its export, the hash cannot
+        see that they are one. Same account, day and amount from the other
+        source is the evidence there is; it is not proof, so it holds a movement
+        rather than refusing it.
+        """
+        return self.conn.execute(
+            """SELECT * FROM transactions
+               WHERE account_id = ? AND date = ? AND amount = ? AND source <> ?
+               ORDER BY id LIMIT 1""",
+            (txn.account_id, txn.date.isoformat(), format_decimal(txn.amount), txn.source),
+        ).fetchone()
+
+    def _hold(self, txn: IncomingTransaction, occurrence: int, digest: str,
+              twin: sqlite3.Row) -> RecordAction:
+        """Keep a probable duplicate aside, once: a period run again holds nothing twice."""
+        key = txn.external_id or digest
+        held = self._held_row(txn.account_id, key)
+        if held is not None:
+            return "discarded" if held["decision"] == "discarded" else "held"
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO held_transactions (account_id, key, occurrence, date, amount,
+                       description, movement, twin_id, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    txn.account_id, key, occurrence, txn.date.isoformat(),
+                    format_decimal(txn.amount), txn.description, _movement_json(txn),
+                    twin["id"], dt.datetime.now(dt.UTC).isoformat(),
+                ),
+            )
+        return "held"
+
+    def _held_row(self, account_id: int, key: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM held_transactions WHERE account_id = ? AND key = ?", (account_id, key)
+        ).fetchone()
+
+    def held_transactions(self, account_id: int | None = None) -> list[sqlite3.Row]:
+        """The probable duplicates still waiting, with the row each one resembles."""
+        sql = """SELECT h.*, a.name AS account_name, t.description AS twin_description,
+                        t.source AS twin_source, t.source_file AS twin_source_file
+                 FROM held_transactions h
+                 JOIN accounts a ON a.id = h.account_id
+                 LEFT JOIN transactions t ON t.id = h.twin_id
+                 WHERE h.decision = 'pending'"""
+        params: tuple = ()
+        if account_id is not None:
+            sql += " AND h.account_id = ?"
+            params = (account_id,)
+        return list(self.conn.execute(sql + " ORDER BY h.date, h.id", params))
+
+    def decide_held(self, held_id: int, decision: str) -> tuple[int, RecordAction | None]:
+        """Write a held movement (`write`) or keep it out (`discard`), once.
+
+        Writing goes through `record` with the occurrence the batch gave it, so
+        the dedup and the tombstones still have their say — a movement the
+        ledger acquired since the hold comes back a duplicate, not a second row.
+        A discarded movement stays in the table: it is what keeps the same
+        period, run again, from asking a second time.
+        """
+        if decision not in ("write", "discard"):
+            raise ValueError(f"unknown decision {decision!r}: write or discard")
+        row = self.conn.execute(
+            "SELECT * FROM held_transactions WHERE id = ?", (held_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"held movement {held_id} not found")
+        if row["decision"] != "pending":
+            raise ValueError(f"held movement {held_id} was already decided ({row['decision']})")
+        transaction_id, action = 0, None
+        with deferred_commits(self.conn):
+            if decision == "write":
+                movement = _movement_from_json(
+                    row["movement"], row["account_id"], self.uncategorized()
+                )
+                transaction_id, action = self.record(movement, row["occurrence"])
+            with self.conn:
+                self.conn.execute(
+                    "UPDATE held_transactions SET decision = ? WHERE id = ?",
+                    ("written" if decision == "write" else "discarded", held_id),
+                )
+        return transaction_id, action
 
     def _tombstone(self, txn: IncomingTransaction, digest: str) -> sqlite3.Row | None:
         """The deletion this movement matches, with the account's own flag.
@@ -362,16 +562,10 @@ class Ledger:
              txn.date.isoformat(), PENDING_WINDOW_DAYS),
         ).fetchone()
 
-    def _absorb(self, existing: sqlite3.Row, txn: IncomingTransaction, digest: str) -> tuple[int, RecordAction]:
+    def _absorb(self, existing: sqlite3.Row, txn: IncomingTransaction, digest: str) -> "_Plan":
         if existing["status"] == "PDNG" and txn.status == "BOOK":
-            return self._promote(existing, txn, digest)
-        return existing["id"], "duplicate"
-
-    def _merge_status_change(self, candidate: sqlite3.Row, txn: IncomingTransaction, digest: str) -> tuple[int, RecordAction]:
-        if candidate["status"] == "PDNG" and txn.status == "BOOK":
-            return self._promote(candidate, txn, digest)
-        # The settled row is already recorded and this is its late pending twin.
-        return candidate["id"], "duplicate"
+            return _Plan("promoted", digest, row=existing)
+        return _Plan("duplicate", digest, row=existing)
 
     def _promote(self, pending: sqlite3.Row, txn: IncomingTransaction, digest: str) -> tuple[int, RecordAction]:
         with self.conn:
@@ -516,7 +710,8 @@ class Ledger:
                 ).fetchone()[0]
                 if stray:
                     raise ValueError(f"{stray} postings of other movements sit on this account")
-                for table in ("deleted_transactions", "account_balances", "rules"):
+                for table in ("deleted_transactions", "held_transactions",
+                              "account_balances", "rules"):
                     self.conn.execute(f"DELETE FROM {table} WHERE account_id = ?", (account_id,))
                 self.conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
         return len(ids)

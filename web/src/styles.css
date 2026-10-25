@@ -2505,6 +2505,44 @@ button.txn:active {
   gap: 8px;
 }
 
+/* Il sync di un periodo: le due date, una riga per finestra con quello che la
+   banca ha restituito, e i probabili doppioni che aspettano una decisione. */
+.period-sync,
+.period-sync__form,
+.period-sync__held,
+.period-sync__outcome {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.period-sync__dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.period-sync__outcome p {
+  margin: 0;
+}
+
+.period-sync__windows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.period-sync__failed {
+  color: var(--out);
+}
+
 .account-form {
   display: flex;
   flex-direction: column;

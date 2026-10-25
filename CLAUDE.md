@@ -58,11 +58,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals, held_transactions|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
-|`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `SyncBusy` is the process-wide guard on one run at a time|
+|`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `run_period` is one account over a chosen period, window by window; `SyncBusy` is the process-wide guard on one run at a time|
 |`amonhen/transfers.py`|Transfer candidate graph, weights, link review state|
 |`amonhen/matching.py`|Exact maximum-weight bipartite matching (Hungarian)|
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
@@ -81,6 +81,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
+|`web/src/components/PeriodSync.tsx`|The period sync in an account's panel under **Conti**: the dates, a line per window, the preview, and the held probable duplicates with *Scrivi* / *Scarta*|
 |`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
 |`tools/dump_raw.py`|Dumps raw EB payloads to disk, for regenerating fixtures|
 |`tools/anonymize_dump.py`|Turns raw dumps into committed fixtures|
@@ -96,10 +97,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger`, `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
 |`dedup`|`content_hash`, `normalize_description`|
-|`config`|`MonitorConfig`, `ConfiguredAccount`, `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
-|`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`|
+|`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
+|`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
@@ -110,7 +111,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
 |`api`|`create_app`|
 |`backup`|`Snapshot`, `make_snapshot`|
-|`providers`|`EnableBankingClient`, `ConsentExpiredError`, `normalize_transaction`, `normalize_account`, `iban_of`|
+|`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `ConsentExpiredError`, `normalize_transaction`, `normalize_account`, `iban_of`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
 |`cli`|`main`, `build_parser`|
 
@@ -173,6 +174,35 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   runs — or a person decides, because a category is a decision about money, not a
   field of the bank's payload. `deleted_transactions()` is the
   trash the Conti panel shows, and it lists `restored_at IS NULL` only.
+- **A period is a sync of one account, and it moves no cursor.** `SyncService.run_period`
+  (`amonhen sync --account --from --to [--preview]`, `POST /api/sync/period`, the
+  *Sincronizza un periodo* action in an account's panel) checks the period before the
+  lock and the bank — `PeriodInvalid`, a 422 — and then takes the same lock as `run`.
+  `EnableBankingClient.fetch_transaction_windows` answers one `FetchedWindow` per window
+  with its movements or its error: a 400/422 is read as the bank refusing the range and
+  halves the width (down to one day, and the narrower width holds for the rest of the
+  period), anything else fails that window alone, and a dead consent raises because
+  every window would fail the same way. Each window is its own `record_batch`, so a
+  failed one does not discard the others; windows are whole days because the batch
+  numbers identical movements of one day (`:r2`), and a day split across two batches
+  would number them differently. The incremental cursor is `MAX(date)` of the account
+  and a past period adds nothing newer, so it does not move; `start_sync_date` is
+  neither read nor written. `link_transfers` runs with `since` at the start of the
+  period, not `_earliest_start`, so legs older than every `start_sync_date` still pair.
+  `max_window_days` in an account's entry of `accounts.json` (default 30) also narrows
+  the incremental sync's windows.
+- **A probable duplicate of an import is held, not written.** `record` and its preview
+  share one decision, `Ledger._plan`, so `preview_batch` cannot promise what the write
+  does not do. With `record_batch(..., hold_probable=True)` — the period sync only — a
+  movement the plan would *insert* but whose account, day and amount match a row from
+  the other `source` goes to `held_transactions` with the row it resembles: the content
+  hash contains the description, and a bank that words a movement differently in PSD2
+  and in its export would otherwise get it twice. The held row keeps the movement as it
+  arrived and its occurrence, keyed like the ledger would key it, so the same period run
+  again holds nothing twice; `decide_held` writes it through `record` (the dedup and the
+  tombstones still have their say) or discards it, once, and a discard is remembered
+  (`discarded` in the period's actions). The normal sync does not hold: it covers the
+  last days, where an export rarely overlaps, and holding there would stall the queue.
 - **The sync has one guard and one button.** `SyncService.run` takes a
   process-wide lock and raises `SyncBusy` when another run holds it, which is what
   makes `POST /api/sync` and the scheduled loop of `serve` safe in one process;
@@ -447,6 +477,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `account_id`/`account` and `amount_min`/`amount_max`, removal takes an `id`, and
   `/api/rules/preview`, `DELETE /api/accounts/{id}`,
   `POST /api/transactions/delete` and `POST /api/transactions/category` are new.
+  23 is the period sync: `POST /api/sync/period`, `GET /api/sync/held` and
+  `POST /api/sync/held/{id}/write|discard`, and an account row gained `connected`.
 - **A rule is a text the description contains, and writing one rewrites the
   ledger.** `rules.key` is the text as it is matched — `rule_key` trims,
   collapses runs of spaces and lower cases it, so a text typed by a human still
@@ -782,7 +814,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), fourteen tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), fifteen tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
@@ -800,6 +832,7 @@ by construction.
 |`budget_months`|4|One month's own ceiling for a category, over the default|
 |`budget_items`|9|An expense planned inside a category's ceiling for one month: description, amount, optional date, priority, note|
 |`merchant_suggestions`|5|A merchant → category proposal with its `source` and `decision` (`pending` / `accepted` / `dismissed`)|
+|`held_transactions`|11|A movement a period sync did not write because it looks like one the other ingest path wrote under a different description: the movement as it arrived, its occurrence, the row it resembles (`twin_id`), and the `decision` (`pending` / `written` / `discarded`). One row per `(account_id, key)`|
 |`budget_proposals`|5|The assistant's budget proposals, decided the same way|
 |`assistant_readings`|7|A reading, the model that wrote it, the fingerprint of the data it read, and `refused` when a guard rejected it|
 |`settings`|2|Key/value odds and ends|
@@ -818,6 +851,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |---|---|
 |Change what the product must do|The spec (`desiderata-monitoring-finanziario.md`) first, then the code — section 9 holds the order of work and the status of each phase|
 |Change the sync cadence|`AMONHEN_SYNC_INTERVAL_HOURS` or `daemon --interval-hours`|
+|Sync one account over a past period, or fill a gap|The account's panel in **Conti**, *Sincronizza un periodo* (preview first) — or `uv run amonhen sync --account <name> --from YYYY-MM-DD --to YYYY-MM-DD [--preview]`. Then decide the held probable duplicates in the same panel. A bank that refuses 30-day ranges gets `max_window_days` in its `accounts.json` entry|
 |Ask the banks for data now|The **Sincronizza** button in the app's top bar (`POST /api/sync`), or `uv run amonhen sync`|
 |Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
 |Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|

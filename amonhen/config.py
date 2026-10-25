@@ -25,6 +25,9 @@ from amonhen.settings import CONFIG_FILE
 _DOCUMENT_LOCK = threading.Lock()
 
 
+DEFAULT_WINDOW_DAYS = 30
+
+
 class UnknownConfiguredAccount(LookupError):
     """The configuration holds no account with that uid: a stale row, not a bad value."""
 
@@ -36,6 +39,9 @@ class ConfiguredAccount:
     session_id: str
     account_uid: str
     start_sync_date: dt.date | None = None
+    # The widest range one request asks this bank for. Some refuse 30 days;
+    # the period sync also halves a refused window on its own.
+    max_window_days: int = DEFAULT_WINDOW_DAYS
 
 
 @dataclass(frozen=True)
@@ -319,6 +325,7 @@ def load_config(path: str | Path = CONFIG_FILE) -> MonitorConfig:
                 session_id=entry["session_id"],
                 account_uid=entry["account_uid"],
                 start_sync_date=dt.date.fromisoformat(start) if start else None,
+                max_window_days=_window_days(entry.get("max_window_days")),
             )
         )
     return MonitorConfig(
@@ -329,6 +336,15 @@ def load_config(path: str | Path = CONFIG_FILE) -> MonitorConfig:
         accounts=tuple(accounts),
         passthrough=parse_passthrough(data.get("passthrough")),
     )
+
+
+def _window_days(value) -> int:
+    """`max_window_days` as written by hand: a positive whole number of days."""
+    if value is None:
+        return DEFAULT_WINDOW_DAYS
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"max_window_days must be a positive number of days, not {value!r}")
+    return value
 
 
 def _read_document(path: Path) -> dict:

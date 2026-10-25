@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import { api, errorMessage, isAbortError } from "../api";
+import { PeriodSync } from "../components/PeriodSync";
 import { Toast } from "../components/Toast";
 import { Toggle } from "../components/Toggle";
 import { formatAmount, formatDate, toAmount } from "../format";
@@ -11,6 +12,7 @@ import type {
   DeclaredBalanceCheck,
   Declaration,
   DeletedMovement,
+  HeldMovement,
   NewAccount,
 } from "../types";
 import { useAccounts } from "../useAccounts";
@@ -439,6 +441,7 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
   const [pendingAccounts, setPendingAccounts] = useState<number[]>([]);
   const [trash, setTrash] = useState<DeletedMovement[]>([]);
   const [trashError, setTrashError] = useState<string | null>(null);
+  const [held, setHeld] = useState<HeldMovement[]>([]);
   const [declareFor, setDeclareFor] = useState<Account | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -471,6 +474,29 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
     void loadTrash(controller.signal);
     return () => controller.abort();
   }, [loadTrash, refreshToken]);
+
+  // The probable duplicates a period sync held, read once and grouped under
+  // their account like the trash: the decision belongs to the account's panel.
+  const loadHeld = useCallback(async (signal?: AbortSignal) => {
+    try {
+      setHeld(await api.held(signal));
+    } catch (caught) {
+      if (isAbortError(caught)) return;
+      setNotice(`Movimenti in attesa non leggibili: ${errorMessage(caught)}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadHeld(controller.signal);
+    return () => controller.abort();
+  }, [loadHeld, refreshToken]);
+
+  const periodChanged = () => {
+    reloadAccounts();
+    void loadHeld();
+    void loadTrash();
+  };
 
   const restore = async (item: DeletedMovement) => {
     if (pendingAccounts.includes(item.account.id)) return;
@@ -657,6 +683,14 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                         ))}
                     </ul>
                   )}
+                  {account.connected ? (
+                    <PeriodSync
+                      account={account}
+                      held={held.filter((item) => item.account_id === account.id)}
+                      onChanged={periodChanged}
+                      onNotice={setNotice}
+                    />
+                  ) : null}
                   <div className="account-row__actions">
                     <button
                       type="button"

@@ -374,3 +374,44 @@ def test_backup_keeps_the_newest_and_refuses_an_empty_ledger(tmp_path, capsys):
     assert run(tmp_path / "empty.db", "backup", "--dest", str(tmp_path / "nowhere")) == 1
     assert "no accounts" in capsys.readouterr().err
     assert not (tmp_path / "nowhere").exists()
+
+
+def test_sync_of_one_account_over_a_period(tmp_path, capsys, monkeypatch):
+    from amonhen import cli
+    from test_sync_service import FakeClient, build_config, fixture_transactions
+
+    transactions = fixture_transactions(60)
+    fake = FakeClient(transactions)
+    monkeypatch.setattr(cli, "load_config", lambda path: build_config())
+    monkeypatch.setattr(cli, "build_client", lambda cfg: fake)
+    db = tmp_path / "ledger.db"
+    args = ("sync", "--account", "Revolut personale", "--from", "2025-09-01", "--to", "2025-09-30")
+
+    assert run(db, *args, "--preview") == 0
+    preview = capsys.readouterr().out
+    assert "2025-09-01..2025-09-30: fetched=" in preview
+    assert "would be inserted=" in preview
+
+    assert run(db, *args) == 0
+    assert "written inserted=" in capsys.readouterr().out
+    assert run(db, *args) == 0
+    assert "written duplicate=" in capsys.readouterr().out
+
+
+def test_sync_period_is_validated_before_the_bank(tmp_path, capsys, monkeypatch):
+    from amonhen import cli
+    from test_sync_service import FakeClient, build_config
+
+    fake = FakeClient([])
+    monkeypatch.setattr(cli, "load_config", lambda path: build_config())
+    monkeypatch.setattr(cli, "build_client", lambda cfg: fake)
+    db = tmp_path / "ledger.db"
+
+    assert run(db, "sync", "--account", "Revolut personale", "--from", "2025-09-01") == 2
+    assert "together" in capsys.readouterr().err
+    assert run(db, "sync", "--account", "Revolut personale",
+               "--from", "2025-09-30", "--to", "2025-09-01") == 2
+    assert "after it ends" in capsys.readouterr().err
+    assert run(db, "sync", "--account", "Nessuno", "--from", "2025-09-01", "--to", "2025-09-30") == 2
+    assert "no account named" in capsys.readouterr().err
+    assert fake.window_calls == []

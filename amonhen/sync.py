@@ -1,4 +1,8 @@
-"""PSD2 sync: fetch the configured accounts and write them into the ledger."""
+"""PSD2 sync: fetch the configured accounts and write them into the ledger.
+
+`SyncService.run` is the incremental pass over every account; `run_period` is
+one account over a range a person chose, past included, window by window.
+"""
 import datetime as dt
 import logging
 import threading
@@ -9,7 +13,7 @@ import requests
 from amonhen.config import ConfiguredAccount, MonitorConfig
 from amonhen.ledger import Ledger
 from amonhen.merchants import RuleBook, categorize
-from amonhen.models import Account, RecordAction, parse_decimal
+from amonhen.models import Account, IncomingTransaction, RecordAction, format_decimal, parse_decimal
 from amonhen.providers.eb_normalize import iban_of, normalize_account, normalize_transaction
 from amonhen.providers.enable_banking import ConsentExpiredError, EnableBankingClient
 from amonhen.transfers import link_passthrough_legs, link_transfers
@@ -29,6 +33,10 @@ _SYNC_LOCK = threading.Lock()
 
 class SyncBusy(RuntimeError):
     """A sync is already running in this process."""
+
+
+class PeriodInvalid(ValueError):
+    """A period sync that cannot be asked of the bank: the reason is the message."""
 
 
 @dataclass
@@ -58,6 +66,57 @@ class SyncResult:
         return problems
 
 
+@dataclass
+class WindowReport:
+    """One window of a period sync: what the bank returned, or why it did not."""
+
+    date_from: dt.date
+    date_to: dt.date
+    fetched: int = 0
+    error: str | None = None
+
+
+@dataclass
+class PeriodMovement:
+    """One movement of a period preview, with what writing it would do."""
+
+    date: dt.date
+    amount: str
+    description: str
+    status: str
+    action: RecordAction
+    # The row a probable duplicate resembles: its description and where it came from.
+    twin_description: str | None = None
+    twin_source: str | None = None
+
+
+@dataclass
+class PeriodSyncResult:
+    account: str
+    date_from: dt.date
+    date_to: dt.date
+    preview: bool
+    windows: list[WindowReport] = field(default_factory=list)
+    actions: dict[str, int] = field(default_factory=dict)
+    movements: list[PeriodMovement] = field(default_factory=list)
+    held: int = 0
+    transfers_linked: int = 0
+    passthrough_legs: int = 0
+    rules_applied: int = 0
+    error: str | None = None
+    balance_mismatch: str | None = None
+
+    @property
+    def errors(self) -> list[str]:
+        problems = [
+            f"{window.date_from}..{window.date_to}: {window.error}"
+            for window in self.windows
+            if window.error
+        ]
+        problems += [problem for problem in (self.error, self.balance_mismatch) if problem]
+        return [f"{self.account}: {problem}" for problem in problems]
+
+
 class SyncService:
     def __init__(
         self,
@@ -81,6 +140,111 @@ class SyncService:
             return self._run()
         finally:
             _SYNC_LOCK.release()
+
+    def run_period(
+        self, account: str, date_from: dt.date, date_to: dt.date, *, preview: bool = False
+    ) -> PeriodSyncResult:
+        """One account over a chosen range, or `PeriodInvalid` / `SyncBusy`.
+
+        The period is checked before the lock and before the bank is asked. The
+        incremental cursor is untouched: it is the newest movement of the
+        account, and a past period adds nothing newer; `start_sync_date` is
+        neither read nor written, because a person asking for a range is the
+        one thing it does not limit.
+        """
+        entry = self._period_entry(account, date_from, date_to)
+        if not _SYNC_LOCK.acquire(blocking=False):
+            raise SyncBusy("a sync is already running in this process")
+        try:
+            return self._run_period(entry, date_from, date_to, preview)
+        finally:
+            _SYNC_LOCK.release()
+
+    def _period_entry(
+        self, account: str, date_from: dt.date, date_to: dt.date
+    ) -> ConfiguredAccount:
+        if date_from > date_to:
+            raise PeriodInvalid(f"the period starts on {date_from}, after it ends on {date_to}")
+        if date_to > self.today:
+            raise PeriodInvalid(f"the period ends on {date_to}, after today ({self.today})")
+        for entry in self.config.accounts:
+            if entry.name == account:
+                if not entry.account_uid:
+                    raise PeriodInvalid(f"{account} is not connected to Enable Banking")
+                return entry
+        raise PeriodInvalid(
+            f"no account named {account} is connected to Enable Banking: "
+            "only a connected account can be synced"
+        )
+
+    def _run_period(
+        self, entry: ConfiguredAccount, date_from: dt.date, date_to: dt.date, preview: bool
+    ) -> PeriodSyncResult:
+        result = PeriodSyncResult(entry.name, date_from, date_to, preview)
+        account_id = self.ledger.ensure_account(self._account_record(entry))
+        try:
+            windows = self.client.fetch_transaction_windows(
+                entry.account_uid, date_from, date_to, entry.max_window_days
+            )
+        except ConsentExpiredError as exc:
+            result.error = f"consent expired: {exc}"
+            log.warning("account %s: %s", entry.name, result.error)
+            return result
+        for window in windows:
+            result.windows.append(
+                WindowReport(window.date_from, window.date_to, len(window.transactions), window.error)
+            )
+        batches = [
+            self._normalized(entry, account_id, window.transactions)
+            for window in windows
+            if window.error is None
+        ]
+        if preview:
+            for batch in batches:
+                for txn, action, twin in self.ledger.preview_batch(batch):
+                    result.actions[action] = result.actions.get(action, 0) + 1
+                    result.movements.append(
+                        PeriodMovement(
+                            txn.date, format_decimal(txn.amount), txn.description, txn.status,
+                            action,
+                            twin["description"] if twin is not None else None,
+                            twin["source"] if twin is not None else None,
+                        )
+                    )
+            result.held = len(self.ledger.held_transactions(account_id))
+            return result
+        # One batch per window: a window the bank answered is written whatever
+        # happened to the others, and whole-day windows keep the numbering of
+        # identical movements the same as the incremental sync gives them.
+        for batch in batches:
+            for action, count in self.ledger.record_batch(batch, hold_probable=True).items():
+                result.actions[action] = result.actions.get(action, 0) + count
+        result.held = len(self.ledger.held_transactions(account_id))
+        # The same steps as the incremental pass, from the start of the period:
+        # a leg older than any `start_sync_date` must still find its pair.
+        result.transfers_linked = link_transfers(self.ledger, since=date_from)
+        result.passthrough_legs = link_passthrough_legs(self.ledger, self.config.passthrough)
+        self.ledger.validate()
+        result.rules_applied = categorize(self.ledger, RuleBook(self.ledger.conn))
+        result.balance_mismatch = self._declared_balance_mismatch(entry)
+        log.info("account %s %s..%s: %s", entry.name, date_from, date_to, result.actions)
+        return result
+
+    def _normalized(
+        self, entry: ConfiguredAccount, account_id: int, transactions: list[dict]
+    ) -> list[IncomingTransaction]:
+        balancing = self.ledger.uncategorized()
+        return [
+            normalize_transaction(
+                raw,
+                account_id=account_id,
+                balancing_account_id=balancing,
+                own_names=self.config.own_names,
+                bank_name=entry.institution,
+                source="psd2",
+            )
+            for raw in transactions
+        ]
 
     def _run(self) -> SyncResult:
         results = [self._sync_account(entry) for entry in self.config.accounts]
@@ -134,7 +298,9 @@ class SyncService:
         account_id = self.ledger.ensure_account(self._account_record(entry))
         date_from = self._start_date(entry, account_id)
         try:
-            transactions = self.client.fetch_transactions(entry.account_uid, date_from, self.today)
+            transactions = self.client.fetch_transactions(
+                entry.account_uid, date_from, self.today, entry.max_window_days
+            )
         except ConsentExpiredError as exc:
             result.error = f"consent expired: {exc}"
             log.warning("account %s: %s", entry.name, result.error)
@@ -146,19 +312,9 @@ class SyncService:
             return result
 
         result.fetched = len(transactions)
-        balancing = self.ledger.uncategorized()
-        normalized = [
-            normalize_transaction(
-                raw,
-                account_id=account_id,
-                balancing_account_id=balancing,
-                own_names=self.config.own_names,
-                bank_name=entry.institution,
-                source="psd2",
-            )
-            for raw in transactions
-        ]
-        result.actions = self.ledger.record_batch(normalized)
+        result.actions = self.ledger.record_batch(
+            self._normalized(entry, account_id, transactions)
+        )
         result.balances = self._record_balances(entry, account_id)
         log.info("account %s: %s, %d balance(s)", entry.name, result.actions, result.balances)
         return result

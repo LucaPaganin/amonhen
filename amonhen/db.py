@@ -173,6 +173,29 @@ CREATE TABLE IF NOT EXISTS budget_items (
 
 CREATE INDEX IF NOT EXISTS budget_items_month ON budget_items(month, category_id);
 
+-- A movement a period sync did not write because the ledger already holds one
+-- on the same account, day and amount that came from the other ingest path
+-- under a different description: the content hash cannot tell a re-worded
+-- duplicate from a second movement, so a person does, one by one. `key` is the
+-- identity the ledger would have written it under (the bank's id, or the
+-- content hash with its occurrence), so running the same period again holds
+-- nothing twice and asks nothing already answered.
+CREATE TABLE IF NOT EXISTS held_transactions (
+    id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id),
+    key TEXT NOT NULL,
+    occurrence INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    description TEXT NOT NULL,
+    movement TEXT NOT NULL,
+    twin_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    decision TEXT NOT NULL DEFAULT 'pending'
+        CHECK (decision IN ('pending', 'written', 'discarded')),
+    UNIQUE (account_id, key)
+);
+
 -- Proposals are never applied on their own: a classifier or an LLM writes a
 -- merchant -> category pair here and a human accepts or dismisses it.
 CREATE TABLE IF NOT EXISTS merchant_suggestions (

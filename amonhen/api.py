@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from amonhen import assistant, db
 from amonhen.anomalies import detect_anomalies
@@ -85,7 +85,7 @@ from amonhen.providers.enable_banking import (
 )
 from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED
 from amonhen.suggestions import propose_for_unseen
-from amonhen.sync import SyncBusy, SyncResult, SyncService
+from amonhen.sync import PeriodInvalid, PeriodSyncResult, SyncBusy, SyncResult, SyncService
 from amonhen.transfers import link_passthrough_legs, link_transfers, pair_candidates
 
 WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
@@ -102,8 +102,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # write answers with the whole month instead of one row. 22 is the general rule
 # (desiderata 5.5): a rule has an id, an action, a target and conditions, and the
 # writes around it are new, with the account deletion and the movements' batch
-# writes beside them.
-API_VERSION = 22
+# writes beside them. 23 is the sync of one account over a chosen period:
+# `/api/sync/period` and the probable duplicates it holds (`/api/sync/held`),
+# and an account row says whether it is `connected`.
+API_VERSION = 23
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -315,6 +317,17 @@ class CsvMapping(BaseModel):
     description_columns: list[str] = []
     external_id_column: str = ""
     invert_sign: bool = False
+
+
+class PeriodSyncRequest(BaseModel):
+    """One connected account over a period a person chose, both days included."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    account_id: int
+    date_from: str = Field(alias="from")
+    date_to: str = Field(alias="to")
+    preview: bool = False
 
 
 class CsvImportRequest(BaseModel):
@@ -1497,6 +1510,77 @@ def create_app(
                 raise HTTPException(status_code=409, detail=str(exc))
             return _sync_payload(ledger, result)
 
+    @app.post("/api/sync/period")
+    def run_period_sync(body: PeriodSyncRequest) -> dict:
+        """One account over the period asked, window by window, or its preview.
+
+        The period is refused with 422 before the bank is asked, and a run
+        already going answers 409 like the full sync, whose lock this is. What
+        comes back says, per window, what the bank returned — an empty window is
+        an answer, not a period covered — and how many probable duplicates of an
+        imported movement are waiting for a person.
+        """
+        date_from, date_to = _day(body.date_from), _day(body.date_to)
+        with ledger_scope() as ledger:
+            account = ledger.conn.execute(
+                "SELECT * FROM accounts WHERE id = ? AND type = 'real'", (body.account_id,)
+            ).fetchone()
+            if account is None:
+                raise HTTPException(
+                    status_code=422, detail=f"account {body.account_id} is not a real account"
+                )
+            try:
+                config = load_config(config_path)
+                client = _client(config)
+            except (OSError, KeyError, ValueError) as exc:
+                raise HTTPException(status_code=503, detail=f"cannot sync: {exc}")
+            service = SyncService(ledger, client, config)
+            try:
+                result = service.run_period(
+                    account["name"], date_from, date_to, preview=body.preview
+                )
+            except PeriodInvalid as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            except SyncBusy as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            return _period_payload(ledger, account["id"], result)
+
+    @app.get("/api/sync/held")
+    def held_movements(account_id: int | None = None) -> list[dict]:
+        """The probable duplicates a period sync did not write, still undecided."""
+        with ledger_scope() as ledger:
+            return [_held_payload(row) for row in ledger.held_transactions(account_id)]
+
+    @app.post("/api/sync/held/{held_id}/{decision}")
+    def decide_held(held_id: int, decision: str) -> dict:
+        """Write one held movement or keep it out, and answer with what is left.
+
+        A written movement is linked and categorized as a sync would have done,
+        so it does not wait for the next one to leave the queue it belongs out
+        of. The decision is final: a second one answers 409.
+        """
+        if decision not in ("write", "discard"):
+            raise HTTPException(status_code=404, detail=f"no decision {decision!r}")
+        with ledger_scope() as ledger:
+            row = ledger.conn.execute(
+                "SELECT account_id, date FROM held_transactions WHERE id = ?", (held_id,)
+            ).fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail=f"held movement {held_id} not found")
+            try:
+                transaction_id, action = ledger.decide_held(held_id, decision)
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            if transaction_id:
+                link_transfers(ledger, since=dt.date.fromisoformat(row["date"]))
+                link_passthrough_legs(ledger, _passthrough(config_path))
+                categorize(ledger, RuleBook(ledger.conn))
+            return {
+                "transaction_id": transaction_id or None,
+                "action": action,
+                "held": [_held_payload(item) for item in ledger.held_transactions(row["account_id"])],
+            }
+
     @app.post("/api/import/csv/preview")
     def csv_import_preview(body: CsvImportRequest) -> dict:
         """What the statement would become, before anything is written.
@@ -1627,6 +1711,65 @@ def _sync_payload(ledger: Ledger, result: SyncResult) -> dict:
         "rules_applied": result.rules_applied,
         "passthrough_legs": result.passthrough_legs,
         "errors": result.errors,
+    }
+
+
+def _period_payload(ledger: Ledger, account_id: int, result: PeriodSyncResult) -> dict:
+    """A period sync as the account's panel shows it.
+
+    `verification` is the account's 5.4 state after the run: a mismatch that
+    appears after a past period is the sign of a duplicate the hash missed.
+    """
+    return {
+        "account": result.account,
+        "from": result.date_from.isoformat(),
+        "to": result.date_to.isoformat(),
+        "preview": result.preview,
+        "windows": [
+            {
+                "from": window.date_from.isoformat(),
+                "to": window.date_to.isoformat(),
+                "fetched": window.fetched,
+                "error": window.error,
+            }
+            for window in result.windows
+        ],
+        "actions": result.actions,
+        "movements": [
+            {
+                "date": movement.date.isoformat(),
+                "amount": movement.amount,
+                "description": movement.description,
+                "status": movement.status,
+                "action": movement.action,
+                "twin_description": movement.twin_description,
+                "twin_source": movement.twin_source,
+            }
+            for movement in result.movements
+        ],
+        "held": result.held,
+        "transfers_linked": result.transfers_linked,
+        "passthrough_legs": result.passthrough_legs,
+        "rules_applied": result.rules_applied,
+        "error": result.error,
+        "balance_mismatch": result.balance_mismatch,
+        "errors": result.errors,
+        "verification": _verification(ledger, account_id),
+    }
+
+
+def _held_payload(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "account_id": row["account_id"],
+        "account": row["account_name"],
+        "date": row["date"],
+        "amount": row["amount"],
+        "description": row["description"],
+        "twin_id": row["twin_id"],
+        "twin_description": row["twin_description"],
+        "twin_source": row["twin_source"],
+        "twin_source_file": row["twin_source_file"],
     }
 
 
@@ -1789,6 +1932,9 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         # Off means a movement deleted here stays deleted; on means the next
         # sync writes it back from the tombstone, note included.
         "reimport_deleted": bool(row["reimport_deleted"]),
+        # Seen by a sync, so Enable Banking knows it: what the panel's period
+        # sync needs. An account added by hand has no uid and nothing to ask.
+        "connected": row["external_uid"] is not None,
         "verification": _verification(ledger, row["id"]),
     }
 

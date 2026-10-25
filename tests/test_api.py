@@ -1901,3 +1901,121 @@ def test_a_sync_says_why_it_cannot_run(tmp_path):
         assert response.status_code == 503
         assert response.json()["detail"].startswith("cannot sync:")
         client.close()
+
+
+def _account_id(client, name="Revolut personale"):
+    return next(row["id"] for row in client.get("/api/accounts").json() if row["name"] == name)
+
+
+def test_a_period_sync_writes_one_account_and_reports_each_window(tmp_path, monkeypatch):
+    """The Conti panel's action: one account, a past period, a line per window."""
+    from test_sync_service import fixture_transactions
+
+    transactions = fixture_transactions(60)
+    client, fake = app_with_a_fake_bank(tmp_path, monkeypatch, transactions)
+    client.post("/api/sync")  # the account exists once a sync has seen it
+    account_id = _account_id(client)
+    body = {"account_id": account_id, "from": "2025-09-01", "to": "2025-09-30"}
+
+    preview = client.post("/api/sync/period", json={**body, "preview": True}).json()
+    response = client.post("/api/sync/period", json=body)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["preview"] is False
+    assert payload["windows"] == [
+        {"from": "2025-09-01", "to": "2025-09-30", "fetched": payload["windows"][0]["fetched"],
+         "error": None}
+    ]
+    # Everything was written by the full sync already: the period adds nothing.
+    assert set(payload["actions"]) == {"duplicate"}
+    assert {movement["action"] for movement in preview["movements"]} == {"duplicate"}
+    assert payload["held"] == 0
+    assert payload["verification"]["state"] == "unverified"
+    assert fake.window_calls[-1][1:] == (dt.date(2025, 9, 1), dt.date(2025, 9, 30), 30)
+    client.close()
+
+
+def test_a_period_sync_refuses_what_it_cannot_ask_the_bank(tmp_path, monkeypatch):
+    client, fake = app_with_a_fake_bank(tmp_path, monkeypatch)
+    client.post("/api/sync")
+    account_id = _account_id(client)
+    manual = client.post("/api/accounts", json={"name": "Broker"}).json()["id"]
+    connected = {row["name"]: row["connected"] for row in client.get("/api/accounts").json()}
+    assert connected == {"Revolut personale": True, "Broker": False}
+    tomorrow = (dt.date.today() + dt.timedelta(days=1)).isoformat()
+
+    for body, words in (
+        ({"account_id": account_id, "from": "2025-09-02", "to": "2025-09-01"}, "after it ends"),
+        ({"account_id": account_id, "from": "2025-09-01", "to": tomorrow}, "after today"),
+        ({"account_id": account_id, "from": "2025-09-01", "to": "nope"}, "not an ISO date"),
+        ({"account_id": manual, "from": "2025-09-01", "to": "2025-09-30"}, "connected"),
+        ({"account_id": 9999, "from": "2025-09-01", "to": "2025-09-30"}, "not a real account"),
+    ):
+        response = client.post("/api/sync/period", json=body)
+        assert response.status_code == 422, body
+        assert words in response.json()["detail"]
+    assert fake.window_calls == []
+    client.close()
+
+
+def test_a_period_sync_is_refused_while_another_sync_runs(tmp_path, monkeypatch):
+    from amonhen import sync as sync_module
+
+    client, _ = app_with_a_fake_bank(tmp_path, monkeypatch)
+    client.post("/api/sync")
+    body = {"account_id": _account_id(client), "from": "2025-09-01", "to": "2025-09-30"}
+
+    sync_module._SYNC_LOCK.acquire()
+    try:
+        response = client.post("/api/sync/period", json=body)
+    finally:
+        sync_module._SYNC_LOCK.release()
+
+    assert response.status_code == 409
+    client.close()
+
+
+def test_a_held_movement_waits_for_a_person(tmp_path, monkeypatch):
+    """A probable duplicate of an imported row is listed, then written or discarded once."""
+    from test_sync_service import fixture_transactions
+
+    raw = fixture_transactions(1)[0]
+    client, fake = app_with_a_fake_bank(tmp_path, monkeypatch)
+    client.post("/api/sync")
+    account_id = _account_id(client)
+    amount = raw["transaction_amount"]["amount"]
+    if raw["credit_debit_indicator"] == "DBIT":
+        amount = f"-{amount}"
+    imported = client.post(
+        "/api/import/csv",
+        json={
+            "account": "Revolut personale",
+            "filename": "export.csv",
+            "content": f"Data;Importo;Descrizione\n{raw['booking_date']};{amount};Come lo scrive l'export\n",
+            "mapping": {"date_column": "Data", "amount_column": "Importo",
+                        "description_columns": ["Descrizione"], "delimiter": ";"},
+        },
+    )
+    assert imported.status_code == 200, imported.json()
+    assert imported.json()["actions"] == {"inserted": 1}
+    fake.transactions = [raw]
+    body = {"account_id": account_id, "from": "2025-09-01", "to": "2025-09-30"}
+
+    result = client.post("/api/sync/period", json=body).json()
+
+    assert result["actions"] == {"held": 1}
+    assert result["held"] == 1
+    held = client.get("/api/sync/held", params={"account_id": account_id}).json()
+    assert [row["twin_description"] for row in held] == ["Come lo scrive l'export"]
+    assert held[0]["twin_source"] == "import"
+    assert client.get("/api/transactions").json()["total"] == 1
+
+    written = client.post(f"/api/sync/held/{held[0]['id']}/write")
+    assert written.status_code == 200
+    assert written.json()["action"] == "inserted"
+    assert written.json()["held"] == []
+    assert client.get("/api/transactions").json()["total"] == 2
+    assert client.post(f"/api/sync/held/{held[0]['id']}/discard").status_code == 409
+    assert client.post("/api/sync/held/9999/write").status_code == 404
+    client.close()

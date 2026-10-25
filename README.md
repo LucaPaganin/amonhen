@@ -22,9 +22,10 @@ CSV / OFX export ─────┘
 ```
 
 - **PSD2 sync** (`uv run amonhen sync`): fetches every configured account through
-  Enable Banking, with RS256 JWT auth, 30-day windows and continuation-key
-  pagination. Banks cap history at roughly 90 days, so this path covers the
-  present, not the past.
+  Enable Banking, with RS256 JWT auth, 30-day windows (narrower per account with
+  `max_window_days`) and continuation-key pagination. Banks cap history at roughly
+  90 days, so this path covers the present, not the past. One account can also be
+  synced over a chosen period, past included — see *Syncing a chosen period*.
 - **File import** (CSV from the **Importa** section of the app; CSV with a named profile per bank
   layout, or OFX/QFX, from `uv run amonhen import`). This is how deep history is seeded, and how a
   bank is recovered when a PSD2 consent expires.
@@ -58,6 +59,7 @@ uv sync
 uv run amonhen --help                            # short form of the entry point below
 uv run amonhen --db dumps/verify.db accounts     # --db is global and picks another ledger
 uv run python -m amonhen sync            # fetch all configured accounts
+uv run python -m amonhen sync --account "Revolut personale" --from 2025-09-01 --to 2025-09-30 --preview
 uv run python -m amonhen spend --month 2026-08
 uv run python -m amonhen import statement.csv --account "Revolut" --profile revolut
 uv run python -m amonhen accounts        # ledger accounts and balances
@@ -297,6 +299,40 @@ Then import it:
 ```bash
 uv run python -m amonhen sync
 ```
+
+### Syncing a chosen period
+
+The incremental sync picks its own start — the account's newest movement minus a
+week — so a gap inside the history is never asked for again. One connected account
+can be synced over a period you choose instead, past included:
+
+```bash
+uv run amonhen sync --account "Revolut personale" --from 2025-09-01 --to 2025-09-30 --preview
+uv run amonhen sync --account "Revolut personale" --from 2025-09-01 --to 2025-09-30
+```
+
+The same is `POST /api/sync/period` (`{account_id, from, to, preview}`) and the
+*Sincronizza un periodo* action in the account's panel under **Conti**. The period
+is refused (422) when it ends before it starts, ends after today or names an account
+that is not connected, and a run already going answers 409 — the full sync's lock.
+The bank is asked in windows of whole days, `max_window_days` wide (30 unless the
+account's entry in `accounts.json` says otherwise); a window it refuses as a range is
+halved down to one day, and every window reports how many movements it returned or
+the error that refused it. A window that failed does not take the others with it:
+narrow the period and ask again. An empty window is the bank's answer, not a covered
+period — most banks serve about 90 days whatever is asked. The incremental cursor and
+`start_sync_date` do not move.
+
+**The risk is the overlap with the file import.** Past periods are usually the ones a
+CSV/OFX export already brought in, and there the content hash — which contains the
+description — is the only dedup key: a bank that words a movement differently in PSD2
+and in its export would get it written twice. So a movement the ledger would write,
+but whose account, day and amount match a row from the other ingest path, is **held**
+instead of written (`GET /api/sync/held`), and listed in the account's panel with the
+row it resembles: *Scrivi* writes it through the ledger's normal dedup, *Scarta*
+keeps it out and is remembered, so running the period again does not ask twice
+(`POST /api/sync/held/{id}/write|discard`). If a period sync still turns the account's
+section 5.4 check into a mismatch, look for a duplicate first.
 
 `session_expiry` in the entry is when the Enable Banking **session** stops being
 valid, not when the bank's consent ends — the consent can end first, and months
@@ -735,7 +771,7 @@ rm -rf $HOME/amonhen-rehearsal
 |`amonhen/ledger.py`|The single write path; dedup, pending→booked, spend and balance queries|
 |`amonhen/providers/`|Enable Banking client and payload normalization|
 |`amonhen/adapters/`|CSV/OFX import, one profile per bank layout|
-|`amonhen/sync.py`|Per-account fetch → normalize → ledger|
+|`amonhen/sync.py`|Per-account fetch → normalize → ledger; `run_period` is one account over a chosen period|
 |`amonhen/transfers.py`|Internal-transfer candidate graph, linking, and the candidates a manual pairing may choose|
 |`amonhen/matching.py`|Maximum-weight bipartite matching|
 |`amonhen/merchants.py`|Merchant normalization and the rules on the description|

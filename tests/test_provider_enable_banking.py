@@ -392,3 +392,85 @@ def test_list_banks_returns_the_aspsp_names(client):
     banks = client.list_banks()
 
     assert banks == [{"name": "Revolut", "country": "IT"}, {"name": "FinecoBank", "country": "IT"}]
+
+
+def _window(call) -> tuple[str, str]:
+    query = parse_qs(urlparse(call.request.url).query)
+    return query["date_from"][0], query["date_to"][0]
+
+
+@responses.activate
+def test_a_refused_window_is_halved_and_the_narrower_width_holds(client, monkeypatch):
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    url = f"{API}/accounts/acc-1/transactions"
+    responses.get(url, status=400, json={"message": "Wrong transactions period requested"})
+    responses.get(url, status=400, json={"message": "Wrong transactions period requested"})
+    responses.get(url, json={"transactions": [{"id": 1}]})
+    responses.get(url, json={"transactions": []})
+
+    windows = client.fetch_transaction_windows(
+        "acc-1", dt.date(2026, 1, 1), dt.date(2026, 1, 16), window_days=16
+    )
+
+    assert [_window(call) for call in responses.calls] == [
+        ("2026-01-01", "2026-01-16"),
+        ("2026-01-01", "2026-01-08"),
+        ("2026-01-01", "2026-01-04"),
+        ("2026-01-05", "2026-01-08"),
+        ("2026-01-09", "2026-01-12"),
+        ("2026-01-13", "2026-01-16"),
+    ]
+    assert [(w.date_from.day, w.date_to.day, w.error) for w in windows] == [
+        (1, 4, None), (5, 8, None), (9, 12, None), (13, 16, None),
+    ]
+    assert [len(w.transactions) for w in windows] == [1, 0, 0, 0]
+
+
+@responses.activate
+def test_a_window_refused_down_to_one_day_fails_alone(client, monkeypatch):
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    url = f"{API}/accounts/acc-1/transactions"
+    for _ in range(3):  # 4 days, then 2, then 1: refused each time
+        responses.get(url, status=422, json={"message": "Too far in the past"})
+    responses.get(url, json={"transactions": [{"id": 7}]})
+
+    windows = client.fetch_transaction_windows(
+        "acc-1", dt.date(2026, 1, 1), dt.date(2026, 1, 8), window_days=4
+    )
+
+    assert [_window(call) for call in responses.calls] == [
+        ("2026-01-01", "2026-01-04"),
+        ("2026-01-01", "2026-01-02"),
+        ("2026-01-01", "2026-01-01"),
+        ("2026-01-05", "2026-01-08"),
+    ]
+    failed, served = windows
+    assert (failed.date_from, failed.date_to) == (dt.date(2026, 1, 1), dt.date(2026, 1, 4))
+    assert failed.error == "422 Too far in the past"
+    assert failed.transactions == []
+    assert served.error is None and served.transactions == [{"id": 7}]
+
+
+@responses.activate
+def test_a_server_error_fails_its_window_without_halving(client, monkeypatch):
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    url = f"{API}/accounts/acc-1/transactions"
+    responses.get(url, status=500)
+    responses.get(url, json={"transactions": [{"id": 3}]})
+
+    windows = client.fetch_transaction_windows(
+        "acc-1", dt.date(2026, 1, 1), dt.date(2026, 1, 20), window_days=10
+    )
+
+    assert len(responses.calls) == 2
+    assert windows[0].error and windows[0].error.startswith("500")
+    assert windows[1].transactions == [{"id": 3}]
+
+
+@responses.activate
+def test_a_dead_consent_stops_the_period(client, monkeypatch):
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    responses.get(f"{API}/accounts/acc-1/transactions", status=401)
+
+    with pytest.raises(ConsentExpiredError):
+        client.fetch_transaction_windows("acc-1", dt.date(2026, 1, 1), dt.date(2026, 1, 20))

@@ -77,6 +77,8 @@ export interface Account extends AccountRef {
   opening_date: string | null;
   /** The figure the ledger starts from, or null while nothing anchors it. */
   opening_balance: string | null;
+  /** Seen by a sync: Enable Banking knows it, so a period can be asked for it. */
+  connected: boolean;
   /** The 5.4 invariant per account: what the bank declared, and whether we agree. */
   verification: AccountVerification;
 }
@@ -144,6 +146,72 @@ export interface SyncOutcome {
   rules_applied: number;
   passthrough_legs: number;
   errors: string[];
+}
+
+/** One window of a period sync: what the bank returned, or why it did not. */
+export interface PeriodWindow {
+  from: string;
+  to: string;
+  fetched: number;
+  error: string | null;
+}
+
+/** What writing a movement does, as the ledger answers it. */
+export type RecordAction =
+  | "inserted"
+  | "duplicate"
+  | "promoted"
+  | "updated"
+  | "suppressed"
+  | "reimported"
+  | "held"
+  | "discarded";
+
+/** One movement of a period preview, with what writing it would do. */
+export interface PeriodMovement {
+  date: string;
+  amount: string;
+  description: string;
+  status: TransactionStatus;
+  action: RecordAction;
+  /** The row a probable duplicate resembles, and the path that wrote it. */
+  twin_description: string | null;
+  twin_source: string | null;
+}
+
+/** A sync of one account over a chosen period, or its preview. */
+export interface PeriodSyncOutcome {
+  account: string;
+  from: string;
+  to: string;
+  preview: boolean;
+  windows: PeriodWindow[];
+  actions: Partial<Record<RecordAction, number>>;
+  /** Filled by the preview only. */
+  movements: PeriodMovement[];
+  /** Probable duplicates of an import still waiting for a person, on this account. */
+  held: number;
+  transfers_linked: number;
+  passthrough_legs: number;
+  rules_applied: number;
+  error: string | null;
+  balance_mismatch: string | null;
+  errors: string[];
+  verification: AccountVerification;
+}
+
+/** A movement a period sync did not write: it looks like one an import wrote. */
+export interface HeldMovement {
+  id: number;
+  account_id: number;
+  account: string;
+  date: string;
+  amount: string;
+  description: string;
+  twin_id: number | null;
+  twin_description: string | null;
+  twin_source: string | null;
+  twin_source_file: string | null;
 }
 
 export interface Category {

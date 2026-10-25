@@ -7,6 +7,7 @@ import datetime as dt
 import logging
 import time
 import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import jwt as pyjwt
@@ -21,12 +22,33 @@ log = logging.getLogger(__name__)
 _RATE_LIMIT_ATTEMPTS = 4
 _RATE_LIMIT_BASE_SECONDS = 5
 _PAGE_DELAY_SECONDS = 1
-# Inclusive window width; ASPSPs reject broader transaction ranges.
+# Inclusive window width; ASPSPs reject broader transaction ranges. An account
+# can ask for a narrower one (`max_window_days` in accounts.json).
 _WINDOW_DAYS = 30
+# What a bank answers when the range itself is what it refuses: the window is
+# halved on these before the period gives up on it.
+_RANGE_REFUSALS = (400, 422)
 
 
 class ConsentExpiredError(RuntimeError):
     """Enable Banking rejected a request because the consent/session expired."""
+
+
+@dataclass
+class FetchedWindow:
+    """One window of a period, and what the bank answered for it.
+
+    `error` is None when the window was read to its last page; otherwise the
+    window's movements are not in `transactions` at all, because half a window
+    of pages is not a window the ledger can trust as covered. An empty window
+    that succeeded is an answer too — the bank said there is nothing there, or
+    that it serves nothing that old — and the caller shows it as such.
+    """
+
+    date_from: dt.date
+    date_to: dt.date
+    transactions: list[dict] = field(default_factory=list)
+    error: str | None = None
 
 
 def refusal_detail(response: requests.Response) -> str:
@@ -169,42 +191,106 @@ class EnableBankingClient:
         return response.json()
 
     def fetch_transactions(
-        self, account_uid: str, date_from: dt.date, date_to: dt.date | None = None
+        self,
+        account_uid: str,
+        date_from: dt.date,
+        date_to: dt.date | None = None,
+        window_days: int = _WINDOW_DAYS,
     ) -> list[dict]:
+        """Every movement in the range, or the first error any window raised."""
         end_date = date_to or dt.date.today()
-        url = f"{self.api_url}/accounts/{account_uid}/transactions"
         transactions: list[dict] = []
         window_start = date_from
-
-        # ASPSPs reject broad ranges, so query inclusive 30-day windows. A
-        # continuation key is only valid while the original date params repeat.
+        # ASPSPs reject broad ranges, so query inclusive windows of whole days.
         while window_start <= end_date:
-            window_end = min(window_start + dt.timedelta(days=_WINDOW_DAYS - 1), end_date)
-            period_params = {
-                "date_from": window_start.isoformat(),
-                "date_to": window_end.isoformat(),
-            }
-            continuation_key = None
-            first_page = True
-
-            while True:
-                if not first_page:
-                    time.sleep(_PAGE_DELAY_SECONDS)
-                params = dict(period_params)
-                if continuation_key:
-                    params["continuation_key"] = continuation_key
-                response = self._get(url, params)
-                response.raise_for_status()
-                data = response.json()
-                transactions.extend(data.get("transactions", []))
-                continuation_key = data.get("continuation_key")
-                first_page = False
-                if not continuation_key:
-                    break
-
+            window_end = min(window_start + dt.timedelta(days=window_days - 1), end_date)
+            transactions.extend(self._fetch_window(account_uid, window_start, window_end))
             window_start = window_end + dt.timedelta(days=1)
-
         return transactions
+
+    def fetch_transaction_windows(
+        self,
+        account_uid: str,
+        date_from: dt.date,
+        date_to: dt.date,
+        window_days: int = _WINDOW_DAYS,
+    ) -> list[FetchedWindow]:
+        """The range window by window, each with its own outcome.
+
+        A window the bank refuses as a range (`_RANGE_REFUSALS`) is retried at
+        half the width from the same day, down to one day; the narrower width
+        then holds for the rest of the period, since it is the bank's limit and
+        not the window's. When even one day is refused, the window as it was
+        first asked is reported failed and the next one starts at full width
+        again, so a bank that refuses everything costs a handful of calls per
+        window rather than one per day. Any other failure is the window's own
+        and is reported without halving. A dead consent is not a window's
+        failure: it raises, because every other window would fail the same way.
+
+        Windows are whole days on purpose: the ledger numbers identical
+        movements of one day inside a batch, and a day split across two batches
+        would number them differently on the next run.
+        """
+        windows: list[FetchedWindow] = []
+        width = max(1, window_days)
+        window_start = date_from
+        asked_end: dt.date | None = None
+        while window_start <= date_to:
+            window_end = min(window_start + dt.timedelta(days=width - 1), date_to)
+            asked_end = asked_end or window_end
+            try:
+                transactions = self._fetch_window(account_uid, window_start, window_end)
+            except requests.HTTPError as exc:
+                status = exc.response.status_code if exc.response is not None else None
+                if status in _RANGE_REFUSALS and width > 1:
+                    width = max(1, width // 2)
+                    log.info(
+                        "the bank refused %s..%s, retrying %d-day windows",
+                        window_start, window_end, width,
+                    )
+                    continue
+                windows.append(
+                    FetchedWindow(window_start, asked_end, error=_window_error(exc))
+                )
+                window_start = asked_end + dt.timedelta(days=1)
+                width = max(1, window_days)
+                asked_end = None
+                continue
+            except requests.RequestException as exc:
+                windows.append(FetchedWindow(window_start, window_end, error=str(exc)))
+            else:
+                windows.append(FetchedWindow(window_start, window_end, transactions))
+            window_start = window_end + dt.timedelta(days=1)
+            asked_end = None
+        return windows
+
+    def _fetch_window(
+        self, account_uid: str, window_start: dt.date, window_end: dt.date
+    ) -> list[dict]:
+        """One window, every page. A continuation key is only valid while the
+        original date params repeat."""
+        url = f"{self.api_url}/accounts/{account_uid}/transactions"
+        period_params = {
+            "date_from": window_start.isoformat(),
+            "date_to": window_end.isoformat(),
+        }
+        transactions: list[dict] = []
+        continuation_key = None
+        first_page = True
+        while True:
+            if not first_page:
+                time.sleep(_PAGE_DELAY_SECONDS)
+            params = dict(period_params)
+            if continuation_key:
+                params["continuation_key"] = continuation_key
+            response = self._get(url, params)
+            response.raise_for_status()
+            data = response.json()
+            transactions.extend(data.get("transactions", []))
+            continuation_key = data.get("continuation_key")
+            first_page = False
+            if not continuation_key:
+                return transactions
 
     # -- internals ----------------------------------------------------------
 
@@ -232,3 +318,11 @@ class EnableBankingClient:
                 )
             return response
         return response
+
+
+def _window_error(exc: requests.HTTPError) -> str:
+    """A refused window in the bank's own words, with the status it came with."""
+    response = exc.response
+    if response is None:
+        return str(exc)
+    return f"{response.status_code} {refusal_detail(response)}".strip()
