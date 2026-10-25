@@ -243,7 +243,8 @@ def test_spend_by_category_shows_uncategorized_money_and_ignores_pending_and_tra
     assert [(item.category, item.amount) for item in slices] == [("Uncategorized", Decimal("5.00"))]
 
 
-def test_monthly_flows_pair_income_and_spending_and_leave_transfers_out(ledger):
+def test_monthly_flows_pair_income_and_spending_and_leave_transfers_out(ledger, freeze_today):
+    freeze_today(TODAY)
     account = ledger.ensure_account(Account(name="Revolut", type="real"))
     broker = ledger.ensure_account(Account(name="Broker", type="real"))
     groceries = ledger.category("Groceries")

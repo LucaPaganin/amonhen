@@ -1,6 +1,7 @@
 """Pytest fixtures shared across the suite."""
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 
 import pytest
@@ -34,3 +35,24 @@ def ledger():
     conn = open_ledger_db(":memory:")
     yield Ledger(conn)
     conn.close()
+
+
+@pytest.fixture
+def freeze_today(monkeypatch):
+    """Make ``date.today()`` answer a fixed day, for code that reads the clock.
+
+    A fixture written in September that marks "the month in progress" stops
+    passing on the first of October; freezing the day keeps such a test about
+    the code instead of the calendar. Swapping the class on the ``datetime``
+    module reaches every ``import datetime as dt``, and monkeypatch puts it back.
+    """
+
+    def freeze(day: dt.date) -> None:
+        class _FrozenDate(dt.date):
+            @classmethod
+            def today(cls):
+                return cls(day.year, day.month, day.day)
+
+        monkeypatch.setattr(dt, "date", _FrozenDate)
+
+    return freeze

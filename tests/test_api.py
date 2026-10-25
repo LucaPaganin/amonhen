@@ -445,8 +445,10 @@ def test_spending_endpoint_is_the_pie_of_the_period(api):
     assert payload["total"] == "45.50"
 
 
-def test_flows_endpoint_pairs_income_and_expenses_per_month(api):
+def test_flows_endpoint_pairs_income_and_expenses_per_month(api, freeze_today):
     client, _ = api
+    # September is the month in progress, which is what makes it partial.
+    freeze_today(dt.date(2026, 9, 12))
 
     months = client.get(
         "/api/flows", params={"from": "2026-08-01", "to": "2026-09-30"}
