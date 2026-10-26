@@ -106,11 +106,30 @@ interface SectionNavProps {
   onChange: (tab: TabId) => void;
 }
 
+/** The release this bundle was built from; a build from the checkout says `dev`. */
+const BUNDLE_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
+
+/**
+ * Which release is on screen. The bundle is read from disk while the server
+ * keeps running its own code, so the two can differ, and then both are named.
+ */
+function AppVersion({ serverVersion }: { serverVersion: string | null }) {
+  const differs = serverVersion !== null && serverVersion !== BUNDLE_VERSION;
+  return (
+    <p className="appversion">
+      AmonHen {BUNDLE_VERSION}
+      {differs ? ` · server ${serverVersion}` : ""}
+    </p>
+  );
+}
+
 interface NavProps extends SectionNavProps {
   /** A sync in flight: the button says so and refuses a second tap. */
   syncing: boolean;
   /** Asks the server for data now; the answer arrives as a toast. */
   onSync: () => void;
+  /** The release `/api/health` names, null until it answers. */
+  serverVersion: string | null;
 }
 
 function menuLabel(section: Section, reviewCount: number): string {
@@ -339,7 +358,12 @@ function CloseIcon() {
  * della barra in basso; sotto non esiste — è `.apprail` a essere spento, e la
  * forma visibile gliela dà la sezione del desktop in fondo al foglio.
  */
-function AppRail({ active, reviewCount, onChange }: SectionNavProps) {
+function AppRail({
+  active,
+  reviewCount,
+  onChange,
+  serverVersion,
+}: SectionNavProps & { serverVersion: string | null }) {
   return (
     <nav className="apprail" aria-label="Sezioni">
       {SECTIONS.map((section) => (
@@ -360,6 +384,7 @@ function AppRail({ active, reviewCount, onChange }: SectionNavProps) {
           ) : null}
         </button>
       ))}
+      <AppVersion serverVersion={serverVersion} />
     </nav>
   );
 }
@@ -378,7 +403,14 @@ function AppRail({ active, reviewCount, onChange }: SectionNavProps) {
  * The top bar also carries the one control that is not a section: asking Enable
  * Banking for the data now, instead of waiting for the scheduled pass.
  */
-export function Navigation({ active, reviewCount, onChange, syncing, onSync }: NavProps) {
+export function Navigation({
+  active,
+  reviewCount,
+  onChange,
+  syncing,
+  onSync,
+  serverVersion,
+}: NavProps) {
   const [open, setOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -402,7 +434,12 @@ export function Navigation({ active, reviewCount, onChange, syncing, onSync }: N
 
   return (
     <>
-      <AppRail active={active} reviewCount={reviewCount} onChange={onChange} />
+      <AppRail
+        active={active}
+        reviewCount={reviewCount}
+        onChange={onChange}
+        serverVersion={serverVersion}
+      />
 
       <header className="appbar">
         <div className="appbar__inner">
@@ -482,6 +519,7 @@ export function Navigation({ active, reviewCount, onChange, syncing, onSync }: N
               </li>
             ))}
           </ul>
+          <AppVersion serverVersion={serverVersion} />
         </div>
       </div>
     </>

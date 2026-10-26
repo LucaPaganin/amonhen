@@ -83,7 +83,7 @@ from amonhen.providers.enable_banking import (
     refusal_code,
     refusal_detail,
 )
-from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED
+from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED, VERSION
 from amonhen.suggestions import propose_for_unseen
 from amonhen.sync import PeriodInvalid, PeriodSyncResult, SyncBusy, SyncResult, SyncService
 from amonhen.transfers import link_passthrough_legs, link_transfers, pair_candidates
@@ -104,8 +104,9 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # writes around it are new, with the account deletion and the movements' batch
 # writes beside them. 23 is the sync of one account over a chosen period:
 # `/api/sync/period` and the probable duplicates it holds (`/api/sync/held`),
-# and an account row says whether it is `connected`.
-API_VERSION = 23
+# and an account row says whether it is `connected`. 24 is the release in
+# `/api/health` (`version`), which the app shows beside the bundle's own.
+API_VERSION = 24
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -596,7 +597,14 @@ def create_app(
 
     @app.get("/api/health")
     def health() -> dict:
-        return {"status": "ok", "api_version": API_VERSION, "uncategorized": UNCATEGORIZED}
+        # `version` is the release the server runs, which the app shows beside its
+        # own: the bundle is read from disk, so the two can differ.
+        return {
+            "status": "ok",
+            "api_version": API_VERSION,
+            "version": VERSION,
+            "uncategorized": UNCATEGORIZED,
+        }
 
     @app.get("/api/accounts")
     def accounts() -> list[dict]:

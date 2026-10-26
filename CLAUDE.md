@@ -479,6 +479,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `POST /api/transactions/delete` and `POST /api/transactions/category` are new.
   23 is the period sync: `POST /api/sync/period`, `GET /api/sync/held` and
   `POST /api/sync/held/{id}/write|discard`, and an account row gained `connected`.
+  24 is `version` in `/api/health`.
+- **The release is on screen.** The foot of the drawer and of the rail says
+  `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
+  image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
+  context has no `.git`), which becomes `VITE_APP_VERSION` in the bundle and
+  `AMONHEN_VERSION` for the server; `settings.VERSION` falls back to `git describe
+  --tags --always --dirty` in a checkout, and a bundle built there says `dev`.
 - **A rule is a text the description contains, and writing one rewrites the
   ledger.** `rules.key` is the text as it is matched — `rule_key` trims,
   collapses runs of spaces and lower cases it, so a text typed by a human still

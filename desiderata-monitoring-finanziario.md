@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.15 — ottobre 2026
+Versione 1.16 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -154,6 +154,10 @@ non si spostano. Un movimento che somiglia a uno importato da file — stesso co
 giorno e importo, descrizione diversa — non si scrive: aspetta che una persona lo
 scriva o lo scarti, perché l'impronta di contenuto non distingue una descrizione
 riformulata da un secondo movimento.*
+*1.16 · l'app dice quale rilascio si sta guardando: in fondo al menu e al rail c'è
+la versione del bundle, e accanto quella del server quando le due non coincidono
+— il bundle si legge dal disco mentre il processo gira il suo codice, quindi
+possono differire.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`

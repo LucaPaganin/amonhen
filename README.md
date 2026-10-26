@@ -631,7 +631,9 @@ Every update of the live NAS follows these rules, whoever prepares the release.
 6. **Update and check health:** `docker compose pull && docker compose up -d`,
    then `docker ps` must say `healthy` and `docker compose logs amonhen` must show
    no traceback.
-7. **Verify in the app before using it:** the sections the release touched, the
+7. **Verify in the app before using it:** the foot of the menu names the release
+   that is running (`AmonHen v1.6.0`; a second name beside it means the bundle and
+   the server differ), then the sections the release touched, the
    dashboard, and one **Sincronizza**. A phone that still has the old bundle open
    says the server is stale (the `API_VERSION` handshake): reload it. Do not write
    anything the release migrated (budgets, rules, …) until this check passes — a

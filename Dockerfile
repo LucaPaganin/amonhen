@@ -4,6 +4,10 @@
 FROM ghcr.io/astral-sh/uv:0.9.6 AS uv
 
 FROM node:22-slim AS web
+# The release, from the tag CI built (`dev` for a local build): the build context
+# has no .git, so the version arrives as an argument and is baked into both halves.
+ARG AMONHEN_VERSION=dev
+ENV VITE_APP_VERSION=$AMONHEN_VERSION
 WORKDIR /web
 COPY web/package.json web/package-lock.json* ./
 # package-lock.json is optional: fall back to a plain install until it exists.
@@ -12,6 +16,7 @@ COPY web/ ./
 RUN npm run build
 
 FROM python:3.13-slim
+ARG AMONHEN_VERSION=dev
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -41,7 +46,8 @@ EXPOSE 8000
 # bare `docker run` must not fall back to /app — that directory belongs to root,
 # so the process would die with "unable to open database file".
 ENV AMONHEN_DB_PATH=/data/amonhen.db \
-    AMONHEN_CONFIG_FILE=/config/accounts.json
+    AMONHEN_CONFIG_FILE=/config/accounts.json \
+    AMONHEN_VERSION=$AMONHEN_VERSION
 
 # /api/health answers without touching the ledger or accounts.json, so it says
 # whether the process is up and nothing else. curl is not in the slim image.

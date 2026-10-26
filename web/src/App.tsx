@@ -28,7 +28,7 @@ import { useSetup } from "./useSetup";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 23;
+const REQUIRED_API_VERSION = 24;
 
 export default function App() {
   // `?setup=1` is where the bank sends the browser back after a login, and the
@@ -36,6 +36,7 @@ export default function App() {
   // wizard is a normal section change.
   const [tab, setTab] = useState<TabId>(() => (hasSetupParam() ? "setup" : "dashboard"));
   const [staleServer, setStaleServer] = useState(false);
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
   // What the assistant was opened from, when it was opened from a screen: the
   // question is composed there, and the section is handed the thing it is about.
   // The section asks it only when a button is pressed, so this survives until
@@ -66,6 +67,7 @@ export default function App() {
       .then((health) => {
         // A failed check is not a verdict: the screens report their own errors.
         if ((health.api_version ?? 0) < REQUIRED_API_VERSION) setStaleServer(true);
+        setServerVersion(health.version ?? null);
         rememberBucket(health.uncategorized);
       })
       .catch(() => undefined);
@@ -214,6 +216,7 @@ export default function App() {
         onChange={changeTab}
         syncing={syncing}
         onSync={() => void runSync()}
+        serverVersion={serverVersion}
       />
 
       <main className="app__main">

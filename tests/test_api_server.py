@@ -15,6 +15,7 @@ import pytest
 import uvicorn
 
 from amonhen.api import API_VERSION, create_app
+from amonhen.settings import VERSION
 from amonhen.db import open_ledger_db
 from amonhen.ledger import Ledger
 from amonhen.models import Account, IncomingTransaction
@@ -73,6 +74,7 @@ def test_health_over_a_real_server(server):
     assert response.json() == {
         "status": "ok",
         "api_version": API_VERSION,
+        "version": VERSION,
         "uncategorized": "Uncategorized",
     }
 

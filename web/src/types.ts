@@ -9,6 +9,8 @@ export interface AccountRef {
 export interface Health {
   status: string;
   api_version?: number;
+  /** The release the server runs; the bundle carries its own. */
+  version?: string;
   /** The name the review bucket has on the server: a key, not a word to show. */
   uncategorized?: string;
 }

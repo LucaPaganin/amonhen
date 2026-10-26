@@ -1,5 +1,6 @@
 """Project-wide constants and paths, each overridable via a AMONHEN_<NAME> env var."""
 import os
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,6 +52,29 @@ SYNC_INTERVAL_HOURS = int(_env_str("SYNC_INTERVAL_HOURS", "6"))
 # to localhost by default; the container sets AMONHEN_HOST=0.0.0.0.
 HOST = _env_str("HOST", "127.0.0.1")
 PORT = int(_env_str("PORT", "8000"))
+
+def _version() -> str:
+    """The release this process runs: the image's tag, or what the checkout says.
+
+    The image carries it as `AMONHEN_VERSION`, baked from the tag CI built (the
+    build context has no `.git`). A checkout has no such variable, and `git
+    describe` names the commit — `v1.5.0-1-g4444c8f-dirty` is a tag plus local
+    work. Neither: `dev`.
+    """
+    baked = os.getenv("AMONHEN_VERSION")
+    if baked:
+        return baked
+    try:
+        described = subprocess.run(
+            ["git", "describe", "--tags", "--always", "--dirty"],
+            cwd=ROOT, capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return "dev"
+    return described or "dev"
+
+
+VERSION = _version()
 
 # Category account that names transactions which no rule has classified yet.
 UNCATEGORIZED = _env_str("UNCATEGORIZED", "Uncategorized")

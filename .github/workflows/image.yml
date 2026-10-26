@@ -78,6 +78,10 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          # What the app shows at the foot of its menu: the tag, or the branch
+          # and commit of a manual run.
+          build-args: |
+            AMONHEN_VERSION=${{ github.ref_type == 'tag' && github.ref_name || format('{0}-{1}', github.ref_name, github.sha) }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
