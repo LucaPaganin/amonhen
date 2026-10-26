@@ -1262,6 +1262,7 @@ def test_the_api_says_what_a_leg_is_attached_to(api):
         "target": "Fineco",
         "state": "proposed",
         "leg_id": back["id"],
+        "by_rule": False,
     }
     assert out["category"] is None
     # The clearing account is an implementation detail and never leaves the ledger.
@@ -1290,6 +1291,7 @@ def test_recording_a_leg_into_a_declared_destination_takes_it_out_of_income(api)
         "target": "Conto stipendio",
         "state": "confirmed",
         "leg_id": None,
+        "by_rule": False,
     }
     # The chart and the ledger agree: money moved from a count of your own is not
     # money earned.
@@ -1311,6 +1313,7 @@ def test_pairing_two_legs_from_the_api_is_a_decision_already_taken(api):
         "target": "Fineco",
         "state": "confirmed",
         "leg_id": back["id"],
+        "by_rule": False,
     }
     assert client.get("/api/transactions", params={"transfer": "false"}).json()["total"] == 4
 
@@ -1361,6 +1364,8 @@ def test_unlinking_says_when_the_configuration_would_put_the_leg_back(tmp_path):
     assert client.get("/api/transfers/labels").json() == {
         "configured": ["Conto deposito senza vincoli"],
         "recorded": [],
+        # The fixture's accounts carry no uid: to the ledger they were added by hand.
+        "accounts": ["Revolut"],
     }
     client.post(
         "/api/transfers/passthrough",
@@ -1373,6 +1378,7 @@ def test_unlinking_says_when_the_configuration_would_put_the_leg_back(tmp_path):
     assert client.get("/api/transfers/labels").json() == {
         "configured": ["Conto deposito senza vincoli"],
         "recorded": ["Conto deposito senza vincoli", "Conto stipendio"],
+        "accounts": ["Revolut"],
     }
 
     declared_back = client.post("/api/transfers/unlink", json={"transaction_id": declared}).json()

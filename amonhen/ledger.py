@@ -626,7 +626,14 @@ class Ledger:
         ).fetchone()
         if row is None:
             raise KeyError(f"transaction {transaction_id} not found")
-        link = self.transfer_link(transaction_id)
+        if row["mirror_of"] is not None:
+            raise ValueError(
+                f"transaction {transaction_id} is the other half a transfer rule wrote for "
+                f"movement {row['mirror_of']}: delete that one, or change the rule"
+            )
+        # The other half a transfer rule wrote goes with the movement (the row
+        # names it, and the foreign key cascades): there is no pair to reject.
+        link = None if self.mirror_of(transaction_id) else self.transfer_link(transaction_id)
         with self.conn:
             if link is not None:
                 self.set_transfer_review(link["leg_a"], link["leg_b"], "reject")
@@ -673,8 +680,24 @@ class Ledger:
                 "SELECT 1 FROM transactions WHERE id = ?", (transaction_id,)
             ).fetchone() is None:
                 raise KeyError(f"transaction {transaction_id} not found")
+        if not ids:
+            return []
+        # A page that holds both halves of a rule's transfer: the half the rule
+        # wrote goes with its movement, and is not a second deletion.
+        mirrored = {
+            row["id"]
+            for row in self.conn.execute(
+                f"SELECT id, mirror_of FROM transactions WHERE id IN ({', '.join('?' * len(ids))})",
+                ids,
+            )
+            if row["mirror_of"] in ids
+        }
         with deferred_commits(self.conn):
-            return [self.delete_transaction(transaction_id) for transaction_id in ids]
+            return [
+                self.delete_transaction(transaction_id)
+                for transaction_id in ids
+                if transaction_id not in mirrored
+            ]
 
     def delete_account(self, account_id: int) -> int:
         """Take a real account out of the ledger, with everything that hangs on it.
@@ -713,6 +736,11 @@ class Ledger:
                 for table in ("deleted_transactions", "held_transactions",
                               "account_balances", "rules"):
                     self.conn.execute(f"DELETE FROM {table} WHERE account_id = ?", (account_id,))
+                # A transfer rule towards this account would recreate it as a
+                # virtual one at the next sync.
+                self.conn.execute(
+                    "DELETE FROM rules WHERE action = 'transfer' AND target = ?", (row["name"],)
+                )
                 self.conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
         return len(ids)
 
@@ -864,6 +892,22 @@ class Ledger:
         with self.conn:
             self.conn.execute(
                 "UPDATE accounts SET investment = ? WHERE id = ?", (1 if value else 0, account_id)
+            )
+
+    def set_computed_balance(self, account_id: int, value: bool) -> None:
+        """Whether the net worth reads this account's balance from its postings.
+
+        For an account no bank declares a balance for — a deposit whose only
+        movements are the transfers a rule writes — the observed series has
+        nothing to observe, and its money would be missing from the net worth.
+        A declaration made on it still checks the computed figure (section 5.4).
+        """
+        if self.account(account_id)["type"] != "real":
+            raise ValueError(f"account {account_id} is not a real account")
+        with self.conn:
+            self.conn.execute(
+                "UPDATE accounts SET computed_balance = ? WHERE id = ?",
+                (1 if value else 0, account_id),
             )
 
     def setting(self, key: str, default: str | None = None) -> str | None:
@@ -1164,6 +1208,7 @@ class Ledger:
                 "target": target,
                 "state": "confirmed",
                 "leg_id": None,
+                "by_rule": False,
             }
         other = link["leg_b"] if link["leg_a"] == transaction_id else link["leg_a"]
         row = self.conn.execute(
@@ -1176,6 +1221,9 @@ class Ledger:
             "target": row["account"] if row else target,
             "state": "proposed" if link["confirmed_by_human"] == 0 else "confirmed",
             "leg_id": other,
+            # A transfer rule wrote the other half: the pair is undone by
+            # changing the rule, not from the movement.
+            "by_rule": link["method"] == "rule",
         }
 
     def virtual_accounts(self) -> list[str]:
@@ -1201,6 +1249,97 @@ class Ledger:
             raise ValueError(f"{name!r} already names a {row['type']} account")
         with self.conn:
             self._clear_leg(transaction_id, account_id)
+
+    def mirror_target(self, name: str) -> sqlite3.Row:
+        """The account a transfer rule may write the other half of a movement on.
+
+        A real account added by hand: a connected one already has its own half,
+        which the bank reports and the matcher pairs, and writing a second one
+        would count the money twice. Raises ValueError with the reason otherwise.
+        """
+        row = self.find_account(name=name)
+        if row is None or row["type"] != "real":
+            raise ValueError(f"{name!r} is not a real account")
+        if row["external_uid"] is not None:
+            raise ValueError(
+                f"{name!r} is connected to a bank: its movements arrive by themselves "
+                "and the pairing links them"
+            )
+        return row
+
+    def mirror_transfer(self, transaction_id: int, name: str) -> int:
+        """Write the other half of a transfer on an account added by hand, and pair them.
+
+        A deposit that only Revolut's own app shows has no movements a bank
+        reports, so the transfers to and from it have nowhere to land: the rule
+        that recognises them writes the opposite movement on that account — same
+        day, same description, opposite amount — and links the two as a confirmed
+        pair. The money leaves spending and income as any pair does, and the
+        account's balance is what those movements add up to. The row names the
+        movement it mirrors, and goes with it. Returns the new row's id.
+        """
+        row = self.conn.execute(
+            "SELECT * FROM transactions WHERE id = ?", (transaction_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"transaction {transaction_id} not found")
+        if row["mirror_of"] is not None:
+            raise ValueError(f"transaction {transaction_id} is itself the other half of a transfer")
+        target = self.mirror_target(name)
+        if target["id"] == row["account_id"]:
+            raise ValueError("a movement cannot be a transfer to its own account")
+        amount = -parse_decimal(row["amount"])
+        with self.conn:
+            cursor = self.conn.execute(
+                """INSERT INTO transactions (
+                       account_id, date, amount, description, status, external_id,
+                       content_hash, source, source_file, raw_payload, currency,
+                       created_at, mirror_of
+                   ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?, ?, ?)""",
+                (
+                    target["id"], row["date"], format_decimal(amount), row["description"],
+                    row["status"],
+                    # Out of the dedup's way: an export of this account, imported
+                    # one day, must not be taken for the rule's own rows.
+                    f"mirror:{transaction_id}",
+                    # Where the information came from is the movement it mirrors.
+                    row["source"],
+                    json.dumps({"mirror_of": transaction_id}),
+                    row["currency"],
+                    dt.datetime.now(dt.UTC).isoformat(),
+                    transaction_id,
+                ),
+            )
+            mirror_id = int(cursor.lastrowid)
+            self.conn.execute(
+                "INSERT INTO postings (transaction_id, account_id, amount) VALUES (?, ?, ?)",
+                (mirror_id, target["id"], format_decimal(amount)),
+            )
+            self.link_transfer_pair(transaction_id, mirror_id, "high", "rule")
+            self.conn.execute(
+                "UPDATE transfer_links SET confirmed_by_human = 1 WHERE leg_a = ? AND leg_b = ?",
+                (transaction_id, mirror_id),
+            )
+        return mirror_id
+
+    def mirror_of(self, transaction_id: int) -> sqlite3.Row | None:
+        """The row a transfer rule wrote as this movement's other half, if any."""
+        return self.conn.execute(
+            """SELECT t.*, a.name AS account FROM transactions t
+               JOIN accounts a ON a.id = t.account_id WHERE t.mirror_of = ?""",
+            (transaction_id,),
+        ).fetchone()
+
+    def drop_mirror(self, transaction_id: int) -> None:
+        """Take back the other half a transfer rule wrote, and return the movement
+        to the queue.
+
+        The half is the rule's and not a movement anybody reported, so it goes
+        without a tombstone, and its link with it.
+        """
+        with self.conn:
+            self.conn.execute("DELETE FROM transactions WHERE mirror_of = ?", (transaction_id,))
+            self.set_category(transaction_id, self.uncategorized())
 
     def mark_passthrough(self, transaction_id: int, destination: str) -> None:
         """Declare a leg money that is not the holder's to count.
@@ -1263,6 +1402,11 @@ class Ledger:
         if target is None:
             raise KeyError(f"transaction {transaction_id} is not a transfer")
         link = self.transfer_link(transaction_id)
+        if link is not None and link["method"] == "rule":
+            raise ValueError(
+                "a transfer rule wrote this pair: change or remove the rule, or it is "
+                "written again at the next sync"
+            )
         if link is not None:
             # Rejecting keeps the row: the candidate query skips any leg that
             # holds one, so the pair cannot come straight back at the next sync.

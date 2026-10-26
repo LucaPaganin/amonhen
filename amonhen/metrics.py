@@ -508,6 +508,11 @@ def net_worth_series(
     where the data starts instead of pretending to know the past. A period cuts
     the points it shows, never the running total: an observation before
     ``start`` still decides what the first point inside the period is worth.
+
+    The one exception is an account marked ``computed_balance``: no bank reports
+    a balance for it, so at each point it is worth what its own postings say on
+    that date, from its opening on, and a declaration made on it is the 5.4
+    check rather than a point. The dates stay the observed ones.
     """
     known: dict[int, Decimal] = {}
     totals: dict[str, Decimal] = {}
@@ -516,13 +521,24 @@ def net_worth_series(
         """SELECT ab.date AS date, ab.account_id AS account_id, ab.balance AS balance
            FROM account_balances ab
            JOIN accounts a ON a.id = ab.account_id
-           WHERE a.type = 'real'"""
+           WHERE a.type = 'real' AND a.computed_balance = 0"""
         + scoped
         + " ORDER BY ab.date, ab.account_id",
         extra,
     ):
         known[row["account_id"]] = parse_decimal(row["balance"])
         totals[row["date"]] = sum(known.values(), Decimal(0))
+    computed = _computed_accounts(ledger, scope)
+    for day in totals:
+        date = dt.date.fromisoformat(day)
+        totals[day] += sum(
+            (
+                ledger.balance(account["id"], date)
+                for account in computed
+                if account["opening_date"] is None or account["opening_date"] < day
+            ),
+            Decimal(0),
+        )
     return [
         NetWorthPoint(date=dt.date.fromisoformat(day), total=total)
         for day, total in sorted(totals.items())
@@ -530,13 +546,37 @@ def net_worth_series(
     ]
 
 
+def _computed_accounts(ledger: Ledger, scope: LedgerScope) -> list:
+    """The tracked accounts whose balance is their postings, not a declaration."""
+    scoped, extra = _account_scope(scope, "name")
+    return ledger.conn.execute(
+        "SELECT id, name, opening_date FROM accounts"
+        " WHERE type = 'real' AND computed_balance = 1" + scoped + " ORDER BY name",
+        extra,
+    ).fetchall()
+
+
 def latest_balances(ledger: Ledger, scope: LedgerScope = LedgerScope()) -> list[AccountBalance]:
-    """The most recent reported balance of every tracked account."""
+    """The most recent reported balance of every tracked account.
+
+    An account marked ``computed_balance`` reports none, and is worth what its
+    postings say today.
+    """
     balances = []
     scoped, extra = _account_scope(scope, "name")
     for account in ledger.conn.execute(
-        "SELECT id, name FROM accounts WHERE type = 'real'" + scoped + " ORDER BY name", extra
+        "SELECT id, name, computed_balance FROM accounts WHERE type = 'real'" + scoped
+        + " ORDER BY name",
+        extra,
     ):
+        if account["computed_balance"]:
+            today = dt.date.today()
+            balances.append(
+                AccountBalance(
+                    account=account["name"], date=today, balance=ledger.balance(account["id"], today)
+                )
+            )
+            continue
         row = ledger.conn.execute(
             """SELECT date, balance FROM account_balances
                WHERE account_id = ? ORDER BY date DESC LIMIT 1""",

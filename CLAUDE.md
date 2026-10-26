@@ -97,7 +97,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
@@ -395,7 +395,12 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   its first observation, so the curve starts where the data starts — no
   back-fill and no interpolation. The newest row is also what the 5.4 assertion
   in `SyncService.run` compares the ledger against, so one sync records and
-  checks in the same pass.
+  checks in the same pass. The one exception is an account with
+  `computed_balance` set: no bank reports it, so `net_worth_series` adds its
+  `Ledger.balance` at each observed date (from its `opening_date` on, the dates
+  stay the observed ones) and `latest_balances` reports it as of today; a
+  declaration on it is left out of the series and stays the 5.4 check. Liquidity
+  in `compute_metrics` already used `Ledger.balance` for every real account.
 - **The 5.4 assertion is visible, and "no declared balance" is not a pass.**
   The bank declares two figures for the same date and they differ by the pending
   movements, so each declaration is asserted against the computed balance that
@@ -479,7 +484,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `POST /api/transactions/delete` and `POST /api/transactions/category` are new.
   23 is the period sync: `POST /api/sync/period`, `GET /api/sync/held` and
   `POST /api/sync/held/{id}/write|discard`, and an account row gained `connected`.
-  24 is `version` in `/api/health`.
+  24 is `version` in `/api/health`. 25 is the account added by hand that a transfer
+  rule writes the other half on: an account row gained `computed_balance`, a
+  transaction's `transfer` gained `by_rule`, and `/api/transfers/labels` gained
+  `accounts`.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -817,6 +825,30 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   /api/transactions/category` gives the chosen rows one category as a person's
   decision and skips transfer legs and splits, counting them. **Movimenti** has a
   *Seleziona* mode: a tap picks a row, *Seleziona tutti* takes the loaded page.
+- **A transfer rule towards an account added by hand writes the other half.** The
+  Revolut deposit is reachable only through a consent that does not cover it, so its
+  transfers reach the ledger on the personal account alone. When a transfer rule's
+  `target` names a real account with no `external_uid`, `_apply_transfers` calls
+  `Ledger.mirror_transfer` instead of `move_to_virtual_account`: it inserts the
+  opposite movement on that account (same date and description, `mirror_of` = the
+  original's id, `content_hash` = `mirror:<id>` so an import can never dedup against
+  it, `source` copied from the original) and links the two as a confirmed pair with
+  `method = 'rule'`. The pair then behaves like any linked pair — out of spending,
+  income and the queue — and the account's balance is its postings. Only `BOOK` rows
+  are mirrored (a promotion rewrites a pending row's postings). `_movement_rows`
+  leaves the mirror rows out, because they carry the description the rule matches,
+  and reports `mirror_account` so a mirrored original stays the rule's to move or
+  release; releasing or retargeting deletes the mirror with no tombstone
+  (`drop_mirror`). `mirror_of` cascades, so deleting the original takes its mirror,
+  and `delete_transaction` refuses a mirror alone (a page holding both deletes the
+  original once); `unlink_transfer` refuses a `rule` pair; `delete_account` also
+  removes the transfer rules that target the account, or the next sync would
+  recreate it as a virtual one. `set_rule` refuses a connected account as target
+  (its own half arrives from the bank) and a rule narrowed to the target itself.
+  The opening of such an account is anchored from today's figure through the
+  mirrors (`anchor_opening` dates it the day before the first one), so its history
+  starts at the first transfer; interest the bank credits inside the account is
+  invisible, and is corrected with a movement rather than by re-anchoring.
 - **A rule's kind is in its pattern, not in a column.** A pattern written between slashes is a regular expression (section 5.5), matched with `re.search(..., re.IGNORECASE)` against the same collapsed, lower-cased description the plain rules compare, compiled once per source through an `lru_cache` because a sync runs the whole book against every description. `Rule.expression` and `rule_pattern()` are the only readers of the slashes, so the store, the API and the CLI carry no new field. The longest pattern wins, counted on what it says (the text, or the expression inside the slashes), so an expression that names a family is longer than the words it replaces while a broader one steals nothing from a narrower text; `set_rule` refuses an expression that does not compile (`ValueError`, which the app's handler turns into a 422), so a rule that could never match is never stored.
 
 ## Ledger schema
@@ -828,8 +860,8 @@ by construction.
 
 |Table|Columns|Holds|
 |---|---|---|
-|`accounts`|13|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `investment` is what makes a transfer into an account savings instead of spending; `reimport_deleted` decides whether the next sync writes back the movements deleted from this account|
-|`transactions`|16|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`, `notes` (local, written by a person, never by an ingest path)|
+|`accounts`|14|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `investment` is what makes a transfer into an account savings instead of spending; `reimport_deleted` decides whether the next sync writes back the movements deleted from this account; `computed_balance` makes the net worth read the account from its postings instead of a declaration|
+|`transactions`|17|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`, `notes` (local, written by a person, never by an ingest path), `mirror_of` (the movement this row is the other half of, written by a transfer rule towards an account added by hand)|
 |`postings`|5|The double-entry legs: `transaction_id`, `account_id`, `amount`, `note`. A spend is one leg on the real account and one on a category account; a transfer is one leg on each real account, or on the virtual clearing account when only one side is in the ledger; a split is several category legs on one transaction|
 |`deleted_transactions`|18|A movement a person deleted, copied whole: the identity the ledger dedupes by, the bank's payload, the note, when it went and when it came back. It is what keeps the next sync from writing the movement in again|
 |`transfer_links`|5|A pairing, proposed or confirmed: the two legs, `confidence`, `method`, `confirmed_by_human`|
@@ -861,6 +893,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Sync one account over a past period, or fill a gap|The account's panel in **Conti**, *Sincronizza un periodo* (preview first) — or `uv run amonhen sync --account <name> --from YYYY-MM-DD --to YYYY-MM-DD [--preview]`. Then decide the held probable duplicates in the same panel. A bank that refuses 30-day ranges gets `max_window_days` in its `accounts.json` entry|
 |Ask the banks for data now|The **Sincronizza** button in the app's top bar (`POST /api/sync`), or `uv run amonhen sync`|
 |Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
+|Track an account no bank exposes (the Revolut deposit)|**Conti**: add it by hand, then a transfer rule in **Categorie e regole** with the text the bank prints and the account as *Verso* — the rule writes the other half of every transfer on it. Declare today's balance and *Allinea il saldo iniziale*, then turn on *Saldo dai movimenti* so the net worth reads it; correct interest with a movement. CLI: `account-flags <name> --computed-balance`|
 |Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|
 |Deploy a new image to the NAS|Follow README, *Updating safely*: rehearse any migration on a copy of a recent snapshot, tag `v*` and let CI publish, snapshot right before, pin `AMONHEN_TAG`, then `docker compose pull && docker compose up -d` and verify. A schema change is one-way, so its rollback restores the snapshot as well as the tag|
 |Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, removing `amonhen.db-wal`/`-shm`, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|

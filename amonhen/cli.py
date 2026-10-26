@@ -73,10 +73,16 @@ def build_parser() -> argparse.ArgumentParser:
     flags.add_argument("--essential", action="store_true", default=None)
     flags.add_argument("--not-essential", dest="essential", action="store_false")
 
-    account_flags = sub.add_parser("account-flags", help="mark a real account as investment")
+    account_flags = sub.add_parser(
+        "account-flags", help="mark a real account as investment, or as worth its own postings"
+    )
     account_flags.add_argument("account")
     account_flags.add_argument("--investment", action="store_true", default=None)
     account_flags.add_argument("--not-investment", dest="investment", action="store_false")
+    account_flags.add_argument("--computed-balance", action="store_true", default=None)
+    account_flags.add_argument(
+        "--declared-balance", dest="computed_balance", action="store_false"
+    )
 
     split = sub.add_parser("split", help="split a transaction across categories")
     split.add_argument("transaction_id", type=int)
@@ -373,11 +379,15 @@ def cmd_category_flags(ledger: Ledger, args) -> int:
 
 def cmd_account_flags(ledger: Ledger, args) -> int:
     account = require_account(ledger, args.account)
-    if args.investment is None:
-        print(f"{account['name']}: investment={bool(account['investment'])}")
-        return 0
-    ledger.set_investment(account["id"], args.investment)
-    print(f"{account['name']}: investment={args.investment}")
+    if args.investment is not None:
+        ledger.set_investment(account["id"], args.investment)
+    if args.computed_balance is not None:
+        ledger.set_computed_balance(account["id"], args.computed_balance)
+    row = ledger.account(account["id"])
+    print(
+        f"{row['name']}: investment={bool(row['investment'])}"
+        f" computed_balance={bool(row['computed_balance'])}"
+    )
     return 0
 
 

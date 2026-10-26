@@ -8,6 +8,7 @@ import { Toggle } from "../components/Toggle";
 import { formatAmount, formatDate, toAmount } from "../format";
 import type {
   Account,
+  AccountFlags,
   AccountVerification,
   DeclaredBalanceCheck,
   Declaration,
@@ -517,7 +518,7 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
 
   const toggleFlag = async (
     account: Account,
-    flags: { investment?: boolean; reimport_deleted?: boolean },
+    flags: AccountFlags,
   ) => {
     if (pendingAccounts.includes(account.id)) return;
     setPendingAccounts((current) => [...current, account.id]);
@@ -647,7 +648,22 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                       disabled={pending}
                       onChange={(next) => void toggleFlag(account, { reimport_deleted: next })}
                     />
+                    {account.connected ? null : (
+                      <Toggle
+                        label="Saldo dai movimenti"
+                        ariaLabel={`Saldo dai movimenti di ${account.name}`}
+                        checked={account.computed_balance}
+                        disabled={pending}
+                        onChange={(next) => void toggleFlag(account, { computed_balance: next })}
+                      />
+                    )}
                   </div>
+                  {account.computed_balance ? (
+                    <p className="hint">
+                      Il patrimonio conta questo conto per quello che dicono i suoi movimenti; un
+                      saldo dichiarato serve solo a verificarlo.
+                    </p>
+                  ) : null}
                   {account.reimport_deleted ? (
                     <p className="hint">
                       I movimenti cancellati di questo conto tornano al prossimo sync, con la loro

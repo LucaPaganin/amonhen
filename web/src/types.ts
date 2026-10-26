@@ -76,6 +76,12 @@ export interface Account extends AccountRef {
   investment: boolean;
   /** On: the next sync writes back the movements deleted from this account. */
   reimport_deleted: boolean;
+  /**
+   * On: the net worth reads this account's balance from its movements instead of
+   * from a declared figure — for an account no bank reports, like a deposit fed
+   * only by the transfers a rule writes on it.
+   */
+  computed_balance: boolean;
   opening_date: string | null;
   /** The figure the ledger starts from, or null while nothing anchors it. */
   opening_balance: string | null;
@@ -84,6 +90,11 @@ export interface Account extends AccountRef {
   /** The 5.4 invariant per account: what the bank declared, and whether we agree. */
   verification: AccountVerification;
 }
+
+/** The flags of an account a person flips in Conti. */
+export type AccountFlags = Partial<
+  Pick<Account, "investment" | "reimport_deleted" | "computed_balance">
+>;
 
 /** A real account added by hand: the broker, or a bank that is not connected. */
 export interface NewAccount {
@@ -241,6 +252,8 @@ export interface TransferDetail {
   state: "proposed" | "confirmed";
   /** The other leg, for a pair. Null when the other half is not in the ledger. */
   leg_id: number | null;
+  /** A transfer rule wrote the other half: the pair is undone by changing the rule. */
+  by_rule: boolean;
 }
 
 export interface Transaction {
@@ -410,6 +423,8 @@ export type TransferDecision = "confirm" | "reject";
 export interface TransferLabels {
   configured: string[];
   recorded: string[];
+  /** Real accounts added by hand: a rule writes the other half of the movement there. */
+  accounts: string[];
 }
 
 export interface TransferUnlink {

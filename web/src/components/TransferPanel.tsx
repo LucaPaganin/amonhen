@@ -25,7 +25,11 @@ interface TransferPanelProps {
 export function TransferPanel({ open, transaction, onDone, onClose }: TransferPanelProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const [labels, setLabels] = useState<TransferLabels>({ configured: [], recorded: [] });
+  const [labels, setLabels] = useState<TransferLabels>({
+    configured: [],
+    recorded: [],
+    accounts: [],
+  });
   const [destination, setDestination] = useState("");
   const [counterpart, setCounterpart] = useState<Transaction | null>(null);
   const [candidates, setCandidates] = useState<Transaction[] | null>(null);
@@ -140,6 +144,9 @@ export function TransferPanel({ open, transaction, onDone, onClose }: TransferPa
                     ? `Registrato verso «${transfer.target}»: né una spesa né un'entrata.`
                     : `Abbinato al movimento su «${transfer.target}».`}
                   {transfer.state === "proposed" ? " Il matcher l'ha proposto: tocca a te dirlo." : ""}
+                  {transfer.by_rule
+                    ? " Il movimento opposto l'ha scritto una regola: si annulla cambiandola in Categorie e regole."
+                    : ""}
                 </p>
 
                 {counterpart ? (
@@ -170,22 +177,24 @@ export function TransferPanel({ open, transaction, onDone, onClose }: TransferPa
                   </button>
                 ) : null}
 
-                <button
-                  type="button"
-                  className="button button--danger button--block"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      const result = await api.unlinkTransfer(transaction.id);
-                      if (result.configured && result.released) {
-                        return `Segno annullato, ma «${result.released}» è fra le voci dichiarate in accounts.json: il prossimo sync lo rimette`;
-                      }
-                      return "Segno annullato: il movimento torna in coda";
-                    })
-                  }
-                >
-                  Annulla il segno
-                </button>
+                {transfer.by_rule ? null : (
+                  <button
+                    type="button"
+                    className="button button--danger button--block"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        const result = await api.unlinkTransfer(transaction.id);
+                        if (result.configured && result.released) {
+                          return `Segno annullato, ma «${result.released}» è fra le voci dichiarate in accounts.json: il prossimo sync lo rimette`;
+                        }
+                        return "Segno annullato: il movimento torna in coda";
+                      })
+                    }
+                  >
+                    Annulla il segno
+                  </button>
+                )}
               </>
             ) : (
               <>

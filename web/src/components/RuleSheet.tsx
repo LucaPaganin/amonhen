@@ -35,6 +35,9 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
   const [draft, setDraft] = useState<RuleDraft>(initial);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [destinations, setDestinations] = useState<string[]>([]);
+  // Real accounts added by hand: the rule writes the other half of the movement
+  // there, so their balance follows the transfers.
+  const [handAccounts, setHandAccounts] = useState<string[]>([]);
   const [preview, setPreview] = useState<RulePreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -52,7 +55,10 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
       .catch(() => undefined);
     api
       .transferLabels(controller.signal)
-      .then((labels) => setDestinations([...new Set([...labels.configured, ...labels.recorded])]))
+      .then((labels) => {
+        setHandAccounts(labels.accounts);
+        setDestinations([...new Set([...labels.accounts, ...labels.configured, ...labels.recorded])]);
+      })
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
@@ -270,10 +276,17 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
                   <option key={name} value={name} />
                 ))}
               </datalist>
-              <p className="hint">
-                Esce dalle spese e dalle entrate e resta registrato su quella destinazione, come un
-                giroconto verso un conto che qui non è collegato.
-              </p>
+              {handAccounts.includes((draft.target ?? "").trim()) ? (
+                <p className="hint">
+                  È un conto creato a mano: la regola ci scrive il movimento opposto e li collega
+                  come giroconto, così il suo saldo segue i giroconti.
+                </p>
+              ) : (
+                <p className="hint">
+                  Esce dalle spese e dalle entrate e resta registrato su quella destinazione, come
+                  un giroconto verso un conto che qui non è collegato.
+                </p>
+              )}
             </div>
           ) : null}
 

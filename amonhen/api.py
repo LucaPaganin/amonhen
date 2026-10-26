@@ -105,8 +105,11 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # writes beside them. 23 is the sync of one account over a chosen period:
 # `/api/sync/period` and the probable duplicates it holds (`/api/sync/held`),
 # and an account row says whether it is `connected`. 24 is the release in
-# `/api/health` (`version`), which the app shows beside the bundle's own.
-API_VERSION = 24
+# `/api/health` (`version`), which the app shows beside the bundle's own. 25 is
+# the account added by hand that a transfer rule writes the other half on: an
+# account row carries `computed_balance`, a transaction's `transfer` says
+# `by_rule`, and `/api/transfers/labels` lists those `accounts`.
+API_VERSION = 25
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -214,6 +217,7 @@ class CategoryFlagsRequest(BaseModel):
 class AccountFlagsRequest(BaseModel):
     investment: bool | None = None
     reimport_deleted: bool | None = None
+    computed_balance: bool | None = None
 
 
 class SplitItem(BaseModel):
@@ -1228,11 +1232,13 @@ def create_app(
 
         `investment` marks the account whose inflows are savings rather than
         spending; `reimport_deleted` decides whether a movement deleted here may
-        come back at the next sync. Both are decisions about the account, so
-        they are written here rather than on a movement, and the answer is the
-        account as every other endpoint reads it.
+        come back at the next sync; `computed_balance` makes the net worth read
+        the account's balance from its postings, for an account no bank declares
+        one for. They are decisions about the account, so they are written here
+        rather than on a movement, and the answer is the account as every other
+        endpoint reads it.
         """
-        if body.investment is None and body.reimport_deleted is None:
+        if body.investment is None and body.reimport_deleted is None and body.computed_balance is None:
             raise HTTPException(status_code=422, detail="nothing to set")
         with ledger_scope() as ledger:
             try:
@@ -1240,6 +1246,8 @@ def create_app(
                     ledger.set_investment(account_id, body.investment)
                 if body.reimport_deleted is not None:
                     ledger.set_reimport_deleted(account_id, body.reimport_deleted)
+                if body.computed_balance is not None:
+                    ledger.set_computed_balance(account_id, body.computed_balance)
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             except ValueError as exc:
@@ -1364,11 +1372,20 @@ def create_app(
         ``configured`` is what a sync matches against the description and
         ``recorded`` is what earlier marks created: both are offered, because a
         second spelling of the same account is what this list exists to prevent.
+        ``accounts`` are the real accounts added by hand, where a transfer rule
+        writes the other half of the movement instead of a virtual destination.
         """
         with ledger_scope() as ledger:
             return {
                 "configured": [d.destination for d in load_config(config_path).passthrough],
                 "recorded": ledger.virtual_accounts(),
+                "accounts": [
+                    row["name"]
+                    for row in ledger.conn.execute(
+                        """SELECT name FROM accounts WHERE type = 'real'
+                           AND external_uid IS NULL ORDER BY name"""
+                    )
+                ],
             }
 
     @app.get("/api/transfers/{transaction_id}/candidates")
@@ -1940,6 +1957,9 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         # Off means a movement deleted here stays deleted; on means the next
         # sync writes it back from the tombstone, note included.
         "reimport_deleted": bool(row["reimport_deleted"]),
+        # The net worth reads this account's balance from its postings rather
+        # than from what a bank declared.
+        "computed_balance": bool(row["computed_balance"]),
         # Seen by a sync, so Enable Banking knows it: what the panel's period
         # sync needs. An account added by hand has no uid and nothing to ask.
         "connected": row["external_uid"] is not None,

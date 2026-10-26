@@ -78,6 +78,7 @@ uv run python -m amonhen rules           # list them
 uv run python -m amonhen metrics         # burn, accrual, runway, savings flow
 uv run python -m amonhen category-flags Salute --episodic
 uv run python -m amonhen account-flags "Fondo pensione" --investment
+uv run python -m amonhen account-flags "Revolut deposito" --computed-balance  # net worth from its movements
 uv run python -m amonhen split 42 Groceries=30.00 Household=12.50
 uv run python -m amonhen budget Groceries 300   # default budget from this month on
 uv run python -m amonhen budgets --month 2026-11  # budget, planned, spent, left

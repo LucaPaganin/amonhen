@@ -451,7 +451,9 @@ def test_a_leg_says_where_its_other_half_is(ledger):
 
     # The clearing account is an implementation detail: what a person needs to
     # see is which account holds the other half.
-    assert proposed == {"kind": "pair", "target": "Fineco", "state": "proposed", "leg_id": back}
+    assert proposed == {
+        "kind": "pair", "target": "Fineco", "state": "proposed", "leg_id": back, "by_rule": False
+    }
     assert ledger.transfer_of(plain) is None
 
     ledger.set_transfer_review(out, back, "confirm")
@@ -470,6 +472,7 @@ def test_a_leg_recorded_to_an_own_account_names_it(ledger):
         "target": DEPOSIT,
         "state": "confirmed",
         "leg_id": None,
+        "by_rule": False,
     }
     assert ledger.spend_between(dt.date(2026, 2, 1), dt.date(2026, 2, 28)) == Decimal("0.00")
     ledger.validate()
@@ -564,6 +567,7 @@ def test_a_pair_made_by_hand_is_marked_as_already_reviewed(ledger):
         "target": "Fineco",
         "state": "confirmed",
         "leg_id": back,
+        "by_rule": False,
     }
     assert ledger.transfer_of(back)["target"] == "Revolut"
     assert ledger.transfer_link(out)["method"] == "human"

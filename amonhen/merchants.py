@@ -423,7 +423,13 @@ class RuleBook:
             if target == TRANSFER_CLEARING:
                 raise ValueError(f"{TRANSFER_CLEARING!r} is the pairing account, not a destination")
             existing = ledger.find_account(name=target)
-            if existing is not None and existing["type"] != "virtual":
+            if existing is not None and existing["type"] == "real":
+                # An account added by hand takes the other half the rule
+                # writes; a connected one reports its own.
+                ledger.mirror_target(target)
+                if account_id is not None and existing["id"] == account_id:
+                    raise ValueError("a movement cannot be a transfer to its own account")
+            elif existing is not None and existing["type"] != "virtual":
                 raise ValueError(f"{target!r} already names a {existing['type']} account")
         else:
             target = None
@@ -532,6 +538,11 @@ def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[int, int]:
         rule = matching_rule(row["description"], by_action[kind], movement)
         if rule is not None and rule.target == row["side_name"]:
             count(rule)
+    for row in _movement_rows(ledger):
+        if row["mirror_account"] is not None:
+            rule = matching_rule(row["description"], by_action["transfer"], _movement_of(row))
+            if rule is not None and rule.target == row["mirror_account"]:
+                count(rule)
     if by_action["delete"]:
         for row in ledger.deleted_transactions():
             movement = Movement(row["account_id"], parse_decimal(row["amount"]))
@@ -642,7 +653,10 @@ def _movement_rows(ledger: Ledger) -> list[sqlite3.Row]:
     `side_type` and `side_name` name the balancing posting when there is exactly
     one besides the real leg — a category, or a virtual account (a destination,
     or the clearing account of a pair, which `linked` tells apart); a split has
-    several. Neither a split nor a paired leg is a rule's to decide or to move.
+    several. Neither a split nor a paired leg is a rule's to decide or to move —
+    except the pair a transfer rule wrote itself, whose other half is on the
+    account `mirror_account` names. That other half is not a movement at all
+    for the rules, and is left out: it carries the description it copied.
     """
     return ledger.conn.execute(
         """SELECT t.id, t.date, t.amount, t.description, t.account_id,
@@ -656,9 +670,12 @@ def _movement_rows(ledger: Ledger) -> list[sqlite3.Row]:
                     WHERE p.transaction_id = t.id AND a.type IN ('category', 'virtual')
                     LIMIT 1) AS side_name,
                   EXISTS (SELECT 1 FROM transfer_links l
-                           WHERE l.leg_a = t.id OR l.leg_b = t.id) AS linked
+                           WHERE l.leg_a = t.id OR l.leg_b = t.id) AS linked,
+                  (SELECT a.name FROM transactions m JOIN accounts a ON a.id = m.account_id
+                    WHERE m.mirror_of = t.id) AS mirror_account,
+                  t.status
            FROM transactions t JOIN accounts r ON r.id = t.account_id
-           WHERE r.type = 'real'
+           WHERE r.type = 'real' AND t.mirror_of IS NULL
            ORDER BY t.date, t.id"""
     ).fetchall()
 
@@ -696,31 +713,55 @@ def _apply_transfers(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rul
     what a transfer rule no longer claims.
 
     A leg goes to the destination whatever category it carried: the rule says
-    the money is not spending, which no category can say. A leg a removed rule
-    had recorded goes back to the queue, where the category rules find it.
+    the money is not spending, which no category can say. A destination that is
+    a real account added by hand gets the other half written on it
+    (`Ledger.mirror_transfer`), once the bank has settled the movement — a
+    pending row is rewritten when it is booked, and the half would be left
+    behind. A leg a removed rule had recorded goes back to the queue, where the
+    category rules find it, and the half it wrote goes with the rule.
     """
     old = _by_action(before)["transfer"]
     new = _by_action(after)["transfer"]
     if not old and not new:
         return 0
+    real = {
+        row["name"]
+        for row in ledger.conn.execute("SELECT name FROM accounts WHERE type = 'real'")
+    }
     changed = 0
     for row in _movement_rows(ledger):
-        if not _decidable(row):
+        mirrored = row["mirror_account"]
+        if not (_decidable(row) or mirrored is not None):
             continue
         movement = _movement_of(row)
         winner = matching_rule(row["description"], new, movement)
-        current = row["side_name"] if row["side_type"] == "virtual" else None
+        if mirrored is not None:
+            current = mirrored
+        else:
+            current = row["side_name"] if row["side_type"] == "virtual" else None
         if winner is not None:
-            if winner.target != current:
+            if winner.target == current:
+                continue
+            to_real = winner.target in real
+            if to_real and (row["status"] != "BOOK" or winner.target == row["account"]):
+                continue
+            if mirrored is not None:
+                ledger.drop_mirror(row["id"])
+            if to_real:
+                ledger.mirror_transfer(row["id"], winner.target)
+            else:
                 ledger.move_to_virtual_account(row["id"], winner.target)
-                changed += 1
+            changed += 1
             continue
         theirs = current is not None and any(
             rule.target == current
             for rule in _candidate_rules(row["description"], old, movement)
         )
         if theirs:
-            ledger.set_category(row["id"], ledger.uncategorized())
+            if mirrored is not None:
+                ledger.drop_mirror(row["id"])
+            else:
+                ledger.set_category(row["id"], ledger.uncategorized())
             changed += 1
     return changed
 

@@ -243,6 +243,13 @@ _ADDED_COLUMNS = (
     ("accounts", "investment", "INTEGER NOT NULL DEFAULT 0"),
     ("transactions", "notes", "TEXT"),
     ("accounts", "reimport_deleted", "INTEGER NOT NULL DEFAULT 0"),
+    # An account no bank reports a balance for — a deposit only reachable
+    # through the movements to and from it — is worth what its postings say.
+    ("accounts", "computed_balance", "INTEGER NOT NULL DEFAULT 0"),
+    # The movement this row is the other half of, written by a transfer rule
+    # towards an account added by hand: no bank prints this side, so the rule
+    # does, and the row goes when the movement it mirrors goes.
+    ("transactions", "mirror_of", "INTEGER REFERENCES transactions(id) ON DELETE CASCADE"),
 )
 
 
@@ -446,6 +453,10 @@ def _add_missing_columns(conn: sqlite3.Connection) -> None:
         existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
         if column not in existing:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS transactions_mirror_of ON transactions(mirror_of)"
+        " WHERE mirror_of IS NOT NULL"
+    )
 
 
 def _drop_obsolete(conn: sqlite3.Connection) -> None:

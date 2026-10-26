@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountFlags,
   Anomaly,
   AssistantContext,
   AssistantHistoryEntry,
@@ -233,12 +234,11 @@ export const api = {
     send<Transaction>("POST", `/deleted/${deletedId}/restore`, {}),
   setCategoryFlags: (categoryId: number, flags: { episodic?: boolean; essential?: boolean }) =>
     send<Category>("PATCH", `/categories/${categoryId}`, flags),
-  // The account's own flags: whether its inflows are savings, and whether the
-  // movements deleted from it may come back at the next sync.
-  setAccountFlags: (
-    accountId: number,
-    flags: { investment?: boolean; reimport_deleted?: boolean },
-  ) => send<Account>("PATCH", `/accounts/${accountId}`, flags),
+  // The account's own flags: whether its inflows are savings, whether the
+  // movements deleted from it may come back at the next sync, and whether its
+  // balance is read from its movements.
+  setAccountFlags: (accountId: number, flags: AccountFlags) =>
+    send<Account>("PATCH", `/accounts/${accountId}`, flags),
   createAccount: (body: NewAccount) => send<Account>("POST", "/accounts", body),
   declareBalance: (accountId: number, body: Declaration) =>
     send<Account>("PUT", `/accounts/${accountId}/declaration`, body),

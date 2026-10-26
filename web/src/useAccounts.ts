@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "./api";
-import type { Account, Declaration, NewAccount } from "./types";
+import type { Account, AccountFlags, Declaration, NewAccount } from "./types";
 
 /**
  * What a balance write answers: the account as it now stands, or the message to
@@ -50,7 +50,7 @@ export function useAccounts() {
   const setFlags = useCallback(
     async (
       id: number,
-      flags: { investment?: boolean; reimport_deleted?: boolean },
+      flags: AccountFlags,
     ): Promise<string | null> => {
       const snapshot = latest.current;
       setAccounts((current) =>
