@@ -1601,7 +1601,28 @@ class Ledger:
         ]
 
     def record_declared_balance(self, account_id: int, date: dt.date, balance: Decimal, source: str) -> None:
+        """Record what was declared for the account on that date.
+
+        A figure a person wrote (`manual:` or `anchor:`) replaces any other one
+        of the same kind on the same date: they are one statement about one day,
+        and nothing in the row says which was written last, so keeping both left
+        the older one winning the tie — a corrected declaration was ignored and
+        *Allinea* then anchored to the stale figure. The bank's own rows are
+        never touched.
+        """
         with self.conn:
+            if not source.startswith("eb:"):
+                kind = balance_kind(source)
+                for row in self.conn.execute(
+                    "SELECT source FROM account_balances WHERE account_id = ? AND date = ?"
+                    " AND source <> ? AND source NOT LIKE 'eb:%'",
+                    (account_id, date.isoformat(), source),
+                ).fetchall():
+                    if balance_kind(row["source"]) == kind:
+                        self.conn.execute(
+                            "DELETE FROM account_balances WHERE account_id = ? AND date = ? AND source = ?",
+                            (account_id, date.isoformat(), row["source"]),
+                        )
             self.conn.execute(
                 """INSERT INTO account_balances (account_id, date, balance, source)
                    VALUES (?, ?, ?, ?)

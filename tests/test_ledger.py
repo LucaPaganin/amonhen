@@ -642,6 +642,23 @@ def test_declared_balances_are_upserted(ledger):
     assert row["balance"] == "11.00"
 
 
+def test_a_corrected_declaration_replaces_the_anchor_of_the_same_day(ledger):
+    """The live deposit: anchored at one figure, corrected by hand the same day."""
+    account = ledger.ensure_account(Account(name="Deposito", type="real", opening_balance=Decimal("70.00")))
+    same_day = dt.date(2026, 1, 31)
+    ledger.record_declared_balance(account, same_day, Decimal("80.00"), "anchor:available")
+    ledger.record_declared_balance(account, same_day, Decimal("75.00"), "eb:ITAV")
+    ledger.record_declared_balance(account, same_day, Decimal("60.00"), "manual:booked")
+
+    ledger.record_declared_balance(account, same_day, Decimal("70.00"), "manual:available")
+
+    rows = {row["source"]: row["balance"] for row in ledger.declarations(account)}
+    assert rows == {"manual:available": "70.00", "eb:ITAV": "75.00", "manual:booked": "60.00"}
+    ledger.conn.execute("DELETE FROM account_balances WHERE source LIKE 'eb:%'")
+    checks = {check.kind: check for check in ledger.declared_checks(account)}
+    assert (checks["available"].declared, checks["available"].ok) == (Decimal("70.00"), True)
+
+
 def test_the_available_and_booked_figures_are_checked_against_their_own_number(ledger):
     """EB declares two numbers for one date; each is asserted against its own."""
     account = ledger.ensure_account(

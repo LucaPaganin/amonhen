@@ -415,7 +415,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   second figure of a sync overwrote the first and the two halves could never
   coexist — `_widen_balance_key` rebuilds the table for a ledger written before
   that, keeping the rows. A tie on the date is broken in favour of the bank's
-  own number, never by row order. An account nobody declared a balance for stays
+  own number, never by row order. Between two figures a person wrote there is no
+  tie to break: a `manual:` or `anchor:` declaration replaces the other hand-written
+  one of the same kind and date, or a corrected figure lost to the anchor written
+  earlier that day and *Allinea* re-anchored to the stale one. An account nobody declared a balance for stays
   `unverified`: silence is not agreement, and it is the state FinecoBank sits in
   while its consent is expired. A fourth state sits beside `verified`,
   `mismatch` and `unverified`: `suppressed`, when the difference is exactly what
