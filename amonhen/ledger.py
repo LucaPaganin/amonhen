@@ -7,8 +7,9 @@ as spending without needing a rule.
 """
 import datetime as dt
 import json
+import logging
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Iterable, Iterator, Sequence
 
@@ -22,6 +23,8 @@ from amonhen.models import (
     parse_decimal,
 )
 from amonhen.settings import UNCATEGORIZED
+
+log = logging.getLogger(__name__)
 
 # A pending row becomes the settled transaction when the bank reports the same
 # amount on the same account within this many days.
@@ -212,17 +215,43 @@ class Ledger:
     # -- accounts ----------------------------------------------------------
 
     def ensure_account(self, account: Account) -> int:
-        row = self.conn.execute(
-            "SELECT id FROM accounts WHERE name = ?", (account.name,)
-        ).fetchone()
-        if row is None and account.external_uid:
+        """The ledger's id for the account, created on first sight.
+
+        A connected account is found by its uid before its name: the name is what
+        a person chose in `accounts.json` and may change, the uid never does.
+        Looking by name first kept the first name for good, and a rename to a
+        name another account had held sent the movements into that account. A
+        name found on a row that belongs to another uid is not this account: the
+        new one is numbered instead (names are unique), and a rename to a name in
+        use is left undone — a sync must not stop over a name.
+        """
+        row = None
+        if account.external_uid:
             row = self.conn.execute(
-                "SELECT id FROM accounts WHERE external_uid = ?", (account.external_uid,)
+                "SELECT id, name FROM accounts WHERE external_uid = ?", (account.external_uid,)
+            ).fetchone()
+            if row is not None and row["name"] != account.name:
+                try:
+                    self.rename_account(row["id"], account.name)
+                except ValueError as exc:
+                    log.warning("account %s keeps its name: %s", row["name"], exc)
+        if row is None:
+            row = self.conn.execute(
+                "SELECT id FROM accounts WHERE name = ? AND (? IS NULL OR external_uid IS NULL"
+                " OR external_uid = '')",
+                (account.name, account.external_uid),
             ).fetchone()
         if row is not None:
             self._fill_missing_fields(row["id"], account)
             return row["id"]
 
+        name, number = account.name, 1
+        while self.find_account(name=name) is not None:
+            number += 1
+            name = f"{account.name} {number}"
+        if name != account.name:
+            log.warning("the name %s belongs to another account: recorded as %s", account.name, name)
+        account = replace(account, name=name)
         cursor = self.conn.execute(
             """INSERT INTO accounts (name, type, institution, iban, external_uid, currency,
                                      opening_balance, opening_date)
@@ -236,6 +265,19 @@ class Ledger:
         )
         self.conn.commit()
         return int(cursor.lastrowid)
+
+    def rename_account(self, account_id: int, name: str) -> None:
+        """Give a real account another name; a name any other account holds is refused."""
+        wanted = name.strip()
+        if not wanted:
+            raise ValueError("the account name is empty")
+        if self.account(account_id)["type"] != "real":
+            raise ValueError("only a real account is renamed here")
+        other = self.find_account(name=wanted)
+        if other is not None and other["id"] != account_id:
+            raise ValueError(f"another account is already called {wanted!r}")
+        with self.conn:
+            self.conn.execute("UPDATE accounts SET name = ? WHERE id = ?", (wanted, account_id))
 
     def _fill_missing_fields(self, account_id: int, account: Account) -> None:
         updates = {

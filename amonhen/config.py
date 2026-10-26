@@ -112,6 +112,15 @@ def account_name(entry: dict) -> str:
     return (entry.get("notes") or entry.get("bank_name") or entry["account_uid"]).strip()
 
 
+def unique_name(wanted: str, taken: set[str]) -> str:
+    """``wanted``, or ``wanted 2``, ``wanted 3``… — the first one not in ``taken``."""
+    name, number = wanted, 1
+    while name in taken:
+        number += 1
+        name = f"{wanted} {number}"
+    return name
+
+
 def save_account(config_path: str | Path, entry: dict) -> tuple[str, str]:
     """Add a connected account, or refresh the entry that account already has.
 
@@ -154,6 +163,11 @@ def save_account(config_path: str | Path, entry: dict) -> tuple[str, str]:
                 stored, action = accounts[index], "refreshed"
                 break
         else:
+            # A bank that returns several accounts in one consent (FinecoBank: three
+            # currencies and a card) gives them no names of their own, and the ledger
+            # knows an account by its name, so a new entry never takes one in use.
+            taken = {account_name(existing) for existing in accounts if isinstance(existing, dict)}
+            entry = {**entry, "notes": unique_name(account_name(entry), taken)}
             accounts.append(entry)
             stored, action = entry, "added"
         data["accounts"] = accounts

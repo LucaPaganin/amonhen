@@ -880,3 +880,20 @@ def test_a_batch_that_fails_halfway_writes_nothing(ledger, monkeypatch):
 
     assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == 0
     assert ledger.conn.execute("SELECT COUNT(*) AS c FROM postings").fetchone()["c"] == 0
+
+
+def test_a_connected_account_is_found_by_its_uid_and_follows_its_new_name(ledger):
+    """Renamed in `accounts.json`, the account keeps its id and takes the name."""
+    first = ledger.ensure_account(Account(name="FinecoBank", type="real", external_uid="uid-1"))
+    other = ledger.ensure_account(Account(name="FinecoBank 2", type="real", external_uid="uid-2"))
+
+    assert ledger.ensure_account(Account(name="Fineco EUR", type="real", external_uid="uid-1")) == first
+    assert ledger.account(first)["name"] == "Fineco EUR"
+    # The old name of another account is not this account.
+    swapped = ledger.ensure_account(Account(name="Fineco EUR", type="real", external_uid="uid-2"))
+    assert swapped == other
+    assert ledger.account(other)["name"] == "FinecoBank 2"
+    # A new account under a name in use is numbered, not merged.
+    third = ledger.ensure_account(Account(name="Fineco EUR", type="real", external_uid="uid-3"))
+    assert third not in (first, other)
+    assert ledger.account(third)["name"] == "Fineco EUR 2"

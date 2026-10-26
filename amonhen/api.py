@@ -124,6 +124,27 @@ PENDING_OAUTH = "pending_oauth"
 SETUP_LAST_CONNECT = "setup_last_connect"
 
 
+def _suggested_name(client: EnableBankingClient, account_uid: str | None, bank: str | None) -> str:
+    """A name for a new connected account: the bank, then what tells its accounts apart.
+
+    A session lists uids and nothing a person would call an account, so one consent
+    covering a bank's three currencies and its card wrote four entries all called
+    "FinecoBank". The details say whether it is a card and in which currency it
+    runs; best-effort, because an account without details still has to be saved
+    (`save_account` numbers what is still the same).
+    """
+    parts = [bank or "Conto"]
+    try:
+        details = client.fetch_account_details(account_uid) if account_uid else {}
+    except Exception:  # naming is a convenience, the entry is what matters
+        details = {}
+    if str(details.get("cash_account_type") or "").upper() == "CARD":
+        parts.append("carta")
+    if details.get("currency"):
+        parts.append(str(details["currency"]))
+    return " ".join(parts)
+
+
 def _client(config) -> EnableBankingClient:
     return EnableBankingClient(
         application_id=config.application_id,
@@ -469,8 +490,9 @@ def create_app(
             if request.get("state") != state:
                 raise HTTPException(status_code=400, detail="the authorization state does not match")
             config = credentials_or_409()
+            client = _client(config)
             try:
-                session = _client(config).complete_auth(code, state)
+                session = client.complete_auth(code, state)
             except requests.HTTPError as exc:
                 raise HTTPException(
                     status_code=502,
@@ -486,7 +508,8 @@ def create_app(
                     "account_uid": account.get("uid"),
                     "bank_name": request.get("bank"),
                     "country": request.get("country"),
-                    "notes": account.get("name") or request.get("bank"),
+                    "notes": account.get("name")
+                    or _suggested_name(client, account.get("uid"), request.get("bank")),
                     "start_sync_date": dt.date.today().isoformat(),
                     # Enable Banking reports when this consent stops working, and
                     # the file is where a person looks before re-authorizing.
@@ -578,6 +601,20 @@ def create_app(
 
     @app.patch("/api/setup/accounts/{account_uid}")
     def rename_configured_account(account_uid: str, request: SetupAccountRequest) -> dict:
+        """Rename a connected account in `accounts.json` and in the ledger at once.
+
+        The ledger knows a connected account by its uid, so the account it already
+        holds takes the new name now instead of keeping the first one; a name
+        another ledger account holds is refused before the file is written.
+        """
+        with ledger_scope() as ledger:
+            existing = ledger.find_account(external_uid=account_uid)
+            other = ledger.find_account(name=request.name.strip())
+            if other is not None and (existing is None or other["id"] != existing["id"]):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"another account in the ledger is already called {request.name.strip()!r}",
+                )
         try:
             rename_account(
                 config_path,
@@ -587,6 +624,9 @@ def create_app(
             )
         except UnknownConfiguredAccount as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if existing is not None:
+            with ledger_scope() as ledger:
+                ledger.rename_account(existing["id"], request.name)
         return setup_payload()
 
     @app.delete("/api/setup/accounts/{account_uid}")

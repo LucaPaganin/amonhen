@@ -216,3 +216,38 @@ def test_connecting_before_the_first_setup_is_reported_not_crashed(tmp_path, mon
 
     assert response.status_code == 409
     assert "first setup" in response.json()["detail"]
+
+
+@responses_lib.activate
+def test_one_consent_with_nameless_accounts_names_each_one_apart(tmp_path, rsa_pem, monkeypatch):
+    """FinecoBank: three currencies and a card, and a session that names none of them."""
+    pem_path, _ = rsa_pem
+    monkeypatch.setattr(provider, "EB_API", API)
+    config = make_config(tmp_path, pem_path)
+    client = make_client(tmp_path, config)
+    responses_lib.post(f"{API}/auth", json={"url": "https://bank.example/authorize"})
+    client.get("/connect", params={"bank": "FinecoBank", "country": "IT"}, follow_redirects=False)
+    state = pending_state(tmp_path)
+    uids = ["uid-eur", "uid-usd", "uid-card", "uid-eur-2"]
+    responses_lib.post(
+        f"{API}/sessions",
+        json={"session_id": "sess-f", "accounts_data": [{"uid": uid} for uid in uids]},
+    )
+    details = {
+        "uid-eur": {"currency": "EUR", "cash_account_type": "CACC"},
+        "uid-usd": {"currency": "USD", "cash_account_type": "CACC"},
+        "uid-card": {"currency": "EUR", "cash_account_type": "CARD"},
+    }
+    for uid, payload in details.items():
+        responses_lib.get(f"{API}/accounts/{uid}/details", json=payload)
+    responses_lib.get(f"{API}/accounts/uid-eur-2/details", status=500)
+
+    client.get("/callback", params={"code": "c", "state": state}, follow_redirects=False)
+
+    saved = json.loads(config.read_text(encoding="utf-8"))
+    assert [entry["notes"] for entry in saved["accounts"]] == [
+        "FinecoBank EUR",
+        "FinecoBank USD",
+        "FinecoBank carta EUR",
+        "FinecoBank",
+    ]

@@ -589,7 +589,16 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   it already imported, and only an account never seen before is added. Keying on
   the (session, uid) pair appended a second entry for the same account, which the
   ledger, matching by name, then merged into one account and re-imported the
-  history under. The setup screen writes credentials and curates the same entries
+  history under. A session names none of its accounts, so the callback names a new
+  one from its details (`_suggested_name`: the bank, `carta` for a card, the
+  currency) and `save_account` numbers a name already in the file — one Fineco
+  consent used to write four entries all called "FinecoBank". The ledger finds a
+  connected account by `external_uid` before its name (`ensure_account`), so a
+  rename in the setup screen renames the ledger row too (`Ledger.rename_account`,
+  at once from `PATCH /api/setup/accounts/{uid}`, else at the next sync), and a
+  name another account holds is refused rather than merged into it: looking by
+  name first kept the first name for good and sent a renamed account's movements
+  into whichever account had held that name. The setup screen writes credentials and curates the same entries
   (`save_credentials`, `rename_account`, `remove_account`, behind `/api/setup`),
   and the two go through `_read_document` / `_write_document`, which read the file
   as the document it is and write it back — so a key nobody in the app knows about,

@@ -433,3 +433,29 @@ def write_accounts(tmp_path: Path, entries: list[dict]) -> None:
         ),
         encoding="utf-8",
     )
+
+
+def test_renaming_a_connected_account_renames_the_one_in_the_ledger(tmp_path):
+    """The first name used to stay for good: the ledger looked the account up by it."""
+    client = make_client(tmp_path)
+    write_accounts(
+        tmp_path,
+        [account_entry("uid-1", "FinecoBank"), account_entry("uid-2", "FinecoBank 2")],
+    )
+    conn = open_ledger_db(tmp_path / "ledger.db")
+    ledger = Ledger(conn)
+    first = ledger.ensure_account(Account(name="FinecoBank", type="real", external_uid="uid-1"))
+    ledger.ensure_account(Account(name="FinecoBank 2", type="real", external_uid="uid-2"))
+    conn.close()
+
+    renamed = client.patch("/api/setup/accounts/uid-1", json={"name": "Fineco EUR"})
+    clash = client.patch("/api/setup/accounts/uid-2", json={"name": "Fineco EUR"})
+
+    assert renamed.status_code == 200
+    assert clash.status_code == 422
+    conn = open_ledger_db(tmp_path / "ledger.db")
+    names = dict(conn.execute("SELECT external_uid, name FROM accounts WHERE type = 'real'").fetchall())
+    conn.close()
+    assert names == {"uid-1": "Fineco EUR", "uid-2": "FinecoBank 2"}
+    assert load_config(tmp_path / "accounts.json").accounts[1].name == "FinecoBank 2"
+    assert first
