@@ -112,6 +112,16 @@ export interface Declaration {
   kind: "available" | "booked";
 }
 
+/** What anchoring the opening to a declaration would move, before it is written. */
+export interface OpeningPreview {
+  current_balance: string | null;
+  current_date: string | null;
+  opening_balance: string;
+  opening_date: string;
+  /** The difference the 5.4 check stops reporting once the opening absorbs it. */
+  change: string;
+}
+
 /**
  * One assertion per kind of declaration: the bank's available figure counts the
  * pending movements and its booked figure does not, so a failure says whether to
@@ -149,6 +159,8 @@ export interface SyncAccountResult {
   error: string | null;
   /** The sync's own 5.4 sentence, when the ledger and the bank disagreed. */
   balance_mismatch: string | null;
+  /** The opening the sync derived from the bank's first figure, on that run only. */
+  anchored: string | null;
   verification: AccountVerification | null;
 }
 

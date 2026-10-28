@@ -81,6 +81,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
+|`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
 |`web/src/components/PeriodSync.tsx`|The period sync in an account's panel under **Conti**: the dates, a line per window, the preview, and the held probable duplicates with *Scrivi* / *Scarta*|
 |`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
 |`tools/dump_raw.py`|Dumps raw EB payloads to disk, for regenerating fixtures|
@@ -97,7 +98,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
@@ -418,7 +419,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   own number, never by row order. Between two figures a person wrote there is no
   tie to break: a `manual:` or `anchor:` declaration replaces the other hand-written
   one of the same kind and date, or a corrected figure lost to the anchor written
-  earlier that day and *Allinea* re-anchored to the stale one. An account nobody declared a balance for stays
+  earlier that day and the re-anchor used the stale one. An account nobody declared a balance for stays
   `unverified`: silence is not agreement, and it is the state FinecoBank sits in
   while its consent is expired. A fourth state sits beside `verified`,
   `mismatch` and `unverified`: `suppressed`, when the difference is exactly what
@@ -492,6 +493,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   transaction's `transfer` gained `by_rule`, and `/api/transfers/labels` gained
   `accounts`. 26 is the movements behind a proposal: a suggestion's `stake` gained
   `items` (id, date, amount, description, account of each movement a yes decides).
+  27 is the opening shown before it is written: `POST /api/accounts/{id}/opening/preview`
+  (current, proposed, `change`), and a sync's account row gained `anchored`.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -554,6 +557,19 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   would be wrong to leave them out. A hand-typed `--declared` has no `eb:` tag
   to say which figure it is, so it carries the word (`manual:booked`) and the
   recorded row is tagged `anchor:<kind>`, both read by the same `balance_kind`.
+- **The opening is a fixed point, and re-deriving it hides a difference.** An
+  anchor makes the 5.4 check agree by construction: whatever the ledger is
+  missing or holds twice goes into the opening. Revolut subtracts a card
+  authorization from the available figure without exposing it as pending, so an
+  anchor taken from that figure folded two tolls into the opening and counted
+  them again when they settled. Hence: `SyncService._anchor_first_opening`
+  anchors a connected account once, while `opening_date` is NULL, from the
+  bank's own figure — booked over available — and never again; the app's
+  *Ricalcola il saldo iniziale* is closed at the foot of the account's panel and
+  shows `POST /api/accounts/{id}/opening/preview` (`Ledger.opening_from`, the
+  unwritten half of `anchor_opening`) before it writes; a red check shows the gap
+  and the latest movements instead of a re-anchor button. Do not put the anchor
+  back beside the check.
 - **PSD2 returns only ~90 days regardless of the requested range** (verified:
   asking for 2026-01-01 returned rows from 2026-06-14). Deep history exists
   only through `import`, which is why the 6- and 24-month metrics depend on
@@ -908,7 +924,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Sync one account over a past period, or fill a gap|The account's panel in **Conti**, *Sincronizza un periodo* (preview first) — or `uv run amonhen sync --account <name> --from YYYY-MM-DD --to YYYY-MM-DD [--preview]`. Then decide the held probable duplicates in the same panel. A bank that refuses 30-day ranges gets `max_window_days` in its `accounts.json` entry|
 |Ask the banks for data now|The **Sincronizza** button in the app's top bar (`POST /api/sync`), or `uv run amonhen sync`|
 |Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
-|Track an account no bank exposes (the Revolut deposit)|**Conti**: add it by hand, then a transfer rule in **Categorie e regole** with the text the bank prints and the account as *Verso* — the rule writes the other half of every transfer on it. Declare today's balance and *Allinea il saldo iniziale*, then turn on *Saldo dai movimenti* so the net worth reads it; correct interest with a movement. CLI: `account-flags <name> --computed-balance`|
+|Track an account no bank exposes (the Revolut deposit)|**Conti**: add it by hand, then a transfer rule in **Categorie e regole** with the text the bank prints and the account as *Verso* — the rule writes the other half of every transfer on it. Declare today's balance and *Ricalcola il saldo iniziale* (it previews the opening first), then turn on *Saldo dai movimenti* so the net worth reads it; correct interest with a movement. CLI: `account-flags <name> --computed-balance`|
 |Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|
 |Deploy a new image to the NAS|Follow README, *Updating safely*: rehearse any migration on a copy of a recent snapshot, tag `v*` and let CI publish, snapshot right before, pin `AMONHEN_TAG`, then `docker compose pull && docker compose up -d` and verify. A schema change is one-way, so its rollback restores the snapshot as well as the tag|
 |Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, removing `amonhen.db-wal`/`-shm`, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|

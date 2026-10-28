@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.18 — ottobre 2026
+Versione 1.19 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -175,6 +175,16 @@ dice «non torna sui sospesi» o «sul contabile» solo se l'altra figura è sta
 dichiarata e torna: Revolut dichiara solo il disponibile, e ogni sua differenza si
 leggeva come un problema di sospesi anche senza sospesi.*
 
+*1.19 · il saldo iniziale è un punto fisso, e il ricalcolo dice cosa sposta. Un conto
+collegato lo prende dalla banca al primo sync, dalla figura contabilizzata se c'è, e
+da lì non si muove più da solo; ricalcolarlo è un'azione chiusa in fondo al pannello,
+che prima di scrivere mostra di quanto cambia e avverte che quella differenza non
+verrà più segnalata. Una verifica che non torna mostra invece quanto manca e gli
+ultimi movimenti del conto. Prima *Allinea il saldo iniziale* stava accanto a ogni
+controllo: premuto su un rosso lo faceva tornare verde per costruzione, e due pedaggi
+che Revolut aveva già tolto dal disponibile senza esporli finirono nel saldo iniziale e
+furono contati due volte quando arrivarono.*
+
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
 dice come è fatto: architettura, invarianti, comandi. Quando una decisione cambia
@@ -285,6 +295,8 @@ saldo_iniziale + Σ movimenti == saldo dichiarato dalla banca
 Questa è la quantità conservata del sistema. Va verificata a ogni sync e l'esito è **visibile per conto** (pannello Conti), non sepolto in un log: non è una metrica di spesa, è lo stato di affidabilità di quel conto. La banca dichiara due figure per la stessa data — disponibile e contabilizzata — e ognuna si confronta con il saldo calcolato che significa la stessa cosa, così un controllo che fallisce dice quale delle due non torna, ed è ciò che distingue un movimento in attesa da un duplicato. Lo dice solo quando l'altra figura è stata dichiarata e torna: una banca che dichiara una figura sola — Revolut, il disponibile — non dice dove sta la differenza, e la verifica ne mostra l'importo. Un conto per cui nessuno ha dichiarato un saldo resta `non verificato`: il silenzio non è un assenso. Se non torna, ogni numero a valle è inaffidabile.
 
 **Una differenza spiegata non è un guasto.** Gli esiti visibili per conto sono quattro, non tre: oltre a *verificato*, *mismatch* e *non verificato*, un conto la cui differenza è esattamente ciò che una persona ha cancellato a mano si legge **d'accordo salvo N movimenti cancellati a mano**, con l'importo, perché il ledger e la banca discordano davvero, ma per una decisione presa qui, e un rosso che nessuno può far sparire insegna a ignorare l'unica riga che conta. Ogni figura si confronta con i movimenti che conterrebbe: quella disponibile conta anche i sospesi cancellati, quella contabilizzata no. Una differenza che i tombstone non spiegano resta un mismatch, e il sync non chiama guasto ciò che è spiegato: lo annota.
+
+**Il saldo iniziale è il punto fisso, non la correzione.** L'invariante misura da lì, quindi ricavarlo da un saldo dichiarato — saldo dichiarato meno i movimenti noti — serve una volta, per stabilire il punto di partenza: dopo, una differenza vuol dire un movimento che manca o uno di troppo, e ricavarlo di nuovo la sposterebbe dentro il saldo iniziale, dove la verifica non la vede più. Un conto collegato lo prende dal sync alla prima figura che la banca dichiara, e dalla contabilizzata quando c'è: un'autorizzazione carta che la banca toglie dal disponibile senza esporla come sospeso starebbe nel saldo iniziale e, il giorno in cui arriva, sarebbe contata due volte. Un conto aggiunto a mano lo ricava dal saldo che una persona dichiara. Ricalcolarlo resta possibile, perché un punto di partenza può essere sbagliato, ma è un'azione chiusa in fondo al pannello del conto, non un pulsante accanto al rosso: prima di scrivere dice di quanto cambia il saldo iniziale e che quella differenza non verrà più segnalata. Accanto a una verifica che non torna il pannello mostra invece quanto manca o avanza e gli ultimi movimenti del conto, che è dove di solito sta la risposta.
 
 ### 5.5 Categorizzazione
 

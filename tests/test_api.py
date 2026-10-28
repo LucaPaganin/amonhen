@@ -1522,6 +1522,31 @@ def test_anchoring_from_a_declaration_makes_the_invariant_hold_by_construction(a
     assert anchored["opening_date"] == "2026-08-02"
 
 
+def test_the_opening_preview_says_what_anchoring_would_move_and_writes_nothing(api):
+    client, _ = api
+    revolut = next(a for a in client.get("/api/accounts").json() if a["name"] == "Revolut")
+    client.put(
+        f"/api/accounts/{revolut['id']}/opening",
+        json={"date": "2026-09-12", "balance": "304.60", "kind": "available"},
+    )
+
+    preview = client.post(
+        f"/api/accounts/{revolut['id']}/opening/preview",
+        json={"date": "2026-09-12", "balance": "298.00", "kind": "available"},
+    )
+
+    assert preview.status_code == 200
+    assert preview.json() == {
+        "current_balance": "0.00",
+        "current_date": "2026-08-02",
+        "opening_balance": "-6.60",
+        "opening_date": "2026-08-02",
+        "change": "-6.60",
+    }
+    after = next(a for a in client.get("/api/accounts").json() if a["name"] == "Revolut")
+    assert after["opening_balance"] == "0.00"
+
+
 def test_the_account_says_whether_deleted_movements_may_come_back(api):
     """The flag is per account, and the panel has to read it and set it."""
     client, _ = api

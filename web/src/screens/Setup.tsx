@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "../api";
+import { OpeningRecalc } from "../components/OpeningRecalc";
 import { formatAmount, formatDate } from "../format";
 import type {
   Account,
@@ -136,6 +137,7 @@ function syncLine(account: SyncAccountResult): string {
     countPhrase(account.actions.reimported ?? 0, "riportato dal cestino", "riportati dal cestino"),
     countPhrase(account.balances, "saldo letto", "saldi letti"),
     countPhrase(account.fetched, "movimento riletto", "movimenti riletti"),
+    account.anchored === null ? null : `saldo iniziale ${formatAmount(account.anchored)} dalla banca`,
   ].filter((part): part is string => part !== null);
   const written = news.length === 0 ? "niente di nuovo" : news.join(", ");
   return account.balance_mismatch === null ? written : `${written} · ${account.balance_mismatch}`;
@@ -893,8 +895,8 @@ function BalancesStep({ onWrote }: { onWrote: () => void }) {
       </h2>
       <p className="chart-note">
         Un saldo letto dal sito della banca e scritto qui dice se il ledger torna: è la verifica che
-        ogni conto porta con sé. Quando non torna, allineare il saldo iniziale è la via per
-        riportarli d&apos;accordo.
+        ogni conto porta con sé. Un conto collegato prende il saldo iniziale dalla banca al primo
+        sync; uno aggiunto a mano lo ricava dal saldo che dichiari qui.
       </p>
 
       {error !== null ? (
@@ -956,13 +958,6 @@ function BalanceRow({ account, pending, onDeclare, onAlign }: BalanceRowProps) {
     // The figure is on the server now: the field starts over for the next one.
     if (message === null) setAmount("");
     setError(message);
-    setSaving(false);
-  };
-
-  const align = async (check: DeclaredBalanceCheck) => {
-    setSaving(true);
-    setError(null);
-    setError(await onAlign(account, check));
     setSaving(false);
   };
 
@@ -1031,24 +1026,11 @@ function BalanceRow({ account, pending, onDeclare, onAlign }: BalanceRowProps) {
             >
               {saving ? "Dichiaro…" : "Dichiara saldo"}
             </button>
-            {account.verification.state === "verified"
-              ? null
-              : account.verification.checks.map((check) => (
-                  <button
-                    type="button"
-                    className="button"
-                    key={`${check.kind}:${check.date}:${check.source}`}
-                    disabled={saving || pending}
-                    title={`${check.source} del ${formatDate(check.date)}: banca ${formatAmount(
-                      check.declared,
-                    )}, ledger ${formatAmount(check.computed)}`}
-                    onClick={() => void align(check)}
-                  >
-                    {`Allinea il saldo iniziale (${check.kind === "available" ? "disponibile" : "contabilizzata"})`}
-                  </button>
-                ))}
           </div>
         </form>
+        {account.verification.state === "verified" ? null : (
+          <OpeningRecalc account={account} disabled={saving || pending} onAnchor={onAlign} />
+        )}
       </div>
     </li>
   );

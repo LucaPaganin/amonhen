@@ -121,8 +121,9 @@ rail, `inBar: false`. Five steps, in this order:
    than a toast: movements inserted and updated, transfers linked, errors, and the 5.4 state.
 5. **Saldi e verifica** — per real account from `GET /api/accounts`: its verification state, the
    form that declares a balance read off the bank (`PUT /api/accounts/{id}/declaration`, available or
-   booked) and, while the account is not verified, *Allinea il saldo iniziale*
-   (`PUT /api/accounts/{id}/opening`). The closing button returns to the dashboard and drops
+   booked) and, while the account is not verified, *Ricalcola il saldo iniziale* — the same
+   `OpeningRecalc` panel as in Conti. The first sync has usually anchored a connected account
+   already (`anchored` in its line of the outcome). The closing button returns to the dashboard and drops
    `?setup=1` from the address with `history.replaceState`.
 
 Gating: while `GET /api/setup` answers `configured: false` the wizard replaces the app shell and
@@ -312,10 +313,16 @@ figure was declared and agrees — Revolut declares the available one alone, so 
   `PUT /api/accounts/{id}/declaration`. The tag carries which of the bank's two figures it is
   (`manual:available`), so the assertion compares it with the computed balance that means the
   same, and the toast then says whether the two agree — the only reason to declare a figure.
-- **Allinea il saldo iniziale** sits on each check (`verification.checks`) and posts
-  `PUT /api/accounts/{id}/opening` with that check's date, figure and kind. It solves the opening
-  so the declared figure is what the ledger now computes: the `anchor` path, which the command
-  line and the app share through `Ledger.anchor_opening`. Aligning twice changes nothing.
+- **A red check explains itself** (`MismatchHint`): how much the ledger is short or over against
+  the bank's figure, and the account's latest movements from `GET /api/transactions?account_id=`,
+  which is where the answer usually is.
+- **Ricalcola il saldo iniziale** (`web/src/components/OpeningRecalc.tsx`) is closed at the foot of
+  the panel. Opened, it asks `POST /api/accounts/{id}/opening/preview` for each check and says how
+  the opening would move and that the difference would no longer be reported; only then does
+  *Ricalcola dal disponibile/contabilizzato* post `PUT /api/accounts/{id}/opening`. That is the
+  `anchor` path (`Ledger.anchor_opening`, with `Ledger.opening_from` as its unwritten half). It
+  used to sit beside each check as *Allinea il saldo iniziale*, where it read as the fix for a red
+  and was the eraser of the difference the check exists to show.
 
 **Nuovo conto** opens the same sheet pattern for an account no bank reports here — the broker, or
 a cash account: name, institution, currency, and an opening figure with the date it refers to

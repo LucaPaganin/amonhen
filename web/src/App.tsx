@@ -28,7 +28,7 @@ import { useSetup } from "./useSetup";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 26;
+const REQUIRED_API_VERSION = 27;
 
 export default function App() {
   // `?setup=1` is where the bank sends the browser back after a login, and the

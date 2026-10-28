@@ -619,11 +619,15 @@ def cmd_anchor(ledger: Ledger, args) -> int:
         return 1
     as_of, declared, source = found
     kind = balance_kind(source)
+    # Whatever moved the opening is a difference the check will not report
+    # again, so the command says how much it folded in.
+    previous = account["opening_balance"]
     opening, opening_date = ledger.anchor_opening(account["id"], as_of, declared, kind)
     if args.declared:
         ledger.record_declared_balance(account["id"], as_of, declared, f"anchor:{kind}")
+    was = f" (was {previous})" if previous is not None else ""
     print(
-        f"{args.account}: opening {format_decimal(opening)} before {opening_date} "
+        f"{args.account}: opening {format_decimal(opening)}{was} before {opening_date} "
         f"from the declared balance of {format_decimal(declared)} on {as_of} ({kind})"
     )
     return 0

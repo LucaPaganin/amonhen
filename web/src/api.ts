@@ -18,6 +18,7 @@ import type {
   Metrics,
   NetWorth,
   NewAccount,
+  OpeningPreview,
   ReviewQueue,
   ReviewState,
   Rule,
@@ -242,6 +243,8 @@ export const api = {
   createAccount: (body: NewAccount) => send<Account>("POST", "/accounts", body),
   declareBalance: (accountId: number, body: Declaration) =>
     send<Account>("PUT", `/accounts/${accountId}/declaration`, body),
+  previewOpening: (accountId: number, body: Declaration) =>
+    send<OpeningPreview>("POST", `/accounts/${accountId}/opening/preview`, body),
   setOpening: (accountId: number, body: Declaration) =>
     send<Account>("PUT", `/accounts/${accountId}/opening`, body),
   reviewTransfer: (legA: number, legB: number, decision: TransferDecision) =>

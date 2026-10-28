@@ -7,6 +7,7 @@ import datetime as dt
 import logging
 import threading
 from dataclasses import dataclass, field, replace
+from decimal import Decimal
 
 import requests
 
@@ -47,6 +48,8 @@ class AccountSyncResult:
     actions: dict[str, int] = field(default_factory=dict)
     error: str | None = None
     balance_mismatch: str | None = None
+    # The opening this run derived from the bank's first figure, if it did.
+    anchored: Decimal | None = None
 
 
 @dataclass
@@ -316,8 +319,39 @@ class SyncService:
             self._normalized(entry, account_id, transactions)
         )
         result.balances = self._record_balances(entry, account_id)
+        result.anchored = self._anchor_first_opening(entry, account_id)
         log.info("account %s: %s, %d balance(s)", entry.name, result.actions, result.balances)
         return result
+
+    def _anchor_first_opening(self, entry: ConfiguredAccount, account_id: int) -> Decimal | None:
+        """Desiderata 5.4: a connected account starts from the bank's own figure.
+
+        Only once, while the account has no opening at all: from then on the
+        opening is the fixed point the assertion measures from, and re-deriving
+        it would fold whatever the ledger is missing into it. The booked figure
+        wins over the available one, because a card authorization the bank
+        subtracts without exposing it as pending is inside the available figure
+        and nowhere in the ledger — anchored there, it is counted again the day
+        it settles.
+        """
+        if self.ledger.account(account_id)["opening_date"] is not None:
+            return None
+        checks = {
+            check.kind: check
+            for check in self.ledger.declared_checks(account_id)
+            if check.source.startswith("eb:")
+        }
+        check = checks.get("booked") or checks.get("available")
+        if check is None:
+            return None
+        opening, opening_date = self.ledger.anchor_opening(
+            account_id, check.as_of, check.declared, check.kind
+        )
+        log.info(
+            "account %s: opening %s before %s from the bank's %s figure",
+            entry.name, format_decimal(opening), opening_date, check.kind,
+        )
+        return opening
 
     def _record_balances(self, entry: ConfiguredAccount, account_id: int) -> int:
         """Store the balance the bank reports, so net worth has observations.

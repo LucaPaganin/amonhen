@@ -109,8 +109,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # the account added by hand that a transfer rule writes the other half on: an
 # account row carries `computed_balance`, a transaction's `transfer` says
 # `by_rule`, and `/api/transfers/labels` lists those `accounts`. 26 is the
-# movements behind a proposal: a suggestion's `stake` carries its `items`.
-API_VERSION = 26
+# movements behind a proposal: a suggestion's `stake` carries its `items`. 27 is
+# the opening shown before it is written: `/api/accounts/{id}/opening/preview`,
+# and a sync's account says the opening it `anchored` from the bank's figure.
+API_VERSION = 27
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -900,6 +902,34 @@ def create_app(
                 account_id, _day(body.date), declared, f"manual:{body.kind}"
             )
             return _account_payload(ledger, account_id)
+
+    @app.post("/api/accounts/{account_id}/opening/preview")
+    def preview_opening(account_id: int, body: DeclarationRequest) -> dict:
+        """What anchoring to this figure would move, and nothing written.
+
+        An anchor makes the 5.4 check agree by construction: whatever the ledger
+        is missing or holds twice goes into the opening and is never reported
+        again. The app shows `change` before it asks for the write, so that a
+        difference is folded away knowingly — the sum is the server's, like
+        every other.
+        """
+        declared = _amount(body.balance)
+        if declared is None:
+            raise HTTPException(status_code=422, detail="an opening needs an amount")
+        with ledger_scope() as ledger:
+            _require_real_account(ledger, account_id)
+            row = ledger.account(account_id)
+            opening, opening_date = ledger.opening_from(
+                account_id, _day(body.date), declared, body.kind
+            )
+            current = parse_decimal(row["opening_balance"]) if row["opening_balance"] else None
+            return {
+                "current_balance": format_decimal(current) if current is not None else None,
+                "current_date": row["opening_date"],
+                "opening_balance": format_decimal(opening),
+                "opening_date": opening_date.isoformat(),
+                "change": format_decimal(opening - (current or Decimal(0))),
+            }
 
     @app.put("/api/accounts/{account_id}/opening")
     def set_opening(account_id: int, body: DeclarationRequest) -> dict:
@@ -1768,6 +1798,8 @@ def _sync_payload(ledger: Ledger, result: SyncResult) -> dict:
                 "actions": entry.actions,
                 "error": entry.error,
                 "balance_mismatch": entry.balance_mismatch,
+                # Set on the run that gave a new account its opening.
+                "anchored": format_decimal(entry.anchored) if entry.anchored is not None else None,
                 "verification": _verification(ledger, row["id"]) if row else None,
             }
         )

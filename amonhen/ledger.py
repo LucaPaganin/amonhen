@@ -1673,20 +1673,21 @@ class Ledger:
                 (account_id, date.isoformat(), format_decimal(balance), source),
             )
 
-    def anchor_opening(
+    def opening_from(
         self, account_id: int, as_of: dt.date, declared: Decimal, kind: str
     ) -> tuple[Decimal, dt.date]:
-        """Set the opening so the declared figure holds on the date it refers to.
+        """The opening that makes the declared figure hold, without writing it.
 
         Everything the bank reported up to then is already inside the declared
         balance — the pending movements only if the declared figure contains them
         too, which is what ``kind`` says. The movement is opening-independent, so
-        anchoring twice changes nothing.
+        the answer does not depend on the opening already written.
 
         ``opening_balance`` is the balance *before* ``opening_date`` and
         ``balance()`` adds only the postings strictly after it, so the opening is
-        dated the day before the first movement. Returns what it wrote, because
-        the command line and the app both print it.
+        dated the day before the first movement. The app asks this first and
+        shows what anchoring would move, because an anchor folds any difference
+        into the opening, where the 5.4 check can no longer see it.
         """
         opening = declared - self.movement(account_id, as_of, settled=kind == "booked")
         first = self.conn.execute(
@@ -1694,6 +1695,17 @@ class Ledger:
             (account_id, as_of.isoformat()),
         ).fetchone()["first"]
         opening_date = dt.date.fromisoformat(first) - dt.timedelta(days=1) if first else as_of
+        return opening, opening_date
+
+    def anchor_opening(
+        self, account_id: int, as_of: dt.date, declared: Decimal, kind: str
+    ) -> tuple[Decimal, dt.date]:
+        """Set the opening so the declared figure holds on the date it refers to.
+
+        `opening_from`, written; anchoring twice changes nothing. Returns what it
+        wrote, because the command line and the app both print it.
+        """
+        opening, opening_date = self.opening_from(account_id, as_of, declared, kind)
         with self.conn:
             self.conn.execute(
                 "UPDATE accounts SET opening_balance = ?, opening_date = ? WHERE id = ?",

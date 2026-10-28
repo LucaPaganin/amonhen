@@ -247,8 +247,11 @@ which is what a fresh install opens on. Five steps, in order:
    outcome is the content of the step.
 5. **Saldi e verifica** — per real account, its verification state, the form that
    declares a balance read off the bank (`PUT /api/accounts/{id}/declaration`) and
-   — while the account is not verified — *Allinea il saldo iniziale*
-   (`PUT /api/accounts/{id}/opening`). Closing returns to the dashboard and drops
+   — while the account is not verified — *Ricalcola il saldo iniziale*, which
+   previews the change (`POST /api/accounts/{id}/opening/preview`) before it
+   writes it (`PUT /api/accounts/{id}/opening`). A connected account usually
+   arrives here verified already: the first sync anchors its opening to the
+   bank's first figure, booked when there is one. Closing returns to the dashboard and drops
    `?setup=1` from the address with `history.replaceState`.
 
 Registering the callback is the one thing this side cannot do for you, and it has

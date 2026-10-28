@@ -2631,6 +2631,30 @@ button.txn:active {
   gap: 8px;
 }
 
+/* Un conto che non torna: quanto manca, e gli ultimi movimenti dove di solito
+   sta la risposta. Il ricalcolo del saldo iniziale sta in fondo, chiuso, e dice
+   cosa sposta prima di scriverlo. */
+.mismatch,
+.opening-recalc,
+.opening-recalc__option {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mismatch__line {
+  margin: 0;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.opening-recalc__line {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
 /* Il sync di un periodo: le due date, una riga per finestra con quello che la
    banca ha restituito, e i probabili doppioni che aspettano una decisione. */
 .period-sync,

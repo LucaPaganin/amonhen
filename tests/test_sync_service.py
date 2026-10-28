@@ -8,6 +8,7 @@ import pytest
 import requests
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
+from amonhen.models import parse_decimal
 from amonhen.providers.enable_banking import ConsentExpiredError, FetchedWindow
 from amonhen.sync import SyncBusy, SyncService, _SYNC_LOCK
 
@@ -185,6 +186,52 @@ def test_sync_reports_a_declared_balance_mismatch(ledger):
     result = SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
 
     assert result.errors
+    assert "disagrees with the declared balance" in result.errors[0]
+
+
+def test_the_first_sync_anchors_a_new_account_to_the_booked_figure(ledger):
+    """The opening is the bank's first figure, and the booked one when both arrive.
+
+    A card authorization can sit inside the available figure and nowhere in the
+    ledger; anchored there, it would be counted again the day it settles.
+    """
+    transactions = fixture_transactions()
+    balances = [
+        reported_balance("500.00", "ITBD", TODAY.isoformat()),
+        reported_balance("493.40", "ITAV", TODAY.isoformat()),
+    ]
+
+    result = SyncService(
+        ledger, FakeClient(transactions, balances=balances), build_config(), today=TODAY
+    ).run()
+
+    account = ledger.find_account(name="Revolut personale")
+    booked = next(c for c in ledger.declared_checks(account["id"]) if c.kind == "booked")
+    assert booked.ok
+    assert result.accounts[0].anchored == parse_decimal(account["opening_balance"])
+
+
+def test_the_sync_never_anchors_an_account_that_has_an_opening(ledger):
+    """After the first time the opening is the fixed point a difference is measured from."""
+    transactions = fixture_transactions()
+    SyncService(
+        ledger,
+        FakeClient(transactions, balances=[reported_balance("500.00", "ITBD", TODAY.isoformat())]),
+        build_config(),
+        today=TODAY,
+    ).run()
+    account = ledger.find_account(name="Revolut personale")
+    opening = account["opening_balance"]
+
+    result = SyncService(
+        ledger,
+        FakeClient(transactions, balances=[reported_balance("493.40", "ITBD", TODAY.isoformat())]),
+        build_config(),
+        today=TODAY,
+    ).run()
+
+    assert ledger.find_account(name="Revolut personale")["opening_balance"] == opening
+    assert result.accounts[0].anchored is None
     assert "disagrees with the declared balance" in result.errors[0]
 
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import { api, errorMessage, isAbortError } from "../api";
+import { OpeningRecalc } from "../components/OpeningRecalc";
 import { PeriodSync } from "../components/PeriodSync";
 import { Toast } from "../components/Toast";
 import { Toggle } from "../components/Toggle";
@@ -15,6 +16,7 @@ import type {
   DeletedMovement,
   HeldMovement,
   NewAccount,
+  Transaction,
 } from "../types";
 import { useAccounts } from "../useAccounts";
 
@@ -122,6 +124,78 @@ function VerificationChip({ verification }: { verification: AccountVerification 
           ? suppressedLabel(verification.checks)
           : verificationLabel(verification.checks)}
     </span>
+  );
+}
+
+/** How many of the account's latest movements the red shows. */
+const MISMATCH_MOVEMENTS = 8;
+
+/**
+ * What a red check is asking for: the gap, and where the answer usually is.
+ *
+ * A difference is a movement the bank counted and the ledger does not have, or
+ * one the ledger has twice, and it is almost always among the latest ones — a
+ * card payment the bank subtracted before exposing it, a pending row that
+ * settled under another description. The panel used to offer re-anchoring
+ * here instead, which makes the red go away by hiding the difference.
+ */
+function MismatchHint({ account }: { account: Account }) {
+  const failed = account.verification.checks.find((check) => !check.ok && !check.explained);
+  const [movements, setMovements] = useState<Transaction[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const difference = failed?.difference ?? null;
+
+  useEffect(() => {
+    if (difference === null) return;
+    const controller = new AbortController();
+    api
+      .transactions({ accountId: account.id, limit: MISMATCH_MOVEMENTS }, controller.signal)
+      .then((page) => setMovements(page.items))
+      .catch((caught) => {
+        if (!isAbortError(caught)) setError(errorMessage(caught));
+      });
+    return () => controller.abort();
+  }, [account.id, difference]);
+
+  if (failed === undefined) return null;
+  // `difference` is the bank's figure minus the ledger's.
+  const gap = formatAmount(String(Math.abs(toAmount(failed.difference))));
+  const direction =
+    toAmount(failed.difference) > 0
+      ? `al ledger mancano ${gap}`
+      : `il ledger ha ${gap} in più`;
+  return (
+    <div className="mismatch">
+      <p className="mismatch__line">
+        {`La banca dice ${formatAmount(failed.declared)} al ${formatDate(failed.date)}, il ledger ${formatAmount(
+          failed.computed,
+        )}: ${direction}.`}
+      </p>
+      <p className="hint">
+        Di solito è un movimento che la banca ha già contato e non ha ancora mandato, o uno arrivato
+        due volte. Gli ultimi del conto:
+      </p>
+      {error !== null ? (
+        <p className="state state--error" role="alert">
+          Movimenti non caricati: {error}
+        </p>
+      ) : movements === null ? null : (
+        <ul className="trash-list">
+          {movements.map((movement) => (
+            <li className="trash-row" key={movement.id}>
+              <span className="trash-row__text">
+                <span className="txn__title">{movement.merchant ?? movement.description}</span>
+                <span className="txn__meta">
+                  <span>{formatDate(movement.date)}</span>
+                  <span>{formatAmount(movement.amount)}</span>
+                  {movement.status === "PDNG" ? <span>sospeso</span> : null}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -543,8 +617,11 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
     return null;
   };
 
-  const handleSetOpening = async (account: Account, check: DeclaredBalanceCheck) => {
-    if (pendingAccounts.includes(account.id)) return;
+  const handleSetOpening = async (
+    account: Account,
+    check: DeclaredBalanceCheck,
+  ): Promise<string | null> => {
+    if (pendingAccounts.includes(account.id)) return null;
     setPendingAccounts((current) => [...current, account.id]);
     const { account: updated, error } = await setOpening(account.id, {
       date: check.date,
@@ -552,11 +629,9 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
       kind: check.kind,
     });
     setPendingAccounts((current) => current.filter((id) => id !== account.id));
-    setNotice(
-      error === null
-        ? `Saldo iniziale allineato: ${VERIFICATION_OUTCOMES[updated.verification.state]}`
-        : `Saldo iniziale non allineato: ${error}`,
-    );
+    if (error !== null) return error;
+    setNotice(`Saldo iniziale ricalcolato: ${VERIFICATION_OUTCOMES[updated.verification.state]}`);
+    return null;
   };
 
   const askDelete = (account: Account) => {
@@ -679,6 +754,9 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                       nota.
                     </p>
                   ) : null}
+                  {account.verification.state === "mismatch" ? (
+                    <MismatchHint account={account} />
+                  ) : null}
                   {trash.filter((item) => item.account.id === account.id).length === 0 ? null : (
                     <ul className="trash-list">
                       {trash
@@ -725,20 +803,6 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                     >
                       Dichiara saldo
                     </button>
-                    {account.verification.checks.map((check) => (
-                      <button
-                        type="button"
-                        className="button"
-                        key={`${check.kind}:${check.date}:${check.source}`}
-                        disabled={pending}
-                        title={`${check.source} del ${formatDate(check.date)}: banca ${formatAmount(
-                          check.declared,
-                        )}, ledger ${formatAmount(check.computed)}`}
-                        onClick={() => void handleSetOpening(account, check)}
-                      >
-                        {`Allinea il saldo iniziale (${KIND_LABELS[check.kind].toLowerCase()})`}
-                      </button>
-                    ))}
                     {deletingFor === account.id ? null : (
                       <button
                         type="button"
@@ -799,6 +863,7 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                       </div>
                     </form>
                   ) : null}
+                  <OpeningRecalc account={account} disabled={pending} onAnchor={handleSetOpening} />
                 </li>
               );
             })}
