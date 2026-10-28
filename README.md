@@ -192,7 +192,7 @@ available|booked` says it (default `available`, the pending-inclusive one). The
 app shows the outcome per account in the **Conti** section — `verificato al …`,
 `d'accordo salvo N movimenti cancellati a mano` when the difference is exactly
 what was deleted here (the fourth outcome, section 5.4), `non torna sui sospesi`,
-`non torna sul contabile`, `discrepanza …`, or `saldo non verificato` when no
+`non torna sul contabile` (each only when the other figure was declared and agrees), `discrepanza …`, or `saldo non verificato` when no
 balance was ever declared, which is not the same as verified: an assertion nobody
 can see is not one you can lean on.
 

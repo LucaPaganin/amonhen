@@ -498,12 +498,24 @@ export interface Anomaly {
 }
 
 /** What a proposal would settle: a merchant's waiting movements, and their span. */
+/** One movement a proposal would decide, as the bank printed it. */
+export interface StakeMovement {
+  id: number;
+  date: string;
+  /** What left the account, without its sign: the queue holds outflows only. */
+  amount: string;
+  description: string;
+  account: string;
+}
+
 export interface SuggestionStake {
   movements: number;
   total: string;
   /** Null when nothing is waiting for this merchant any more. */
   first_date: string | null;
   last_date: string | null;
+  /** The movements behind the figure, oldest first. */
+  items: StakeMovement[];
 }
 
 export interface Suggestion {

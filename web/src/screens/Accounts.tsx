@@ -66,8 +66,17 @@ export function suppressedLabel(checks: DeclaredBalanceCheck[]): string {
 
 function verificationLabel(checks: DeclaredBalanceCheck[]): string {
   const failed = checks.filter((check) => !check.ok);
-  if (failed.length === 1 && failed[0].kind === "available") return "non torna sui sospesi";
-  if (failed.length === 1 && failed[0].kind === "booked") return "non torna sul contabile";
+  // Naming the figure that disagrees only points somewhere when the other one
+  // was declared and agrees: Revolut declares the available figure alone, and
+  // a difference there said "sui sospesi" with no pending movement in sight.
+  const agrees = (kind: DeclaredBalanceCheck["kind"]) =>
+    checks.some((check) => check.kind === kind && check.ok);
+  if (failed.length === 1 && failed[0].kind === "available" && agrees("booked")) {
+    return "non torna sui sospesi";
+  }
+  if (failed.length === 1 && failed[0].kind === "booked" && agrees("available")) {
+    return "non torna sul contabile";
+  }
   return `discrepanza ${formatAmount(failed[0].difference)}`;
 }
 

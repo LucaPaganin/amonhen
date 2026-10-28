@@ -73,6 +73,15 @@ def test_the_stake_of_a_merchant_is_the_spending_still_waiting(ledger):
     assert stake.total == Decimal("24.00")
     assert stake.first_date == "2026-07-30"
     assert stake.last_date == "2026-08-06"
+    # The movements behind the figure, oldest first, as the bank printed them.
+    assert [(item.date, item.amount) for item in stake.items] == [
+        ("2026-07-30", Decimal("1.00")),
+        ("2026-08-03", Decimal("12.34")),
+        ("2026-08-05", Decimal("7.66")),
+        ("2026-08-06", Decimal("3.00")),
+    ]
+    assert stake.items[1].description == "EKOM | CARD_PAYMENT | VISA 7883"
+    assert {item.account for item in stake.items} == {"Revolut"}
 
 
 def test_a_merchant_with_nothing_waiting_has_no_stake(ledger):

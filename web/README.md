@@ -11,7 +11,9 @@ section below) and **Configurazione**, the setup wizard:
   picker, a filter (state, free text, account) and an amber flag on the ones no automatic pass
   claimed. Rows leave the queue optimistically and come back if the request fails.
 - **Movimenti** — a month of transactions with account, category, transfer and free-text filters, a
-  running month total per row and the month total in the header. Tapping a row opens the category
+  running month total per row and the month total in the header. The search stays on the bar beside
+  a *Filtri · n* button that opens the three selects below 1024; above, all four sit on one row. Each
+  select names what it holds in its first option, so none carries a label above it. Tapping a row opens the category
   picker, or the transfer sheet when the row is a leg of a transfer.
 - **Dashboard** — the landing screen: a filter bar (period, accounts, one category), three charts
   (spending per category in the period, income against expenses per month, tracked net worth),
@@ -302,7 +304,9 @@ The **Conti** screen holds what manages the ledger's shape rather than reading i
 
 **Conti** — one row per real account: name, balance, the opening figure and date when it has one,
 the 5.4 chip (*verificato al 12 set*, *non torna sui sospesi*, *non torna sul contabile*,
-*discrepanza …*, or *saldo non verificato*) and the *Investimento* switch. Two actions per row:
+*discrepanza …*, or *saldo non verificato*; the two that name a figure appear only when the other
+figure was declared and agrees — Revolut declares the available one alone, so its difference reads
+*discrepanza …*) and the *Investimento* switch. Two actions per row:
 
 - **Dichiara saldo** opens a sheet (date, amount, *Disponibile* / *Contabilizzata*) and posts
   `PUT /api/accounts/{id}/declaration`. The tag carries which of the bank's two figures it is
@@ -391,7 +395,9 @@ afterwards; dismissing only drops the proposal. Both decisions are optimistic.
 
 Every card carries the **stake** of the decision (`stake` in the response): the total waiting for
 that merchant, how many movements it is, and the span they cover — one amount and one date when
-exactly one movement is waiting. A proposal covers a merchant, not a movement, so this is what a yes
+exactly one movement is waiting — and `stake.items`, the movements themselves: day, account, amount
+and the bank's description, oldest first. A card lists the first three with *Mostra gli altri n*; the
+desktop detail lists them all, scrolling on its own. A proposal covers a merchant, not a movement, so this is what a yes
 would settle; when nothing is waiting any more the card says so instead of showing a zero. The stake
 is read with the queue's own predicate, so it cannot contradict the list underneath.
 
@@ -586,8 +592,9 @@ under the top bar and its widths are fixed, because the header and the rows are 
 (the header's "Categoria" is 58 px, the rows' pills up to 293). A pill too long for its column wraps
 inside it rather than spilling over the account beside it. In the review queue the proposals stay on
 the left and the one you pick is shown on the right — merchant, source, the category in force, the
-stake, what accepting would write, and the controls themselves — while the card in the list keeps only
-its head (its stake sentence would be the same sentence twice). The controls are written once and
+stake and its movements, what accepting would write, and the controls themselves — while the card in
+the list keeps its head and the stake sentence, because a name with no amount and no date cannot be
+recognised while scrolling. The controls are written once and
 placed in both, and the stylesheet hides the one the width does not need; the size rule travels with
 them, because a copy that lands outside `.proposal` inherits the generic button row — where the button
 shares the space — and next to a select as wide as its longest option that leaves the label no room at

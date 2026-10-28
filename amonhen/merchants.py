@@ -235,17 +235,31 @@ def matching_rule(
 
 
 @dataclass(frozen=True)
+class StakeMovement:
+    """One movement a proposal would decide, as the bank printed it."""
+
+    id: int
+    date: str
+    amount: Decimal
+    description: str
+    account: str
+
+
+@dataclass(frozen=True)
 class Stake:
     """What a merchant's waiting movements are worth, for one decision.
 
     A proposal is about a merchant, not about one movement: the queue cannot
-    show "the amount" of it, so it shows what a yes would settle.
+    show "the amount" of it, so it shows what a yes would settle — and the
+    movements themselves, oldest first, because a merchant's name alone is not
+    enough to say yes to: the date and the amount are what a person recognises.
     """
 
     total: Decimal
     movements: int
     first_date: str
     last_date: str
+    items: tuple[StakeMovement, ...] = ()
 
 
 def uncovered_spending(ledger: Ledger) -> dict[str, Stake]:
@@ -258,19 +272,25 @@ def uncovered_spending(ledger: Ledger) -> dict[str, Stake]:
     """
     stakes: dict[str, Stake] = {}
     for row in ledger.conn.execute(
-        f"SELECT t.description, t.date, t.amount FROM transactions t {UNCATEGORIZED_WHERE}"
-        f" {DECIDABLE_BY_ONE_CATEGORY} ORDER BY t.date",
+        "SELECT t.id, t.description, t.date, t.amount, a.name AS account"
+        f" FROM transactions t JOIN accounts a ON a.id = t.account_id {UNCATEGORIZED_WHERE}"
+        f" {DECIDABLE_BY_ONE_CATEGORY} ORDER BY t.date, t.id",
         (UNCATEGORIZED,),
     ):
         merchant = merchant_name(row["description"])
         # Spending, so the sign is dropped: the queue holds outflows only.
         total = abs(parse_decimal(row["amount"]))
+        item = StakeMovement(row["id"], row["date"], total, row["description"], row["account"])
         stake = stakes.get(merchant)
         if stake is None:
-            stakes[merchant] = Stake(total, 1, row["date"], row["date"])
+            stakes[merchant] = Stake(total, 1, row["date"], row["date"], (item,))
         else:
             stakes[merchant] = Stake(
-                stake.total + total, stake.movements + 1, stake.first_date, row["date"]
+                stake.total + total,
+                stake.movements + 1,
+                stake.first_date,
+                row["date"],
+                stake.items + (item,),
             )
     return stakes
 

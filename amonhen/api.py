@@ -108,8 +108,9 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # `/api/health` (`version`), which the app shows beside the bundle's own. 25 is
 # the account added by hand that a transfer rule writes the other half on: an
 # account row carries `computed_balance`, a transaction's `transfer` says
-# `by_rule`, and `/api/transfers/labels` lists those `accounts`.
-API_VERSION = 25
+# `by_rule`, and `/api/transfers/labels` lists those `accounts`. 26 is the
+# movements behind a proposal: a suggestion's `stake` carries its `items`.
+API_VERSION = 26
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -2232,12 +2233,26 @@ def _review_transaction(row: sqlite3.Row, ledger: Ledger, pending: dict[str, str
 def _stake(stake: Stake | None) -> dict:
     """A proposal's stake as the queue reads it. Nothing waiting is a zero."""
     if stake is None:
-        return {"movements": 0, "total": "0.00", "first_date": None, "last_date": None}
+        return {
+            "movements": 0, "total": "0.00", "first_date": None, "last_date": None, "items": [],
+        }
     return {
         "movements": stake.movements,
         "total": format_decimal(stake.total),
         "first_date": stake.first_date,
         "last_date": stake.last_date,
+        # The movements a yes decides, oldest first: a merchant's name is not
+        # enough to recognise a charge, its day and amount are.
+        "items": [
+            {
+                "id": item.id,
+                "date": item.date,
+                "amount": format_decimal(item.amount),
+                "description": item.description,
+                "account": item.account,
+            }
+            for item in stake.items
+        ],
     }
 
 

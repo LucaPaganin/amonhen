@@ -55,6 +55,7 @@ export function MovementsScreen({
   const [pickerFor, setPickerFor] = useState<Transaction | null>(null);
   const [transferFor, setTransferFor] = useState<Transaction | null>(null);
   const [transferFilter, setTransferFilter] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   // The rule a movement's sheet asked for: it opens once the category is chosen,
@@ -69,6 +70,8 @@ export function MovementsScreen({
   const latestRequest = useRef(0);
 
   const bounds = useMemo(() => monthBounds(month), [month]);
+  // What the closed bar does not show: the selects that narrow the list.
+  const activeFilters = [accountId, category, transferFilter].filter((value) => value !== "").length;
 
   const filters = useMemo(
     () => ({
@@ -310,10 +313,42 @@ export function MovementsScreen({
         </button>
       </div>
 
-      <div className="filters">
-        <div className="field">
-          <label htmlFor="filter-account">Conto</label>
-          <select id="filter-account" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+      {/* The search is what a person reaches for, so it stays on the bar; the three
+          selects are one tap away below 1024 and beside it above. Four labelled
+          fields stacked one under the other pushed the first movement half a
+          screen down. Each select says what it holds in its own first option. */}
+      <div className="movement-filters">
+        <div className="movement-filters__bar">
+          <input
+            id="filter-search"
+            className="input movement-filters__search"
+            type="search"
+            aria-label="Cerca nei movimenti"
+            placeholder="Cerca, anche nelle note"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+          />
+          <button
+            type="button"
+            className="button movement-filters__toggle"
+            aria-expanded={filtersOpen}
+            aria-controls="movement-filters-more"
+            onClick={() => setFiltersOpen(!filtersOpen)}
+          >
+            {activeFilters === 0 ? "Filtri" : `Filtri · ${activeFilters}`}
+          </button>
+        </div>
+        <div
+          id="movement-filters-more"
+          className="movement-filters__more"
+          data-open={filtersOpen ? "true" : "false"}
+        >
+          <select
+            className="input"
+            aria-label="Conto"
+            value={accountId}
+            onChange={(event) => setAccountId(event.target.value)}
+          >
             <option value="">Tutti i conti</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
@@ -321,10 +356,12 @@ export function MovementsScreen({
               </option>
             ))}
           </select>
-        </div>
-        <div className="field">
-          <label htmlFor="filter-category">Categoria</label>
-          <select id="filter-category" value={category} onChange={(event) => setCategory(event.target.value)}>
+          <select
+            className="input"
+            aria-label="Categoria"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
             <option value="">Tutte le categorie</option>
             {categories.map((item) => (
               <option key={item.id} value={item.name}>
@@ -332,28 +369,16 @@ export function MovementsScreen({
               </option>
             ))}
           </select>
-        </div>
-        <div className="field">
-          <label htmlFor="filter-transfer">Giroconti e rimborsi</label>
           <select
-            id="filter-transfer"
+            className="input"
+            aria-label="Giroconti e rimborsi"
             value={transferFilter}
             onChange={(event) => setTransferFilter(event.target.value)}
           >
-            <option value="">Tutti i movimenti</option>
+            <option value="">Con giroconti e rimborsi</option>
             <option value="yes">Solo giroconti e rimborsi</option>
-            <option value="no">Esclusi giroconti e rimborsi</option>
+            <option value="no">Senza giroconti e rimborsi</option>
           </select>
-        </div>
-        <div className="field field--wide">
-          <label htmlFor="filter-search">Cerca</label>
-          <input
-            id="filter-search"
-            type="search"
-            placeholder="Descrizione, controparte o nota"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
         </div>
       </div>
 

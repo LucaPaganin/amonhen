@@ -704,12 +704,20 @@ def test_suggestions_can_be_reviewed_and_accepting_decides_the_movements(api):
     assert listed[0]["source"] == "classifier"
     # The fixture's EKOM movement is one movement of 42,50 on one day: the queue
     # has to say what a yes decides, not just whose decision it is.
-    assert listed[0]["stake"] == {
+    stake = listed[0]["stake"]
+    items = stake.pop("items")
+    assert stake == {
         "movements": 1,
         "total": "42.50",
         "first_date": "2026-08-03",
         "last_date": "2026-08-03",
     }
+    # And the movement itself: a merchant's name is not enough to say yes to.
+    assert len(items) == 1
+    assert items[0]["date"] == "2026-08-03"
+    assert items[0]["amount"] == "42.50"
+    assert items[0]["description"].startswith("EKOM")
+    assert items[0]["account"]
 
     accepted = client.post(
         "/api/suggestions/decision", json={"merchant": "EKOM", "decision": "accept"}
@@ -920,7 +928,9 @@ def test_a_proposal_for_a_merchant_with_nothing_waiting_has_a_zero_stake(api):
 
     stake = client.get("/api/suggestions").json()[0]["stake"]
 
-    assert stake == {"movements": 0, "total": "0.00", "first_date": None, "last_date": None}
+    assert stake == {
+        "movements": 0, "total": "0.00", "first_date": None, "last_date": None, "items": [],
+    }
 
 
 def test_dismissing_a_suggestion_leaves_no_rule(api):

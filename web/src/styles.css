@@ -1027,6 +1027,57 @@ select option {
   font-size: var(--text-sm);
 }
 
+/* I filtri dei movimenti: la ricerca e il pulsante su una riga, i tre menu sotto
+   e solo quando li si apre. Sopra i 1024 il pulsante sparisce e i menu stanno
+   accanto alla ricerca (vedi il blocco desktop in fondo). */
+.movement-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.movement-filters__bar {
+  display: flex;
+  gap: 8px;
+}
+
+.movement-filters__search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.movement-filters__toggle {
+  flex: 0 0 auto;
+}
+
+.movement-filters__more {
+  display: grid;
+  gap: 8px;
+}
+
+.movement-filters__more[data-open="false"] {
+  display: none;
+}
+
+/* I filtri della coda: i chip, poi la ricerca e il conto, e tutto va a capo solo
+   quando non ci sta. La ricerca prende il posto che resta, il menu è largo
+   quanto quello che dice. */
+.queue-filters {
+  flex-flow: row wrap;
+  align-items: center;
+}
+
+.queue-filters .input[type="search"] {
+  flex: 1 1 12rem;
+  width: auto;
+}
+
+.queue-filters select.input {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 16rem;
+}
+
 /* Lastre
 
    Una lista è una superficie sola e i suoi fili sono l'unica linea rimasta
@@ -1329,6 +1380,71 @@ button.txn:active {
 
 .proposal__new .button {
   flex: 0 0 auto;
+}
+
+/* I movimenti che una proposta decide: giorno, descrizione con il conto sotto,
+   importo. È una lista dentro una scheda, quindi niente lastra sua: un filo
+   sottile fra due righe, come nella lista dei movimenti. */
+.stake {
+  margin-top: 8px;
+}
+
+.stake__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stake__item {
+  display: grid;
+  grid-template-columns: 3.6rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: var(--text-sm);
+}
+
+.stake__item + .stake__item {
+  border-top: 1px solid var(--fill-2);
+}
+
+.stake__date {
+  color: var(--muted);
+}
+
+.stake__what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stake__description,
+.stake__account {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stake__account {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.stake__amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stake__more {
+  margin-top: 2px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .proposal-actions {
@@ -3073,14 +3189,31 @@ button.txn:active {
     margin: 0;
   }
 
-  /* Nel dettaglio stanno i comandi, e nella scheda no: l'elenco è il maestro, il
-     dettaglio è dove si decide. Sotto i 1024 il dettaglio non esiste e la scheda
-     tiene i suoi comandi, che sono gli stessi. La riga di quello che la proposta
-     vale sta nel dettaglio, che la ripete: nella scheda sarebbe due volte la
-     stessa frase. */
+  /* Nel dettaglio stanno i comandi e i movimenti, e nella scheda no: l'elenco è
+     il maestro, il dettaglio è dove si decide. Sotto i 1024 il dettaglio non
+     esiste e la scheda tiene i suoi comandi, che sono gli stessi. La riga di
+     quello che la proposta vale resta invece anche nell'elenco: un nome senza
+     importo né data non si riconosce, e scorrere l'elenco serve a quello. */
   .panel--split .proposal__controls,
-  .panel--split .proposal .chart-note {
+  .panel--split .proposal__movements {
     display: none;
+  }
+
+  .panel--split .proposal .chart-note {
+    margin: 4px 0 0;
+  }
+
+  /* Il dettaglio li mostra tutti, e scorre lui invece della pagina: è appiccicato
+     in cima, e una lista più alta della finestra spingerebbe «Accetta» fuori. */
+  .queue-detail .stake__list {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+
+  /* E qui la descrizione si legge intera: è il testo su cui si decide. */
+  .queue-detail .stake__description {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   /* La proposta che il dettaglio sta mostrando è la riga accesa dell'elenco. */
@@ -3229,6 +3362,38 @@ button.txn:active {
 
   .hint {
     max-width: 72ch;
+  }
+
+  /* I filtri dei movimenti su una riga sola: la ricerca prende quello che resta,
+     i tre menu sono sempre aperti e il pulsante che li apriva non serve. Le due
+     classi battono `[data-open="false"]`, che ha la stessa specificità e viene
+     prima. */
+  .movement-filters {
+    flex-flow: row wrap;
+    align-items: center;
+  }
+
+  /* Una ricerca più stretta di così non mostra nemmeno quello che si sta
+     scrivendo: a 1024 i menu accanto la portavano a 145 px, e allora vanno a
+     capo loro, tutti e tre insieme. */
+  .movement-filters__bar {
+    flex: 1 1 18rem;
+    min-width: 18rem;
+  }
+
+  .movement-filters .movement-filters__toggle {
+    display: none;
+  }
+
+  .movement-filters .movement-filters__more {
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  .movement-filters__more select {
+    width: auto;
+    max-width: 16rem;
+    white-space: nowrap;
   }
 }
 

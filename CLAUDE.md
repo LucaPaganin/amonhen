@@ -490,7 +490,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   24 is `version` in `/api/health`. 25 is the account added by hand that a transfer
   rule writes the other half on: an account row gained `computed_balance`, a
   transaction's `transfer` gained `by_rule`, and `/api/transfers/labels` gained
-  `accounts`.
+  `accounts`. 26 is the movements behind a proposal: a suggestion's `stake` gained
+  `items` (id, date, amount, description, account of each movement a yes decides).
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -803,7 +804,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same
   fragment, so the figure on a proposal cannot contradict the list under it. A proposal
-  is per merchant, so a stake is a total, a count and a span — never one amount.
+  is per merchant, so a stake is a total, a count and a span — never one amount — and
+  the movements under it (`Stake.items`), because a merchant's name alone is not
+  something a person can say yes to: the day and the amount are what they recognise.
 
 - **A rule does one of three things, under conditions.** `Rule.action` is
   `category`, `delete` or `transfer`; `account_id`, `amount_min` and `amount_max`

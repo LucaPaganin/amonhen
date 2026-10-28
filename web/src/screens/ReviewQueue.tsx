@@ -66,6 +66,55 @@ function stakeText(stake: Suggestion["stake"]): string {
   return `${formatAmount(total)} in ${movements} movimenti · ${span}`;
 }
 
+/** How many movements a card lists before it asks to show the rest. */
+const STAKE_PREVIEW = 3;
+
+/**
+ * The movements a yes decides, one per line: the day, the account, the amount and
+ * what the bank printed. A merchant's name is not enough to recognise a charge —
+ * the day and the amount are — so they are on screen before the button is. The
+ * card shows the first few and a tap opens the rest; the desktop detail, which has
+ * the room, shows them all.
+ */
+function StakeMovements({ stake, limit }: { stake: Suggestion["stake"]; limit?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  if (stake.items.length === 0) return null;
+  const shown = limit === undefined || expanded ? stake.items : stake.items.slice(0, limit);
+  const hidden = stake.items.length - shown.length;
+  return (
+    <div className="stake">
+      <ul className="stake__list">
+        {shown.map((item) => (
+          <li className="stake__item" key={item.id}>
+            <span className="stake__date">{formatDate(item.date)}</span>
+            <span className="stake__what">
+              <span className="stake__description" title={item.description}>
+                {item.description}
+              </span>
+              <span className="stake__account">{item.account}</span>
+            </span>
+            <span className="stake__amount">{formatAmount(`-${item.amount}`)}</span>
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 || expanded ? (
+        <button
+          type="button"
+          className="stake__more"
+          aria-expanded={expanded}
+          onClick={(event) => {
+            // The card selects itself on a click; this one only opens the list.
+            event.stopPropagation();
+            setExpanded(!expanded);
+          }}
+        >
+          {expanded ? "Mostra meno" : `Mostra gli altri ${hidden}`}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function ReviewQueueScreen({
   review,
   categories,
@@ -447,6 +496,9 @@ export function ReviewQueueScreen({
                     </span>
                   </div>
                   <p className="chart-note">{stakeText(suggestion.stake)}</p>
+                  <div className="proposal__movements">
+                    <StakeMovements stake={suggestion.stake} limit={STAKE_PREVIEW} />
+                  </div>
                   <div className="proposal__controls">{proposalControls(suggestion, "card")}</div>
                 </li>
               );
@@ -472,6 +524,7 @@ export function ReviewQueueScreen({
                 <span className="chip">{activeChoice === "" ? "nessuna categoria" : activeChoice}</span>
               </p>
               <p className="chart-note">{stakeText(active.stake)}</p>
+              <StakeMovements key={active.merchant} stake={active.stake} />
               <p className="hint">
                 {activeChoice === ""
                   ? "Rifiutarla lascia il merchant senza categoria e fuori dalla coda."
@@ -509,7 +562,10 @@ export function ReviewQueueScreen({
           Movimenti senza categoria <span className="count">{review.uncategorizedTotal}</span>
         </h2>
 
-        <div className="filters">
+        {/* One row where there is room: three rows of controls stood between the
+            title and the first movement, with the search and the account select
+            the width of the whole column. */}
+        <div className="filters queue-filters">
           <div className="filters__chips" role="group" aria-label="Filtra i movimenti senza categoria">
             {FILTER_CHIPS.map((chip) => (
               <button

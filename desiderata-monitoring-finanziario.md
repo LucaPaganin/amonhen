@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.17 — ottobre 2026
+Versione 1.18 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -167,6 +167,14 @@ saldi lo leggono così, e un saldo dichiarato su di lui resta la verifica della
 sezione 5.4. Prima una destinazione non poteva essere un conto reale, e il
 patrimonio era solo osservato.*
 
+*1.18 · una proposta mostra i movimenti che decide — giorno, conto, importo e
+descrizione della banca — e non solo il totale: un nome non basta per dire sì, il
+giorno e l'importo sono ciò che si riconosce. Prima l'elenco su desktop mostrava il
+solo nome, e i movimenti non si vedevano da nessuna parte. La verifica di un conto
+dice «non torna sui sospesi» o «sul contabile» solo se l'altra figura è stata
+dichiarata e torna: Revolut dichiara solo il disponibile, e ogni sua differenza si
+leggeva come un problema di sospesi anche senza sospesi.*
+
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
 dice come è fatto: architettura, invarianti, comandi. Quando una decisione cambia
@@ -274,7 +282,7 @@ Per ogni conto e ogni periodo:
 saldo_iniziale + Σ movimenti == saldo dichiarato dalla banca
 ```
 
-Questa è la quantità conservata del sistema. Va verificata a ogni sync e l'esito è **visibile per conto** (pannello Conti), non sepolto in un log: non è una metrica di spesa, è lo stato di affidabilità di quel conto. La banca dichiara due figure per la stessa data — disponibile e contabilizzata — e ognuna si confronta con il saldo calcolato che significa la stessa cosa, così un controllo che fallisce dice quale delle due non torna, ed è ciò che distingue un movimento in attesa da un duplicato. Un conto per cui nessuno ha dichiarato un saldo resta `non verificato`: il silenzio non è un assenso. Se non torna, ogni numero a valle è inaffidabile.
+Questa è la quantità conservata del sistema. Va verificata a ogni sync e l'esito è **visibile per conto** (pannello Conti), non sepolto in un log: non è una metrica di spesa, è lo stato di affidabilità di quel conto. La banca dichiara due figure per la stessa data — disponibile e contabilizzata — e ognuna si confronta con il saldo calcolato che significa la stessa cosa, così un controllo che fallisce dice quale delle due non torna, ed è ciò che distingue un movimento in attesa da un duplicato. Lo dice solo quando l'altra figura è stata dichiarata e torna: una banca che dichiara una figura sola — Revolut, il disponibile — non dice dove sta la differenza, e la verifica ne mostra l'importo. Un conto per cui nessuno ha dichiarato un saldo resta `non verificato`: il silenzio non è un assenso. Se non torna, ogni numero a valle è inaffidabile.
 
 **Una differenza spiegata non è un guasto.** Gli esiti visibili per conto sono quattro, non tre: oltre a *verificato*, *mismatch* e *non verificato*, un conto la cui differenza è esattamente ciò che una persona ha cancellato a mano si legge **d'accordo salvo N movimenti cancellati a mano**, con l'importo, perché il ledger e la banca discordano davvero, ma per una decisione presa qui, e un rosso che nessuno può far sparire insegna a ignorare l'unica riga che conta. Ogni figura si confronta con i movimenti che conterrebbe: quella disponibile conta anche i sospesi cancellati, quella contabilizzata no. Una differenza che i tombstone non spiegano resta un mismatch, e il sync non chiama guasto ciò che è spiegato: lo annota.
 
@@ -289,7 +297,7 @@ Pipeline a cascata, dal deterministico al probabilistico:
 
 Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno stadio è bloccante per il sync.
 
-**La coda dice cosa una proposta decide.** Le proposte — del classificatore e del modello — sono per *merchant*, non per movimento: un sì copre tutti i movimenti di quel merchant. Accanto alla categoria proposta, quindi, la coda porta quanto denaro aspetta, su quanti movimenti e quando sono passati, letto con lo stesso predicato della coda stessa: la cifra di una proposta non può contraddire la lista che le sta sotto. Fuori da quel conto resta ciò che un solo sì non può decidere — una split porta le sue parti, e si decide aprendola — quindi la cifra non promette un movimento che l'accettazione lascerebbe dov'è. Una proposta i cui movimenti sono già stati decisi — da una regola, da una split o da una persona — resta senza niente da pesare, e lo dice invece di mostrare uno zero.
+**La coda dice cosa una proposta decide.** Le proposte — del classificatore e del modello — sono per *merchant*, non per movimento: un sì copre tutti i movimenti di quel merchant. Accanto alla categoria proposta, quindi, la coda porta quanto denaro aspetta, su quanti movimenti e quando sono passati — e i movimenti stessi, con giorno, conto, importo e descrizione, perché è da quelli che si riconosce una spesa — letto con lo stesso predicato della coda stessa: la cifra di una proposta non può contraddire la lista che le sta sotto. Fuori da quel conto resta ciò che un solo sì non può decidere — una split porta le sue parti, e si decide aprendola — quindi la cifra non promette un movimento che l'accettazione lascerebbe dov'è. Una proposta i cui movimenti sono già stati decisi — da una regola, da una split o da una persona — resta senza niente da pesare, e lo dice invece di mostrare uno zero.
 
 **La proposta si corregge.** La categoria proposta è un punto di partenza, non un verdetto: si cambia prima di accettare, e accettare assegna la categoria *scelta* ai movimenti che la coda teneva per quel merchant. Non sceglierne nessuna è il rifiuto, perché è lo stesso gesto con l'esito opposto: una proposta che non merita una categoria non deve restare in coda per sempre. Il modello e il classificatore sbagliano su merchant che non hanno mai visto — misurato: il classificatore indovina l'86% dei merchant tenuti fuori dall'addestramento contro il 47% della categoria più frequente, e il 92% di ciò che propone sopra la soglia di confidenza — quindi la correzione è il modo in cui la coda resta utile mentre i due proponenti migliorano con quello che la persona decide.
 
