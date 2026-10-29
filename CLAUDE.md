@@ -236,7 +236,15 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   0 for unreviewed, 1 for confirmed and -1 for rejected. `_candidates` skips
   any leg that already has a link row, so a rejected pair is never proposed
   again, and rejecting restores the `Uncategorized` category on both legs so
-  the money counts as spending again.
+  the money counts as spending again. That "no" is the matcher's business
+  only: for everything else a rejected leg is free — the rules
+  (`_movement_rows`' `linked`), a manual pairing (`pair_candidates`), an own
+  transfer (`mark_passthrough`, `link_passthrough_legs`). A leg can then hold
+  its rejected row and a live one, and `transfer_link` returns the live one;
+  `mark_transfer_pair` reuses a row only for the same two legs. Before this,
+  correcting a wrong pair by hand re-confirmed the pair just rejected, and a
+  deposit transfer the matcher had mistaken for a payment never reached its
+  transfer rule — which happens with exports, whose legs name no counterparty.
 - **A transfer is visible and manageable, because it used to be invisible.** A
   row's payload carries `transfer` — `kind` (`pair`/`own`), the account the other
   half sits on, `state` (`proposed` when `confirmed_by_human = 0`, else

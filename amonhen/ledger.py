@@ -1224,12 +1224,23 @@ class Ledger:
         return row["name"] if row else None
 
     def transfer_link(self, transaction_id: int) -> sqlite3.Row | None:
-        """The recorded link this leg belongs to, whichever side it is."""
+        """The recorded link this leg belongs to, whichever side it is.
+
+        A leg can hold a rejected row and a live one at once — the "no" to the
+        pair the matcher proposed, and the pair a person or a rule made after it —
+        and the live one is the leg's link.
+        """
         return self.conn.execute(
             """SELECT * FROM transfer_links
-               WHERE leg_a = ? OR leg_b = ? ORDER BY leg_a LIMIT 1""",
+               WHERE leg_a = ? OR leg_b = ?
+               ORDER BY confirmed_by_human = -1, leg_a LIMIT 1""",
             (transaction_id, transaction_id),
         ).fetchone()
+
+    def _live_link(self, transaction_id: int) -> sqlite3.Row | None:
+        """The leg's link unless it is a rejection, which pairs it with nothing."""
+        link = self.transfer_link(transaction_id)
+        return link if link is not None and link["confirmed_by_human"] != -1 else None
 
     def transfer_of(self, transaction_id: int) -> dict | None:
         """What a leg is a transfer to, or None when it is not a transfer.
@@ -1243,7 +1254,7 @@ class Ledger:
         target = self.transfer_target(transaction_id)
         if target is None:
             return None
-        link = self.transfer_link(transaction_id)
+        link = self._live_link(transaction_id)
         if link is None:
             return {
                 "kind": "pair" if target == TRANSFER_CLEARING else "passthrough",
@@ -1397,7 +1408,7 @@ class Ledger:
             raise ValueError("the destination needs a name")
         if name == TRANSFER_CLEARING:
             raise ValueError(f"{TRANSFER_CLEARING!r} is the pairing account, not a destination")
-        if self.transfer_link(transaction_id) is not None:
+        if self._live_link(transaction_id) is not None:
             raise ValueError("the leg is paired with another movement: undo that link first")
         existing = self.find_account(name=name)
         if existing is not None and existing["type"] != "virtual":
@@ -1420,7 +1431,13 @@ class Ledger:
             raise ValueError("the two legs sit on the same account")
         if parse_decimal(first["amount"]) + parse_decimal(second["amount"]) != 0:
             raise ValueError("the two legs do not have equal and opposite amounts")
-        link = self.transfer_link(leg_a)
+        # Only a row for these two legs: a leg's rejection of some other pair is
+        # the very mistake this call corrects, and reusing it re-confirmed it.
+        link = self.conn.execute(
+            """SELECT * FROM transfer_links
+               WHERE (leg_a = ? AND leg_b = ?) OR (leg_a = ? AND leg_b = ?)""",
+            (leg_a, leg_b, leg_b, leg_a),
+        ).fetchone()
         if link is None:
             # "high" because a person is the strongest evidence there is.
             first, second, confidence, method = leg_a, leg_b, "high", "human"
@@ -1443,7 +1460,7 @@ class Ledger:
         target = self.transfer_target(transaction_id)
         if target is None:
             raise KeyError(f"transaction {transaction_id} is not a transfer")
-        link = self.transfer_link(transaction_id)
+        link = self._live_link(transaction_id)
         if link is not None and link["method"] == "rule":
             raise ValueError(
                 "a transfer rule wrote this pair: change or remove the rule, or it is "

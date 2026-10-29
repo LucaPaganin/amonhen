@@ -676,7 +676,9 @@ def _movement_rows(ledger: Ledger) -> list[sqlite3.Row]:
     several. Neither a split nor a paired leg is a rule's to decide or to move —
     except the pair a transfer rule wrote itself, whose other half is on the
     account `mirror_account` names. That other half is not a movement at all
-    for the rules, and is left out: it carries the description it copied.
+    for the rules, and is left out: it carries the description it copied. A
+    rejected pair pairs the leg with nothing, so it does not count as `linked`:
+    otherwise the leg the matcher got wrong could never reach its rule.
     """
     return ledger.conn.execute(
         """SELECT t.id, t.date, t.amount, t.description, t.account_id,
@@ -690,7 +692,8 @@ def _movement_rows(ledger: Ledger) -> list[sqlite3.Row]:
                     WHERE p.transaction_id = t.id AND a.type IN ('category', 'virtual')
                     LIMIT 1) AS side_name,
                   EXISTS (SELECT 1 FROM transfer_links l
-                           WHERE l.leg_a = t.id OR l.leg_b = t.id) AS linked,
+                           WHERE (l.leg_a = t.id OR l.leg_b = t.id)
+                             AND l.confirmed_by_human <> -1) AS linked,
                   (SELECT a.name FROM transactions m JOIN accounts a ON a.id = m.account_id
                     WHERE m.mirror_of = t.id) AS mirror_account,
                   t.status

@@ -243,3 +243,5 @@ install.ps1
 
 # Phase 0 raw Enable Banking dumps (personal data, never committed)
 dumps/
+# Bank statements exported by hand: real names, IBANs and amounts.
+/bank_exports/

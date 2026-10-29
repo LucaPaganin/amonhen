@@ -616,6 +616,49 @@ def test_a_rejected_pair_is_re_linked_on_the_row_it_already_has(ledger):
     assert ledger.spend_between(dt.date(2026, 2, 1), dt.date(2026, 2, 28)) == Decimal("0.00")
 
 
+def test_pairing_by_hand_after_a_rejection_links_the_legs_asked_for(ledger):
+    # Two co-holders pay the same amount into the shared account on the same day,
+    # and an export says neither name: the matcher can take the wrong one.
+    revolut, fineco = setup_accounts(ledger)
+    out = ledger.record(make_txn(ledger, revolut, "2026-03-10", "-300.00", "Al cointestato"))[0]
+    first = ledger.record(make_txn(ledger, fineco, "2026-03-10", "300.00", "Da Valentina"))[0]
+    second = ledger.record(make_txn(ledger, fineco, "2026-03-10", "300.00", "Da Luca"))[0]
+    link_transfers(ledger)
+    taken = ledger.transfer_of(out)["leg_id"]
+    right = second if taken == first else first
+    ledger.unlink_transfer(out)
+
+    assert right in [row["id"] for row in pair_candidates(ledger, out)]
+    ledger.mark_transfer_pair(out, right)
+
+    assert ledger.transfer_of(out)["leg_id"] == right
+    assert ledger.transfer_of(out)["state"] == "confirmed"
+    assert ledger.transfer_of(right)["leg_id"] == out
+    # The rejected half is a movement again, and the "no" keeps it from the matcher.
+    assert ledger.transfer_of(taken) is None
+    assert ledger.category_of(taken) == "Uncategorized"
+    assert link_transfers(ledger) == 0
+    assert ledger.spend_between(dt.date(2026, 3, 1), dt.date(2026, 3, 31)) == Decimal("0.00")
+    ledger.validate()
+
+
+def test_a_leg_whose_pair_was_rejected_can_be_recorded_as_an_own_transfer(ledger):
+    revolut, fineco = setup_accounts(ledger)
+    out = ledger.record(make_txn(ledger, revolut, "2026-02-15", "-840.00", "To Mario Rossi"))[0]
+    back = ledger.record(make_txn(ledger, fineco, "2026-02-16", "840.00", "Bonifico ricevuto"))[0]
+    link_transfers(ledger)
+    ledger.unlink_transfer(out)
+
+    ledger.mark_passthrough(out, DEPOSIT)
+
+    assert ledger.transfer_of(out)["kind"] == "passthrough"
+    assert ledger.transfer_of(out)["target"] == DEPOSIT
+    assert ledger.unlink_transfer(out) == DEPOSIT
+    assert ledger.category_of(out) == "Uncategorized"
+    assert ledger.transfer_of(back) is None
+    ledger.validate()
+
+
 def test_candidates_are_the_legs_the_matcher_would_have_accepted(ledger):
     revolut, fineco = setup_accounts(ledger)
     out = ledger.record(make_txn(ledger, revolut, "2026-06-14", "-300.00", "Bonifico"))[0]

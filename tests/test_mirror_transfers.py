@@ -164,6 +164,35 @@ def test_the_half_goes_with_its_movement_and_is_not_deleted_or_unlinked_alone(le
     assert ledger.unbalanced() == []
 
 
+def test_a_leg_whose_pair_was_rejected_is_still_the_rule_s_to_move(ledger):
+    # The matcher paired the deposit transfer with a co-holder's payment of the
+    # same amount and day; rejecting that pair must leave the leg to the rule.
+    revolut, deposit, out, back = setup(ledger)
+    shared = ledger.ensure_account(Account(name="Cointestato", type="real", external_uid="uid-c"))
+    payment = record(ledger, shared, "2026-08-03", "250.00", "Pagamento da parte di Valentina")
+    from amonhen.transfers import link_transfers
+    link_transfers(ledger)
+    assert ledger.transfer_of(out)["leg_id"] == payment
+    ledger.unlink_transfer(out)
+
+    transfer_rule(ledger)
+
+    half = ledger.mirror_of(out)["id"]
+    assert ledger.transfer_of(out) == {
+        "kind": "pair",
+        "target": "Deposito",
+        "state": "confirmed",
+        "leg_id": half,
+        "by_rule": True,
+    }
+    assert ledger.transfer_of(payment) is None
+    assert ledger.category_of(payment) == "Uncategorized"
+    # Deleting the movement takes its half and leaves the rejected "no" alone.
+    ledger.delete_transaction(out)
+    assert not exists(ledger, half)
+    assert ledger.unbalanced() == []
+
+
 def test_deleting_the_account_takes_its_rule_and_frees_the_movements(ledger):
     revolut, deposit, out, back = setup(ledger)
     book = transfer_rule(ledger)

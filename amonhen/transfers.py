@@ -60,6 +60,8 @@ def pair_candidates(ledger: Ledger, transaction_id: int) -> list[sqlite3.Row]:
     leg spoken for — run against one leg chosen by hand, so a manual link can
     only make a pair the matcher itself would have accepted. A leg with no
     candidate left is a fact worth showing: it means the other half is missing.
+    A leg whose proposed pair was rejected is free again here, unlike for the
+    matcher: the person choosing is the one who said no.
     """
     chosen = ledger.conn.execute(
         """SELECT t.*, a.iban AS account_iban FROM transactions t
@@ -75,7 +77,8 @@ def pair_candidates(ledger: Ledger, transaction_id: int) -> list[sqlite3.Row]:
              AND t.id <> ? AND t.account_id <> ?
              AND ABS(julianday(t.date) - julianday(?)) <= ?
              AND NOT EXISTS (
-                 SELECT 1 FROM transfer_links l WHERE l.leg_a = t.id OR l.leg_b = t.id
+                 SELECT 1 FROM transfer_links l
+                 WHERE (l.leg_a = t.id OR l.leg_b = t.id) AND l.confirmed_by_human <> -1
              )
              AND NOT EXISTS (
                  SELECT 1 FROM postings p JOIN accounts v ON v.id = p.account_id
@@ -232,7 +235,9 @@ def link_passthrough_legs(ledger: Ledger, declarations: "Iterable[Passthrough]")
                          WHERE p.transaction_id = t.id AND v.type = 'virtual'
                      )
                      AND NOT EXISTS (
-                         SELECT 1 FROM transfer_links l WHERE l.leg_a = t.id OR l.leg_b = t.id
+                         SELECT 1 FROM transfer_links l
+                         WHERE (l.leg_a = t.id OR l.leg_b = t.id)
+                           AND l.confirmed_by_human <> -1
                      )
                    ORDER BY t.date, t.id""",
                 (f"%{label}%", f"%{label}%"),
