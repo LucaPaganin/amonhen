@@ -1,5 +1,6 @@
 const currency = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const shortDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" });
+const longDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" });
 const monthName = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" });
 
 export function toAmount(value: string): number {
@@ -14,6 +15,12 @@ export function formatAmount(value: string | number): string {
 export function formatDate(iso: string): string {
   const date = new Date(`${iso}T00:00:00`);
   return Number.isNaN(date.getTime()) ? iso : shortDate.format(date);
+}
+
+/** A day that may lie in another year, such as where an account's history starts. */
+export function formatDateWithYear(iso: string): string {
+  const date = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? iso : longDate.format(date);
 }
 
 export function formatMonth(month: string): string {

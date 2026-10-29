@@ -6,7 +6,7 @@ import { OpeningRecalc } from "../components/OpeningRecalc";
 import { PeriodSync } from "../components/PeriodSync";
 import { Toast } from "../components/Toast";
 import { Toggle } from "../components/Toggle";
-import { formatAmount, formatDate, toAmount } from "../format";
+import { formatAmount, formatDate, formatDateWithYear, toAmount } from "../format";
 import type {
   Account,
   AccountFlags,
@@ -710,7 +710,7 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                     <span className="flag-row__balance">
                       {formatAmount(account.balance)}
                       {account.opening_balance !== null && account.opening_date !== null
-                        ? ` · iniziale ${formatAmount(account.opening_balance)} al ${formatDate(
+                        ? ` · iniziale ${formatAmount(account.opening_balance)} al ${formatDateWithYear(
                             account.opening_date,
                           )}`
                         : ""}
