@@ -82,6 +82,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
 |`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
+|`web/src/components/VirtualAccounts.tsx`|The virtual accounts under **Conti**: what each holds, how many movements put it there, and the movements on request (`/api/virtual-accounts`, `/api/transactions?virtual_account_id=`)|
 |`web/src/components/PeriodSync.tsx`|The period sync in an account's panel under **Conti**: the dates, a line per window, the preview, and the held probable duplicates with *Scrivi* / *Scarta*|
 |`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
 |`tools/dump_raw.py`|Dumps raw EB payloads to disk, for regenerating fixtures|
@@ -503,6 +504,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `items` (id, date, amount, description, account of each movement a yes decides).
   27 is the opening shown before it is written: `POST /api/accounts/{id}/opening/preview`
   (current, proposed, `change`), and a sync's account row gained `anchored`.
+  28 is the virtual accounts: `GET /api/virtual-accounts` (name, `balance`, `movements`,
+  `first_date`/`last_date`; `Transfer clearing` left out) and `virtual_account_id` on
+  `/api/transactions`.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -823,7 +827,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `record_batch` → `link_transfers` → `categorize` path as `amonhen import`. Idempotency is the
   content hash, so importing the same file twice writes nothing. One deliberate difference from
   `parse_csv`: a row that does not read is reported with its line (and the parser's own English
-  sentence) instead of refusing the whole file.
+  sentence) instead of refusing the whole file. A description is passed through
+  `repair_mojibake` (`adapters/csv_adapter.py`): Revolut's Italian statement writes UTF-8
+  decoded as Windows-1252 ("PiÃ¹Me"), and only text that turns back into valid UTF-8 is
+  changed. The repair moves the content hash, so the six rows imported before it were
+  rewritten by hand on the live ledger (description and hash, suffix kept).
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

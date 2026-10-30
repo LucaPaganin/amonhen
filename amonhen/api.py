@@ -54,7 +54,7 @@ from amonhen.csv_import import (
     profile_from_mapping,
     read_mapped,
 )
-from amonhen.ledger import UNCATEGORIZED_WHERE, BalanceCheck, Ledger
+from amonhen.ledger import TRANSFER_CLEARING, UNCATEGORIZED_WHERE, BalanceCheck, Ledger
 from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
     Rule,
@@ -112,7 +112,7 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # movements behind a proposal: a suggestion's `stake` carries its `items`. 27 is
 # the opening shown before it is written: `/api/accounts/{id}/opening/preview`,
 # and a sync's account says the opening it `anchored` from the bank's figure.
-API_VERSION = 27
+API_VERSION = 28
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -658,6 +658,42 @@ def create_app(
         with ledger_scope() as ledger:
             return [_account_payload(ledger, row["id"]) for row in _real_accounts(ledger)]
 
+    @app.get("/api/virtual-accounts")
+    def virtual_accounts() -> list[dict]:
+        """Where the money that is neither spending nor income went.
+
+        A movement recorded as an own transfer, or as passing through, posts its
+        other side to a virtual account: the house cheques sit on one, a
+        mistaken payment and its return on another. Those accounts were nowhere
+        on screen, so what had left the burn could not be found again. Each
+        carries what it holds — the sum of its postings, positive when money
+        went in — and how many movements put it there. `Transfer clearing` is
+        left out: it is how a pair between two real accounts balances, it always
+        nets to zero, and it is not a place money went.
+        """
+        with ledger_scope() as ledger:
+            rows = ledger.conn.execute(
+                """SELECT a.id, a.name, COUNT(p.id) AS movements,
+                          MIN(t.date) AS first_date, MAX(t.date) AS last_date
+                   FROM accounts a
+                   LEFT JOIN postings p ON p.account_id = a.id
+                   LEFT JOIN transactions t ON t.id = p.transaction_id
+                   WHERE a.type = 'virtual' AND a.name <> ?
+                   GROUP BY a.id ORDER BY a.name""",
+                (TRANSFER_CLEARING,),
+            ).fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "balance": format_decimal(_posted_on(ledger, row["id"])),
+                    "movements": row["movements"],
+                    "first_date": row["first_date"],
+                    "last_date": row["last_date"],
+                }
+                for row in rows
+            ]
+
     @app.get("/api/categories")
     def categories() -> list[dict]:
         with ledger_scope() as ledger:
@@ -1100,11 +1136,12 @@ def create_app(
         status: str | None = None,
         search: str | None = None,
         transfer: bool | None = None,
+        virtual_account_id: int | None = None,
         limit: int = Query(100, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> dict:
         where, params = _transaction_filters(
-            from_date, to_date, account_id, category, status, search, transfer
+            from_date, to_date, account_id, category, status, search, transfer, virtual_account_id
         )
         with ledger_scope() as ledger:
             total = ledger.conn.execute(
@@ -2048,6 +2085,7 @@ def _transaction_filters(
     status: str | None,
     search: str | None,
     transfer: bool | None,
+    virtual_account_id: int | None = None,
 ) -> tuple[str, list]:
     clauses: list[str] = []
     params: list = []
@@ -2080,7 +2118,21 @@ def _transaction_filters(
         leg = """EXISTS (SELECT 1 FROM postings p JOIN accounts v ON v.id = p.account_id
                          WHERE p.transaction_id = t.id AND v.type = 'virtual')"""
         clauses.append(leg if transfer else f"NOT {leg}")
+    if virtual_account_id is not None:
+        # The movements a virtual account holds are the ones posted to it.
+        clauses.append(
+            "EXISTS (SELECT 1 FROM postings p WHERE p.transaction_id = t.id AND p.account_id = ?)"
+        )
+        params.append(virtual_account_id)
     return ("WHERE " + " AND ".join(clauses) if clauses else ""), params
+
+
+def _posted_on(ledger: Ledger, account_id: int) -> Decimal:
+    """What the postings on an account add up to, cents-exact."""
+    total = Decimal(0)
+    for row in ledger.conn.execute("SELECT amount FROM postings WHERE account_id = ?", (account_id,)):
+        total += parse_decimal(row["amount"])
+    return total
 
 
 def _require_transaction(ledger: Ledger, transaction_id: int) -> sqlite3.Row:

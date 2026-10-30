@@ -2060,3 +2060,27 @@ def test_a_held_movement_waits_for_a_person(tmp_path, monkeypatch):
     assert client.post(f"/api/sync/held/{held[0]['id']}/discard").status_code == 409
     assert client.post("/api/sync/held/9999/write").status_code == 404
     client.close()
+
+
+def test_virtual_accounts_say_where_the_money_that_left_the_burn_went(api):
+    client, _ = api
+    salary = client.get("/api/transactions", params={"search": "Stipendio"}).json()["items"][0]
+    transfer = client.get("/api/transactions", params={"search": "Bonifico"}).json()["items"][0]
+    client.post(
+        "/api/transfers/passthrough",
+        json={"transaction_id": salary["id"], "destination": "Conto stipendio"},
+    )
+
+    virtual = client.get("/api/virtual-accounts").json()
+
+    # The clearing account balances the pair between two real accounts: it is
+    # not a place money went, so it is not listed.
+    assert [(row["name"], row["balance"], row["movements"]) for row in virtual] == [
+        ("Conto stipendio", "-1200.00", 1)
+    ]
+    assert virtual[0]["first_date"] == virtual[0]["last_date"] == "2026-08-05"
+    held = client.get(
+        "/api/transactions", params={"virtual_account_id": virtual[0]["id"]}
+    ).json()
+    assert [item["id"] for item in held["items"]] == [salary["id"]]
+    assert transfer["id"] != salary["id"]

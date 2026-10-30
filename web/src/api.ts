@@ -45,6 +45,7 @@ import type {
   TransferDecision,
   TransferLabels,
   TransferUnlink,
+  VirtualAccount,
 } from "./types";
 import { monthBounds } from "./format";
 
@@ -105,6 +106,8 @@ export interface TransactionQuery {
   search?: string;
   /** true: only transfer legs. false: everything else. */
   transfer?: boolean;
+  /** Only the movements posted to this virtual account. */
+  virtualAccountId?: number;
   limit?: number;
   offset?: number;
 }
@@ -118,6 +121,7 @@ function transactionSearch(query: TransactionQuery): string {
   if (query.status) params.set("status", query.status);
   if (query.search) params.set("search", query.search);
   if (query.transfer !== undefined) params.set("transfer", String(query.transfer));
+  if (query.virtualAccountId !== undefined) params.set("virtual_account_id", String(query.virtualAccountId));
   if (query.limit !== undefined) params.set("limit", String(query.limit));
   if (query.offset !== undefined) params.set("offset", String(query.offset));
   return params.toString();
@@ -203,6 +207,7 @@ export const api = {
       {},
     ),
   accounts: (signal?: AbortSignal) => get<Account[]>("/accounts", signal),
+  virtualAccounts: (signal?: AbortSignal) => get<VirtualAccount[]>("/virtual-accounts", signal),
   categories: (signal?: AbortSignal) => get<Category[]>("/categories", signal),
   transactions: (query: TransactionQuery, signal?: AbortSignal) =>
     get<TransactionPage>(`/transactions?${transactionSearch(query)}`, signal),

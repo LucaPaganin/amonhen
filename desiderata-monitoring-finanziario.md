@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.19 — ottobre 2026
+Versione 1.20 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -183,7 +183,15 @@ verrà più segnalata. Una verifica che non torna mostra invece quanto manca e g
 ultimi movimenti del conto. Prima *Allinea il saldo iniziale* stava accanto a ogni
 controllo: premuto su un rosso lo faceva tornare verde per costruzione, e due pedaggi
 che Revolut aveva già tolto dal disponibile senza esporli finirono nel saldo iniziale e
-furono contati due volte quando arrivarono.*
+furono contati due volte quando arrivarono.
+1.20 · i conti virtuali si vedono. In fondo a **Conti** c'è l'elenco dei conti in cui è
+finito il denaro che non è né spesa né entrata — una casa comprata, un versamento
+sbagliato e ripreso — con il saldo, il numero di movimenti e i movimenti stessi a
+richiesta; il conto di clearing resta fuori, perché pareggia una coppia e non è un posto
+dove il denaro va. Prima un giroconto verso un conto non collegato usciva dalla spesa e
+non si ritrovava più. E l'import CSV ripara le lettere accentate che un export ha scritto
+due volte codificate ("PiÃ¹Me" per "PiùMe"), come fa l'estratto italiano di Revolut: la
+stessa spesa via PSD2 ha le lettere giuste, e l'impronta che le confronta non coincideva.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -255,7 +263,7 @@ Due percorsi distinti che **devono convergere nella stessa tabella e condividere
 
 Requisiti comuni a entrambi i percorsi:
 
-- Idempotenza: `external_id` del provider quando presente, con fallback `hash(data, importo, descrizione, conto)`. L'export CSV di solito non contiene l'`external_id`, e allora il fallback è il solo discriminante nella zona di sovrapposizione tra i due percorsi: va testato esplicitamente reimportando un periodo già sincronizzato e verificando che il conteggio non cambi. Quando invece l'estratto una colonna di identificativo ce l'ha, la sezione **Importa** la mappa e quell'identificativo prende il posto dell'impronta come identità.
+- Idempotenza: `external_id` del provider quando presente, con fallback `hash(data, importo, descrizione, conto)`. L'export CSV di solito non contiene l'`external_id`, e allora il fallback è il solo discriminante nella zona di sovrapposizione tra i due percorsi — per questo l'import ripara le lettere accentate che un export ha codificato due volte, altrimenti la stessa descrizione non coincide con quella PSD2: va testato esplicitamente reimportando un periodo già sincronizzato e verificando che il conteggio non cambi. Quando invece l'estratto una colonna di identificativo ce l'ha, la sezione **Importa** la mappa e quell'identificativo prende il posto dell'impronta come identità.
 - Un adattatore per formato di export, che normalizza verso lo schema comune. I formati differiscono per istituto (colonne, segno dell'importo, formato data, separatore decimale).
 - L'adattatore si può scegliere invece di scriverlo: dalla sezione **Importa** dell'app si dice quali colonne sono la data, l'importo (o Dare e Avere), la descrizione, il formato della data e dei decimali, e l'identificativo della banca quando c'è, e l'anteprima mostra le prime righe mappate prima che qualcosa venga scritto. Le righe che non si leggono si contano con la loro riga invece di fermare il file; i profili scritti per banca restano per la riga di comando.
 - Gestione della transizione pending → booked senza duplicare la transazione.
@@ -270,7 +278,7 @@ Requisiti comuni a entrambi i percorsi:
 Ogni movimento è composto da N *postings* la cui somma è zero.
 
 - **Spesa**: conto reale −X, categoria di spesa +X.
-- **Giroconto**: conto A −X, conto B +X quando entrambe le gambe sono collegate; altrimenti la seconda gamba va su un conto virtuale — il conto di clearing per una coppia, un conto intitolato all'etichetta per una gamba sola verso un conto proprio non collegato. Nessuna categoria: non è spesa per costruzione, non per regola.
+- **Giroconto**: conto A −X, conto B +X quando entrambe le gambe sono collegate; altrimenti la seconda gamba va su un conto virtuale — il conto di clearing per una coppia, un conto intitolato all'etichetta per una gamba sola verso un conto proprio non collegato. Nessuna categoria: non è spesa per costruzione, non per regola. I conti virtuali, tranne quello di clearing, si vedono in **Conti** con il loro saldo e i loro movimenti: denaro uscito dalla spesa deve potersi ritrovare.
 - **Split**: più postings di categoria sullo stesso movimento.
 
 ### 5.3 Riconciliazione trasferimenti

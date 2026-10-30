@@ -6,6 +6,7 @@ import { OpeningRecalc } from "../components/OpeningRecalc";
 import { PeriodSync } from "../components/PeriodSync";
 import { Toast } from "../components/Toast";
 import { Toggle } from "../components/Toggle";
+import { VirtualAccounts } from "../components/VirtualAccounts";
 import { formatAmount, formatDate, formatDateWithYear, toAmount } from "../format";
 import type {
   Account,
@@ -875,6 +876,8 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
           </p>
         )}
       </section>
+
+      <VirtualAccounts refreshToken={refreshToken} />
 
       <DeclareSheet
         open={declareFor !== null}

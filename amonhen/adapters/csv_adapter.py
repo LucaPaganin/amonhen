@@ -218,8 +218,37 @@ def _decimal(value: Any, decimal_separator: str) -> Decimal:
 
 
 def _description(record: dict[str, str], profile: CsvProfile) -> str:
-    parts = [_cell(record.get(column)) for column in profile.description_columns]
+    parts = [repair_mojibake(_cell(record.get(column))) for column in profile.description_columns]
     return " | ".join(part for part in parts if part)
+
+
+def repair_mojibake(text: str) -> str:
+    """Undo UTF-8 text that was decoded as Windows-1252 before it was written.
+
+    Revolut's Italian statement prints "PiùMe" as "PiÃ¹Me" and "Caffè" as
+    "CaffÃ¨", while the same movement over PSD2 carries the right letters. Kept
+    as it is, the description reads wrong, a rule written on the merchant's name
+    misses it, and the content hash — the only discriminator between an export
+    and the sync — no longer matches the PSD2 twin. Only text that turns back
+    into valid UTF-8 is changed: a genuine "Ã" followed by an ordinary letter
+    does not decode, and is left alone.
+    """
+    if not any(marker in text for marker in ("Ã", "Â")):
+        return text
+    raw = bytearray()
+    for char in text:
+        try:
+            raw += char.encode("cp1252")
+        except UnicodeEncodeError:
+            # The five bytes Windows-1252 leaves undefined survive as their
+            # Latin-1 code points; anything wider was never one byte.
+            if ord(char) > 0xFF:
+                return text
+            raw.append(ord(char))
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return text
 
 
 def _cell(value: Any) -> str:

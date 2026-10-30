@@ -303,6 +303,17 @@ export interface Deletion {
   unlinked_pair: boolean;
 }
 
+/** Where an own transfer put the money: what it holds and since when. */
+export interface VirtualAccount {
+  id: number;
+  name: string;
+  /** Positive when money went in: the sum of the postings on it. */
+  balance: string;
+  movements: number;
+  first_date: string | null;
+  last_date: string | null;
+}
+
 /** A deleted movement as the trash reads it: enough to recognise, and to undo. */
 export interface DeletedMovement {
   id: number;

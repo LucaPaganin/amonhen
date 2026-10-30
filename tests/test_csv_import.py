@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from amonhen.adapters.csv_adapter import read_csv
+from amonhen.adapters.csv_adapter import read_csv, repair_mojibake
 from amonhen.api import create_app
 from amonhen.csv_import import missing_from_mapping, profile_from_mapping
 from amonhen.db import connect
@@ -99,6 +99,38 @@ def test_a_signed_amount_column_with_an_italian_separator(tmp_path):
 
     assert errors == []
     assert [format_decimal(txn.amount) for txn in transactions] == ["-12.30"]
+
+
+def test_accents_an_export_garbled_are_repaired(tmp_path):
+    # Revolut's Italian statement: UTF-8 read as Windows-1252, then written out.
+    statement = write_statement(
+        tmp_path,
+        "Data;Importo;Descrizione\n22/09/2025;-12,30;PiÃ¹Me\n23/09/2025;-2,00;Fragolino CaffÃ¨\n",
+    )
+
+    transactions, errors = read_csv(
+        statement,
+        account_id=1,
+        balancing_account_id=2,
+        profile=profile_from_mapping(
+            mapping(
+                date_column="Data",
+                date_format="%d/%m/%Y",
+                amount_column="Importo",
+                debit_column="",
+                credit_column="",
+            )
+        ),
+    )
+
+    assert errors == []
+    assert [txn.description for txn in transactions] == ["PiùMe", "Fragolino Caffè"]
+
+
+def test_text_that_only_looks_garbled_is_left_alone():
+    assert repair_mojibake("SÃO PAULO") == "SÃO PAULO"
+    assert repair_mojibake("Caffè") == "Caffè"
+    assert repair_mojibake("Green - Ristorante Pizzeria e PiÃº") == "Green - Ristorante Pizzeria e Piú"
 
 
 def test_invert_sign_flips_every_amount(tmp_path):
