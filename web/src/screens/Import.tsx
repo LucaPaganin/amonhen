@@ -6,6 +6,7 @@ import { Toast } from "../components/Toast";
 import { formatAmount } from "../format";
 import { importSummary } from "../notices";
 import type { CsvImportOutcome, CsvPreview } from "../types";
+import { ScalableImport } from "../components/ScalableImport";
 import { useAccounts } from "../useAccounts";
 
 /** The date shapes a bank export is written in, as strptime formats. */
@@ -447,6 +448,8 @@ export function ImportScreen({ onImported }: ImportScreenProps) {
           </ul>
         </div>
       )}
+
+      <ScalableImport accounts={accounts} onImported={onImported} />
 
       {notice === null ? null : <Toast message={notice} onDismiss={() => setNotice(null)} />}
     </section>

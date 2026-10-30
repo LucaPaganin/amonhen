@@ -197,6 +197,7 @@ _SAVINGS_SQL = """
     JOIN transactions t ON t.id = p.transaction_id
     JOIN accounts a ON a.id = p.account_id
     WHERE a.type = 'real' AND a.investment = 1 AND t.status = 'BOOK'
+      AND t.content_hash NOT LIKE 'valuation:%'
       AND t.date >= ? AND t.date <= ?
 """
 

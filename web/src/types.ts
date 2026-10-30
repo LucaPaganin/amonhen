@@ -304,6 +304,46 @@ export interface Deletion {
 }
 
 /** Where an own transfer put the money: what it holds and since when. */
+/** Scalable's PDFs, as the browser read them: base64, because the API takes JSON. */
+export interface ScalableImportRequest {
+  account: string;
+  files: { name: string; content: string }[];
+}
+
+/** A booking that crossed the broker's boundary, by value date. */
+export interface ScalableFlow {
+  /** The last four digits of the broker's cash account. */
+  account: string;
+  date: string;
+  amount: string;
+  description: string;
+}
+
+/** What the statements say about the account, and on the write what was booked. */
+export interface ScalableReading {
+  statements: { cash: number; holdings: number };
+  unreadable: string[];
+  valuations: {
+    date: string;
+    value: string;
+    securities: string;
+    cash: Record<string, string>;
+    /** The ledger's balance on the date, before this valuation. */
+    balance: string;
+    /** What the valuation books as a return. */
+    difference: string;
+  }[];
+  /** Dates a securities statement covers but a cash month is missing for. */
+  unvalued: string[];
+  /** Flows with no movement in the ledger: the other bank's to import. */
+  unmatched: ScalableFlow[];
+  /** Money moved between the broker's own cash accounts. */
+  internal: ScalableFlow[];
+  before_opening: number;
+  written?: { date: string; difference: string }[];
+  account?: Account;
+}
+
 export interface VirtualAccount {
   id: number;
   name: string;

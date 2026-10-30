@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.20 — ottobre 2026
+Versione 1.21 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -191,7 +191,14 @@ richiesta; il conto di clearing resta fuori, perché pareggia una coppia e non �
 dove il denaro va. Prima un giroconto verso un conto non collegato usciva dalla spesa e
 non si ritrovava più. E l'import CSV ripara le lettere accentate che un export ha scritto
 due volte codificate ("PiÃ¹Me" per "PiùMe"), come fa l'estratto italiano di Revolut: la
-stessa spesa via PSD2 ha le lettere giuste, e l'impronta che le confronta non coincideva.*
+stessa spesa via PSD2 ha le lettere giuste, e l'impronta che le confronta non coincideva.
+1.21 · il broker ha un valore, e il rendimento è un movimento. Un conto d'investimento
+creato a mano si aggiorna con *Aggiorna il valore* in **Conti**, o leggendo gli estratti
+PDF di Scalable in **Importa**: la differenza tra il valore e il saldo dei movimenti è
+scritta come un movimento verso il conto virtuale *Rendimento investimenti*, e il valore
+diventa il saldo dichiarato. Prima il saldo dichiarato a mano restava rosso per tutto
+quello che il mercato aveva fatto, e riallinearlo nascondeva il rendimento nel saldo
+iniziale.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -366,6 +373,8 @@ Patrimonio **osservato**, non ricostruito: `account_balances` tiene ciò che la 
 **Un conto può valere quello che dicono i suoi movimenti.** Un conto creato a mano con la flag *saldo dai movimenti* — il conto deposito alimentato dai giroconti che una regola gli scrive (sezione 5.5) — non ha una banca che ne dichiari il saldo: il patrimonio lo conta, a ogni data della serie, per il saldo calcolato a quella data (saldo iniziale più i movimenti), dalla sua data iniziale in poi, e i saldi per conto lo mostrano a oggi. Le date della serie restano quelle osservate. Un saldo dichiarato su quel conto non è un punto della serie ma la verifica della sezione 5.4: la differenza che si accumula è quello che i movimenti non vedono, come gli interessi maturati dentro il deposito, e si corregge con un movimento a mano, così l'interesse resta un'entrata invece di sparire nel saldo iniziale. Il saldo iniziale si ricava dal saldo di oggi togliendo i giroconti già nel ledger, quindi la storia del conto parte dal primo giroconto. La liquidità usava già il saldo calcolato per ogni conto.
 
 Quello che una banca non dichiara — il broker — entra come conto reale con un saldo dichiarato a mano, non con una tabella separata: l'aggiornamento resta manuale e raro, e ha lo scopo fiscale di fine anno (valore di fine anno e giacenza) finché il broker è su entità estera in regime dichiarativo.
+
+**Il valore del broker si scrive come rivalutazione.** I movimenti di un conto d'investimento creato a mano sono solo il denaro entrato e uscito; quello che hanno fatto i titoli non è in nessuno. Dichiarare il valore lascerebbe la verifica della sezione 5.4 rossa per esattamente il rendimento, e riallineare il saldo iniziale lo nasconderebbe lì. Una *rivalutazione* (valore e data) scrive invece la differenza dal saldo calcolato a quella data come un movimento verso il conto virtuale *Rendimento investimenti*, e registra il valore come saldo dichiarato: la verifica torna, il rendimento resta visibile. Non è un'entrata (ha un posting virtuale), non è *Investito* (nessuno l'ha risparmiato), non è candidata a un giroconto e le regole non la toccano. Una seconda rivalutazione sulla stessa data sostituisce la prima. Per Scalable, che non ha API né CSV, gli estratti PDF dicono il valore a fine trimestre: gli estratti conto mensili di ogni conto di liquidità più l'estratto conto titoli. Senza nessun estratto di liquidità una data non si valuta — i titoli da soli non sono il conto — e i bonifici che gli estratti elencano si confrontano con il ledger, segnalando quelli che mancano senza scriverli: sono movimenti della banca dall'altra parte. Non è il TWR né l'IRR della sezione 3: è solo la differenza tra due valori osservati.
 
 Motivazione della separazione: spese e patrimonio sono processi con frequenza di campionamento e struttura del rumore diverse di ordini di grandezza. Unirli fa entrare la volatilità di mercato nelle metriche di spesa.
 

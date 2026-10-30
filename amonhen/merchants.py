@@ -698,7 +698,7 @@ def _movement_rows(ledger: Ledger) -> list[sqlite3.Row]:
                     WHERE m.mirror_of = t.id) AS mirror_account,
                   t.status
            FROM transactions t JOIN accounts r ON r.id = t.account_id
-           WHERE r.type = 'real' AND t.mirror_of IS NULL
+           WHERE r.type = 'real' AND t.mirror_of IS NULL AND t.content_hash NOT LIKE 'valuation:%'
            ORDER BY t.date, t.id"""
     ).fetchall()
 

@@ -30,6 +30,13 @@ log = logging.getLogger(__name__)
 # amount on the same account within this many days.
 PENDING_WINDOW_DAYS = 3
 TRANSFER_CLEARING = "Transfer clearing"
+# A valuation is the one movement no bank reported: the difference between what an
+# investment account is worth and what its movements add up to. Its content hash
+# starts with this, which is how the matcher, the rules and the savings flow leave
+# it out; its other side sits on the virtual account below, so a gain is neither
+# income nor savings.
+VALUATION_PREFIX = "valuation:"
+RETURNS_ACCOUNT = "Rendimento investimenti"
 
 # Settled spending still waiting in the review bucket: a real outflow, a posting
 # on the `Uncategorized` category, and no leg of a transfer — linking a pair
@@ -1713,6 +1720,62 @@ class Ledger:
         ).fetchone()["first"]
         opening_date = dt.date.fromisoformat(first) - dt.timedelta(days=1) if first else as_of
         return opening, opening_date
+
+    def record_valuation(
+        self, account_id: int, date: dt.date, value: Decimal
+    ) -> tuple[Decimal, int | None]:
+        """Say what an investment account is worth on a date, and book the difference.
+
+        An account added by hand for a broker holds cash and securities, and its
+        movements are only the money that went in and out: what the securities
+        gained or lost is in none of them. Re-anchoring the opening to today's
+        value hides that return inside the opening, and the 5.4 check then fails
+        at the next valuation by exactly what the market did. So the difference
+        between the value and the ledger's balance on that date is written as a
+        movement of its own, against `Rendimento investimenti`: the balance agrees
+        with the value, the return is on the books, and being a virtual posting
+        it is neither income nor spending — and the savings flow leaves it out,
+        because nobody saved it. The value is also recorded as the account's
+        declaration, so the check reads it. A second valuation on the same day
+        replaces the first. Returns the difference and the movement's id (None
+        when the balance already agreed).
+        """
+        account = self.account(account_id)
+        if account["type"] != "real" or not account["investment"]:
+            raise ValueError(f"{account['name']!r} is not an investment account")
+        if account["external_uid"] is not None:
+            raise ValueError(
+                f"{account['name']!r} is connected to a bank, which reports what it holds"
+            )
+        key = f"{VALUATION_PREFIX}{account_id}:{date.isoformat()}"
+        returns = self.ensure_account(Account(name=RETURNS_ACCOUNT, type="virtual"))
+        with self.conn:
+            self.conn.execute("DELETE FROM transactions WHERE content_hash = ?", (key,))
+            difference = value - self.balance(account_id, date)
+            transaction_id = None
+            if difference != 0:
+                cursor = self.conn.execute(
+                    """INSERT INTO transactions (
+                           account_id, date, amount, description, status, external_id,
+                           content_hash, source, source_file, raw_payload, currency, created_at
+                       ) VALUES (?, ?, ?, ?, 'BOOK', NULL, ?, 'import', NULL, ?, 'EUR', ?)""",
+                    (
+                        account_id, date.isoformat(), format_decimal(difference),
+                        "Rivalutazione", key,
+                        json.dumps({"value": format_decimal(value)}),
+                        dt.datetime.now(dt.UTC).isoformat(),
+                    ),
+                )
+                transaction_id = int(cursor.lastrowid)
+                self.conn.executemany(
+                    "INSERT INTO postings (transaction_id, account_id, amount) VALUES (?, ?, ?)",
+                    [
+                        (transaction_id, account_id, format_decimal(difference)),
+                        (transaction_id, returns, format_decimal(-difference)),
+                    ],
+                )
+            self.record_declared_balance(account_id, date, value, "manual:available")
+        return difference, transaction_id
 
     def anchor_opening(
         self, account_id: int, as_of: dt.date, declared: Decimal, kind: str

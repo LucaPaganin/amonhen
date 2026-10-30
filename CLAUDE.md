@@ -80,6 +80,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
+|`amonhen/adapters/scalable_pdf.py`|Scalable Capital's PDF statements (cash months and quarterly securities) → valuations and the flows across the broker's boundary|
+|`amonhen/scalable_import.py`|Those statements against the ledger: the valuations to book and the transfers it lacks|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
 |`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
 |`web/src/components/VirtualAccounts.tsx`|The virtual accounts under **Conti**: what each holds, how many movements put it there, and the movements on request (`/api/virtual-accounts`, `/api/transactions?virtual_account_id=`)|
@@ -99,7 +101,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `RETURNS_ACCOUNT`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
@@ -114,7 +116,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`api`|`create_app`|
 |`backup`|`Snapshot`, `make_snapshot`|
 |`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `ConsentExpiredError`, `normalize_transaction`, `normalize_account`, `iban_of`|
-|`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
+|`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`; `scalable_pdf.read_statements`, `valuations`, `boundary_flows`|
+|`scalable_import`|`plan`, `apply`, `Plan`, `PlannedValuation`|
 |`cli`|`main`, `build_parser`|
 
 ## Non-obvious things to know before changing code
@@ -506,7 +509,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   (current, proposed, `change`), and a sync's account row gained `anchored`.
   28 is the virtual accounts: `GET /api/virtual-accounts` (name, `balance`, `movements`,
   `first_date`/`last_date`; `Transfer clearing` left out) and `virtual_account_id` on
-  `/api/transactions`.
+  `/api/transactions`. 29 is the broker's value: `POST /api/accounts/{id}/valuation`
+  and `POST /api/import/scalable[/preview]` (PDFs as base64 in JSON).
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -897,6 +901,20 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   starts at the first transfer; interest the bank credits inside the account is
   invisible, and is corrected with a movement rather than by re-anchoring.
 - **A rule's kind is in its pattern, not in a column.** A pattern written between slashes is a regular expression (section 5.5), matched with `re.search(..., re.IGNORECASE)` against the same collapsed, lower-cased description the plain rules compare, compiled once per source through an `lru_cache` because a sync runs the whole book against every description. `Rule.expression` and `rule_pattern()` are the only readers of the slashes, so the store, the API and the CLI carry no new field. The longest pattern wins, counted on what it says (the text, or the expression inside the slashes), so an expression that names a family is longer than the words it replaces while a broader one steals nothing from a narrower text; `set_rule` refuses an expression that does not compile (`ValueError`, which the app's handler turns into a 422), so a rule that could never match is never stored.
+
+- **A broker's return is a movement, not an opening.** `Ledger.record_valuation` is for a
+  real, `investment`, hand-added account: it writes `value − balance(date)` as a `BOOK`
+  movement described "Rivalutazione", `content_hash = valuation:<account>:<date>` (a
+  second valuation that day deletes and replaces it), against the virtual account
+  `Rendimento investimenti`, and records the value as `manual:available`. The hash
+  prefix is how it stays out of the way: `transfers._candidates`, `pair_candidates`,
+  `merchants._movement_rows` and the savings flow (`_SAVINGS_SQL`) all skip
+  `valuation:%`; income already skips any transaction with a virtual posting. `source`
+  stays `import` because the column has a CHECK. Scalable's PDFs feed it
+  (`scalable_import.plan` → `apply`): a date is valued only when every cash account
+  that existed then has a statement ending that day, and with no cash statement at
+  all nothing is valued — the securities alone booked the whole cash as a loss in the
+  first try. Flows the statements list but the ledger lacks are reported, never written.
 
 ## Ledger schema
 

@@ -6,6 +6,7 @@ import { OpeningRecalc } from "../components/OpeningRecalc";
 import { PeriodSync } from "../components/PeriodSync";
 import { Toast } from "../components/Toast";
 import { Toggle } from "../components/Toggle";
+import { ValuationForm } from "../components/ValuationForm";
 import { VirtualAccounts } from "../components/VirtualAccounts";
 import { formatAmount, formatDate, formatDateWithYear, toAmount } from "../format";
 import type {
@@ -804,6 +805,16 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                     >
                       Dichiara saldo
                     </button>
+                    {account.investment && !account.connected ? (
+                      <ValuationForm
+                        account={account}
+                        disabled={pending}
+                        onValued={(difference) => {
+                          reloadAccounts();
+                          setNotice(`Valore registrato: rendimento ${formatAmount(difference)}`);
+                        }}
+                      />
+                    ) : null}
                     {deletingFor === account.id ? null : (
                       <button
                         type="button"

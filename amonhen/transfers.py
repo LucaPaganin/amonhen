@@ -74,7 +74,7 @@ def pair_candidates(ledger: Ledger, transaction_id: int) -> list[sqlite3.Row]:
         """SELECT t.*, a.iban AS account_iban FROM transactions t
            JOIN accounts a ON a.id = t.account_id
            WHERE a.type = 'real' AND t.status = 'BOOK' AND t.amount = ?
-             AND t.id <> ? AND t.account_id <> ?
+             AND t.id <> ? AND t.account_id <> ? AND t.content_hash NOT LIKE 'valuation:%'
              AND ABS(julianday(t.date) - julianday(?)) <= ?
              AND NOT EXISTS (
                  SELECT 1 FROM transfer_links l
@@ -157,6 +157,7 @@ def _candidates(conn: sqlite3.Connection, since: dt.date | None) -> list[sqlite3
                FROM transactions t
                JOIN accounts a ON a.id = t.account_id
                WHERE t.status = 'BOOK' AND a.type = 'real' AND t.amount != '0.00'
+                 AND t.content_hash NOT LIKE 'valuation:%'
                  AND NOT EXISTS (
                      SELECT 1 FROM transfer_links l
                      WHERE l.leg_a = t.id OR l.leg_b = t.id
