@@ -43,8 +43,10 @@ interface DashboardScreenProps {
 }
 
 /** A figure with a sign, for the distance from the usual. */
-function signed(value: number): string {
-  return `${value > 0 ? "+" : ""}${formatAmount(value)}`;
+/** How far a figure is from its usual, in the words both month blocks use. */
+function distanceFromUsual(distance: number): string {
+  if (Math.abs(distance) < 1) return "Come al solito";
+  return `${formatAmount(Math.abs(distance))} ${distance > 0 ? "in più" : "in meno"} del solito`;
 }
 
 /** The sentence under the month's figure: what it is being compared with. */
@@ -52,9 +54,7 @@ function monthComparison(reading: MonthReading): string {
   if (reading.usual === null) return "Nessun mese completo con cui confrontarlo";
   const usual = toAmount(reading.usual);
   const distance = toAmount(reading.spent) - usual;
-  const pace = `di solito ${formatAmount(usual)} al giorno ${reading.day}`;
-  if (Math.abs(distance) < 1) return `Come al solito: ${pace}`;
-  return `${formatAmount(Math.abs(distance))} ${distance > 0 ? "in più" : "in meno"} del solito: ${pace}`;
+  return `${distanceFromUsual(distance)}: di solito ${formatAmount(usual)} al giorno ${reading.day}`;
 }
 
 export function DashboardScreen({ categories, refreshToken, onOpenCategory }: DashboardScreenProps) {
@@ -310,7 +310,9 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
 
       {month === null ? null : (
         <section className="panel">
-          <h2 className="section-title">Questo mese</h2>
+          <h2 className="section-title">
+            Questo mese <Help topic="month" label="questo mese" />
+          </h2>
           <p className="headline">{formatAmount(month.spent)}</p>
           <p className="chart-note">{monthComparison(month)}</p>
           {toAmount(month.rare) === 0 ? null : (
@@ -323,7 +325,9 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
 
       {month === null || month.categories.length === 0 ? null : (
         <section className="panel">
-          <h2 className="section-title">Dove sono finiti</h2>
+          <h2 className="section-title">
+            Dove sono finiti <Help topic="month" label="dove sono finiti" />
+          </h2>
           <ul className="where">
             {shownCategories.map((item) => {
               const distance = toAmount(item.spent) - toAmount(item.usual);
@@ -334,13 +338,15 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
                     className="where__row"
                     onClick={() => onOpenCategory(item.category)}
                   >
-                    <span className="where__name">{categoryText(item.category)}</span>
-                    <span
-                      className={
-                        distance > 0 ? "where__distance where__distance--over" : "where__distance"
-                      }
-                    >
-                      {Math.abs(distance) < 1 ? "come al solito" : signed(distance)}
+                    <span className="where__text">
+                      <span className="where__name">{categoryText(item.category)}</span>
+                      <span
+                        className={
+                          distance > 0 ? "where__distance where__distance--over" : "where__distance"
+                        }
+                      >
+                        {distanceFromUsual(distance)}
+                      </span>
                     </span>
                     <span className="where__spent">{formatAmount(item.spent)}</span>
                   </button>

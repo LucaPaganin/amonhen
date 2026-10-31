@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.23 — ottobre 2026
+Versione 1.24 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -214,7 +214,9 @@ La liquidità era gonfiata dal portafoglio. I tag si mettono a mano o con una re
 contano nei calcoli: una spesa è rara o irrinunciabile per la sua categoria o per un suo
 tag, con una definizione sola. **Movimenti** nasconde di base giroconti e interessi. Le
 anomalie partono da 100 €, lasciano fuori cambi valuta e spese rare, e si leggono senza
-statistica. C'è una **Guida** con i concetti, e le pagine perdono i paragrafi che spiegavano.*
+statistica. C'è una **Guida** con i concetti, e le pagine perdono i paragrafi che spiegavano.
+1.24 · *Dove sono finiti* mostra le categorie con una spesa nel mese, dalla più alta, e sotto
+ciascuna scrive in parole la distanza dal solito; il solito ha la sua scheda nella Guida.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -370,7 +372,7 @@ Solo queste, in ordine di priorità. Ognuna si chiama con parole che dicono cosa
 - **Mesi di autonomia** (*runway*) = liquidità / spesa mensile attesa: per quanti mesi si va avanti se le entrate si fermano. La rata del mutuo non è più una voce fissa del denominatore: un pagamento del mutuo è un movimento come gli altri, e se deve contare sta in una categoria.
 - **Spesa irrinunciabile e spesa tagliabile** (*quota incomprimibile e discrezionale*): la spesa tipica divisa fra quella irrinunciabile — per categoria o per tag, con la stessa regola di rara — e il resto, cioè quanto sarebbe tagliabile se servisse. Un movimento raro e irrinunciabile conta come raro, una volta sola.
 
-Il cruscotto risponde a due domande, in quest'ordine e senza scorrere: **Questo mese** (quanto è uscito finora contro quanto esce di solito a questo punto del mese: la mediana dei 6 mesi completi precedenti alla stessa data, senza spese rare, che hanno una riga a parte) e **Dove sono finiti** (le categorie del mese, dalla più lontana dal solito, ognuna apre i suoi movimenti). Sotto stanno liquidità e mesi di autonomia, le anomalie, e su PC i due grafici: entrate e uscite, e la curva della liquidità. Le altre cifre della sezione 5.6 sono sotto *Dettagli*. I grafici non fanno aritmetica: ogni serie si calcola nel backend. Il periodo e i filtri (conti, categoria, tag) stanno sopra i grafici e pesano diversamente: il **periodo** decide cosa mostrano i grafici; i **conti** restringono tutto ciò che è di conto; **categoria e tag** restringono solo le spese. Un filtro si applica nel backend, mai nel browser.
+Il cruscotto risponde a due domande, in quest'ordine e senza scorrere: **Questo mese** (quanto è uscito finora contro quanto esce di solito a questo punto del mese: la mediana dei 6 mesi completi precedenti alla stessa data, senza spese rare, che hanno una riga a parte) e **Dove sono finiti** (le categorie con una spesa nel mese, dalla più alta, ognuna con la distanza dal suo solito scritta in parole, e ognuna apre i suoi movimenti). Sotto stanno liquidità e mesi di autonomia, le anomalie, e su PC i due grafici: entrate e uscite, e la curva della liquidità. Le altre cifre della sezione 5.6 sono sotto *Dettagli*. I grafici non fanno aritmetica: ogni serie si calcola nel backend. Il periodo e i filtri (conti, categoria, tag) stanno sopra i grafici e pesano diversamente: il **periodo** decide cosa mostrano i grafici; i **conti** restringono tutto ciò che è di conto; **categoria e tag** restringono solo le spese. Un filtro si applica nel backend, mai nel browser.
 
 Le metriche non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista.
 
@@ -470,7 +472,7 @@ Un tag è un'etichetta libera su un movimento, che tiene la sua categoria: Euron
 
 ### 5.14 Guida *(costruita)*
 
-Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — liquidità, spesa tipica, spesa rara, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
+Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, liquidità, spesa tipica, spesa rara, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
 
 ## 6. Modello dati minimo
 

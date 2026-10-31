@@ -429,8 +429,9 @@ def month_reading(
     spending stays out of the comparison and is reported apart: a trip would
     otherwise make every month it touches look like a failure.
 
-    Categories come out with the one furthest from its usual first, because the
-    question is what moved, not what is big.
+    Categories are the ones that spent something this month, the largest first,
+    because the question is where the money went; each carries its usual, so the
+    distance is read beside it.
     """
     current = _month_index(today)
     earliest = _first_month_with_data(ledger)
@@ -486,8 +487,8 @@ def month_reading(
         )
         for name in spent.keys() | usual_by_category.keys()
     ]
-    categories = [item for item in categories if item.spent != 0 or item.usual != 0]
-    categories.sort(key=lambda item: (-abs(item.spent - item.usual), item.category))
+    categories = [item for item in categories if item.spent != 0]
+    categories.sort(key=lambda item: (-item.spent, item.category))
     return MonthReading(
         month=_month_key(current),
         day=today.day,

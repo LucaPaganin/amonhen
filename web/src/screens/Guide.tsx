@@ -6,6 +6,7 @@ import { currentMonth, formatAmount, formatMonths } from "../format";
 import type { Metrics } from "../types";
 
 export type GuideTopic =
+  | "month"
   | "liquidity"
   | "typical"
   | "rare"
@@ -38,6 +39,16 @@ function amount(value: string | null): string | null {
 }
 
 const CARDS: Card[] = [
+  {
+    id: "month",
+    title: "Questo mese e il solito",
+    means:
+      "Quanto è uscito finora in questo mese, senza le spese rare, contro quanto esce di solito a questo punto del mese.",
+    computed:
+      "Il solito è la mediana dei 6 mesi completi precedenti, ciascuno tagliato allo stesso giorno, per il totale e per ogni categoria. Sono mediane separate: i soliti delle categorie non sommano al solito del totale.",
+    changes:
+      "Dove sono finiti elenca le categorie con una spesa in questo mese, dalla più alta, ognuna con la sua distanza dal solito. Un tocco apre i suoi movimenti.",
+  },
   {
     id: "liquidity",
     title: "Liquidità",

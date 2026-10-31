@@ -204,18 +204,20 @@ def test_rare_spending_has_a_line_of_its_own_in_the_month(ledger, account):
     assert [item.category for item in reading.categories] == ["Alimentari"]
 
 
-def test_the_category_furthest_from_its_usual_comes_first(ledger, account):
+def test_the_category_that_took_the_most_comes_first_and_an_idle_one_stays_out(ledger, account):
     food = ledger.category("Alimentari")
     fun = ledger.category("Svago")
+    gifts = ledger.category("Regali")
     for date in MONTHS:
         spend(ledger, account, food, date, "-500", f"a {date}")
         spend(ledger, account, fun, date, "-10", f"b {date}")
+        spend(ledger, account, gifts, date, "-300", f"c {date}")
     spend(ledger, account, food, "2026-09-05", "-490", "a")
     spend(ledger, account, fun, "2026-09-06", "-200", "b")
 
     reading = month_reading(ledger, TODAY)
 
-    assert [item.category for item in reading.categories] == ["Svago", "Alimentari"]
+    assert [item.category for item in reading.categories] == ["Alimentari", "Svago"]
 
 
 def test_a_shorter_month_is_cut_at_its_last_day(ledger, account):

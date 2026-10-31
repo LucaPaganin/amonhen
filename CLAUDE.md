@@ -462,8 +462,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 - **The dashboard answers two questions, and the client never sums.** `month_reading`
   (`/api/month`) is what was spent so far this month against the same day of the
   complete months before (their median, up to six, cut at each month's last day),
-  rare spending on a line of its own, and each category against its own usual, the
-  furthest first. Below it Liquidità and Mesi di autonomia, three anomalies at most,
+  rare spending on a line of its own, and each category that spent something this
+  month with its own usual, the largest first (the row says the distance in words). Below it Liquidità and Mesi di autonomia, three anomalies at most,
   on a PC two charts (`useWide`: a phone does not even fetch them), and the other
   metrics behind *Dettagli*. `spend_by_category` still answers `/api/spending`, with
   no reader in the app since the pie went. `monthly_flows` pairs income (money into a real account, with

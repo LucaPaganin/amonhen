@@ -2365,7 +2365,7 @@ button.txn:active {
 
 .where__row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   width: 100%;
   min-height: var(--tap);
@@ -2378,9 +2378,15 @@ button.txn:active {
   cursor: pointer;
 }
 
-.where__name {
+.where__text {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+}
+
+.where__name {
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;
