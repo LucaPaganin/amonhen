@@ -1,25 +1,16 @@
-"""An investment account added by hand: its value, the return it books, and
-Scalable's statements that say both.
-
-The figures and the account numbers below are made up: the statements are
-written as the PDF library extracts them, without anybody's data.
-"""
+"""An investment account added by hand: its value, and the return it books."""
 import datetime as dt
-import json
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from amonhen import api as api_module
-from amonhen.adapters.scalable_pdf import CashStatement, HoldingsStatement, Reading, parse_text
 from amonhen.api import create_app
 from amonhen.db import open_ledger_db
 from amonhen.ledger import RETURNS_ACCOUNT, Ledger
 from amonhen.metrics import compute_metrics, monthly_flows
 from amonhen.models import Account, IncomingTransaction
-from amonhen.scalable_import import plan
 from amonhen.transfers import link_transfers
 
 MINIMAL_CONFIG = Path(__file__).resolve().parent / "fixtures" / "config" / "minimal.json"
@@ -111,78 +102,7 @@ def test_only_an_investment_account_added_by_hand_takes_a_valuation(broker):
         ledger.record_valuation(bank, dt.date(2026, 3, 31), Decimal("10.00"))
 
 
-CASH_MARCH = """Estratto conto Periodo 01.03.2026 - 31.03.2026
-Conto di regolamento DE00111111111111110001 (DEUTDEFFXXX)
-Saldo a 01.03.2026 1,000.00 EUR
-Saldo a 31.03.2026 1,950.00 EUR
-Registrazione Data valuta Descrizione Importo
-02.03.2026 04.03.2026 Acquisto di uno strumento finanziario
-1.00 pz. Un ETF qualunque (IE0000000001)
--50.00 EUR
-10.03.2026 10.03.2026 Bonifico +1,000.00 EUR
-20.03.2026 20.03.2026 Bonifico +2,500.00 EUR
-21.03.2026 21.03.2026 Prelievo dal saldo di cassa -2,500.00 EUR
-"""
-
-CASH_MARCH_OTHER = """Estratto conto Periodo 01.03.2026 - 31.03.2026
-Conto di regolamento DE00222222222222220002 (DEUTDEFFXXX)
-Saldo a 01.03.2026 0.00 EUR
-Saldo a 31.03.2026 2,500.00 EUR
-Registrazione Data valuta Descrizione Importo
-21.03.2026 21.03.2026 Bonifico +2,500.00 EUR
-"""
-
-HOLDINGS_MARCH = """Estratto conto titoli al 31.03.2026 • Conto deposito titoli 0000000000
-Panoramica
-Exchange Traded Fund (ETF) 100,00 % 3,000.00 EUR
-T otale 3,000.00 EUR
-"""
-
-
-def test_a_cash_statement_reads_its_bookings_and_both_balances():
-    statement = parse_text(CASH_MARCH)
-
-    assert isinstance(statement, CashStatement)
-    assert (statement.account, statement.start, statement.end) == ("0001", "2026-03-01", "2026-03-31")
-    assert (statement.opening, statement.closing) == (Decimal("1000.00"), Decimal("1950.00"))
-    assert [(b.description, b.amount) for b in statement.bookings][0] == (
-        "Acquisto di uno strumento finanziario", Decimal("-50.00")
-    )
-    assert statement.bookings[0].detail == "1.00 pz. Un ETF qualunque (IE0000000001)"
-    assert parse_text(HOLDINGS_MARCH) == HoldingsStatement("2026-03-31", Decimal("3000.00"))
-
-
-def test_securities_without_cash_statements_value_nothing(broker):
-    ledger, account = broker
-
-    planned = plan(ledger, account, Reading([], [parse_text(HOLDINGS_MARCH)], []))
-
-    assert planned.valuations == []
-    assert planned.unvalued and planned.unvalued[0].startswith("2026-03-31")
-
-
-def test_the_statements_value_the_broker_and_name_the_transfers_the_ledger_lacks(broker):
-    ledger, account = broker
-    reading = Reading(
-        cash=[parse_text(CASH_MARCH), parse_text(CASH_MARCH_OTHER)],
-        holdings=[parse_text(HOLDINGS_MARCH)],
-        unreadable=[],
-    )
-
-    planned = plan(ledger, account, reading)
-
-    # Securities 3000 plus the cash of both accounts on the quarter's last day.
-    [valuation] = planned.valuations
-    assert valuation.value == Decimal("7450.00")
-    assert valuation.balance == Decimal("6000.00")
-    assert valuation.difference == Decimal("1450.00")
-    # 2500 moved between the broker's own accounts never left it; the 2500 that
-    # arrived on the first one and the 1000 of the 10th have no movement here.
-    assert [(b.account, b.amount) for b in planned.internal] == [("0002", Decimal("2500.00")), ("0001", Decimal("-2500.00"))]
-    assert sorted(b.amount for b in planned.unmatched) == [Decimal("1000.00"), Decimal("2500.00")]
-
-
-def test_the_app_previews_then_writes_the_valuations(tmp_path, monkeypatch):
+def test_the_app_records_a_valuation_and_answers_with_the_return(tmp_path):
     db_path = tmp_path / "ledger.db"
     conn = open_ledger_db(db_path)
     ledger = Ledger(conn)
@@ -190,23 +110,14 @@ def test_the_app_previews_then_writes_the_valuations(tmp_path, monkeypatch):
     ledger.set_investment(account, True)
     ledger.anchor_opening(account, dt.date(2026, 1, 1), Decimal("5500.00"), "available")
     conn.close()
-    reading = Reading([parse_text(CASH_MARCH)], [parse_text(HOLDINGS_MARCH)], [])
-    monkeypatch.setattr(api_module, "read_statements", lambda files: reading)
     client = TestClient(create_app(db_path, web_dist=tmp_path / "missing", config_path=MINIMAL_CONFIG))
-    body = {"account": "Broker", "files": [{"name": "marzo.pdf", "content": "JVBERg=="}]}
 
-    preview = client.post("/api/import/scalable/preview", json=body).json()
-    assert [(v["date"], v["value"], v["difference"]) for v in preview["valuations"]] == [
-        ("2026-03-31", "4950.00", "-550.00")
-    ]
-    assert client.get("/api/accounts").json()[0]["balance"] == "5500.00"
+    answer = client.post(f"/api/accounts/{account}/valuation", json={"date": "2026-03-31", "value": "4950.00"})
 
-    written = client.post("/api/import/scalable", json=body).json()
-    assert written["written"] == [{"date": "2026-03-31", "difference": "-550.00"}]
-    assert written["account"]["verification"]["state"] == "verified"
-    # Reading the same statements again books nothing new.
-    again = client.post("/api/import/scalable", json=body).json()
-    assert again["written"] == [{"date": "2026-03-31", "difference": "-550.00"}]
-    rows = json.loads(json.dumps(client.get("/api/virtual-accounts").json()))
+    assert answer.status_code == 200
+    assert answer.json()["difference"] == "-550.00"
+    assert answer.json()["account"]["verification"]["state"] == "verified"
+    rows = client.get("/api/virtual-accounts").json()
     assert [(row["name"], row["balance"]) for row in rows] == [(RETURNS_ACCOUNT, "550.00")]
+    assert client.post(f"/api/accounts/{account}/valuation", json={"date": "2026-03-31", "value": ""}).status_code == 422
     client.close()

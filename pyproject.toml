@@ -8,7 +8,6 @@ dependencies = [
     "cryptography>=47.0.0",
     "fastapi>=0.115.0",
     "pyjwt[crypto]>=2.12.1",
-    "pypdf>=6.0",
     "requests>=2.33.1",
     "uvicorn[standard]>=0.32.0",
 ]

@@ -80,8 +80,6 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
-|`amonhen/adapters/scalable_pdf.py`|Scalable Capital's PDF statements (cash months and quarterly securities) → valuations and the flows across the broker's boundary|
-|`amonhen/scalable_import.py`|Those statements against the ledger: the valuations to book and the transfers it lacks|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
 |`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
 |`web/src/components/VirtualAccounts.tsx`|The virtual accounts under **Conti**: what each holds, how many movements put it there, and the movements on request (`/api/virtual-accounts`, `/api/transactions?virtual_account_id=`)|
@@ -116,8 +114,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`api`|`create_app`|
 |`backup`|`Snapshot`, `make_snapshot`|
 |`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `ConsentExpiredError`, `normalize_transaction`, `normalize_account`, `iban_of`|
-|`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`; `scalable_pdf.read_statements`, `valuations`, `boundary_flows`|
-|`scalable_import`|`plan`, `apply`, `Plan`, `PlannedValuation`|
+|`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
 |`cli`|`main`, `build_parser`|
 
 ## Non-obvious things to know before changing code
@@ -510,7 +507,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   28 is the virtual accounts: `GET /api/virtual-accounts` (name, `balance`, `movements`,
   `first_date`/`last_date`; `Transfer clearing` left out) and `virtual_account_id` on
   `/api/transactions`. 29 is the broker's value: `POST /api/accounts/{id}/valuation`
-  and `POST /api/import/scalable[/preview]` (PDFs as base64 in JSON).
+  and `POST /api/import/scalable[/preview]` (PDFs as base64 in JSON); 30 took the
+  Scalable routes away again.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -910,11 +908,12 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   prefix is how it stays out of the way: `transfers._candidates`, `pair_candidates`,
   `merchants._movement_rows` and the savings flow (`_SAVINGS_SQL`) all skip
   `valuation:%`; income already skips any transaction with a virtual posting. `source`
-  stays `import` because the column has a CHECK. Scalable's PDFs feed it
-  (`scalable_import.plan` → `apply`): a date is valued only when every cash account
-  that existed then has a statement ending that day, and with no cash statement at
-  all nothing is valued — the securities alone booked the whole cash as a loss in the
-  first try. Flows the statements list but the ledger lacks are reported, never written.
+  stays `import` because the column has a CHECK. It is written by hand, rarely
+  (*Aggiorna il valore* in Conti): between two valuations the broker is worth what
+  went in, which the transfer rules already keep current. A reader of Scalable's PDF
+  statements existed in 1.9.4 and was removed — quarterly paperwork for one curve
+  of the net worth was more work than the figure is worth. Do not bring it back
+  without the product deciding the market value matters more than that.
 
 ## Ledger schema
 

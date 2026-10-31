@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.21 — ottobre 2026
+Versione 1.22 — ottobre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -198,7 +198,12 @@ PDF di Scalable in **Importa**: la differenza tra il valore e il saldo dei movim
 scritta come un movimento verso il conto virtuale *Rendimento investimenti*, e il valore
 diventa il saldo dichiarato. Prima il saldo dichiarato a mano restava rosso per tutto
 quello che il mercato aveva fatto, e riallinearlo nascondeva il rendimento nel saldo
-iniziale.*
+iniziale.
+1.22 · niente lettore dei PDF di Scalable. Leggere gli estratti ogni trimestre era più
+lavoro di quanto valga una curva del patrimonio: tra una rivalutazione e l'altra il
+broker vale quanto ci è stato versato, che le regole dei giroconti tengono aggiornato da
+sole, e il valore si scrive a mano quando serve — almeno a fine anno, per la
+dichiarazione.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -374,7 +379,7 @@ Patrimonio **osservato**, non ricostruito: `account_balances` tiene ciò che la 
 
 Quello che una banca non dichiara — il broker — entra come conto reale con un saldo dichiarato a mano, non con una tabella separata: l'aggiornamento resta manuale e raro, e ha lo scopo fiscale di fine anno (valore di fine anno e giacenza) finché il broker è su entità estera in regime dichiarativo.
 
-**Il valore del broker si scrive come rivalutazione.** I movimenti di un conto d'investimento creato a mano sono solo il denaro entrato e uscito; quello che hanno fatto i titoli non è in nessuno. Dichiarare il valore lascerebbe la verifica della sezione 5.4 rossa per esattamente il rendimento, e riallineare il saldo iniziale lo nasconderebbe lì. Una *rivalutazione* (valore e data) scrive invece la differenza dal saldo calcolato a quella data come un movimento verso il conto virtuale *Rendimento investimenti*, e registra il valore come saldo dichiarato: la verifica torna, il rendimento resta visibile. Non è un'entrata (ha un posting virtuale), non è *Investito* (nessuno l'ha risparmiato), non è candidata a un giroconto e le regole non la toccano. Una seconda rivalutazione sulla stessa data sostituisce la prima. Per Scalable, che non ha API né CSV, gli estratti PDF dicono il valore a fine trimestre: gli estratti conto mensili di ogni conto di liquidità più l'estratto conto titoli. Senza nessun estratto di liquidità una data non si valuta — i titoli da soli non sono il conto — e i bonifici che gli estratti elencano si confrontano con il ledger, segnalando quelli che mancano senza scriverli: sono movimenti della banca dall'altra parte. Non è il TWR né l'IRR della sezione 3: è solo la differenza tra due valori osservati.
+**Il valore del broker si scrive come rivalutazione.** I movimenti di un conto d'investimento creato a mano sono solo il denaro entrato e uscito; quello che hanno fatto i titoli non è in nessuno. Dichiarare il valore lascerebbe la verifica della sezione 5.4 rossa per esattamente il rendimento, e riallineare il saldo iniziale lo nasconderebbe lì. Una *rivalutazione* (valore e data) scrive invece la differenza dal saldo calcolato a quella data come un movimento verso il conto virtuale *Rendimento investimenti*, e registra il valore come saldo dichiarato: la verifica torna, il rendimento resta visibile. Non è un'entrata (ha un posting virtuale), non è *Investito* (nessuno l'ha risparmiato), non è candidata a un giroconto e le regole non la toccano. Una seconda rivalutazione sulla stessa data sostituisce la prima. La rivalutazione è a mano e rara: tra due rivalutazioni il conto vale quanto ci è stato versato, e i versamenti arrivano da soli come altra metà dei giroconti. Nessuna lettura automatica del valore: Scalable non ha API né CSV, e leggere i suoi PDF a ogni trimestre costava più di quanto la curva del patrimonio guadagni in precisione. Non è il TWR né l'IRR della sezione 3: è solo la differenza tra due valori osservati.
 
 Motivazione della separazione: spese e patrimonio sono processi con frequenza di campionamento e struttura del rumore diverse di ordini di grandezza. Unirli fa entrare la volatilità di mercato nelle metriche di spesa.
 

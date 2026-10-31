@@ -5,8 +5,6 @@ filterable transaction list, the review queue, category changes and the
 confirm/reject decision on a transfer link. No authentication: the app is
 served behind Tailscale, and the ledger never leaves the machine.
 """
-import base64
-import binascii
 import datetime as dt
 import json
 import sqlite3
@@ -22,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from amonhen import assistant, db, scalable_import
+from amonhen import assistant, db
 from amonhen.anomalies import detect_anomalies
 from amonhen.budgets import (
     ItemFields,
@@ -56,7 +54,6 @@ from amonhen.csv_import import (
     profile_from_mapping,
     read_mapped,
 )
-from amonhen.adapters.scalable_pdf import read_statements
 from amonhen.ledger import TRANSFER_CLEARING, UNCATEGORIZED_WHERE, BalanceCheck, Ledger
 from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
@@ -115,7 +112,7 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # movements behind a proposal: a suggestion's `stake` carries its `items`. 27 is
 # the opening shown before it is written: `/api/accounts/{id}/opening/preview`,
 # and a sync's account says the opening it `anchored` from the bank's figure.
-API_VERSION = 29
+API_VERSION = 30
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -277,18 +274,6 @@ class ValuationRequest(BaseModel):
 
     date: str
     value: str
-
-
-class StatementFile(BaseModel):
-    """A PDF as the browser read it, base64 because the API takes JSON only."""
-
-    name: str
-    content: str
-
-
-class ScalableImportRequest(BaseModel):
-    account: str
-    files: list[StatementFile]
 
 
 class BudgetRequest(BaseModel):
@@ -1816,37 +1801,6 @@ def create_app(
                 "rules": applied,
             }
 
-    @app.post("/api/import/scalable/preview")
-    def scalable_import_preview(body: ScalableImportRequest) -> dict:
-        """What Scalable's statements say about the account, before anything is written."""
-        with ledger_scope() as ledger:
-            account = _import_account(ledger, body.account)
-            reading = read_statements(_statement_files(body.files))
-            return _scalable_payload(reading, scalable_import.plan(ledger, account["id"], reading))
-
-    @app.post("/api/import/scalable")
-    def scalable_import_write(body: ScalableImportRequest) -> dict:
-        """Write the valuations the statements support, in date order.
-
-        The flows the ledger is missing are reported and not written: each is a
-        movement of the bank on the other side, which is where it is imported.
-        """
-        with ledger_scope() as ledger:
-            account = _import_account(ledger, body.account)
-            reading = read_statements(_statement_files(body.files))
-            planned = scalable_import.plan(ledger, account["id"], reading)
-            try:
-                with db.deferred_commits(ledger.conn):
-                    written = scalable_import.apply(ledger, account["id"], planned.valuations)
-            except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-            payload = _scalable_payload(reading, planned)
-            payload["written"] = [
-                {"date": day, "difference": format_decimal(difference)} for day, difference in written
-            ]
-            payload["account"] = _account_payload(ledger, account["id"])
-            return payload
-
     _mount_pwa(app, web_dist if web_dist is not None else WEB_DIST)
     return app
 
@@ -1860,49 +1814,6 @@ def _refuse_oversized(content: str) -> None:
                 "(uv run amonhen import <file> --account <name>)"
             ),
         )
-
-
-MAX_STATEMENT_BYTES = 16 * 1024 * 1024
-
-
-def _statement_files(files: list[StatementFile]) -> list[tuple[str, bytes]]:
-    """The uploaded PDFs, decoded; too much at once is refused before reading."""
-    if not files:
-        raise HTTPException(status_code=422, detail="choose the statements to read")
-    if sum(len(item.content) for item in files) > MAX_STATEMENT_BYTES:
-        raise HTTPException(status_code=413, detail="the statements are larger than 16 MB together")
-    try:
-        return [(item.name, base64.b64decode(item.content, validate=True)) for item in files]
-    except binascii.Error as exc:
-        raise HTTPException(status_code=422, detail="a file did not arrive as base64") from exc
-
-
-def _scalable_payload(reading, planned) -> dict:
-    flow = lambda booking: {  # noqa: E731
-        "account": booking.account,
-        "date": booking.value_date,
-        "amount": format_decimal(booking.amount),
-        "description": booking.description,
-    }
-    return {
-        "statements": {"cash": len(reading.cash), "holdings": len(reading.holdings)},
-        "unreadable": reading.unreadable,
-        "valuations": [
-            {
-                "date": item.date,
-                "value": format_decimal(item.value),
-                "securities": format_decimal(item.securities),
-                "cash": {account: format_decimal(amount) for account, amount in item.cash.items()},
-                "balance": format_decimal(item.balance),
-                "difference": format_decimal(item.difference),
-            }
-            for item in planned.valuations
-        ],
-        "unvalued": planned.unvalued,
-        "unmatched": [flow(item) for item in planned.unmatched],
-        "internal": [flow(item) for item in planned.internal],
-        "before_opening": planned.before_opening,
-    }
 
 
 def _import_account(ledger: Ledger, name: str) -> sqlite3.Row:

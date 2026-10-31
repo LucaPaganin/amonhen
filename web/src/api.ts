@@ -46,8 +46,6 @@ import type {
   TransferLabels,
   TransferUnlink,
   VirtualAccount,
-  ScalableImportRequest,
-  ScalableReading,
 } from "./types";
 import { monthBounds } from "./format";
 
@@ -292,9 +290,6 @@ export const api = {
   createCategory: (name: string) => send<{ id: number; name: string }>("POST", "/categories", { name }),
   csvPreview: (body: CsvImportRequest) => send<CsvPreview>("POST", "/import/csv/preview", body),
   csvImport: (body: CsvImportRequest) => send<CsvImportOutcome>("POST", "/import/csv", body),
-  scalablePreview: (body: ScalableImportRequest) =>
-    send<ScalableReading>("POST", "/import/scalable/preview", body),
-  scalableImport: (body: ScalableImportRequest) => send<ScalableReading>("POST", "/import/scalable", body),
   recordValuation: (id: number, body: { date: string; value: string }) =>
     send<{ difference: string; account: Account }>("POST", `/accounts/${id}/valuation`, body),
   categorize: () => send<{ applied: number }>("POST", "/categorize", {}),
