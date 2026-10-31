@@ -244,6 +244,7 @@ export interface Category {
   name: string;
   episodic: boolean;
   essential: boolean;
+  income: boolean;
 }
 
 export interface Split {

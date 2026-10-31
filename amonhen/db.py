@@ -4,6 +4,8 @@ import sqlite3
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
+from amonhen.settings import UNCATEGORIZED
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY,
@@ -19,6 +21,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     -- essential category is the part of spending that could not be cut.
     episodic INTEGER NOT NULL DEFAULT 0,
     essential INTEGER NOT NULL DEFAULT 0,
+    -- Money in on an income category is income; on any other it is a refund.
+    income INTEGER NOT NULL DEFAULT 0,
     -- Real-account flag: the broker, whose cash is declared by hand.
     investment INTEGER NOT NULL DEFAULT 0
 );
@@ -351,6 +355,7 @@ def connect(path: str | Path) -> sqlite3.Connection:
 def initialize(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     _add_missing_columns(conn)
+    _add_income_flag(conn)
     _migrate_rules(conn)
     _generalize_rules(conn)
     _allow_tag_rules(conn)
@@ -530,6 +535,34 @@ def _add_missing_columns(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS transactions_mirror_of ON transactions(mirror_of)"
         " WHERE mirror_of IS NOT NULL"
+    )
+
+
+def _add_income_flag(conn: sqlite3.Connection) -> None:
+    """Say which categories are income, once, from what they already hold.
+
+    A category with money in and none out has only ever been income. Marked here
+    and not left to a person, because from this version an unmarked category
+    counts its credits as refunds: the first start would take every salary off
+    the spending. The server and its sync loop open the ledger together, so the
+    one that loses the race on the column has nothing left to do.
+    """
+    if any(row["name"] == "income" for row in conn.execute("PRAGMA table_info(accounts)")):
+        return
+    try:
+        conn.execute("ALTER TABLE accounts ADD COLUMN income INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError as exc:
+        if "duplicate column" in str(exc):
+            return
+        raise
+    conn.execute(
+        """UPDATE accounts SET income = 1
+           WHERE type = 'category' AND name <> ?
+             AND EXISTS (SELECT 1 FROM postings p JOIN transactions t ON t.id = p.transaction_id
+                          WHERE p.account_id = accounts.id AND CAST(t.amount AS REAL) > 0)
+             AND NOT EXISTS (SELECT 1 FROM postings p JOIN transactions t ON t.id = p.transaction_id
+                              WHERE p.account_id = accounts.id AND CAST(t.amount AS REAL) < 0)""",
+        (UNCATEGORIZED,),
     )
 
 

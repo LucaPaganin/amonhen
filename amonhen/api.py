@@ -115,8 +115,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # and a sync's account says the opening it `anchored` from the bank's figure. 31
 # is the essential on screen: `/api/month`, the tags (`/api/tags`, a transaction's
 # `tags`, a `tag` rule, `tag` and `everyday` on `/api/transactions`, `tags` on the
-# dashboard reads) and `savings_flow` gone from the metrics.
-API_VERSION = 31
+# dashboard reads) and `savings_flow` gone from the metrics. 32 is the refund: a
+# category gained `income`, and what `/api/month` and the budgets read as spent can
+# now be negative.
+API_VERSION = 32
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -249,6 +251,7 @@ class CategoryNameRequest(BaseModel):
 class CategoryFlagsRequest(BaseModel):
     episodic: bool | None = None
     essential: bool | None = None
+    income: bool | None = None
 
 
 class AccountFlagsRequest(BaseModel):
@@ -718,7 +721,8 @@ def create_app(
     def categories() -> list[dict]:
         with ledger_scope() as ledger:
             rows = ledger.conn.execute(
-                "SELECT id, name, episodic, essential FROM accounts WHERE type = 'category' ORDER BY name"
+                "SELECT id, name, episodic, essential, income FROM accounts"
+                " WHERE type = 'category' ORDER BY name"
             ).fetchall()
             return [
                 {
@@ -726,6 +730,7 @@ def create_app(
                     "name": row["name"],
                     "episodic": bool(row["episodic"]),
                     "essential": bool(row["essential"]),
+                    "income": bool(row["income"]),
                 }
                 for row in rows
             ]
@@ -1408,14 +1413,16 @@ def create_app(
 
     @app.patch("/api/categories/{account_id}")
     def patch_category(account_id: int, body: CategoryFlagsRequest) -> dict:
-        if body.episodic is None and body.essential is None:
-            raise HTTPException(status_code=422, detail="set episodic and/or essential")
+        if body.episodic is None and body.essential is None and body.income is None:
+            raise HTTPException(status_code=422, detail="set episodic, essential or income")
         with ledger_scope() as ledger:
             try:
                 if body.episodic is not None:
                     ledger.set_category_flag(account_id, "episodic", body.episodic)
                 if body.essential is not None:
                     ledger.set_category_flag(account_id, "essential", body.essential)
+                if body.income is not None:
+                    ledger.set_category_flag(account_id, "income", body.income)
             except (KeyError, ValueError) as exc:
                 raise HTTPException(status_code=404 if isinstance(exc, KeyError) else 422,
                                     detail=str(exc)) from exc
@@ -1425,6 +1432,7 @@ def create_app(
                 "name": row["name"],
                 "episodic": bool(row["episodic"]),
                 "essential": bool(row["essential"]),
+                "income": bool(row["income"]),
             }
 
     @app.get("/api/deleted")

@@ -48,6 +48,14 @@ _FLAGGED_SQL = """(a.{flag} = 1 OR EXISTS (
 RARE_SQL = _FLAGGED_SQL.format(flag="episodic")
 ESSENTIAL_SQL = _FLAGGED_SQL.format(flag="essential")
 
+# What a category posting counts for as spending. Money out always does; money in
+# does when a person put it in a category that is not income, because that is what
+# a refund is: a posting of the opposite sign, which takes the spending down. The
+# review bucket is nobody's decision yet, so a credit waiting there counts for
+# nothing. The only definition, and like the two above it expects `a` and `t`.
+SPENDING_SQL = f"""(CAST(t.amount AS REAL) < 0
+    OR (a.income = 0 AND a.name <> '{UNCATEGORIZED}'))"""
+
 # Settled spending still waiting in the review bucket: a real outflow, a posting
 # on the `Uncategorized` category, and no leg of a transfer — linking a pair
 # moves a leg's posting to the clearing account, which is virtual. The queue
@@ -1041,8 +1049,9 @@ class Ledger:
         )
 
     def set_category_flag(self, account_id: int, flag: str, value: bool) -> None:
-        """Mark a category as episodic (accrued) or essential (not cuttable)."""
-        if flag not in ("episodic", "essential"):
+        """Mark a category as episodic (accrued), essential (not cuttable) or
+        income (money in on it is income, not a refund)."""
+        if flag not in ("episodic", "essential", "income"):
             raise ValueError(f"unknown category flag {flag!r}")
         if self.account(account_id)["type"] != "category":
             raise ValueError(f"account {account_id} is not a category")
@@ -1636,16 +1645,16 @@ class Ledger:
     def spend_between(self, start: dt.date, end: dt.date) -> Decimal:
         """Money actually spent in the period: category postings, so transfers are out.
 
-        Only transactions that moved money out of an account count, so incoming
-        payments do not net against spending. Refunds are phase 3 work.
+        A refund, money in on a category that is not income, takes it down
+        (`SPENDING_SQL`); a salary or a credit nobody decided does not.
         """
         total = Decimal(0)
         for row in self.conn.execute(
-            """SELECT p.amount FROM postings p
+            f"""SELECT p.amount FROM postings p
                JOIN transactions t ON t.id = p.transaction_id
                JOIN accounts a ON a.id = p.account_id
                WHERE a.type = 'category' AND t.status = 'BOOK'
-                 AND CAST(t.amount AS REAL) < 0
+                 AND {SPENDING_SQL}
                  AND t.date >= ? AND t.date <= ?""",
             (start.isoformat(), end.isoformat()),
         ):

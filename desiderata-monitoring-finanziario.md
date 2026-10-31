@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.24 — ottobre 2026
+Versione 1.25 — novembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -216,7 +216,9 @@ tag, con una definizione sola. **Movimenti** nasconde di base giroconti e intere
 anomalie partono da 100 €, lasciano fuori cambi valuta e spese rare, e si leggono senza
 statistica. C'è una **Guida** con i concetti, e le pagine perdono i paragrafi che spiegavano.
 1.24 · *Dove sono finiti* mostra le categorie con una spesa nel mese, dalla più alta, e sotto
-ciascuna scrive in parole la distanza dal solito; il solito ha la sua scheda nella Guida.*
+ciascuna scrive in parole la distanza dal solito; il solito ha la sua scheda nella Guida.
+1.25 · la spesa è al netto dei rimborsi: un accredito in una categoria che non è *Entrata*
+abbassa quella categoria. Cade la frase per cui la categoria compensata restava com'era.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -252,7 +254,7 @@ Esplicitamente fuori scope, per evitare scope creep:
 - Previsioni di spesa, forecasting, ottimizzazione automatica del budget.
 - Categorizzazione completamente automatica senza revisione umana.
 - Multi-utente, multi-valuta, condivisione.
-- Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: **un rimborso o una quota non sono entrate**, si dichiarano (sezione 5.3) e restano fuori dalle entrate come i giroconti — verso l'altra gamba quando il conto è collegato, verso una destinazione dichiarata quando non lo è. Quello che non si modella è la *coppia*: l'accredito esce dalle entrate, ma niente dice quale spesa compensi, quindi la categoria che avrebbe ridotto resta com'è.
+- Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: nessun elenco dice chi deve ancora cosa, e finché non paga la spesa resta alta. **Un rimborso o una quota non sono entrate**, e quello che non si modella è la *coppia* con la singola spesa: un rimborso copre spesso molte spese insieme. La spesa però è al netto: un accredito messo in una categoria abbassa quella categoria (sezione 5.6).
 - App nativa. La UI è una PWA.
 
 ## 4. Vincoli
@@ -364,6 +366,8 @@ Le regole che non assegnano una categoria — cancellano, registrano un girocont
 
 ### 5.6 Metriche esposte
 
+**La spesa è al netto dei rimborsi.** Un accredito in una categoria non marcata *Entrata* è un rimborso: abbassa quella categoria nel mese in cui arriva, e con i suoi tag vale anche per spesa rara e irrinunciabile. Non entra nelle entrate. Un accredito in una categoria *Entrata* è un'entrata, e uno senza categoria non conta come rimborso finché nessuno lo decide. Un mese o una categoria possono risultare negativi. Le anomalie guardano solo le uscite.
+
 Solo queste, in ordine di priorità. Ognuna si chiama con parole che dicono cosa misura, nell'app come qui e nelle letture dell'assistente; fra parentesi il nome con cui la conosce il codice.
 
 - **Spesa mensile tipica** (*burn ricorrente*): quanto si spende di solito in un mese, senza le spese rare — la mediana mobile a 6 mesi delle spese non rare. Una spesa è **rara** se la sua categoria è segnata come rara o se il movimento ha un tag segnato come raro: la definizione è una sola, nel codice come qui, e ogni metrica la legge da lì.
@@ -460,7 +464,7 @@ Un budget per categoria dice quanto si vuole spendere in un mese, non in cosa. L
 
 **Una voce nasce in tre modi, e resta modificabile.** Scritta da zero; copiata da un movimento passato — descrizione, importo senza segno, categoria, e il giorno riportato nel mese che si sta pianificando —, con il modulo aperto sui campi copiati prima che qualcosa venga salvato; oppure copiando le voci di una categoria dal mese precedente, con le date spostate nello stesso modo. La copia è una copia: modificare la voce non tocca il movimento né il mese da cui viene, e copiare due volte non duplica una voce con la stessa descrizione e lo stesso importo. Una voce si sposta di mese o di categoria dal suo modulo.
 
-**Lo speso resta per categoria.** Una voce non sa se è stata spesa: lo speso è quello di sempre, le uscite contabilizzate della categoria nel mese, ed è il confronto con il tetto che conta. Collegare una voce al movimento che la realizza è un lavoro che si fa solo se lo storico lo chiede.
+**Lo speso resta per categoria.** Una voce non sa se è stata spesa: lo speso è quello di sempre, la spesa contabilizzata della categoria nel mese, al netto dei rimborsi, ed è il confronto con il tetto che conta. Collegare una voce al movimento che la realizza è un lavoro che si fa solo se lo storico lo chiede.
 
 **Lo storico è il mese.** Ogni mese si riapre con il suo tetto, le sue voci e il suo speso; niente si blocca, perché un mese passato si corregge come uno presente.
 
@@ -472,7 +476,7 @@ Un tag è un'etichetta libera su un movimento, che tiene la sua categoria: Euron
 
 ### 5.14 Guida *(costruita)*
 
-Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, liquidità, spesa tipica, spesa rara, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
+Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, liquidità, spesa tipica, spesa rara, rimborso, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
 
 ## 6. Modello dati minimo
 
@@ -631,6 +635,6 @@ Le decisioni della versione 1.23. Il cruscotto risponde alle due domande, una ri
 | Un merchant che si chiama come un'istruzione | Le descrizioni entrano come dati, e l'unica risposta accettata è quella che rispetta lo schema: merchant e categorie già noti (sezione 5.9) |
 | Costo e latenza che scivolano | Domanda limitata, chiamate contate, nessuna ripetizione della stessa domanda sugli stessi dati, e l'assistente fuori dal percorso del sync (sezione 5.9) |
 | Le regole crescono con la coda invece che con le decisioni prese | La casella è spenta di default: accettare assegna la categoria ai movimenti in attesa e non scrive niente in `rules`; la regola nasce solo se la si chiede, con il testo che si edita nel dialogo (sezione 5.5) |
-| Un rimborso gonfia le Entrate (giugno 2026: cinque accrediti che erano denaro altrui contati come le entrate del mese) | Si dichiara, come il giroconto verso un conto proprio: la voce esce dalle entrate e resta visibile a parte. La coppia con l'addebito compensato non si modella, perché la contabilità viva non ne mostra nessuna |
+| Un rimborso gonfia le Entrate (giugno 2026: cinque accrediti che erano denaro altrui contati come le entrate del mese) | Si mette nella categoria della spesa che compensa: esce dalle entrate e abbassa quella categoria. Denaro di altri solo di passaggio si dichiara ancora come il giroconto verso un conto proprio. La coppia con il singolo addebito non si modella, perché la contabilità viva non ne mostra nessuna |
 | La chiave privata Enable Banking passa dall'app: si incolla in un campo e il server la scrive su disco | Il traffico è quello del tailnet e basta (sezione 4: nessuna esposizione pubblica); la chiave non torna mai in una risposta e non finisce nei log, e il campo mostra solo se una chiave c'è e se si carica. Resta possibile metterla a mano dove `pem_path` la indica |
 | Un setup interrotto a metà lascia una configurazione incompleta | Lo stato si rilegge da `/api/setup` e ogni passo è riprendibile; una scrittura rifiutata non tocca il file, quindi una chiave sbagliata non sostituisce una buona, e `/connect` con la configurazione incompleta dice cosa manca invece di fallire |

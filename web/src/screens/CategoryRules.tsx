@@ -83,6 +83,8 @@ interface LabelRowProps {
   movements: number;
   episodic: boolean;
   essential: boolean;
+  /** Only a category has it: a tag says nothing about money coming in. */
+  income?: boolean;
   open: boolean;
   onToggle: () => void;
   busy: boolean;
@@ -105,6 +107,7 @@ function LabelRow({
   movements,
   episodic,
   essential,
+  income,
   open,
   onToggle,
   busy,
@@ -131,6 +134,7 @@ function LabelRow({
         <span className="label-row__name">{name}</span>
         {episodic ? <span className="chip chip--tag">Spesa rara</span> : null}
         {essential ? <span className="chip chip--tag">Irrinunciabile</span> : null}
+        {income ? <span className="chip chip--tag">Entrata</span> : null}
         <span className="label-row__count">{movements}</span>
       </button>
 
@@ -151,6 +155,15 @@ function LabelRow({
               disabled={busy}
               onChange={(next) => onFlag({ essential: next })}
             />
+            {income === undefined ? null : (
+              <Toggle
+                label="Entrata"
+                ariaLabel={`Entrata ${name}`}
+                checked={income}
+                disabled={busy}
+                onChange={(next) => onFlag({ income: next })}
+              />
+            )}
           </div>
           {rules.length === 0 ? null : <RuleRows rules={rules} onOpen={onOpenRule} />}
           <form
@@ -440,6 +453,7 @@ export function CategoryRulesScreen({
                 movements={own.reduce((sum, rule) => sum + rule.count, 0)}
                 episodic={item.episodic}
                 essential={item.essential}
+                income={item.income}
                 open={openRow === key || (needle !== "" && shown.length > 0)}
                 onToggle={() => toggleRow(key)}
                 busy={busy}

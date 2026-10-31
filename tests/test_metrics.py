@@ -188,13 +188,15 @@ def test_empty_ledger_returns_missing_money_metrics_without_raising(ledger):
     assert metrics.period_end == dt.date(2026, 8, 31)
 
 
-def test_incoming_money_does_not_net_against_spending(ledger):
+def test_income_does_not_net_against_spending(ledger):
     """A salary month is still a spending month: burn is what left the accounts."""
     account = ledger.ensure_account(Account(name="Revolut", type="real"))
     groceries = ledger.category("Groceries")
+    salary = ledger.category("Salary")
+    ledger.set_category_flag(salary, "income", True)
     for date in MONTHS:
         spend(ledger, account, groceries, date, "-100")
-        record(ledger, account, groceries, date, "2000", "salary")
+        record(ledger, account, salary, date, "2000", "salary")
 
     metrics = compute_metrics(ledger, TODAY)
 

@@ -10,6 +10,7 @@ export type GuideTopic =
   | "liquidity"
   | "typical"
   | "rare"
+  | "refund"
   | "reserve"
   | "expected"
   | "runway"
@@ -78,11 +79,21 @@ const CARDS: Card[] = [
       "Esce dalla spesa tipica, da Questo mese e dalle anomalie, ed entra nella riserva. Se un movimento è sia raro sia irrinunciabile, vince raro.",
   },
   {
+    id: "refund",
+    title: "Rimborso",
+    means:
+      "Soldi che tornano per una spesa: un amico che ti ridà la sua parte, un negozio, un'assicurazione, la valuta avanzata da un viaggio.",
+    computed:
+      "Un accredito messo in una categoria abbassa quella categoria nel mese in cui arriva, con i tag del movimento. Non serve abbinarlo alla spesa: basta la stessa categoria. Può rendere negativo un mese.",
+    changes:
+      "Stipendio ed Entrate portano il segno Entrata: lì un accredito è un'entrata, non un rimborso. Un accredito senza categoria non conta come rimborso. Chi ti deve ancora dei soldi non si segue: finché non paga, la spesa resta alta.",
+  },
+  {
     id: "reserve",
     title: "Riserva per spese rare",
     means: "Quanto mettere da parte ogni mese per quando le spese rare tornano.",
     computed:
-      "Le spese rare degli ultimi 24 mesi divise sempre per 24. Con meno di 24 mesi di storia è sottostimata: le spese ci sono, i mesi no.",
+      "Le spese rare degli ultimi 24 mesi completi, tolti i loro rimborsi, divise sempre per 24. Con meno di 24 mesi di storia è sottostimata: le spese ci sono, i mesi no.",
     changes: "Cresce quando segni qualcosa come raro.",
     now: (metrics) => amount(metrics.episodic_accrual),
   },

@@ -6,7 +6,7 @@ because a budget rewritten backwards erases the history it was meant to keep —
 and one month may override it for itself. Inside the ceiling a person writes the
 expenses they already know about; the priority orders them, and the ceiling says
 which of them still fit. Spending stays per category: an item never learns
-whether it was paid, the category's outflows are what the ceiling is held to.
+whether it was paid, the category's spending is what the ceiling is held to.
 """
 import calendar
 import datetime as dt
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable
 
-from amonhen.ledger import Ledger
+from amonhen.ledger import SPENDING_SQL, Ledger
 from amonhen.models import format_decimal, parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -302,15 +302,15 @@ def _overrides(ledger: Ledger, month: str) -> dict[int, Decimal]:
 
 
 def _spent(ledger: Ledger, month: str) -> dict[int, Decimal]:
-    """Settled outflows per category in the month, as `spend_between` counts them."""
+    """Settled spending per category in the month, as `spend_between` counts it."""
     start, end = month_bounds(month)
     spent: dict[int, Decimal] = {}
     for row in ledger.conn.execute(
-        """SELECT p.account_id, p.amount FROM postings p
+        f"""SELECT p.account_id, p.amount FROM postings p
            JOIN transactions t ON t.id = p.transaction_id
            JOIN accounts a ON a.id = p.account_id
            WHERE a.type = 'category' AND t.status = 'BOOK'
-             AND CAST(t.amount AS REAL) < 0
+             AND {SPENDING_SQL}
              AND t.date >= ? AND t.date <= ?""",
         (start.isoformat(), end.isoformat()),
     ):

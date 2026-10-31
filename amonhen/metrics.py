@@ -16,8 +16,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable
 
-from amonhen.ledger import ESSENTIAL_SQL, RARE_SQL, Ledger
+from amonhen.ledger import ESSENTIAL_SQL, RARE_SQL, SPENDING_SQL, Ledger
 from amonhen.models import parse_decimal
+from amonhen.settings import UNCATEGORIZED
 
 __all__ = [
     "AccountBalance",
@@ -160,10 +161,9 @@ def _monthly_category_totals(
 ) -> dict[str, Decimal]:
     """Category posting totals per ``YYYY-MM`` month for one flag combination.
 
-    Only transactions that moved money out of an account count, exactly like
-    ``Ledger.spend_between``: incoming money carries a negative category
-    posting and would otherwise net against spending month by month. Rare and
-    essential are the ledger's two predicates, so a tag and a category answer
+    Spending is ``SPENDING_SQL``, exactly like ``Ledger.spend_between``: a
+    refund's negative posting takes the month down, a salary's stays out. Rare
+    and essential are the ledger's two predicates, so a tag and a category answer
     the same question, and a movement that is both counts as rare, once.
     """
     sql = f"""
@@ -172,7 +172,7 @@ def _monthly_category_totals(
         JOIN transactions t ON t.id = p.transaction_id
         JOIN accounts a ON a.id = p.account_id
         WHERE a.type = 'category' AND t.status = 'BOOK'
-          AND CAST(t.amount AS REAL) < 0
+          AND {SPENDING_SQL}
           AND {RARE_SQL if episodic else "NOT " + RARE_SQL}
           AND t.date >= ? AND t.date <= ?
     """
@@ -319,17 +319,17 @@ def compute_metrics(
 # Three readings of the same ledger, one per chart. They are queries, not
 # stored numbers, so a chart can never drift from the metrics above it.
 
-_MONTHLY_EXPENSE_SQL = """
+_MONTHLY_EXPENSE_SQL = f"""
     SELECT substr(t.date, 1, 7) AS month, p.amount AS amount
     FROM postings p
     JOIN transactions t ON t.id = p.transaction_id
     JOIN accounts a ON a.id = p.account_id
     WHERE a.type = 'category' AND t.status = 'BOOK'
-      AND CAST(t.amount AS REAL) < 0
+      AND {SPENDING_SQL}
       AND t.date >= ? AND t.date <= ?
 """
 
-_MONTHLY_INCOME_SQL = """
+_MONTHLY_INCOME_SQL = f"""
     SELECT substr(t.date, 1, 7) AS month, t.amount AS amount
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id
@@ -339,6 +339,11 @@ _MONTHLY_INCOME_SQL = """
       AND NOT EXISTS (
           SELECT 1 FROM postings p JOIN accounts v ON v.id = p.account_id
           WHERE p.transaction_id = t.id AND v.type = 'virtual'
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM postings p JOIN accounts a2 ON a2.id = p.account_id
+          WHERE p.transaction_id = t.id AND a2.type = 'category'
+            AND a2.income = 0 AND a2.name <> '{UNCATEGORIZED}'
       )
 """
 
@@ -444,7 +449,7 @@ def month_reading(
             JOIN transactions t ON t.id = p.transaction_id
             JOIN accounts a ON a.id = p.account_id
             WHERE a.type = 'category' AND t.status = 'BOOK'
-              AND CAST(t.amount AS REAL) < 0
+              AND {SPENDING_SQL}
               AND t.date >= ? AND t.date <= ?"""
         + scoped,
         (_month_bounds(first)[0].isoformat(), today.isoformat(), *extra),
@@ -511,12 +516,12 @@ def spend_by_category(
     totals: dict[str, Decimal] = {}
     scoped, extra = _spending_scope(scope)
     for row in ledger.conn.execute(
-        """SELECT a.name AS category, p.amount AS amount
+        f"""SELECT a.name AS category, p.amount AS amount
            FROM postings p
            JOIN transactions t ON t.id = p.transaction_id
            JOIN accounts a ON a.id = p.account_id
            WHERE a.type = 'category' AND t.status = 'BOOK'
-             AND CAST(t.amount AS REAL) < 0
+             AND {SPENDING_SQL}
              AND t.date >= ? AND t.date <= ?"""
         + scoped,
         (start.isoformat(), end.isoformat(), *extra),
@@ -539,7 +544,7 @@ def monthly_flows(
     chart cannot disagree with the metrics above it. Income is money that
     entered a real account, with the legs of any transfer left out — a pair
     between tracked accounts, or a leg to an own account that is not connected;
-    moving your own money is not income. Category names narrow the expenses
+    moving your own money is not income, and neither is a refund. Category names narrow the expenses
     alone: a category does not describe the money coming in.
 
     The period is clipped to the months the ledger covers and to the present —

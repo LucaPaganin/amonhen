@@ -6,6 +6,7 @@ import type { Category } from "./types";
 export interface CategoryFlags {
   episodic?: boolean;
   essential?: boolean;
+  income?: boolean;
 }
 
 export function useCategories() {

@@ -317,7 +317,10 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
           <p className="chart-note">{monthComparison(month)}</p>
           {toAmount(month.rare) === 0 ? null : (
             <p className="chart-note">
-              Più {formatAmount(month.rare)} di spese rare <Help topic="rare" label="spesa rara" />
+              {toAmount(month.rare) > 0
+                ? `Più ${formatAmount(month.rare)} di spese rare`
+                : `Meno ${formatAmount(-toAmount(month.rare))} di rimborsi su spese rare`}{" "}
+              <Help topic="rare" label="spesa rara" />
             </p>
           )}
         </section>

@@ -66,12 +66,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     metrics = sub.add_parser("metrics", help="burn, accrual and runway")
 
-    flags = sub.add_parser("category-flags", help="mark a category episodic or essential")
+    flags = sub.add_parser(
+        "category-flags", help="mark a category episodic, essential or income"
+    )
     flags.add_argument("category")
     flags.add_argument("--episodic", action="store_true", default=None)
     flags.add_argument("--not-episodic", dest="episodic", action="store_false")
     flags.add_argument("--essential", action="store_true", default=None)
     flags.add_argument("--not-essential", dest="essential", action="store_false")
+    flags.add_argument("--income", action="store_true", default=None)
+    flags.add_argument("--not-income", dest="income", action="store_false")
 
     account_flags = sub.add_parser(
         "account-flags", help="mark a real account as investment, or as worth its own postings"
@@ -371,8 +375,13 @@ def cmd_category_flags(ledger: Ledger, args) -> int:
         ledger.set_category_flag(account_id, "episodic", args.episodic)
     if args.essential is not None:
         ledger.set_category_flag(account_id, "essential", args.essential)
+    if args.income is not None:
+        ledger.set_category_flag(account_id, "income", args.income)
     row = ledger.account(account_id)
-    print(f"{row['name']}: episodic={bool(row['episodic'])} essential={bool(row['essential'])}")
+    print(
+        f"{row['name']}: episodic={bool(row['episodic'])} essential={bool(row['essential'])}"
+        f" income={bool(row['income'])}"
+    )
     return 0
 
 
