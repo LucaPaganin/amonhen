@@ -351,6 +351,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `/api/transactions` leaves out movements with a virtual posting and everything on a
   `computed_balance` account (transfers and the deposit's daily interest), and
   `hidden` says how many, so the list never looks shorter than the ledger in silence.
+- **A rule's cost is one read of every movement, so that read has to be cheap.**
+  `_movement_rows` asks each movement for its balancing legs and its pair, and a
+  rule write runs it once per action. Without `postings_transaction` and
+  `transfer_links_leg_b` each of its subqueries read the whole table, and saving a
+  rule took twelve seconds with 2,600 movements, on the PC and on the NAS alike.
 - **Rebuilding the queue is the server's job.** The review hook removes a row
   optimistically and then refetches `/api/review`; it never adjusts the totals
   itself, because the same `categorize` function is used from the Movements

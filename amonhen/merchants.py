@@ -566,7 +566,8 @@ def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[int, int]:
             usage[rule.id] = usage.get(rule.id, 0) + 1
 
     by_action = _by_action(rules)
-    for row in _movement_rows(ledger):
+    rows = _movement_rows(ledger)
+    for row in rows:
         if not _decidable(row):
             continue
         movement = _movement_of(row)
@@ -574,13 +575,13 @@ def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[int, int]:
         rule = matching_rule(row["description"], by_action[kind], movement)
         if rule is not None and rule.target == row["side_name"]:
             count(rule)
-    for row in _movement_rows(ledger):
+    for row in rows:
         if row["mirror_account"] is not None:
             rule = matching_rule(row["description"], by_action["transfer"], _movement_of(row))
             if rule is not None and rule.target == row["mirror_account"]:
                 count(rule)
     if by_action["tag"]:
-        for row in _movement_rows(ledger):
+        for row in rows:
             for rule in _candidate_rules(row["description"], by_action["tag"], _movement_of(row)):
                 count(rule)
     if by_action["delete"]:

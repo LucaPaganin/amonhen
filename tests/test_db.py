@@ -227,6 +227,19 @@ def test_a_legacy_rule_shadowed_by_a_longer_text_hands_its_movement_over(tmp_pat
     assert ledger.category_of(movement) == "Groceries"
 
 
+def test_the_legs_of_a_movement_are_found_without_reading_them_all(tmp_path):
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+
+    for query in (
+        "SELECT * FROM postings WHERE transaction_id = 1",
+        "SELECT * FROM transfer_links WHERE leg_a = 1 OR leg_b = 1",
+    ):
+        plan = " ".join(row[3] for row in conn.execute(f"EXPLAIN QUERY PLAN {query}"))
+        assert "USING" in plan and "INDEX" in plan and "SCAN" not in plan, plan
+    conn.close()
+
+
 def test_a_ledger_written_before_tags_takes_a_tag_rule(tmp_path):
     path = tmp_path / "legacy.db"
     conn = connect(path)

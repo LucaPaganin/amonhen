@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS postings (
 );
 
 CREATE INDEX IF NOT EXISTS postings_account ON postings(account_id);
+CREATE INDEX IF NOT EXISTS postings_transaction ON postings(transaction_id);
 
 CREATE TABLE IF NOT EXISTS transfer_links (
     leg_a INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS transfer_links (
     confirmed_by_human INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (leg_a, leg_b)
 );
+CREATE INDEX IF NOT EXISTS transfer_links_leg_b ON transfer_links(leg_b);
 
 -- A rule is a piece of text the description contains, the conditions that
 -- narrow it (an account, a range of amounts), and what follows from it: a
