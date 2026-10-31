@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from amonhen import assistant, db
-from amonhen.anomalies import detect_anomalies
+from amonhen.anomalies import MIN_AMOUNT, detect_anomalies
 from amonhen.budgets import (
     ItemFields,
     add_item,
@@ -72,6 +72,7 @@ from amonhen.metrics import (
     LedgerScope,
     compute_metrics,
     latest_balances,
+    month_reading,
     monthly_flows,
     net_worth_series,
     spend_by_category,
@@ -111,8 +112,11 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # `by_rule`, and `/api/transfers/labels` lists those `accounts`. 26 is the
 # movements behind a proposal: a suggestion's `stake` carries its `items`. 27 is
 # the opening shown before it is written: `/api/accounts/{id}/opening/preview`,
-# and a sync's account says the opening it `anchored` from the bank's figure.
-API_VERSION = 30
+# and a sync's account says the opening it `anchored` from the bank's figure. 31
+# is the essential on screen: `/api/month`, the tags (`/api/tags`, a transaction's
+# `tags`, a `tag` rule, `tag` and `everyday` on `/api/transactions`, `tags` on the
+# dashboard reads) and `savings_flow` gone from the metrics.
+API_VERSION = 31
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -227,6 +231,15 @@ class TransactionIdsRequest(BaseModel):
 class BatchCategoryRequest(BaseModel):
     ids: list[int]
     category: str
+
+
+class BatchTagRequest(BaseModel):
+    ids: list[int]
+    tag: str
+
+
+class TagsRequest(BaseModel):
+    tags: list[str]
 
 
 class CategoryNameRequest(BaseModel):
@@ -717,14 +730,89 @@ def create_app(
                 for row in rows
             ]
 
+    @app.get("/api/tags")
+    def tags() -> list[dict]:
+        with ledger_scope() as ledger:
+            return [
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "episodic": bool(row["episodic"]),
+                    "essential": bool(row["essential"]),
+                    "movements": row["movements"],
+                }
+                for row in ledger.tags()
+            ]
+
+    @app.post("/api/tags", status_code=201)
+    def add_tag(body: CategoryNameRequest) -> dict:
+        with ledger_scope() as ledger:
+            try:
+                return {"id": ledger.tag(body.name), "name": " ".join(body.name.split())}
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.patch("/api/tags/{tag_id}")
+    def patch_tag(tag_id: int, body: CategoryFlagsRequest) -> dict:
+        """The two flags of a tag: the same request as a category's."""
+        if body.episodic is None and body.essential is None:
+            raise HTTPException(status_code=422, detail="set episodic and/or essential")
+        with ledger_scope() as ledger:
+            try:
+                if body.episodic is not None:
+                    ledger.set_tag_flag(tag_id, "episodic", body.episodic)
+                if body.essential is not None:
+                    ledger.set_tag_flag(tag_id, "essential", body.essential)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            return {"id": tag_id}
+
+    @app.delete("/api/tags/{tag_id}")
+    def delete_tag(tag_id: int) -> dict:
+        with ledger_scope() as ledger:
+            try:
+                ledger.delete_tag(tag_id)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            return {"id": tag_id}
+
+    @app.get("/api/month")
+    def month(
+        accounts: str | None = None, categories: str | None = None, tags: str | None = None
+    ) -> dict:
+        """The month in progress against the same point of the months before it."""
+        scope = _scope(accounts, categories, tags)
+        with ledger_scope() as ledger:
+            reading = month_reading(ledger, dt.date.today(), scope)
+            return {
+                "currency": "EUR",
+                "applied": _applied(scope),
+                "month": reading.month,
+                "day": reading.day,
+                "spent": _money(reading.spent),
+                "usual": _money(reading.usual),
+                "rare": _money(reading.rare),
+                "months_compared": reading.months_compared,
+                "categories": [
+                    {
+                        "category": item.category,
+                        "spent": _money(item.spent),
+                        "usual": _money(item.usual),
+                    }
+                    for item in reading.categories
+                ],
+            }
+
     @app.get("/api/metrics")
-    def metrics(accounts: str | None = None, categories: str | None = None) -> dict:
+    def metrics(
+        accounts: str | None = None, categories: str | None = None, tags: str | None = None
+    ) -> dict:
         """The 5.6 metrics for the selected accounts and categories.
 
         The period is not a parameter: these windows are the definition of the
         metrics, and the cards say which window each one used.
         """
-        scope = _scope(accounts, categories)
+        scope = _scope(accounts, categories, tags)
         with ledger_scope() as ledger:
             return _metrics_payload(compute_metrics(ledger, dt.date.today(), scope=scope), scope)
 
@@ -734,9 +822,10 @@ def create_app(
         to_date: str | None = Query(None, alias="to"),
         accounts: str | None = None,
         categories: str | None = None,
+        tags: str | None = None,
     ) -> dict:
         """What each category took in the period: the slices of the pie."""
-        scope = _scope(accounts, categories)
+        scope = _scope(accounts, categories, tags)
         period = _period(from_date, to_date)
         with ledger_scope() as ledger:
             slices = spend_by_category(ledger, period[0], period[1], scope)
@@ -756,9 +845,10 @@ def create_app(
         to_date: str | None = Query(None, alias="to"),
         accounts: str | None = None,
         categories: str | None = None,
+        tags: str | None = None,
     ) -> dict:
         """Money in and out per month in the period, empty months included."""
-        scope = _scope(accounts, categories)
+        scope = _scope(accounts, categories, tags)
         period = _period(from_date, to_date)
         with ledger_scope() as ledger:
             return {
@@ -951,7 +1041,7 @@ def create_app(
         """Say what an investment account added by hand is worth, and book the return.
 
         The difference from the ledger's balance becomes a movement against
-        `Rendimento investimenti` (`Ledger.record_valuation`), so the check agrees
+        `Investimenti` (`Ledger.record_valuation`), so the check agrees
         and what the market did is on the books instead of in the opening.
         """
         value = _amount(body.value)
@@ -1028,7 +1118,9 @@ def create_app(
                     "method": anomaly.method,
                     "sentence": anomaly.sentence,
                 }
-                for anomaly in detect_anomalies(ledger, today, recent_days=days)
+                for anomaly in detect_anomalies(
+                    ledger, today, recent_days=days, min_amount=MIN_AMOUNT
+                )
             ]
 
     @app.get("/api/suggestions")
@@ -1163,17 +1255,32 @@ def create_app(
         search: str | None = None,
         transfer: bool | None = None,
         virtual_account_id: int | None = None,
+        tag: str | None = None,
+        everyday: bool = False,
         limit: int = Query(100, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> dict:
-        where, params = _transaction_filters(
-            from_date, to_date, account_id, category, status, search, transfer, virtual_account_id
-        )
+        """A page of movements. `everyday` leaves out what only moves own money:
+        the legs of a transfer, and everything on a deposit whose balance is its
+        movements, the daily interest included. `hidden` says how many that was,
+        so the list can never look shorter than the ledger without saying so.
+        """
+        filters = (from_date, to_date, account_id, category, status, search, transfer,
+                   virtual_account_id, tag)
+        where, params = _transaction_filters(*filters, everyday=everyday)
         with ledger_scope() as ledger:
-            total = ledger.conn.execute(
-                f"SELECT COUNT(*) AS c FROM transactions t JOIN accounts a ON a.id = t.account_id {where}",
-                params,
-            ).fetchone()["c"]
+            count = (
+                "SELECT COUNT(*) AS c FROM transactions t"
+                " JOIN accounts a ON a.id = t.account_id "
+            )
+            total = ledger.conn.execute(count + where, params).fetchone()["c"]
+            hidden = 0
+            if everyday:
+                unfiltered, unfiltered_params = _transaction_filters(*filters)
+                hidden = (
+                    ledger.conn.execute(count + unfiltered, unfiltered_params).fetchone()["c"]
+                    - total
+                )
             rows = ledger.conn.execute(
                 f"""SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id
                     {where} ORDER BY t.date DESC, t.id DESC LIMIT ? OFFSET ?""",
@@ -1181,6 +1288,7 @@ def create_app(
             ).fetchall()
             return {
                 "total": total,
+                "hidden": hidden,
                 "limit": limit,
                 "offset": offset,
                 "items": [_transaction(row, ledger) for row in rows],
@@ -1364,8 +1472,8 @@ def create_app(
     def patch_account(account_id: int, body: AccountFlagsRequest) -> dict:
         """Flip an account's own flags, and answer with the account.
 
-        `investment` marks the account whose inflows are savings rather than
-        spending; `reimport_deleted` decides whether a movement deleted here may
+        `investment` marks the broker, whose cash is declared by hand;
+        `reimport_deleted` decides whether a movement deleted here may
         come back at the next sync; `computed_balance` makes the net worth read
         the account's balance from its postings, for an account no bank declares
         one for. They are decisions about the account, so they are written here
@@ -1461,6 +1569,30 @@ def create_app(
                     ledger.set_category(transaction_id, account)
                     categorized += 1
             return {"categorized": categorized, "skipped": len(set(body.ids)) - categorized}
+
+    @app.post("/api/transactions/tag")
+    def tag_transactions(body: BatchTagRequest) -> dict:
+        """Put one tag on several movements, as a person's own decision."""
+        if not body.ids:
+            raise HTTPException(status_code=422, detail="no movement to tag")
+        with ledger_scope() as ledger:
+            for transaction_id in body.ids:
+                _require_transaction(ledger, transaction_id)
+            try:
+                with db.deferred_commits(ledger.conn):
+                    for transaction_id in dict.fromkeys(body.ids):
+                        ledger.add_tag(transaction_id, body.tag)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            return {"tagged": len(set(body.ids))}
+
+    @app.put("/api/transactions/{transaction_id}/tags")
+    def put_tags(transaction_id: int, body: TagsRequest) -> dict:
+        """Make a movement carry exactly these tags."""
+        with ledger_scope() as ledger:
+            row = _require_transaction(ledger, transaction_id)
+            ledger.set_tags(row["id"], body.tags)
+            return _transaction(_require_transaction(ledger, transaction_id), ledger)
 
     @app.put("/api/transactions/{transaction_id}/notes")
     def put_notes(transaction_id: int, body: NotesRequest) -> dict:
@@ -1993,8 +2125,12 @@ def _names(raw: str | None) -> tuple[str, ...]:
     return tuple(found)
 
 
-def _scope(accounts: str | None, categories: str | None) -> LedgerScope:
-    return LedgerScope(accounts=_names(accounts), categories=_names(categories))
+def _scope(
+    accounts: str | None, categories: str | None, tags: str | None = None
+) -> LedgerScope:
+    return LedgerScope(
+        accounts=_names(accounts), categories=_names(categories), tags=_names(tags)
+    )
 
 
 def _day(value: str) -> dt.date:
@@ -2038,7 +2174,11 @@ def _period(from_date: str | None, to_date: str | None) -> tuple[dt.date, dt.dat
 
 def _applied(scope: LedgerScope, period: tuple[dt.date, dt.date] | None = None) -> dict:
     """What the server actually applied, so the client never has to guess."""
-    applied: dict = {"accounts": list(scope.accounts), "categories": list(scope.categories)}
+    applied: dict = {
+        "accounts": list(scope.accounts),
+        "categories": list(scope.categories),
+        "tags": list(scope.tags),
+    }
     if period is not None:
         applied["from"], applied["to"] = period[0].isoformat(), period[1].isoformat()
     return applied
@@ -2112,6 +2252,9 @@ def _transaction_filters(
     search: str | None,
     transfer: bool | None,
     virtual_account_id: int | None = None,
+    tag: str | None = None,
+    *,
+    everyday: bool = False,
 ) -> tuple[str, list]:
     clauses: list[str] = []
     params: list = []
@@ -2150,6 +2293,18 @@ def _transaction_filters(
             "EXISTS (SELECT 1 FROM postings p WHERE p.transaction_id = t.id AND p.account_id = ?)"
         )
         params.append(virtual_account_id)
+    if tag:
+        clauses.append(
+            """EXISTS (SELECT 1 FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id
+                       WHERE tt.transaction_id = t.id AND g.name = ?)"""
+        )
+        params.append(tag)
+    if everyday:
+        clauses.append(
+            """a.computed_balance = 0 AND NOT EXISTS (
+                   SELECT 1 FROM postings p JOIN accounts v ON v.id = p.account_id
+                   WHERE p.transaction_id = t.id AND v.type = 'virtual')"""
+        )
     return ("WHERE " + " AND ".join(clauses) if clauses else ""), params
 
 
@@ -2308,7 +2463,6 @@ def _metrics_payload(metrics, scope: LedgerScope) -> dict:
         "runway_months": f"{metrics.runway_months:.1f}" if metrics.runway_months is not None else None,
         "essential_monthly": _money(metrics.essential_monthly),
         "discretionary_monthly": _money(metrics.discretionary_monthly),
-        "savings_flow": _money(metrics.savings_flow),
     }
 
 
@@ -2390,6 +2544,7 @@ def _transaction(row: sqlite3.Row, ledger: Ledger) -> dict:
         # Local, and the only field a person may write: the sync never sets it,
         # so what is here was written by hand and stays.
         "notes": row["notes"],
+        "tags": ledger.tags_of(row["id"]),
     }
 
 

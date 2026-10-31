@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     -- essential category is the part of spending that could not be cut.
     episodic INTEGER NOT NULL DEFAULT 0,
     essential INTEGER NOT NULL DEFAULT 0,
-    -- Real-account flag: a transfer into it is savings, not spending.
+    -- Real-account flag: the broker, whose cash is declared by hand.
     investment INTEGER NOT NULL DEFAULT 0
 );
 
@@ -106,23 +106,46 @@ CREATE TABLE IF NOT EXISTS transfer_links (
 
 -- A rule is a piece of text the description contains, the conditions that
 -- narrow it (an account, a range of amounts), and what follows from it: a
--- category, a deletion, or a transfer to a destination. `key` is the text as it
--- is matched (spaces collapsed, lower case) and `pattern` keeps what a person
--- typed, for the list. `target` is the category or the destination, NULL for a
--- deletion. One rule per text and conditions: the unique index is in
--- `_generalize_rules`, because it needs the columns a ledger written before
--- them does not have yet.
+-- category, a deletion, a transfer to a destination, or a tag. `key` is the text
+-- as it is matched (spaces collapsed, lower case) and `pattern` keeps what a
+-- person typed, for the list. `target` is the category, the destination or the
+-- tag, NULL for a deletion. One rule per text and conditions, and one per tag
+-- among the tag rules, which add up instead of competing: the unique index is in
+-- `_allow_tag_rules`, because it needs the columns a ledger written before them
+-- does not have yet.
 CREATE TABLE IF NOT EXISTS rules (
     id INTEGER PRIMARY KEY,
     key TEXT NOT NULL,
     pattern TEXT NOT NULL,
     action TEXT NOT NULL DEFAULT 'category'
-        CHECK (action IN ('category', 'delete', 'transfer')),
+        CHECK (action IN ('category', 'delete', 'transfer', 'tag')),
     target TEXT,
     account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
     amount_min TEXT,
     amount_max TEXT
 );
+
+-- Desiderata 5.13. A tag is a free label on a movement, which keeps its category.
+-- It may carry the same two flags a category does, and every reading asks one
+-- predicate (`ledger.RARE_SQL`, `ledger.ESSENTIAL_SQL`), so a tag is not a second
+-- concept of rare: it is the same question asked of the movement.
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    episodic INTEGER NOT NULL DEFAULT 0,
+    essential INTEGER NOT NULL DEFAULT 0
+);
+
+-- `by_rule` is who put it there: removing a rule takes back what the rule wrote,
+-- and a tag a person wrote stays.
+CREATE TABLE IF NOT EXISTS transaction_tags (
+    transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    by_rule INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (transaction_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS transaction_tags_tag ON transaction_tags(tag_id);
 
 CREATE TABLE IF NOT EXISTS account_balances (
     account_id INTEGER NOT NULL REFERENCES accounts(id),
@@ -250,6 +273,9 @@ _ADDED_COLUMNS = (
     # towards an account added by hand: no bank prints this side, so the rule
     # does, and the row goes when the movement it mirrors goes.
     ("transactions", "mirror_of", "INTEGER REFERENCES transactions(id) ON DELETE CASCADE"),
+    # The tags a person wrote on a deleted movement, as a JSON list: like the
+    # note, they are the one thing the bank cannot send back.
+    ("deleted_transactions", "tags", "TEXT"),
 )
 
 
@@ -325,6 +351,7 @@ def initialize(conn: sqlite3.Connection) -> None:
     _add_missing_columns(conn)
     _migrate_rules(conn)
     _generalize_rules(conn)
+    _allow_tag_rules(conn)
     _widen_balance_key(conn)
     _date_budgets(conn)
     _drop_obsolete(conn)
@@ -385,9 +412,46 @@ def _generalize_rules(conn: sqlite3.Connection) -> None:
             DROP TABLE rules_legacy;
             """
         )
+
+
+def _allow_tag_rules(conn: sqlite3.Connection) -> None:
+    """Let a rule put a tag, and let tag rules share a text with any other rule.
+
+    The action is under a CHECK, which ALTER TABLE cannot widen, so the table is
+    rebuilt and every rule keeps its id. A tag adds to what a text already does:
+    the index keys a tag rule by its tag too, so "euronics" can assign a category
+    and a tag at once, while the other actions stay one rule per text and
+    conditions.
+    """
+    definition = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'rules'"
+    ).fetchone()["sql"]
+    if "'tag'" not in definition:
+        conn.executescript(
+            """
+            ALTER TABLE rules RENAME TO rules_legacy;
+            CREATE TABLE rules (
+                id INTEGER PRIMARY KEY,
+                key TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                action TEXT NOT NULL DEFAULT 'category'
+                    CHECK (action IN ('category', 'delete', 'transfer', 'tag')),
+                target TEXT,
+                account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+                amount_min TEXT,
+                amount_max TEXT
+            );
+            INSERT INTO rules (id, key, pattern, action, target, account_id, amount_min, amount_max)
+                SELECT id, key, pattern, action, target, account_id, amount_min, amount_max
+                FROM rules_legacy;
+            DROP TABLE rules_legacy;
+            """
+        )
+    conn.execute("DROP INDEX IF EXISTS rules_identity")
     conn.execute(
-        """CREATE UNIQUE INDEX IF NOT EXISTS rules_identity ON rules (
-               key, COALESCE(account_id, 0), COALESCE(amount_min, ''), COALESCE(amount_max, '')
+        """CREATE UNIQUE INDEX rules_identity ON rules (
+               key, COALESCE(account_id, 0), COALESCE(amount_min, ''), COALESCE(amount_max, ''),
+               CASE action WHEN 'tag' THEN target ELSE '' END
            )"""
     )
 

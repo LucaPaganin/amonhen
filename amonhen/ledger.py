@@ -30,13 +30,23 @@ log = logging.getLogger(__name__)
 # amount on the same account within this many days.
 PENDING_WINDOW_DAYS = 3
 TRANSFER_CLEARING = "Transfer clearing"
-# A valuation is the one movement no bank reported: the difference between what an
-# investment account is worth and what its movements add up to. Its content hash
-# starts with this, which is how the matcher, the rules and the savings flow leave
-# it out; its other side sits on the virtual account below, so a gain is neither
-# income nor savings.
+# A valuation is the one movement no bank reported: the difference between the cash
+# a broker's account really holds and what its movements add up to. Its content hash
+# starts with this, which is how the matcher and the rules leave it out; its other
+# side sits on the virtual account below, so a purchase is neither income nor
+# spending, and that account's balance is what went into the portfolio, net.
 VALUATION_PREFIX = "valuation:"
-RETURNS_ACCOUNT = "Rendimento investimenti"
+INVESTMENTS_ACCOUNT = "Investimenti"
+
+# What makes spending rare, or essential: its category's flag or a flag on one of
+# the movement's tags. These two fragments are the only definition, and they expect
+# a category posting's account as `a` and its transaction as `t`.
+_FLAGGED_SQL = """(a.{flag} = 1 OR EXISTS (
+    SELECT 1 FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id
+    WHERE tt.transaction_id = t.id AND g.{flag} = 1
+))"""
+RARE_SQL = _FLAGGED_SQL.format(flag="episodic")
+ESSENTIAL_SQL = _FLAGGED_SQL.format(flag="essential")
 
 # Settled spending still waiting in the review bucket: a real outflow, a posting
 # on the `Uncategorized` category, and no leg of a transfer — linking a pair
@@ -683,6 +693,7 @@ class Ledger:
         # The other half a transfer rule wrote goes with the movement (the row
         # names it, and the foreign key cascades): there is no pair to reject.
         link = None if self.mirror_of(transaction_id) else self.transfer_link(transaction_id)
+        written = self._written_tags(transaction_id)
         with self.conn:
             if link is not None:
                 self.set_transfer_review(link["leg_a"], link["leg_b"], "reject")
@@ -711,6 +722,14 @@ class Ledger:
                        currency = excluded.currency, notes = excluded.notes,
                        deleted_at = excluded.deleted_at, restored_at = NULL""",
                 (dt.datetime.now(dt.UTC).isoformat(), transaction_id),
+            )
+            self.conn.execute(
+                "UPDATE deleted_transactions SET tags = ? WHERE account_id = ? AND key = ?",
+                (
+                    json.dumps(written, ensure_ascii=False) if written else None,
+                    row["account_id"],
+                    row["external_id"] or row["content_hash"],
+                ),
             )
             self.conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
         return Deletion(transaction_id=transaction_id, unlinked_pair=link is not None)
@@ -851,16 +870,22 @@ class Ledger:
         )
 
     def _mark_restored(self, deleted_id: int, notes: str | None, transaction_id: int) -> None:
-        """Hand the movement its note back, and remember that it came home.
+        """Hand the movement its note and its tags back, and remember it came home.
 
-        The row was written a moment ago with no note, so the tombstone's copy is
-        the only one there is. Both callers already hold it.
+        The row was written a moment ago with neither, so the tombstone's copy is
+        the only one there is. Both callers already hold the note; a tag a rule
+        wrote is not kept, because the next `categorize` writes it again.
         """
+        tags = self.conn.execute(
+            "SELECT tags FROM deleted_transactions WHERE id = ?", (deleted_id,)
+        ).fetchone()["tags"]
         with self.conn:
             if notes:
                 self.conn.execute(
                     "UPDATE transactions SET notes = ? WHERE id = ?", (notes, transaction_id)
                 )
+            for name in json.loads(tags) if tags else ():
+                self.add_tag(transaction_id, name)
             self.conn.execute(
                 "UPDATE deleted_transactions SET restored_at = ? WHERE id = ?",
                 (dt.datetime.now(dt.UTC).isoformat(), deleted_id),
@@ -880,6 +905,97 @@ class Ledger:
             )
         if cursor.rowcount == 0:
             raise KeyError(f"transaction {transaction_id} not found")
+
+    def tag(self, name: str) -> int:
+        """The id of the tag with this name, created when it does not exist."""
+        text = " ".join(name.split())
+        if not text:
+            raise ValueError("a tag needs a name")
+        row = self.conn.execute("SELECT id FROM tags WHERE name = ?", (text,)).fetchone()
+        if row is not None:
+            return row["id"]
+        with self.conn:
+            return int(self.conn.execute("INSERT INTO tags (name) VALUES (?)", (text,)).lastrowid)
+
+    def tags(self) -> list[sqlite3.Row]:
+        """Every tag, with how many movements carry it."""
+        return self.conn.execute(
+            """SELECT g.id, g.name, g.episodic, g.essential, COUNT(tt.transaction_id) AS movements
+               FROM tags g LEFT JOIN transaction_tags tt ON tt.tag_id = g.id
+               GROUP BY g.id ORDER BY g.name"""
+        ).fetchall()
+
+    def set_tag_flag(self, tag_id: int, flag: str, value: bool) -> None:
+        """Say that a tag makes its movements rare or essential."""
+        if flag not in ("episodic", "essential"):
+            raise ValueError(f"unknown flag {flag!r}")
+        with self.conn:
+            cursor = self.conn.execute(
+                f"UPDATE tags SET {flag} = ? WHERE id = ?", (1 if value else 0, tag_id)
+            )
+        if cursor.rowcount == 0:
+            raise KeyError(f"tag {tag_id} not found")
+
+    def delete_tag(self, tag_id: int) -> None:
+        """Take a tag off every movement, with the rules that put it there."""
+        row = self.conn.execute("SELECT name FROM tags WHERE id = ?", (tag_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"tag {tag_id} not found")
+        with self.conn:
+            self.conn.execute(
+                "DELETE FROM rules WHERE action = 'tag' AND target = ?", (row["name"],)
+            )
+            self.conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+
+    def tags_of(self, transaction_id: int) -> list[str]:
+        """The names of a movement's tags, alphabetically."""
+        return [
+            row["name"]
+            for row in self.conn.execute(
+                """SELECT g.name FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id
+                   WHERE tt.transaction_id = ? ORDER BY g.name""",
+                (transaction_id,),
+            )
+        ]
+
+    def _written_tags(self, transaction_id: int) -> list[str]:
+        """The tags a person wrote on a movement, leaving out the rules' work."""
+        return [
+            row["name"]
+            for row in self.conn.execute(
+                """SELECT g.name FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id
+                   WHERE tt.transaction_id = ? AND tt.by_rule = 0 ORDER BY g.name""",
+                (transaction_id,),
+            )
+        ]
+
+    def add_tag(self, transaction_id: int, name: str, *, by_rule: bool = False) -> None:
+        """Put a tag on a movement. A person's tag takes over one a rule wrote."""
+        tag_id = self.tag(name)
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO transaction_tags (transaction_id, tag_id, by_rule) VALUES (?, ?, ?)
+                   ON CONFLICT (transaction_id, tag_id) DO UPDATE SET by_rule = MIN(by_rule, excluded.by_rule)""",
+                (transaction_id, tag_id, 1 if by_rule else 0),
+            )
+
+    def set_tags(self, transaction_id: int, names: Iterable[str]) -> None:
+        """Make a movement carry exactly these tags, as a person's decision."""
+        wanted = {" ".join(name.split()) for name in names} - {""}
+        with deferred_commits(self.conn), self.conn:
+            for name in self.tags_of(transaction_id):
+                if name not in wanted:
+                    self.remove_tag(transaction_id, name)
+            for name in wanted:
+                self.add_tag(transaction_id, name)
+
+    def remove_tag(self, transaction_id: int, name: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                """DELETE FROM transaction_tags WHERE transaction_id = ?
+                   AND tag_id = (SELECT id FROM tags WHERE name = ?)""",
+                (transaction_id, name),
+            )
 
     def set_splits(self, transaction_id: int, splits: Sequence[tuple[int, Decimal]]) -> None:
         """Replace the category side with several postings that still sum to zero.
@@ -1724,21 +1840,17 @@ class Ledger:
     def record_valuation(
         self, account_id: int, date: dt.date, value: Decimal
     ) -> tuple[Decimal, int | None]:
-        """Say what an investment account is worth on a date, and book the difference.
+        """Say how much cash a broker's account holds on a date, and book the difference.
 
-        An account added by hand for a broker holds cash and securities, and its
-        movements are only the money that went in and out: what the securities
-        gained or lost is in none of them. Re-anchoring the opening to today's
-        value hides that return inside the opening, and the 5.4 check then fails
-        at the next valuation by exactly what the market did. So the difference
-        between the value and the ledger's balance on that date is written as a
-        movement of its own, against `Rendimento investimenti`: the balance agrees
-        with the value, the return is on the books, and being a virtual posting
-        it is neither income nor spending — and the savings flow leaves it out,
-        because nobody saved it. The value is also recorded as the account's
-        declaration, so the check reads it. A second valuation on the same day
-        replaces the first. Returns the difference and the movement's id (None
-        when the balance already agreed).
+        The account holds the cash and nothing else: the portfolio is not tracked
+        (desiderata 5.8). Its movements are the money that went in and out, and what
+        was bought, sold or earned is in none of them, so the difference between the
+        declared cash and the ledger's balance on that date is written as a movement
+        of its own, against `Investimenti`: the balance agrees, and being a virtual
+        posting it is neither income nor spending. The figure is also recorded as the
+        account's declaration, so the check reads it. A second declaration on the
+        same day replaces the first. Returns the difference and the movement's id
+        (None when the balance already agreed).
         """
         account = self.account(account_id)
         if account["type"] != "real" or not account["investment"]:
@@ -1748,7 +1860,7 @@ class Ledger:
                 f"{account['name']!r} is connected to a bank, which reports what it holds"
             )
         key = f"{VALUATION_PREFIX}{account_id}:{date.isoformat()}"
-        returns = self.ensure_account(Account(name=RETURNS_ACCOUNT, type="virtual"))
+        investments = self.ensure_account(Account(name=INVESTMENTS_ACCOUNT, type="virtual"))
         with self.conn:
             self.conn.execute("DELETE FROM transactions WHERE content_hash = ?", (key,))
             difference = value - self.balance(account_id, date)
@@ -1761,7 +1873,7 @@ class Ledger:
                        ) VALUES (?, ?, ?, ?, 'BOOK', NULL, ?, 'import', NULL, ?, 'EUR', ?)""",
                     (
                         account_id, date.isoformat(), format_decimal(difference),
-                        "Rivalutazione", key,
+                        "Aggiornamento liquidità", key,
                         json.dumps({"value": format_decimal(value)}),
                         dt.datetime.now(dt.UTC).isoformat(),
                     ),
@@ -1771,7 +1883,7 @@ class Ledger:
                     "INSERT INTO postings (transaction_id, account_id, amount) VALUES (?, ?, ?)",
                     [
                         (transaction_id, account_id, format_decimal(difference)),
-                        (transaction_id, returns, format_decimal(-difference)),
+                        (transaction_id, investments, format_decimal(-difference)),
                     ],
                 )
             self.record_declared_balance(account_id, date, value, "manual:available")

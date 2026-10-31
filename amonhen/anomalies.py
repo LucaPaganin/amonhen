@@ -5,8 +5,13 @@ against that history with a robust z-score on the median absolute deviation;
 when the category is perfectly regular (MAD zero) the detector falls back to
 the historical 95th percentile, so a constant category still reports a
 genuinely large movement. Every flag carries the numbers it was computed from
-and one sentence, and the whole path is plain Decimal arithmetic on the
-ledger: no model, no randomness.
+and one sentence in plain Italian, and the whole path is plain Decimal
+arithmetic on the ledger: no model, no randomness.
+
+The statistic says what does not fit, not what is worth a look, so three things
+never reach the review: a small amount (``MIN_AMOUNT``, which the app and the
+command line pass), a currency exchange, which is not spending, and rare
+spending, which is expected to be out of scale.
 """
 from __future__ import annotations
 
@@ -17,12 +22,15 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal
 
-from amonhen.ledger import Ledger
+from amonhen.ledger import RARE_SQL, Ledger
 from amonhen.merchants import merchant_name
 from amonhen.models import format_decimal, parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
-__all__ = ["Anomaly", "detect_anomalies"]
+__all__ = ["Anomaly", "MIN_AMOUNT", "detect_anomalies"]
+
+# Under this, an outlier is noise: a fuel stop in a category of two-euro tolls.
+MIN_AMOUNT = Decimal("100")
 
 # By default only the last month of spending is reviewed; the rest of the
 # lookback is the history a movement is compared against.
@@ -45,7 +53,7 @@ _HISTORY_SQL = """
     ORDER BY t.date, t.id, a.name
 """
 
-_RECENT_SQL = """
+_RECENT_SQL = f"""
     SELECT t.id AS transaction_id, t.date AS date, t.description AS description,
            a.name AS category, p.amount AS posting_amount
     FROM postings p
@@ -54,6 +62,8 @@ _RECENT_SQL = """
     WHERE a.type = 'category' AND t.status = 'BOOK' AND a.name != ?
       AND CAST(t.amount AS REAL) < 0
       AND t.date >= ? AND t.date <= ?
+      AND NOT {RARE_SQL}
+      AND LOWER(t.description) NOT LIKE '%exchanged to%'
     ORDER BY t.date, t.id, a.name
 """
 
@@ -91,6 +101,7 @@ def detect_anomalies(
     min_samples: int = 8,
     z_threshold: Decimal = Decimal("3.5"),
     recent_days: int = DEFAULT_RECENT_DAYS,
+    min_amount: Decimal = Decimal(0),
 ) -> list[Anomaly]:
     """Flag recent category movements that do not fit the category history.
 
@@ -100,7 +111,8 @@ def detect_anomalies(
     ``min_samples`` history values before it is judged at all; a thin category
     produces no verdict rather than a noisy one. The ``Uncategorized`` sentinel
     is not a category: scoring it would compare unrelated merchants and income
-    against each other.
+    against each other. A movement under ``min_amount`` is not reviewed, though it
+    stays in the history a larger one is judged against.
     """
     if lookback_months < 1 or min_samples < 1 or recent_days < 1:
         raise ValueError("lookback_months, min_samples and recent_days must be positive")
@@ -121,7 +133,7 @@ def detect_anomalies(
         else:
             anomalies.extend(_flag_p95(recent.get(category, ()), category, median, values))
     anomalies.sort(key=lambda anomaly: (anomaly.date, anomaly.transaction_id, anomaly.category))
-    return anomalies
+    return [anomaly for anomaly in anomalies if anomaly.amount >= min_amount]
 
 
 def _flag_mad(
@@ -135,11 +147,7 @@ def _flag_mad(
     for spend in spends:
         score = _ROBUST_Z_FACTOR * (spend.amount - median) / mad
         if score > threshold:
-            detail = (
-                f"z-score robusto {format_decimal(score)} oltre la soglia "
-                f"{format_decimal(threshold)}"
-            )
-            yield _anomaly(spend, category, median, mad, score, "mad", detail)
+            yield _anomaly(spend, category, median, mad, score, "mad")
 
 
 def _flag_p95(
@@ -156,8 +164,7 @@ def _flag_p95(
     p95 = _percentile_95(values)
     for spend in spends:
         if spend.amount > p95 and spend.amount >= 2 * median:
-            detail = f"oltre la soglia p95 {format_decimal(p95)}"
-            yield _anomaly(spend, category, median, Decimal(0), spend.amount - p95, "p95", detail)
+            yield _anomaly(spend, category, median, Decimal(0), spend.amount - p95, "p95")
 
 
 def _anomaly(
@@ -167,12 +174,10 @@ def _anomaly(
     mad: Decimal,
     score: Decimal,
     method: Literal["mad", "p95"],
-    detail: str,
 ) -> Anomaly:
     merchant = merchant_name(spend.description)
     sentence = (
-        f"Spesa di {format_decimal(spend.amount)} da {merchant} in {category}: "
-        f"mediana {format_decimal(median)}, {detail}."
+        f"In {category} una spesa è di solito {_euro(median)}{_times(spend.amount, median)}."
     )
     return Anomaly(
         transaction_id=spend.transaction_id,
@@ -186,6 +191,19 @@ def _anomaly(
         method=method,
         sentence=sentence,
     )
+
+
+def _euro(amount: Decimal) -> str:
+    """An amount as the app prints it: 1.400,00 €."""
+    whole, cents = f"{amount:,.2f}".split(".")
+    return f"{whole.replace(',', '.')},{cents} €"
+
+
+def _times(amount: Decimal, median: Decimal) -> str:
+    """How many times the usual this is, when the usual is not nothing."""
+    if median <= 0:
+        return ""
+    return f", circa {round(amount / median)} volte tanto"
 
 
 # -- ledger queries --------------------------------------------------------

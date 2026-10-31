@@ -64,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("rules", help="list the rules and how many movements each holds")
 
-    metrics = sub.add_parser("metrics", help="burn, accrual, runway and savings flow")
+    metrics = sub.add_parser("metrics", help="burn, accrual and runway")
 
     flags = sub.add_parser("category-flags", help="mark a category episodic or essential")
     flags.add_argument("category")
@@ -362,7 +362,6 @@ def cmd_metrics(ledger: Ledger, args) -> int:
     print(f"liquidity (tracked) {_money(metrics.liquidity):>12}")
     runway = f"{metrics.runway_months:.1f}" if metrics.runway_months is not None else "n/a"
     print(f"runway (stress)     {runway:>12} months")
-    print(f"savings flow        {_money(metrics.savings_flow):>12}")
     return 0
 
 
@@ -447,16 +446,20 @@ def cmd_budgets(ledger: Ledger, args) -> int:
 
 
 def cmd_anomalies(ledger: Ledger, args) -> int:
-    from amonhen.anomalies import detect_anomalies
+    from amonhen.anomalies import MIN_AMOUNT, detect_anomalies
 
     today = dt.date.today()
     cutoff = today - dt.timedelta(days=args.days)
-    found = [anomaly for anomaly in detect_anomalies(ledger, today) if anomaly.date >= cutoff]
+    found = [
+        anomaly
+        for anomaly in detect_anomalies(ledger, today, min_amount=MIN_AMOUNT)
+        if anomaly.date >= cutoff
+    ]
     if not found:
         print(f"no anomalies in the last {args.days} day(s)")
         return 0
     for anomaly in found:
-        print(anomaly.sentence)
+        print(f"{anomaly.date} {anomaly.merchant} {anomaly.amount}: {anomaly.sentence}")
     return 0
 
 

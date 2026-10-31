@@ -1,6 +1,6 @@
 """Ledger readings: the 5.6 metrics and the dashboard series.
 
-Desiderata 5.6 asks for burn, episodic accrual, runway and savings flow; the
+Desiderata 5.6 asks for burn, episodic accrual and runway; the
 dashboard asks for what each category took, what came in and what went out per
 month, and what the tracked accounts are worth over time. Both are a pure
 reporting layer: they read the ledger through :class:`Ledger` and never write.
@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable
 
-from amonhen.ledger import Ledger
+from amonhen.ledger import ESSENTIAL_SQL, RARE_SQL, Ledger
 from amonhen.models import parse_decimal
 
 __all__ = [
@@ -24,10 +24,13 @@ __all__ = [
     "CategorySpend",
     "LedgerScope",
     "Metrics",
+    "MonthCategory",
+    "MonthReading",
     "MonthlyFlow",
     "NetWorthPoint",
     "compute_metrics",
     "latest_balances",
+    "month_reading",
     "monthly_flows",
     "net_worth_series",
     "spend_by_category",
@@ -48,7 +51,6 @@ class Metrics:
     runway_months: Decimal | None
     essential_monthly: Decimal | None
     discretionary_monthly: Decimal | None
-    savings_flow: Decimal | None
     period_start: dt.date
     period_end: dt.date
     window_months: int = 6
@@ -60,13 +62,14 @@ class LedgerScope:
     """Which slice of the ledger a reading is about.
 
     Account names narrow everything that belongs to an account: spending by the
-    account that paid it, liquidity, savings, net worth. Category names narrow
-    spending only — a category says nothing about the money that comes in, and
-    liquidity is not a category's business. Empty means every one of them.
+    account that paid it, liquidity, net worth. Category and tag names narrow
+    spending only — neither says anything about the money that comes in, and
+    liquidity is not their business. Empty means every one of them.
     """
 
     accounts: tuple[str, ...] = ()
     categories: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
 
 
 # -- calendar helpers ------------------------------------------------------
@@ -130,6 +133,12 @@ def _spending_scope(scope: LedgerScope) -> tuple[str, list[object]]:
     if scope.categories:
         sql += f" AND a.name IN ({_placeholders(scope.categories)})"
         params += list(scope.categories)
+    if scope.tags:
+        sql += (
+            " AND EXISTS (SELECT 1 FROM transaction_tags st JOIN tags sg ON sg.id = st.tag_id"
+            f" WHERE st.transaction_id = t.id AND sg.name IN ({_placeholders(scope.tags)}))"
+        )
+        params += list(scope.tags)
     return sql, params
 
 
@@ -153,22 +162,23 @@ def _monthly_category_totals(
 
     Only transactions that moved money out of an account count, exactly like
     ``Ledger.spend_between``: incoming money carries a negative category
-    posting and would otherwise net against spending month by month.
+    posting and would otherwise net against spending month by month. Rare and
+    essential are the ledger's two predicates, so a tag and a category answer
+    the same question, and a movement that is both counts as rare, once.
     """
-    sql = """
+    sql = f"""
         SELECT substr(t.date, 1, 7) AS month, p.amount AS amount
         FROM postings p
         JOIN transactions t ON t.id = p.transaction_id
         JOIN accounts a ON a.id = p.account_id
         WHERE a.type = 'category' AND t.status = 'BOOK'
           AND CAST(t.amount AS REAL) < 0
-          AND a.episodic = ?
+          AND {RARE_SQL if episodic else "NOT " + RARE_SQL}
           AND t.date >= ? AND t.date <= ?
     """
-    params: list[object] = [1 if episodic else 0, start.isoformat(), end.isoformat()]
+    params: list[object] = [start.isoformat(), end.isoformat()]
     if essential is not None:
-        sql += " AND a.essential = ?"
-        params.append(1 if essential else 0)
+        sql += f" AND {ESSENTIAL_SQL if essential else 'NOT ' + ESSENTIAL_SQL}"
     scoped, scope_params = _spending_scope(scope)
     sql += scoped
     params += scope_params
@@ -177,29 +187,6 @@ def _monthly_category_totals(
         month = row["month"]
         totals[month] = totals.get(month, Decimal(0)) + parse_decimal(row["amount"])
     return totals
-
-
-def _window_total(
-    ledger: Ledger, start: dt.date, end: dt.date, sql: str, extra: Iterable[object] = ()
-) -> Decimal | None:
-    total = Decimal(0)
-    seen = False
-    params = (start.isoformat(), end.isoformat(), *extra)
-    for row in ledger.conn.execute(sql, params):
-        total += parse_decimal(row["amount"])
-        seen = True
-    return total if seen else None
-
-
-_SAVINGS_SQL = """
-    SELECT p.amount AS amount
-    FROM postings p
-    JOIN transactions t ON t.id = p.transaction_id
-    JOIN accounts a ON a.id = p.account_id
-    WHERE a.type = 'real' AND a.investment = 1 AND t.status = 'BOOK'
-      AND t.content_hash NOT LIKE 'valuation:%'
-      AND t.date >= ? AND t.date <= ?
-"""
 
 
 def _window_values(totals: dict[str, Decimal], keys: Iterable[str]) -> list[Decimal]:
@@ -224,8 +211,7 @@ def compute_metrics(
     deflated median padded with pre-history zeros.
 
     ``scope`` narrows what the numbers are about: account names follow the
-    spending, the liquidity and the savings flow, category names the spending
-    alone. A period is deliberately not a parameter — the windows of 5.6 are
+    spending and the liquidity, category and tag names the spending alone. A period is deliberately not a parameter — the windows of 5.6 are
     what these metrics are, not a view over them.
     """
     if window_months < 1 or episodic_months < 1:
@@ -253,7 +239,6 @@ def compute_metrics(
     recurring_burn: Decimal | None = None
     essential_monthly: Decimal | None = None
     discretionary_monthly: Decimal | None = None
-    savings_flow: Decimal | None = None
     if window is not None:
         start, end = _month_bounds(window[0])[0], _month_bounds(window[1])[1]
         keys = [_month_key(index) for index in range(window[0], window[1] + 1)]
@@ -273,11 +258,6 @@ def compute_metrics(
         )
         if discretionary:
             discretionary_monthly = _median(_window_values(discretionary, keys))
-
-        savings_sql, savings_params = _account_scope(scope, "a.name")
-        savings_flow = _window_total(
-            ledger, start, end, _SAVINGS_SQL + savings_sql, savings_params
-        )
 
     episodic_accrual: Decimal | None = None
     if episodic_window is not None:
@@ -327,7 +307,6 @@ def compute_metrics(
         runway_months=runway_months,
         essential_monthly=essential_monthly,
         discretionary_monthly=discretionary_monthly,
-        savings_flow=savings_flow,
         period_start=period_start,
         period_end=period_end,
         window_months=window_months,
@@ -362,6 +341,32 @@ _MONTHLY_INCOME_SQL = """
           WHERE p.transaction_id = t.id AND v.type = 'virtual'
       )
 """
+
+
+@dataclass(frozen=True)
+class MonthCategory:
+    """One category of the month in progress, against its own usual pace."""
+
+    category: str
+    spent: Decimal
+    usual: Decimal
+
+
+@dataclass(frozen=True)
+class MonthReading:
+    """The month in progress against the same point of the months before it.
+
+    ``usual`` is ``None`` when no complete month precedes this one, and rare
+    spending is outside both figures: it has a line of its own, ``rare``.
+    """
+
+    month: str
+    day: int
+    spent: Decimal
+    usual: Decimal | None
+    rare: Decimal
+    months_compared: int
+    categories: tuple[MonthCategory, ...]
 
 
 @dataclass(frozen=True)
@@ -409,6 +414,89 @@ def _first_month_with_data(ledger: Ledger) -> int | None:
         "SELECT MIN(date) AS first FROM transactions WHERE status = 'BOOK'"
     ).fetchone()
     return _month_index(dt.date.fromisoformat(row["first"])) if row["first"] else None
+
+
+def month_reading(
+    ledger: Ledger, today: dt.date, scope: LedgerScope = LedgerScope(), window_months: int = 6
+) -> MonthReading:
+    """How the month in progress compares with the usual, at this same point.
+
+    A month in progress cannot be compared with a whole month: on the tenth it
+    has only had ten days. So each of the last ``window_months`` complete months
+    is cut at the same day (at its own last day when it is shorter), and "usual"
+    is the median of those partial totals, for the whole and for each category,
+    with a month that spent nothing in a category counting as a zero. Rare
+    spending stays out of the comparison and is reported apart: a trip would
+    otherwise make every month it touches look like a failure.
+
+    Categories come out with the one furthest from its usual first, because the
+    question is what moved, not what is big.
+    """
+    current = _month_index(today)
+    earliest = _first_month_with_data(ledger)
+    window = _window(earliest, current - 1, window_months)
+    first = window[0] if window is not None else current
+    scoped, extra = _spending_scope(scope)
+    rows = ledger.conn.execute(
+        f"""SELECT t.date AS date, a.name AS category, p.amount AS amount, {RARE_SQL} AS rare
+            FROM postings p
+            JOIN transactions t ON t.id = p.transaction_id
+            JOIN accounts a ON a.id = p.account_id
+            WHERE a.type = 'category' AND t.status = 'BOOK'
+              AND CAST(t.amount AS REAL) < 0
+              AND t.date >= ? AND t.date <= ?"""
+        + scoped,
+        (_month_bounds(first)[0].isoformat(), today.isoformat(), *extra),
+    ).fetchall()
+
+    def cut(index: int) -> dt.date:
+        last = _month_bounds(index)[1]
+        return min(last, last.replace(day=min(today.day, last.day)))
+
+    spent: dict[str, Decimal] = {}
+    rare = Decimal(0)
+    past: dict[int, dict[str, Decimal]] = {}
+    months = range(window[0], window[1] + 1) if window is not None else range(0)
+    for index in months:
+        past[index] = {}
+    for row in rows:
+        day = dt.date.fromisoformat(row["date"])
+        index = _month_index(day)
+        amount = parse_decimal(row["amount"])
+        if row["rare"]:
+            rare += amount if index == current else Decimal(0)
+        elif index == current:
+            spent[row["category"]] = spent.get(row["category"], Decimal(0)) + amount
+        elif index in past and day <= cut(index):
+            past[index][row["category"]] = past[index].get(row["category"], Decimal(0)) + amount
+
+    usual: Decimal | None = None
+    usual_by_category: dict[str, Decimal] = {}
+    if past:
+        usual = _median([sum(totals.values(), Decimal(0)) for totals in past.values()])
+        for name in {name for totals in past.values() for name in totals}:
+            usual_by_category[name] = _median(
+                [totals.get(name, Decimal(0)) for totals in past.values()]
+            )
+    categories = [
+        MonthCategory(
+            category=name,
+            spent=spent.get(name, Decimal(0)),
+            usual=usual_by_category.get(name, Decimal(0)),
+        )
+        for name in spent.keys() | usual_by_category.keys()
+    ]
+    categories = [item for item in categories if item.spent != 0 or item.usual != 0]
+    categories.sort(key=lambda item: (-abs(item.spent - item.usual), item.category))
+    return MonthReading(
+        month=_month_key(current),
+        day=today.day,
+        spent=sum(spent.values(), Decimal(0)),
+        usual=usual,
+        rare=rare,
+        months_compared=len(past),
+        categories=tuple(categories),
+    )
 
 
 def spend_by_category(

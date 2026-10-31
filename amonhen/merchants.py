@@ -5,9 +5,10 @@ names, then apply the rules. A rule is a piece of text the description contains,
 or a regular expression written between slashes, so one rule covers a family of
 movements the bank spells differently — the merchant name being just one of the
 texts a rule may hold. A rule may be narrowed to an account and a range of
-amounts, and does one of three things: assign a category, delete the movement,
-or record it as a transfer to a destination. Every step is deterministic, so it
-runs inside ingest without making it fail when something is unknown.
+amounts, and does one of four things: assign a category, delete the movement,
+record it as a transfer to a destination, or put a tag on it. Every step is
+deterministic, so it runs inside ingest without making it fail when something is
+unknown.
 """
 import re
 import sqlite3
@@ -23,8 +24,9 @@ from amonhen.settings import UNCATEGORIZED
 
 # What a rule does to a movement it matches. Where several kinds match, a
 # deletion wins over a transfer and a transfer over a category: a movement that
-# is gone has no category, and a transfer is not spending to categorize.
-ACTIONS = ("category", "delete", "transfer")
+# is gone has no category, and a transfer is not spending to categorize. A tag
+# competes with nothing: it adds to whatever else matches.
+ACTIONS = ("category", "delete", "transfer", "tag")
 
 SEPARATOR = " | "
 
@@ -69,8 +71,8 @@ class Rule:
 
     A pattern written between slashes is a regular expression instead: one rule
     for a family the bank spells in too many ways to list (`/amazon (eu|payments)/`).
-    `target` is the category for a category rule and the destination for a
-    transfer; a deletion has none. The amounts bound the movement's size, sign
+    `target` is the category for a category rule, the destination for a
+    transfer and the tag for a tag rule; a deletion has none. The amounts bound the movement's size, sign
     left out: a person says "between 5 and 10 euro", not "between -10 and -5".
     """
 
@@ -437,6 +439,11 @@ class RuleBook:
                     "a rule cannot point at the review bucket: it would categorize nothing"
                 )
             ledger.category(target)
+        elif action == "tag":
+            if target is None:
+                raise ValueError("a tag rule needs a tag")
+            target = " ".join(target.split())
+            ledger.tag(target)
         elif action == "transfer":
             if target is None:
                 raise ValueError("a transfer rule needs a destination")
@@ -472,9 +479,8 @@ class RuleBook:
         )
 
     def _same_identity(self, rule: Rule) -> int | None:
-        identity = (rule.key, rule.account_id, rule.amount_min, rule.amount_max)
         for existing in self.rules():
-            if (existing.key, existing.account_id, existing.amount_min, existing.amount_max) == identity:
+            if _identity(existing) == _identity(rule):
                 return existing.id
         return None
 
@@ -528,6 +534,15 @@ def deleting_rule(ledger: Ledger, description: str, account_id: int, amount: Dec
     return matching_rule(description, deleting, Movement(account_id, amount))
 
 
+def _identity(rule: Rule) -> tuple:
+    """What makes two rules the same one: a tag rule is also its tag, because
+    tags add up where the other actions compete for one text."""
+    return (
+        rule.key, rule.account_id, rule.amount_min, rule.amount_max,
+        rule.target if rule.action == "tag" else None,
+    )
+
+
 def _amount_or_none(text: str | None) -> Decimal | None:
     return None if text is None else parse_decimal(text)
 
@@ -541,7 +556,8 @@ def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[int, int]:
 
     A category rule holds the movements it decides and that carry its category;
     a transfer rule the ones recorded to its destination that it matches; a
-    deleting rule the deleted movements, still in the trash, that it matches.
+    deleting rule the deleted movements, still in the trash, that it matches; a
+    tag rule every movement it matches, since tags do not compete.
     """
     usage: dict[int, int] = {}
 
@@ -562,6 +578,10 @@ def rule_usage(ledger: Ledger, rules: Sequence[Rule]) -> dict[int, int]:
         if row["mirror_account"] is not None:
             rule = matching_rule(row["description"], by_action["transfer"], _movement_of(row))
             if rule is not None and rule.target == row["mirror_account"]:
+                count(rule)
+    if by_action["tag"]:
+        for row in _movement_rows(ledger):
+            for rule in _candidate_rules(row["description"], by_action["tag"], _movement_of(row)):
                 count(rule)
     if by_action["delete"]:
         for row in ledger.deleted_transactions():
@@ -588,13 +608,14 @@ def apply_rule_changes(ledger: Ledger, before: Sequence[Rule], after: Sequence[R
 
     Deletions first, because a deleted movement has nothing left to decide; then
     the transfers, because a leg recorded to a destination has no category; then
-    the categories, which see what the two before them left. One transaction:
-    on the NAS every commit is a flush, and a rule can touch hundreds of rows.
+    the categories, which see what the two before them left; then the tags, which
+    only add to what is left. One transaction: on the NAS every commit is a flush, and a rule can touch hundreds of rows.
     """
     with deferred_commits(ledger.conn):
         changed = _apply_deletions(ledger, after)
         changed += _apply_transfers(ledger, before, after)
         changed += _apply_categories(ledger, before, after)
+        changed += _apply_tags(ledger, after)
     return changed
 
 
@@ -786,6 +807,41 @@ def _apply_transfers(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rul
             else:
                 ledger.set_category(row["id"], ledger.uncategorized())
             changed += 1
+    return changed
+
+
+def _apply_tags(ledger: Ledger, rules: Sequence[Rule]) -> int:
+    """Make the rules' tags say what the tag rules say.
+
+    Every tag rule that matches puts its tag, on any movement a rule may read,
+    splits and legs included: a tag does not decide anything about where the
+    money went. A tag a rule wrote and no rule claims any more goes; a tag a
+    person wrote is not this function's business.
+    """
+    tagging = _by_action(rules)["tag"]
+    written: dict[int, set[str]] = {}
+    for row in ledger.conn.execute(
+        """SELECT tt.transaction_id, g.name FROM transaction_tags tt
+           JOIN tags g ON g.id = tt.tag_id WHERE tt.by_rule = 1"""
+    ):
+        written.setdefault(row["transaction_id"], set()).add(row["name"])
+    if not tagging and not written:
+        return 0
+    changed = 0
+    for row in _movement_rows(ledger):
+        wanted = {
+            rule.target
+            for rule in _candidate_rules(row["description"], tagging, _movement_of(row))
+            if rule.target is not None
+        }
+        current = written.get(row["id"], set())
+        if wanted == current:
+            continue
+        for name in current - wanted:
+            ledger.remove_tag(row["id"], name)
+        for name in wanted - current:
+            ledger.add_tag(row["id"], name, by_rule=True)
+        changed += 1
     return changed
 
 

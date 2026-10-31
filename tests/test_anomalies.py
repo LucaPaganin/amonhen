@@ -119,7 +119,7 @@ def test_income_pending_and_transfer_rows_are_never_flagged(ledger):
     assert detect_anomalies(ledger, TODAY) == []
 
 
-def test_the_sentence_names_the_category_the_amount_the_merchant_and_the_median(ledger):
+def test_the_sentence_names_the_category_and_the_median(ledger):
     account = ledger.ensure_account(Account(name="Revolut", type="real"))
     groceries = ledger.category("Groceries")
     build_history(ledger, account, groceries)
@@ -128,9 +128,8 @@ def test_the_sentence_names_the_category_the_amount_the_merchant_and_the_median(
     sentence = detect_anomalies(ledger, TODAY)[0].sentence
 
     assert "Groceries" in sentence
-    assert "500" in sentence
-    assert "Amazon Marketplace" in sentence
-    assert "mediana 100.00" in sentence
+    assert "di solito 100,00 €" in sentence
+    assert "circa 5 volte tanto" in sentence
 
 
 def test_detection_is_deterministic_and_a_higher_threshold_flags_no_more(ledger):

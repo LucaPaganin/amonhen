@@ -435,7 +435,7 @@ def test_metrics_expose_the_section_5_6_shape(api):
     assert set(metrics) >= {
         "months_of_history", "partial", "episodic_partial", "recurring_burn",
         "episodic_accrual", "expected_burn", "liquidity",
-        "runway_months", "essential_monthly", "discretionary_monthly", "savings_flow",
+        "runway_months", "essential_monthly", "discretionary_monthly",
     }
     # The mortgage is not a concept any more: not in the payload, not in the query.
     assert "mortgage_monthly" not in metrics
@@ -1440,6 +1440,7 @@ def test_the_pie_says_which_period_and_accounts_it_drew(api):
     assert payload["applied"] == {
         "accounts": ["Fineco"],
         "categories": [],
+        "tags": [],
         "from": "2026-08-01",
         "to": "2026-08-31",
     }

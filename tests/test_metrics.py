@@ -156,7 +156,7 @@ def test_runway_is_none_when_the_denominator_is_zero(ledger):
     assert metrics.runway_months is None
 
 
-def test_savings_flow_counts_investment_postings_and_not_as_spending(ledger):
+def test_a_transfer_to_the_broker_is_not_spending(ledger):
     account = ledger.ensure_account(Account(name="Revolut", type="real"))
     broker = ledger.ensure_account(Account(name="Broker", type="real"))
     ledger.set_investment(broker, True)
@@ -167,7 +167,6 @@ def test_savings_flow_counts_investment_postings_and_not_as_spending(ledger):
 
     metrics = compute_metrics(ledger, TODAY)
 
-    assert metrics.savings_flow == Decimal("1000")
     # The transfer balances through the virtual clearing account, not a category.
     assert metrics.recurring_burn == Decimal("100")
 
@@ -183,7 +182,6 @@ def test_empty_ledger_returns_missing_money_metrics_without_raising(ledger):
     assert metrics.expected_burn is None
     assert metrics.essential_monthly is None
     assert metrics.discretionary_monthly is None
-    assert metrics.savings_flow is None
     assert metrics.runway_months is None
     assert metrics.liquidity == Decimal("0")
     assert metrics.period_start == dt.date(2026, 3, 1)

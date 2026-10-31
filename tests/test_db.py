@@ -227,6 +227,38 @@ def test_a_legacy_rule_shadowed_by_a_longer_text_hands_its_movement_over(tmp_pat
     assert ledger.category_of(movement) == "Groceries"
 
 
+def test_a_ledger_written_before_tags_takes_a_tag_rule(tmp_path):
+    path = tmp_path / "legacy.db"
+    conn = connect(path)
+    initialize(conn)
+    # The table as it was written before the action existed, with one rule in it.
+    conn.executescript(
+        """
+        DROP TABLE rules;
+        CREATE TABLE rules (
+            id INTEGER PRIMARY KEY,
+            key TEXT NOT NULL,
+            pattern TEXT NOT NULL,
+            action TEXT NOT NULL DEFAULT 'category'
+                CHECK (action IN ('category', 'delete', 'transfer')),
+            target TEXT,
+            account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+            amount_min TEXT,
+            amount_max TEXT
+        );
+        INSERT INTO rules (key, pattern, action, target) VALUES ('ikea', 'ikea', 'category', 'Casa');
+        """
+    )
+    conn.commit()
+
+    initialize(conn)
+
+    conn.execute("INSERT INTO rules (key, pattern, action, target) VALUES ('ikea', 'ikea', 'tag', 'Rara')")
+    conn.execute("INSERT INTO rules (key, pattern, action, target) VALUES ('ikea', 'ikea', 'tag', 'Mobili')")
+    assert conn.execute("SELECT COUNT(*) FROM rules").fetchone()[0] == 3
+    conn.close()
+
+
 def test_the_ledger_is_opened_in_wal_mode(tmp_path):
     """A page opened while a sync writes must read, not answer "database is locked"."""
     path = tmp_path / "amonhen.db"
