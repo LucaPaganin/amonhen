@@ -4,20 +4,21 @@ import { categoryText } from "../category";
 
 interface TransactionRowProps {
   transaction: Transaction;
-  runningTotal?: number;
   onSelect?: (transaction: Transaction) => void;
   /** What the queue already tried on this row, if anything. */
   flag?: { label: string; warning?: boolean };
   /** Set while the list is choosing rows: a tap then picks the row instead of opening it. */
   selected?: boolean;
+  /** The list says the category already: every row in the queue has the same one. */
+  hideCategory?: boolean;
 }
 
 export function TransactionRow({
   transaction,
-  runningTotal,
   onSelect,
   flag,
   selected,
+  hideCategory = false,
 }: TransactionRowProps) {
   const title = transaction.merchant ?? transaction.description;
   const amount = formatAmount(transaction.amount);
@@ -61,11 +62,16 @@ export function TransactionRow({
               <span className="chip chip--transfer">{transferLabel}</span>
             ) : transaction.splits.length > 1 ? (
               <span className="chip chip--split">{categoryLabel}</span>
-            ) : transaction.category ? (
+            ) : transaction.category && !hideCategory ? (
               <span className="chip">{categoryText(transaction.category)}</span>
             ) : null}
           </span>
           <span className="txn__flags">
+            {transaction.tags.map((tag) => (
+              <span className="chip chip--tag" key={tag}>
+                {tag}
+              </span>
+            ))}
             {transfer?.state === "proposed" ? (
               <span className="chip chip--warning">Da confermare</span>
             ) : null}
@@ -81,9 +87,6 @@ export function TransactionRow({
       </span>
       <span className="txn__figures">
         <span className={income ? "amount amount--in" : "amount"}>{amount}</span>
-        {runningTotal === undefined ? null : (
-          <span className="txn__running">Progressivo {formatAmount(runningTotal)}</span>
-        )}
       </span>
     </>
   );

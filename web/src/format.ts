@@ -12,9 +12,11 @@ export function formatAmount(value: string | number): string {
   return currency.format(typeof value === "number" ? value : toAmount(value));
 }
 
+/** A day of this year is a day and a month; any other says its year too. */
 export function formatDate(iso: string): string {
   const date = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? iso : shortDate.format(date);
+  if (Number.isNaN(date.getTime())) return iso;
+  return (date.getFullYear() === new Date().getFullYear() ? shortDate : longDate).format(date);
 }
 
 /** A day that may lie in another year, such as where an account's history starts. */

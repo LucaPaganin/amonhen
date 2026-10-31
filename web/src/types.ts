@@ -284,6 +284,7 @@ export interface Transaction {
   source: string;
   /** The note a person wrote on this movement; the only field they may write. */
   notes: string | null;
+  tags: string[];
   /** Queue only: what the automatic passes already made of this row. */
   review_state?: ReviewState;
   /** Queue only: the category a pending proposal suggests, if any. */
@@ -349,6 +350,8 @@ export interface ReviewQueue {
 
 export interface TransactionPage {
   total: number;
+  /** How many an `everyday` list left out; 0 for any other list. */
+  hidden: number;
   items: Transaction[];
 }
 
@@ -359,6 +362,7 @@ export interface TransactionPage {
 export interface Applied {
   accounts: string[];
   categories: string[];
+  tags: string[];
   from?: string;
   to?: string;
 }
@@ -373,6 +377,7 @@ export interface DashboardFilters {
   to: string;
   accounts: string[];
   categories: string[];
+  tags: string[];
 }
 
 export interface Metrics {
@@ -389,7 +394,33 @@ export interface Metrics {
   runway_months: string | null;
   essential_monthly: string | null;
   discretionary_monthly: string | null;
-  savings_flow: string | null;
+}
+
+/** One category of the month in progress, against its own usual pace. */
+export interface MonthCategory {
+  category: string;
+  spent: string;
+  /** What it had reached by this day, in the middle of the months before. */
+  usual: string;
+}
+
+/** The month in progress against the same point of the months before it. */
+export interface MonthReading {
+  currency: string;
+  applied: Applied;
+  month: string;
+  day: number;
+  /** Rare spending is outside both figures: it has a line of its own. */
+  spent: string;
+  usual: string | null;
+  rare: string;
+  months_compared: number;
+  categories: MonthCategory[];
+}
+
+/** A free label on a movement; its two flags mean what a category's mean. */
+export interface Tag extends Category {
+  movements: number;
 }
 
 /** One slice of the spending pie: a category and what it took this month. */
@@ -563,7 +594,7 @@ export interface SuggestionDecisionOutcome {
 }
 
 /** What a rule does to the movements it matches. */
-export type RuleAction = "category" | "delete" | "transfer";
+export type RuleAction = "category" | "delete" | "transfer" | "tag";
 
 /**
  * A saved rule and how many movements it currently holds: a text, the conditions

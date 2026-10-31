@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "../api";
-import { FlowsChart, NetWorthChart, SpendingLegend, SpendingPie } from "../components/Charts";
+import { categoryText } from "../category";
+import { FlowsChart, NetWorthChart } from "../components/Charts";
+import { Help } from "../components/Help";
 import {
   currentMonth,
   formatAmount,
   formatDate,
-  formatMonth,
   formatMonths,
   shiftMonth,
   toAmount,
 } from "../format";
+import type { GuideTopic } from "./Guide";
 import type {
   AccountRef,
   Anomaly,
@@ -18,148 +20,113 @@ import type {
   DashboardFilters,
   Flows,
   Metrics,
+  MonthReading,
   NetWorth,
-  Spending,
 } from "../types";
-import { categoryText } from "../category";
+import { useTags } from "../useTags";
+import { useWide } from "../useWide";
 
-/** The period the dashboard opens on: the year the flows chart has always shown. */
+/** The period the charts open on. */
 const DEFAULT_MONTHS = 12;
 /** The periods the quick chips offer, in months. */
 const PERIODS = [3, 6, 12, 24];
+/** How many anomalies and categories are on screen before anyone asks for more. */
+const ANOMALIES_SHOWN = 3;
+const CATEGORIES_SHOWN = 6;
 
 interface DashboardScreenProps {
   categories: Category[];
   /** Bumped after a sync: every series is read again, not redrawn as it was. */
   refreshToken: number;
+  /** Opens the month's movements of a category. */
+  onOpenCategory: (category: string) => void;
 }
 
-interface MetricCard {
-  key: string;
-  label: string;
-  value: string | null;
-  empty: string;
-  explanation: string;
-  warning: string | null;
+/** A figure with a sign, for the distance from the usual. */
+function signed(value: number): string {
+  return `${value > 0 ? "+" : ""}${formatAmount(value)}`;
 }
 
-export function DashboardScreen({ categories, refreshToken }: DashboardScreenProps) {
+/** The sentence under the month's figure: what it is being compared with. */
+function monthComparison(reading: MonthReading): string {
+  if (reading.usual === null) return "Nessun mese completo con cui confrontarlo";
+  const usual = toAmount(reading.usual);
+  const distance = toAmount(reading.spent) - usual;
+  const pace = `di solito ${formatAmount(usual)} al giorno ${reading.day}`;
+  if (Math.abs(distance) < 1) return `Come al solito: ${pace}`;
+  return `${formatAmount(Math.abs(distance))} ${distance > 0 ? "in più" : "in meno"} del solito: ${pace}`;
+}
+
+export function DashboardScreen({ categories, refreshToken, onOpenCategory }: DashboardScreenProps) {
+  const wide = useWide();
   const [fromMonth, setFromMonth] = useState(() => shiftMonth(currentMonth(), -(DEFAULT_MONTHS - 1)));
-  const [toMonth, setToMonth] = useState(currentMonth);
   const [scopedAccounts, setScopedAccounts] = useState<string[]>([]);
   const [scopedCategory, setScopedCategory] = useState("");
+  const [scopedTag, setScopedTag] = useState("");
   const [accounts, setAccounts] = useState<AccountRef[]>([]);
+  const [month, setMonth] = useState<MonthReading | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [spending, setSpending] = useState<Spending | null>(null);
-  const [spendingError, setSpendingError] = useState<string | null>(null);
   const [flows, setFlows] = useState<Flows | null>(null);
-  const [flowsError, setFlowsError] = useState<string | null>(null);
   const [netWorth, setNetWorth] = useState<NetWorth | null>(null);
-  const [netWorthError, setNetWorthError] = useState<string | null>(null);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
-  const [anomaliesLoading, setAnomaliesLoading] = useState(true);
-  const [anomaliesError, setAnomaliesError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [allCategories, setAllCategories] = useState(false);
+  const [allAnomalies, setAllAnomalies] = useState(false);
+  const { tags } = useTags();
 
   const filters = useMemo<DashboardFilters>(
     () => ({
       from: fromMonth,
-      to: toMonth,
+      to: currentMonth(),
       accounts: scopedAccounts,
       categories: scopedCategory === "" ? [] : [scopedCategory],
+      tags: scopedTag === "" ? [] : [scopedTag],
     }),
-    [fromMonth, toMonth, scopedAccounts, scopedCategory],
+    [fromMonth, scopedAccounts, scopedCategory, scopedTag],
   );
 
-  const loadMetrics = useCallback(
+  const load = useCallback(
     async (signal?: AbortSignal) => {
-      setLoading(true);
       try {
-        setMetrics(await api.metrics(filters, signal));
+        const [reading, figures, found] = await Promise.all([
+          api.month(filters, signal),
+          api.metrics(filters, signal),
+          api.anomalies(31, signal),
+        ]);
+        setMonth(reading);
+        setMetrics(figures);
+        setAnomalies(found);
         setLoadError(null);
       } catch (caught) {
         if (isAbortError(caught)) return;
         setLoadError(errorMessage(caught));
-      } finally {
-        setLoading(false);
       }
     },
     [filters, refreshToken],
   );
-
-  const loadSpending = useCallback(
-    async (signal?: AbortSignal) => {
-      try {
-        setSpending(await api.spending(filters, signal));
-        setSpendingError(null);
-      } catch (caught) {
-        if (isAbortError(caught)) return;
-        setSpendingError(errorMessage(caught));
-      }
-    },
-    [filters, refreshToken],
-  );
-
-  const loadFlows = useCallback(
-    async (signal?: AbortSignal) => {
-      try {
-        setFlows(await api.flows(filters, signal));
-        setFlowsError(null);
-      } catch (caught) {
-        if (isAbortError(caught)) return;
-        setFlowsError(errorMessage(caught));
-      }
-    },
-    [filters, refreshToken],
-  );
-
-  const loadNetWorth = useCallback(
-    async (signal?: AbortSignal) => {
-      try {
-        setNetWorth(await api.netWorth(filters, signal));
-        setNetWorthError(null);
-      } catch (caught) {
-        if (isAbortError(caught)) return;
-        setNetWorthError(errorMessage(caught));
-      }
-    },
-    [filters, refreshToken],
-  );
-
-  // One period read four ways: a filter change refetches all of them together,
-  // so the pie, the bars and the line can never describe different windows.
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadMetrics(controller.signal);
-    void loadSpending(controller.signal);
-    void loadFlows(controller.signal);
-    void loadNetWorth(controller.signal);
-    return () => controller.abort();
-  }, [loadMetrics, loadSpending, loadFlows, loadNetWorth]);
-
-  const loadAnomalies = useCallback(async (signal?: AbortSignal) => {
-    setAnomaliesLoading(true);
-    try {
-      setAnomalies(await api.anomalies(31, signal));
-      setAnomaliesError(null);
-    } catch (caught) {
-      if (isAbortError(caught)) return;
-      setAnomaliesError(errorMessage(caught));
-    } finally {
-      setAnomaliesLoading(false);
-    }
-  }, [refreshToken]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadAnomalies(controller.signal);
+    void load(controller.signal);
     return () => controller.abort();
-  }, [loadAnomalies]);
+  }, [load]);
 
-  // The chips need the names only, and a filter that cannot list the accounts
-  // still works: it just offers none.
+  // The charts are the PC's: a phone neither draws nor asks for them.
+  useEffect(() => {
+    if (!wide) return;
+    const controller = new AbortController();
+    Promise.all([api.flows(filters, controller.signal), api.netWorth(filters, controller.signal)])
+      .then(([monthly, balances]) => {
+        setFlows(monthly);
+        setNetWorth(balances);
+      })
+      .catch((caught) => {
+        if (!isAbortError(caught)) setLoadError(errorMessage(caught));
+      });
+    return () => controller.abort();
+  }, [wide, filters, refreshToken]);
+
   useEffect(() => {
     const controller = new AbortController();
     api
@@ -169,188 +136,98 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
     return () => controller.abort();
   }, [refreshToken]);
 
-  const cards = useMemo<MetricCard[]>(() => {
-    if (!metrics) return [];
-    const months = metrics.months_of_history;
-    const partialBurn = metrics.partial ? `storico parziale: ${months} mesi su 6` : null;
-    const partialEpisodic = metrics.episodic_partial ? `storico parziale: ${months} mesi su 24` : null;
-    const partialExpected = [partialBurn, partialEpisodic].filter(Boolean).join(" · ") || null;
-    const amount = (value: string | null) => (value === null ? null : formatAmount(value));
-
-    return [
-      {
-        key: "recurring_burn",
-        label: "Spesa mensile tipica",
-        value: amount(metrics.recurring_burn),
-        empty: "non disponibile",
-        explanation:
-          "Quanto spendi di solito in un mese, senza le spese rare: il valore centrale degli ultimi 6 mesi.",
-        warning: partialBurn,
-      },
-      {
-        key: "episodic_accrual",
-        label: "Riserva per spese rare",
-        value: amount(metrics.episodic_accrual),
-        empty: "non disponibile",
-        explanation:
-          "Le spese rare degli ultimi 24 mesi (un viaggio, una riparazione) divise per 24: quanto mettere da parte ogni mese per quando tornano.",
-        warning: partialEpisodic,
-      },
-      {
-        key: "expected_burn",
-        label: "Spesa mensile attesa",
-        value: amount(metrics.expected_burn),
-        empty: "non disponibile",
-        explanation: "Spesa mensile tipica più riserva per spese rare: quanto costa davvero un mese.",
-        warning: partialExpected,
-      },
-      {
-        key: "runway_months",
-        label: "Mesi di autonomia",
-        value: metrics.runway_months === null ? null : formatMonths(metrics.runway_months),
-        empty: "non calcolabile",
-        explanation:
-          "Liquidità divisa per la spesa mensile attesa: per quanti mesi ce la fai se le entrate si fermano.",
-        warning: null,
-      },
-      {
-        key: "liquidity",
-        label: "Liquidità",
-        value: amount(metrics.liquidity),
-        empty: "non disponibile",
-        explanation: "Quanto c'è adesso sui conti scelti: la somma dei loro saldi.",
-        warning: null,
-      },
-      {
-        key: "essential_monthly",
-        label: "Spesa irrinunciabile",
-        value: amount(metrics.essential_monthly),
-        empty: "non disponibile",
-        explanation:
-          "La spesa tipica di un mese nelle categorie segnate come irrinunciabili: quello che non taglieresti.",
-        warning: null,
-      },
-      {
-        key: "discretionary_monthly",
-        label: "Spesa tagliabile",
-        value: amount(metrics.discretionary_monthly),
-        empty: "non disponibile",
-        explanation:
-          "La spesa tipica di un mese nelle altre categorie: quanto potresti tagliare se servisse.",
-        warning: null,
-      },
-      {
-        key: "savings_flow",
-        label: "Investito",
-        value: amount(metrics.savings_flow),
-        empty: "non disponibile",
-        explanation:
-          "Quanto è andato negli ultimi 6 mesi verso i conti segnati come investimento: non è spesa, è patrimonio che cresce.",
-        warning: null,
-      },
-    ];
-  }, [metrics]);
-
-  const refreshAll = () => {
-    void loadMetrics();
-    void loadSpending();
-    void loadFlows();
-    void loadNetWorth();
-    void loadAnomalies();
-  };
-
-  const applyPeriod = (months: number) => {
-    setToMonth(currentMonth());
-    setFromMonth(shiftMonth(currentMonth(), -(months - 1)));
-  };
-
-  const presetActive = (months: number) =>
-    toMonth === currentMonth() && fromMonth === shiftMonth(currentMonth(), -(months - 1));
-
   const toggleAccount = (name: string) => {
     setScopedAccounts((current) =>
       current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
     );
   };
 
-  const periodChip =
-    fromMonth === toMonth
-      ? formatMonth(fromMonth)
-      : `${formatMonth(fromMonth)} – ${formatMonth(toMonth)}`;
+  const activeFilters =
+    scopedAccounts.length + (scopedCategory === "" ? 0 : 1) + (scopedTag === "" ? 0 : 1);
 
-  // What the period chips do not say: the filters that narrow the numbers.
-  const activeFilters = scopedAccounts.length + (scopedCategory === "" ? 0 : 1);
+  const shownCategories =
+    month === null
+      ? []
+      : allCategories
+        ? month.categories
+        : month.categories.slice(0, CATEGORIES_SHOWN);
 
-  const subtitle = metrics
-    ? `${periodChip} · spesa tipica su ${metrics.months_of_history} ${
-        metrics.months_of_history === 1 ? "mese" : "mesi"
-      } di storico`
-    : "Caricamento…";
+  // The largest first: three lines are what a person reads.
+  const biggestAnomalies = [...anomalies].sort(
+    (left, right) => Math.abs(toAmount(right.amount)) - Math.abs(toAmount(left.amount)),
+  );
+  const shownAnomalies = allAnomalies
+    ? biggestAnomalies
+    : biggestAnomalies.slice(0, ANOMALIES_SHOWN);
+
+  const details: {
+    key: string;
+    label: string;
+    topic: GuideTopic;
+    value: string | null;
+    partial: boolean;
+  }[] =
+    metrics === null
+      ? []
+      : [
+          {
+            key: "typical",
+            label: "Spesa mensile tipica",
+            topic: "typical",
+            value: metrics.recurring_burn,
+            partial: metrics.partial,
+          },
+          {
+            key: "expected",
+            label: "Spesa mensile attesa",
+            topic: "expected",
+            value: metrics.expected_burn,
+            partial: metrics.partial || metrics.episodic_partial,
+          },
+          {
+            key: "reserve",
+            label: "Riserva per spese rare",
+            topic: "reserve",
+            value: metrics.episodic_accrual,
+            partial: metrics.episodic_partial,
+          },
+          {
+            key: "essential",
+            label: "Spesa irrinunciabile",
+            topic: "essential",
+            value: metrics.essential_monthly,
+            partial: false,
+          },
+          {
+            key: "cuttable",
+            label: "Spesa tagliabile",
+            topic: "essential",
+            value: metrics.discretionary_monthly,
+            partial: false,
+          },
+        ];
 
   return (
     <section className="screen">
       <header className="screen__header">
         <div>
           <h1 className="screen__title">Dashboard</h1>
-          <p className="screen__subtitle">{subtitle}</p>
         </div>
         <div className="screen__actions">
-          <button type="button" className="button" onClick={refreshAll} disabled={loading}>
-            Aggiorna
+          <button
+            type="button"
+            className="button"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen(!filtersOpen)}
+          >
+            {activeFilters === 0 ? "Filtri" : `Filtri · ${activeFilters}`}
           </button>
         </div>
       </header>
 
-      {/* The period is what most readings need, so it stays on the bar; the rest
-          is one tap away: a panel of five fields is what pushed the charts below
-          the fold. */}
-      <div className="filterbar">
-        <div className="filters__chips" role="group" aria-label="Scegli il periodo">
-          {PERIODS.map((months) => (
-            <button
-              key={months}
-              type="button"
-              className={presetActive(months) ? "chip chip--toggle chip--on" : "chip chip--toggle"}
-              aria-pressed={presetActive(months)}
-              onClick={() => applyPeriod(months)}
-            >
-              {months} mesi
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          className="button filterbar__toggle"
-          aria-expanded={filtersOpen}
-          onClick={() => setFiltersOpen(!filtersOpen)}
-        >
-          {activeFilters === 0 ? "Filtri" : `Filtri · ${activeFilters}`}
-        </button>
-      </div>
-
       {filtersOpen ? (
         <section className="panel">
           <div className="filters">
-            <div className="field">
-              <label htmlFor="filter-from">Dal mese</label>
-              <input
-                id="filter-from"
-                className="input"
-                type="month"
-                value={fromMonth}
-                onChange={(event) => event.target.value && setFromMonth(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="filter-to">Al mese</label>
-              <input
-                id="filter-to"
-                className="input"
-                type="month"
-                value={toMonth}
-                onChange={(event) => event.target.value && setToMonth(event.target.value)}
-              />
-            </div>
             <div className="field">
               <span className="filters__caption">Conti</span>
               <div className="filters__chips" role="group" aria-label="Filtra per conto">
@@ -395,188 +272,122 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
                 ))}
               </select>
             </div>
+            {tags.length === 0 ? null : (
+              <div className="field">
+                <label htmlFor="filter-tag">Tag</label>
+                <select
+                  id="filter-tag"
+                  value={scopedTag}
+                  onChange={(event) => setScopedTag(event.target.value)}
+                >
+                  <option value="">Tutti i tag</option>
+                  {tags.map((tag) => (
+                    <option key={tag.id} value={tag.name}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
-          <p className="chart-note">
-            Il periodo decide i grafici; i conti restringono tutto ciò che è di conto, la categoria
-            solo le spese. Le metriche in fondo tengono le loro finestre di 6 e 24 mesi.
-          </p>
         </section>
       ) : null}
 
       {loadError ? (
         <div className="state state--error" role="alert">
           <p>{loadError}</p>
-          <button type="button" className="button" onClick={() => void loadMetrics()}>
+          <button type="button" className="button" onClick={() => void load()}>
             Riprova
           </button>
         </div>
       ) : null}
 
-      {loading && metrics === null ? (
+      {month === null && loadError === null ? (
         <p className="state" aria-busy="true">
           Caricamento…
         </p>
       ) : null}
 
-      <section className="panel panel--pair">
-        <h2 className="section-title">
-          Spese per categoria <span className="count">{periodChip}</span>
-        </h2>
-        {spendingError ? (
-          <div className="state state--error" role="alert">
-            <p>Impossibile caricare le spese: {spendingError}</p>
-            <button type="button" className="button" onClick={() => void loadSpending()}>
-              Riprova
-            </button>
-          </div>
-        ) : spending === null ? (
-          <p className="state" aria-busy="true">
-            Caricamento…
-          </p>
-        ) : spending.categories.length === 0 ? (
-          <p className="state state--empty">Nessuna spesa registrata nel periodo.</p>
-        ) : (
-          <>
-            <SpendingPie categories={spending.categories} total={spending.total} />
-            <SpendingLegend categories={spending.categories} total={spending.total} />
-          </>
-        )}
-      </section>
-
-      <section className="panel panel--pair">
-        <h2 className="section-title">
-          Entrate e uscite <span className="count">{periodChip}</span>
-        </h2>
-        {flowsError ? (
-          <div className="state state--error" role="alert">
-            <p>Impossibile caricare il bilancio mensile: {flowsError}</p>
-            <button type="button" className="button" onClick={() => void loadFlows()}>
-              Riprova
-            </button>
-          </div>
-        ) : flows === null ? (
-          <p className="state" aria-busy="true">
-            Caricamento…
-          </p>
-        ) : flows.months.every(
-            (month) => toAmount(month.income) === 0 && toAmount(month.expenses) === 0,
-          ) ? (
-          <p className="state state--empty">Nessun movimento nel periodo.</p>
-        ) : (
-          <>
-            <FlowsChart months={flows.months} />
+      {month === null ? null : (
+        <section className="panel">
+          <h2 className="section-title">Questo mese</h2>
+          <p className="headline">{formatAmount(month.spent)}</p>
+          <p className="chart-note">{monthComparison(month)}</p>
+          {toAmount(month.rare) === 0 ? null : (
             <p className="chart-note">
-              Entrate in verde, uscite in rosso. Il mese in corso è in trasparenza: non è finito.
+              Più {formatAmount(month.rare)} di spese rare <Help topic="rare" label="spesa rara" />
             </p>
-          </>
-        )}
-      </section>
+          )}
+        </section>
+      )}
 
-      <section className="panel">
-        <h2 className="section-title">
-          Patrimonio <span className="count">{periodChip}</span>
-        </h2>
-        {netWorthError ? (
-          <div className="state state--error" role="alert">
-            <p>Impossibile caricare i saldi: {netWorthError}</p>
-            <button type="button" className="button" onClick={() => void loadNetWorth()}>
-              Riprova
-            </button>
-          </div>
-        ) : netWorth === null ? (
-          <p className="state" aria-busy="true">
-            Caricamento…
-          </p>
-        ) : netWorth.points.length === 0 ? (
-          <p className="state state--empty">
-            Nessun saldo osservato nel periodo: il primo sync registra il saldo di ogni conto.
-          </p>
-        ) : netWorth.points.length === 1 ? (
-          <p className="state">
-            Prima rilevazione: {formatAmount(netWorth.points[0].total)} al{" "}
-            {formatDate(netWorth.points[0].date)}. La curva compare dalla seconda.
-          </p>
-        ) : (
-          <NetWorthChart points={netWorth.points} />
-        )}
-        {netWorth && netWorth.accounts.length > 0 ? (
-          <>
-            <ul className="chart-legend">
-              {netWorth.accounts.map((item) => (
-                <li className="chart-legend__row" key={item.account}>
-                  <span className="chart-legend__name">{item.account}</span>
-                  <span className="chart-legend__share">{formatDate(item.date)}</span>
-                  <span className="chart-legend__value">{formatAmount(item.balance)}</span>
+      {month === null || month.categories.length === 0 ? null : (
+        <section className="panel">
+          <h2 className="section-title">Dove sono finiti</h2>
+          <ul className="where">
+            {shownCategories.map((item) => {
+              const distance = toAmount(item.spent) - toAmount(item.usual);
+              return (
+                <li key={item.category}>
+                  <button
+                    type="button"
+                    className="where__row"
+                    onClick={() => onOpenCategory(item.category)}
+                  >
+                    <span className="where__name">{categoryText(item.category)}</span>
+                    <span
+                      className={
+                        distance > 0 ? "where__distance where__distance--over" : "where__distance"
+                      }
+                    >
+                      {Math.abs(distance) < 1 ? "come al solito" : signed(distance)}
+                    </span>
+                    <span className="where__spent">{formatAmount(item.spent)}</span>
+                  </button>
                 </li>
-              ))}
-            </ul>
-            <p className="chart-note">
-              Saldi riferiti dalla banca, non ricostruiti: la curva parte dalla prima rilevazione,
-              e la legenda è l&apos;ultimo saldo noto di ogni conto.
-            </p>
-          </>
-        ) : null}
-      </section>
-
-      {metrics && (metrics.partial || metrics.episodic_partial) ? (
-        <p className="banner banner--warning" role="note">
-          Storico parziale: {metrics.months_of_history}{" "}
-          {metrics.months_of_history === 1 ? "mese" : "mesi"} disponibili.
-          {metrics.partial ? " La spesa mensile tipica usa 6 mesi." : ""}
-          {metrics.episodic_partial ? " La riserva per spese rare usa 24 mesi." : ""}
-        </p>
-      ) : null}
-
-      {metrics ? (
-        <>
-          <ul className="metrics">
-            {cards.map((card) => (
-              <li className="metric" key={card.key}>
-                <h2 className="metric__label">{card.label}</h2>
-                <span className={card.value === null ? "metric__value metric__value--empty" : "metric__value"}>
-                  {card.value ?? card.empty}
-                </span>
-                {card.warning ? (
-                  <p className="metric__warning" role="note">
-                    {card.warning}
-                  </p>
-                ) : null}
-              </li>
-            ))}
+              );
+            })}
           </ul>
-          <details className="metric-help">
-            <summary>Come si calcolano: spesa tipica su 6 mesi, riserva per spese rare su 24</summary>
-            <ul className="metric-help__list">
-              {cards.map((card) => (
-                <li key={card.key}>
-                  <strong>{card.label}</strong>: {card.explanation}
-                </li>
-              ))}
-            </ul>
-          </details>
-        </>
-      ) : null}
-
-      <section className="panel">
-        <h2 className="section-title">
-          Anomalie <span className="count">{anomalies.length}</span>
-        </h2>
-        {anomaliesError ? (
-          <div className="state state--error" role="alert">
-            <p>Impossibile caricare le anomalie: {anomaliesError}</p>
-            <button type="button" className="button" onClick={() => void loadAnomalies()}>
-              Riprova
+          {month.categories.length > CATEGORIES_SHOWN ? (
+            <button
+              type="button"
+              className="button button--block"
+              onClick={() => setAllCategories(!allCategories)}
+            >
+              {allCategories ? "Meno" : `Tutte (${month.categories.length})`}
             </button>
-          </div>
-        ) : anomaliesLoading && anomalies.length === 0 ? (
-          <p className="state" aria-busy="true">
-            Caricamento…
-          </p>
-        ) : anomalies.length === 0 ? (
-          <p className="state state--empty">Nessuna anomalia negli ultimi 31 giorni.</p>
-        ) : (
+          ) : null}
+        </section>
+      )}
+
+      {metrics === null ? null : (
+        <ul className="metrics metrics--pair">
+          <li className="metric">
+            <h2 className="metric__label">
+              Liquidità <Help topic="liquidity" label="liquidità" />
+            </h2>
+            <span className="metric__value">
+              {metrics.liquidity === null ? "non disponibile" : formatAmount(metrics.liquidity)}
+            </span>
+          </li>
+          <li className="metric">
+            <h2 className="metric__label">
+              Mesi di autonomia <Help topic="runway" label="mesi di autonomia" />
+            </h2>
+            <span className="metric__value">
+              {metrics.runway_months === null ? "non calcolabile" : formatMonths(metrics.runway_months)}
+            </span>
+          </li>
+        </ul>
+      )}
+
+      {anomalies.length === 0 ? null : (
+        <section className="panel">
+          <h2 className="section-title">
+            Anomalie <Help topic="anomaly" label="anomalia" />
+          </h2>
           <ul className="anomaly-list">
-            {anomalies.map((anomaly) => (
+            {shownAnomalies.map((anomaly) => (
               <li className="anomaly" key={anomaly.transaction_id}>
                 <div className="anomaly__head">
                   <span className="anomaly__merchant">{anomaly.merchant}</span>
@@ -589,8 +400,85 @@ export function DashboardScreen({ categories, refreshToken }: DashboardScreenPro
               </li>
             ))}
           </ul>
-        )}
-      </section>
+          {anomalies.length > ANOMALIES_SHOWN ? (
+            <button
+              type="button"
+              className="button button--block"
+              onClick={() => setAllAnomalies(!allAnomalies)}
+            >
+              {allAnomalies ? "Meno" : `Tutte (${anomalies.length})`}
+            </button>
+          ) : null}
+        </section>
+      )}
+
+      {wide ? (
+        <>
+          <div className="filters__chips" role="group" aria-label="Il periodo dei grafici">
+            {PERIODS.map((months) => {
+              const on = fromMonth === shiftMonth(currentMonth(), -(months - 1));
+              return (
+                <button
+                  key={months}
+                  type="button"
+                  className={on ? "chip chip--toggle chip--on" : "chip chip--toggle"}
+                  aria-pressed={on}
+                  onClick={() => setFromMonth(shiftMonth(currentMonth(), -(months - 1)))}
+                >
+                  {months} mesi
+                </button>
+              );
+            })}
+          </div>
+
+          <section className="panel panel--pair">
+            <h2 className="section-title">Entrate e uscite</h2>
+            {flows === null ? (
+              <p className="state" aria-busy="true">
+                Caricamento…
+              </p>
+            ) : (
+              <FlowsChart months={flows.months} />
+            )}
+          </section>
+
+          <section className="panel panel--pair">
+            <h2 className="section-title">Liquidità nel tempo</h2>
+            {netWorth === null ? (
+              <p className="state" aria-busy="true">
+                Caricamento…
+              </p>
+            ) : netWorth.points.length < 2 ? (
+              <p className="state">La curva compare dalla seconda rilevazione.</p>
+            ) : (
+              <NetWorthChart points={netWorth.points} />
+            )}
+          </section>
+        </>
+      ) : null}
+
+      {metrics === null ? null : (
+        <details className="metric-help">
+          <summary>Dettagli</summary>
+          <ul className="metrics">
+            {details.map((item) => (
+              <li className="metric" key={item.key}>
+                <h2 className="metric__label">
+                  {item.label} <Help topic={item.topic} label={item.label} />
+                </h2>
+                <span className="metric__value">
+                  {item.value === null ? "non disponibile" : formatAmount(item.value)}
+                </span>
+                {item.partial ? (
+                  <p className="metric__warning" role="note">
+                    storico parziale: {metrics.months_of_history} mesi
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }

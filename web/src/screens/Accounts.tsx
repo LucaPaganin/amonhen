@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import { api, errorMessage, isAbortError } from "../api";
+import { Help } from "../components/Help";
 import { OpeningRecalc } from "../components/OpeningRecalc";
 import { PeriodSync } from "../components/PeriodSync";
 import { Toast } from "../components/Toast";
@@ -674,20 +675,18 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
     <section className="screen">
       <header className="screen__header">
         <div>
-          <h1 className="screen__title">Conti</h1>
-          <p className="screen__subtitle">I conti reali, il loro saldo e il saldo di partenza.</p>
+          <h1 className="screen__title">
+            Conti <Help topic="check" label="verifica del saldo" />
+          </h1>
+        </div>
+        <div className="screen__actions">
+          <button type="button" className="button" onClick={() => setNewOpen(true)}>
+            Nuovo conto
+          </button>
         </div>
       </header>
 
       <section className="panel">
-        <h2 className="section-title">
-          Conti <span className="count">{accounts.length}</span>
-        </h2>
-        <div className="account-actions">
-          <button type="button" className="button button--primary" onClick={() => setNewOpen(true)}>
-            Nuovo conto
-          </button>
-        </div>
         {accountsError !== null ? (
           <div className="state state--error" role="alert">
             <p>Impossibile caricare i conti: {accountsError}</p>
@@ -705,20 +704,25 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
           <ul className="flag-list">
             {accounts.map((account) => {
               const pending = pendingAccounts.includes(account.id);
+              const heldHere = held.filter((item) => item.account_id === account.id).length;
+              const trashed = trash.filter((item) => item.account.id === account.id);
+              const broker = account.investment && !account.connected;
               return (
-                <li className="flag-row" key={account.id}>
-                  <span className="flag-row__name">
+                <li className="flag-row account-row" key={account.id}>
+                  <span className="account-row__name">
                     {account.name}
-                    <span className="flag-row__balance">
-                      {formatAmount(account.balance)}
-                      {account.opening_balance !== null && account.opening_date !== null
-                        ? ` · iniziale ${formatAmount(account.opening_balance)} al ${formatDateWithYear(
-                            account.opening_date,
-                          )}`
-                        : ""}
-                    </span>
                     <VerificationChip verification={account.verification} />
                   </span>
+                  <span className="account-row__balance">{formatAmount(account.balance)}</span>
+                  <details className="account-row__more">
+                    <summary>{heldHere > 0 ? `Dettagli · ${heldHere} da decidere` : "Dettagli"}</summary>
+                  {account.opening_balance !== null && account.opening_date !== null ? (
+                    <p className="hint">
+                      {`Saldo iniziale ${formatAmount(account.opening_balance)} al ${formatDateWithYear(
+                        account.opening_date,
+                      )}`}
+                    </p>
+                  ) : null}
                   <div className="flag-row__toggles">
                     <Toggle
                       label="Investimento"
@@ -744,26 +748,12 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                       />
                     )}
                   </div>
-                  {account.computed_balance ? (
-                    <p className="hint">
-                      Il patrimonio conta questo conto per quello che dicono i suoi movimenti; un
-                      saldo dichiarato serve solo a verificarlo.
-                    </p>
-                  ) : null}
-                  {account.reimport_deleted ? (
-                    <p className="hint">
-                      I movimenti cancellati di questo conto tornano al prossimo sync, con la loro
-                      nota.
-                    </p>
-                  ) : null}
                   {account.verification.state === "mismatch" ? (
                     <MismatchHint account={account} />
                   ) : null}
-                  {trash.filter((item) => item.account.id === account.id).length === 0 ? null : (
+                  {trashed.length === 0 ? null : (
                     <ul className="trash-list">
-                      {trash
-                        .filter((item) => item.account.id === account.id)
-                        .map((item) => (
+                      {trashed.map((item) => (
                           <li className="trash-row" key={item.id}>
                             <span className="trash-row__text">
                               <span className="txn__title">{item.merchant ?? item.description}</span>
@@ -797,24 +787,25 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                     />
                   ) : null}
                   <div className="account-row__actions">
-                    <button
-                      type="button"
-                      className="button"
-                      disabled={pending}
-                      onClick={() => setDeclareFor(account)}
-                    >
-                      Dichiara saldo
-                    </button>
-                    {account.investment && !account.connected ? (
+                    {broker ? (
                       <ValuationForm
                         account={account}
                         disabled={pending}
                         onValued={(difference) => {
                           reloadAccounts();
-                          setNotice(`Valore registrato: rendimento ${formatAmount(difference)}`);
+                          setNotice(`Liquidità aggiornata: ${formatAmount(difference)} su Investimenti`);
                         }}
                       />
-                    ) : null}
+                    ) : (
+                      <button
+                        type="button"
+                        className="button"
+                        disabled={pending}
+                        onClick={() => setDeclareFor(account)}
+                      >
+                        Dichiara saldo
+                      </button>
+                    )}
                     {deletingFor === account.id ? null : (
                       <button
                         type="button"
@@ -876,6 +867,7 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                     </form>
                   ) : null}
                   <OpeningRecalc account={account} disabled={pending} onAnchor={handleSetOpening} />
+                  </details>
                 </li>
               );
             })}

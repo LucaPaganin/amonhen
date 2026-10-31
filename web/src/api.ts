@@ -16,6 +16,7 @@ import type {
   Flows,
   Health,
   Metrics,
+  MonthReading,
   NetWorth,
   NewAccount,
   OpeningPreview,
@@ -30,8 +31,8 @@ import type {
   SetupBanks,
   SetupCredentials,
   SetupState,
-  Spending,
   Suggestion,
+  Tag,
   DeletedMovement,
   Deletion,
   SuggestionDecision,
@@ -108,6 +109,9 @@ export interface TransactionQuery {
   transfer?: boolean;
   /** Only the movements posted to this virtual account. */
   virtualAccountId?: number;
+  tag?: string;
+  /** Leaves out what only moves own money; the page says how many. */
+  everyday?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -122,6 +126,8 @@ function transactionSearch(query: TransactionQuery): string {
   if (query.search) params.set("search", query.search);
   if (query.transfer !== undefined) params.set("transfer", String(query.transfer));
   if (query.virtualAccountId !== undefined) params.set("virtual_account_id", String(query.virtualAccountId));
+  if (query.tag) params.set("tag", query.tag);
+  if (query.everyday) params.set("everyday", "true");
   if (query.limit !== undefined) params.set("limit", String(query.limit));
   if (query.offset !== undefined) params.set("offset", String(query.offset));
   return params.toString();
@@ -187,6 +193,7 @@ function filterSearch(filters: DashboardFilters): string {
   const params = new URLSearchParams({ from: start.from, to: end.to });
   if (filters.accounts.length > 0) params.set("accounts", filters.accounts.join(","));
   if (filters.categories.length > 0) params.set("categories", filters.categories.join(","));
+  if (filters.tags.length > 0) params.set("tags", filters.tags.join(","));
   return params.toString();
 }
 
@@ -216,13 +223,13 @@ export const api = {
     get<ReviewQueue>(`/review?${reviewSearch(query)}`, signal),
   metrics: (filters: DashboardFilters, signal?: AbortSignal) =>
     get<Metrics>(`/metrics?${filterSearch(filters)}`, signal),
-  spending: (filters: DashboardFilters, signal?: AbortSignal) =>
-    get<Spending>(`/spending?${filterSearch(filters)}`, signal),
+  month: (filters: DashboardFilters, signal?: AbortSignal) =>
+    get<MonthReading>(`/month?${filterSearch(filters)}`, signal),
   flows: (filters: DashboardFilters, signal?: AbortSignal) =>
     get<Flows>(`/flows?${filterSearch(filters)}`, signal),
   // Net worth is what the accounts are worth: categories have nothing to say.
   netWorth: (filters: DashboardFilters, signal?: AbortSignal) =>
-    get<NetWorth>(`/networth?${filterSearch({ ...filters, categories: [] })}`, signal),
+    get<NetWorth>(`/networth?${filterSearch({ ...filters, categories: [], tags: [] })}`, signal),
   setCategory: (transactionId: number, category: string) =>
     send<Transaction>("POST", `/transactions/${transactionId}/category`, { category }),
   setSplits: (transactionId: number, splits: SplitInput[]) =>
@@ -231,6 +238,15 @@ export const api = {
   // the bank's own statement.
   setNotes: (transactionId: number, notes: string) =>
     send<Transaction>("PUT", `/transactions/${transactionId}/notes`, { notes }),
+  setTags: (transactionId: number, tags: string[]) =>
+    send<Transaction>("PUT", `/transactions/${transactionId}/tags`, { tags }),
+  tagTransactions: (ids: number[], tag: string) =>
+    send<{ tagged: number }>("POST", "/transactions/tag", { ids, tag }),
+  tags: (signal?: AbortSignal) => get<Tag[]>("/tags", signal),
+  createTag: (name: string) => send<{ id: number; name: string }>("POST", "/tags", { name }),
+  setTagFlags: (tagId: number, flags: { episodic?: boolean; essential?: boolean }) =>
+    send<{ id: number }>("PATCH", `/tags/${tagId}`, flags),
+  deleteTag: (tagId: number) => drop<{ id: number }>(`/tags/${tagId}`),
   deleteTransaction: (transactionId: number) =>
     drop<Deletion>(`/transactions/${transactionId}`),
   // The movements a person deleted and has not brought back, for the trash in
@@ -240,8 +256,7 @@ export const api = {
     send<Transaction>("POST", `/deleted/${deletedId}/restore`, {}),
   setCategoryFlags: (categoryId: number, flags: { episodic?: boolean; essential?: boolean }) =>
     send<Category>("PATCH", `/categories/${categoryId}`, flags),
-  // The account's own flags: whether its inflows are savings, whether the
-  // movements deleted from it may come back at the next sync, and whether its
+  // The account's own flags: whether it is a broker, whether the movements deleted from it may come back at the next sync, and whether its
   // balance is read from its movements.
   setAccountFlags: (accountId: number, flags: AccountFlags) =>
     send<Account>("PATCH", `/accounts/${accountId}`, flags),

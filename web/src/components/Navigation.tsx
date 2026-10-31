@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
+import { Epigraph } from "./Epigraph";
+
 export type TabId =
   | "dashboard"
   | "review"
@@ -10,7 +12,8 @@ export type TabId =
   | "categories"
   | "import"
   | "assistant"
-  | "setup";
+  | "setup"
+  | "guide";
 
 interface Section {
   id: TabId;
@@ -20,7 +23,7 @@ interface Section {
   short: string;
   /** What the section holds, in the room a drawer has and the bar does not. */
   hint: string;
-  /** In the bottom bar, or only in the menu: nine labels do not fit five columns. */
+  /** In the bottom bar and at the head of the menus, or under Gestione. */
   inBar: boolean;
   Icon: () => ReactElement;
 }
@@ -63,15 +66,15 @@ const SECTIONS: Section[] = [
     label: "Conti",
     short: "Conti",
     hint: "Saldi, saldo di partenza e cestino",
-    inBar: false,
+    inBar: true,
     Icon: WalletIcon,
   },
   {
     id: "categories",
     label: "Categorie e regole",
     short: "Categorie",
-    hint: "Le categorie, i loro flag e cosa ci finisce",
-    inBar: true,
+    hint: "Le categorie, i tag e cosa ci finisce",
+    inBar: false,
     Icon: RulesIcon,
   },
   {
@@ -98,7 +101,18 @@ const SECTIONS: Section[] = [
     inBar: false,
     Icon: SetupIcon,
   },
+  {
+    id: "guide",
+    label: "Guida",
+    short: "Guida",
+    hint: "Cosa vogliono dire i numeri e le parole dell'app",
+    inBar: false,
+    Icon: GuideIcon,
+  },
 ];
+
+const MAIN_SECTIONS = SECTIONS.filter((section) => section.inBar);
+const MANAGE_SECTIONS = SECTIONS.filter((section) => !section.inBar);
 
 interface SectionNavProps {
   active: TabId;
@@ -137,6 +151,36 @@ function menuLabel(section: Section, reviewCount: number): string {
     return `${section.label}: ${reviewCount} da gestire`;
   }
   return section.label;
+}
+
+/** What closes the rail and the drawer: the inscription, then the release. */
+function AppFoot({ serverVersion }: { serverVersion: string | null }) {
+  return (
+    <div className="appfoot">
+      <Epigraph />
+      <AppVersion serverVersion={serverVersion} />
+    </div>
+  );
+}
+
+function GuideIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.6 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8" />
+      <path d="M12 16.8h.01" />
+    </svg>
+  );
 }
 
 function ImportIcon() {
@@ -351,7 +395,7 @@ function CloseIcon() {
 /**
  * Il rail: la stessa lista di sezioni, in piedi, per una finestra larga.
  *
- * Nove nomi per esteso in 248 px, che è il posto che la barra in basso non ha.
+ * Dieci nomi per esteso in 248 px, che è il posto che la barra in basso non ha.
  * Non è una seconda lista: è la terza forma della stessa, e la voce è quella del
  * cassetto (`navitem`) senza il suggerimento, che il rail può permettersi di
  * omettere solo perché il nome per esteso è già lì. Sopra i 1024 prende il posto
@@ -364,27 +408,30 @@ function AppRail({
   onChange,
   serverVersion,
 }: SectionNavProps & { serverVersion: string | null }) {
+  const item = (section: Section) => (
+    <button
+      key={section.id}
+      type="button"
+      className="navitem"
+      aria-current={active === section.id ? "page" : undefined}
+      aria-label={menuLabel(section, reviewCount)}
+      onClick={() => onChange(section.id)}
+    >
+      <section.Icon />
+      <span className="navitem__label">{section.label}</span>
+      {section.id === "review" && reviewCount > 0 ? (
+        <span className="navitem__count" aria-hidden="true">
+          {reviewCount}
+        </span>
+      ) : null}
+    </button>
+  );
   return (
     <nav className="apprail" aria-label="Sezioni">
-      {SECTIONS.map((section) => (
-        <button
-          key={section.id}
-          type="button"
-          className="navitem"
-          aria-current={active === section.id ? "page" : undefined}
-          aria-label={menuLabel(section, reviewCount)}
-          onClick={() => onChange(section.id)}
-        >
-          <section.Icon />
-          <span className="navitem__label">{section.label}</span>
-          {section.id === "review" && reviewCount > 0 ? (
-            <span className="navitem__count" aria-hidden="true">
-              {reviewCount}
-            </span>
-          ) : null}
-        </button>
-      ))}
-      <AppVersion serverVersion={serverVersion} />
+      {MAIN_SECTIONS.map(item)}
+      <p className="navgroup">Gestione</p>
+      {MANAGE_SECTIONS.map(item)}
+      <AppFoot serverVersion={serverVersion} />
     </nav>
   );
 }
@@ -431,6 +478,32 @@ export function Navigation({
     setOpen(false);
     if (returnFocus) menuButton.current?.focus();
   }
+
+  const drawerItem = (section: Section) => (
+    <li key={section.id}>
+      <button
+        type="button"
+        className="navitem"
+        aria-current={active === section.id ? "page" : undefined}
+        aria-label={menuLabel(section, reviewCount)}
+        onClick={() => {
+          onChange(section.id);
+          close(true);
+        }}
+      >
+        <section.Icon />
+        <span className="navitem__text">
+          <span className="navitem__label">{section.label}</span>
+          <span className="navitem__hint">{section.hint}</span>
+        </span>
+        {section.id === "review" && reviewCount > 0 ? (
+          <span className="navitem__count" aria-hidden="true">
+            {reviewCount}
+          </span>
+        ) : null}
+      </button>
+    </li>
+  );
 
   return (
     <>
@@ -493,33 +566,13 @@ export function Navigation({
             </button>
           </div>
           <ul className="drawer__list">
-            {SECTIONS.map((section) => (
-              <li key={section.id}>
-                <button
-                  type="button"
-                  className="navitem"
-                  aria-current={active === section.id ? "page" : undefined}
-                  aria-label={menuLabel(section, reviewCount)}
-                  onClick={() => {
-                    onChange(section.id);
-                    close(true);
-                  }}
-                >
-                  <section.Icon />
-                  <span className="navitem__text">
-                    <span className="navitem__label">{section.label}</span>
-                    <span className="navitem__hint">{section.hint}</span>
-                  </span>
-                  {section.id === "review" && reviewCount > 0 ? (
-                    <span className="navitem__count" aria-hidden="true">
-                      {reviewCount}
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
+            {MAIN_SECTIONS.map(drawerItem)}
+            <li>
+              <p className="navgroup">Gestione</p>
+            </li>
+            {MANAGE_SECTIONS.map(drawerItem)}
           </ul>
-          <AppVersion serverVersion={serverVersion} />
+          <AppFoot serverVersion={serverVersion} />
         </div>
       </div>
     </>
@@ -529,7 +582,7 @@ export function Navigation({
 export function TabBar({ active, reviewCount, onChange }: SectionNavProps) {
   return (
     <nav className="tabbar" aria-label="Sezioni">
-      {SECTIONS.filter((section) => section.inBar).map((section) => (
+      {MAIN_SECTIONS.map((section) => (
         <button
           key={section.id}
           type="button"

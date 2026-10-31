@@ -5,6 +5,7 @@ import { errorMessage } from "../api";
 import type { SplitInput } from "../api";
 import type { Category, Transaction } from "../types";
 import { SplitEditor } from "./SplitEditor";
+import { TagEditor } from "./TagEditor";
 import { categoryText } from "../category";
 
 interface CategoryPickerProps {
@@ -21,6 +22,8 @@ interface CategoryPickerProps {
   onSaveSplits?: (splits: SplitInput[]) => Promise<void>;
   /** Writes the movement's local note; the only field of it a person may set. */
   onSaveNotes?: (notes: string) => Promise<void>;
+  /** Makes the movement carry these tags. */
+  onSaveTags?: (tags: string[]) => Promise<void>;
   /** Takes the movement out of the ledger; the caller closes and reports it. */
   onDelete?: () => Promise<void>;
   /** Opens the transfer panel: this row may be money moved between own accounts. */
@@ -40,6 +43,7 @@ export function CategoryPicker({
   transaction = null,
   onSaveSplits,
   onSaveNotes,
+  onSaveTags,
   onDelete,
   onTransfer,
 }: CategoryPickerProps) {
@@ -194,15 +198,16 @@ export function CategoryPicker({
                     {savingNote ? "Salvo…" : "Salva nota"}
                   </button>
                 </div>
-                <p className="hint">
-                  La nota è tua: il sync non la tocca e nessun altro campo si modifica.
-                </p>
                 {noteError !== null ? (
                   <p className="state state--error" role="alert">
                     Nota non salvata: {noteError}
                   </p>
                 ) : null}
               </form>
+            ) : null}
+
+            {transaction !== null && onSaveTags !== undefined ? (
+              <TagEditor current={transaction.tags} onSave={onSaveTags} />
             ) : null}
 
             {canSplit ? (

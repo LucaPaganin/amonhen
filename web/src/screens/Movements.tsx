@@ -8,6 +8,7 @@ import { Toast } from "../components/Toast";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferPanel } from "../components/TransferPanel";
 import { currentMonth, formatAmount, formatMonth, monthBounds, shiftMonth, toAmount } from "../format";
+import { useTags } from "../useTags";
 import type { Account, Category, RuleDraft, Transaction } from "../types";
 import type { ReviewQueueController } from "../useReviewQueue";
 import { categoryText } from "../category";
@@ -25,11 +26,8 @@ interface MovementsScreenProps {
   refreshToken: number;
   /** Writes a rule; answers the error to show in its sheet, or null once saved. */
   onSaveRule: (draft: RuleDraft) => Promise<string | null>;
-}
-
-function chronological(a: Transaction, b: Transaction): number {
-  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-  return a.id - b.id;
+  /** The category another screen opened the month on. */
+  initialCategory?: string | null;
 }
 
 export function MovementsScreen({
@@ -40,21 +38,26 @@ export function MovementsScreen({
   onReviewReload,
   refreshToken,
   onSaveRule,
+  initialCategory = null,
 }: MovementsScreenProps) {
   const [month, setMonth] = useState(currentMonth);
   const [accountId, setAccountId] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(initialCategory ?? "");
+  const [tag, setTag] = useState("");
+  const { tags, reload: reloadTags } = useTags();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [items, setItems] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
+  const [hidden, setHidden] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pickerFor, setPickerFor] = useState<Transaction | null>(null);
   const [transferFor, setTransferFor] = useState<Transaction | null>(null);
-  const [transferFilter, setTransferFilter] = useState("");
+  // What only moves own money stays out of the list until someone asks for it.
+  const [transferFilter, setTransferFilter] = useState<"everyday" | "all" | "only">("everyday");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -65,13 +68,16 @@ export function MovementsScreen({
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchCategory, setBatchCategory] = useState("");
+  const [batchTag, setBatchTag] = useState("");
   const [confirmingBatchDelete, setConfirmingBatchDelete] = useState(false);
   const [batchBusy, setBatchBusy] = useState(false);
   const latestRequest = useRef(0);
 
   const bounds = useMemo(() => monthBounds(month), [month]);
   // What the closed bar does not show: the selects that narrow the list.
-  const activeFilters = [accountId, category, transferFilter].filter((value) => value !== "").length;
+  const activeFilters =
+    [accountId, category, tag].filter((value) => value !== "").length +
+    (transferFilter === "everyday" ? 0 : 1);
 
   const filters = useMemo(
     () => ({
@@ -80,9 +86,11 @@ export function MovementsScreen({
       accountId: accountId === "" ? undefined : Number(accountId),
       category: category === "" ? undefined : category,
       search: search === "" ? undefined : search,
-      transfer: transferFilter === "" ? undefined : transferFilter === "yes",
+      tag: tag === "" ? undefined : tag,
+      transfer: transferFilter === "only" ? true : undefined,
+      everyday: transferFilter === "everyday",
     }),
-    [bounds, accountId, category, search, transferFilter],
+    [bounds, accountId, category, tag, search, transferFilter],
   );
 
   useEffect(() => {
@@ -95,6 +103,7 @@ export function MovementsScreen({
         if (request !== latestRequest.current) return;
         setItems(page.items);
         setTotal(page.total);
+        setHidden(page.hidden);
         setOffset(page.items.length);
         // A selection is of the rows on screen: a new page is new rows.
         setSelected(new Set());
@@ -143,16 +152,6 @@ export function MovementsScreen({
       if (request === latestRequest.current) setLoading(false);
     }
   };
-
-  const runningTotals = useMemo(() => {
-    const totals = new Map<number, number>();
-    let sum = 0;
-    for (const transaction of [...items].sort(chronological)) {
-      sum += toAmount(transaction.amount);
-      totals.set(transaction.id, sum);
-    }
-    return totals;
-  }, [items]);
 
   const displayed = useMemo(
     () =>
@@ -240,6 +239,24 @@ export function MovementsScreen({
       reloadAll();
     } catch (error) {
       setNotice(`Categoria non assegnata: ${errorMessage(error)}`);
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  const tagSelected = async () => {
+    const name = batchTag.trim();
+    if (selected.size === 0 || name === "" || batchBusy) return;
+    setBatchBusy(true);
+    try {
+      const outcome = await api.tagTransactions([...selected], name);
+      setNotice(`${name}: ${outcome.tagged} ${outcome.tagged === 1 ? "movimento" : "movimenti"}`);
+      setBatchTag("");
+      stopSelecting();
+      reloadAll();
+      reloadTags();
+    } catch (error) {
+      setNotice(`Tag non assegnato: ${errorMessage(error)}`);
     } finally {
       setBatchBusy(false);
     }
@@ -369,18 +386,40 @@ export function MovementsScreen({
               </option>
             ))}
           </select>
+          {tags.length === 0 ? null : (
+            <select
+              className="input"
+              aria-label="Tag"
+              value={tag}
+              onChange={(event) => setTag(event.target.value)}
+            >
+              <option value="">Tutti i tag</option>
+              {tags.map((item) => (
+                <option key={item.id} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             className="input"
-            aria-label="Giroconti e rimborsi"
+            aria-label="Giroconti e interessi"
             value={transferFilter}
-            onChange={(event) => setTransferFilter(event.target.value)}
+            onChange={(event) => setTransferFilter(event.target.value as typeof transferFilter)}
           >
-            <option value="">Con giroconti e rimborsi</option>
-            <option value="yes">Solo giroconti e rimborsi</option>
-            <option value="no">Senza giroconti e rimborsi</option>
+            <option value="everyday">Senza giroconti e interessi</option>
+            <option value="all">Con giroconti e interessi</option>
+            <option value="only">Solo giroconti</option>
           </select>
         </div>
       </div>
+
+      {hidden > 0 ? (
+        <button type="button" className="hidden-note" onClick={() => setTransferFilter("all")}>
+          {hidden === 1 ? "1 giroconto o interesse nascosto" : `${hidden} giroconti e interessi nascosti`}
+          <span className="hidden-note__action">Mostra</span>
+        </button>
+      ) : null}
 
       {loadError ? (
         <div className="state state--error" role="alert">
@@ -442,6 +481,30 @@ export function MovementsScreen({
           >
             Assegna
           </button>
+          <input
+            className="input"
+            type="text"
+            autoComplete="off"
+            aria-label="Tag da mettere ai selezionati"
+            placeholder="Tag…"
+            list="batch-tags"
+            value={batchTag}
+            onChange={(event) => setBatchTag(event.target.value)}
+            disabled={batchBusy}
+          />
+          <datalist id="batch-tags">
+            {tags.map((item) => (
+              <option key={item.id} value={item.name} />
+            ))}
+          </datalist>
+          <button
+            type="button"
+            className="button"
+            onClick={() => void tagSelected()}
+            disabled={selected.size === 0 || batchTag.trim() === "" || batchBusy}
+          >
+            Metti il tag
+          </button>
           {confirmingBatchDelete ? (
             <>
               <button
@@ -489,7 +552,6 @@ export function MovementsScreen({
           <TransactionRow
             key={transaction.id}
             transaction={transaction}
-            runningTotal={runningTotals.get(transaction.id)}
             onSelect={openRow}
             selected={selecting ? selected.has(transaction.id) : undefined}
           />
@@ -532,6 +594,14 @@ export function MovementsScreen({
           const updated = await api.setNotes(transaction.id, notes);
           setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
           setPickerFor(updated);
+        }}
+        onSaveTags={async (names) => {
+          const transaction = pickerFor;
+          if (!transaction) return;
+          const updated = await api.setTags(transaction.id, names);
+          setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+          setPickerFor(updated);
+          reloadTags();
         }}
         onDelete={async () => {
           const transaction = pickerFor;

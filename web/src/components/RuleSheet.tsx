@@ -4,6 +4,7 @@ import { api, errorMessage, isAbortError } from "../api";
 import { bucketName, categoryText } from "../category";
 import { formatAmount, formatDate } from "../format";
 import type { Account, Category, RuleAction, RuleDraft, RulePreview } from "../types";
+import { useTags } from "../useTags";
 
 interface RuleSheetProps {
   title: string;
@@ -12,11 +13,14 @@ interface RuleSheetProps {
   categories: Category[];
   /** Saves the rule; answers the error to show, or null once it is saved. */
   onSave: (draft: RuleDraft) => Promise<string | null>;
+  /** Removes a saved rule, behind a confirmation; answers the error, or null. */
+  onRemove?: () => Promise<string | null>;
   onClose: () => void;
 }
 
 const ACTIONS: { value: RuleAction; label: string }[] = [
   { value: "category", label: "Assegna una categoria" },
+  { value: "tag", label: "Mette un tag" },
   { value: "transfer", label: "È un giroconto" },
   { value: "delete", label: "Cancella il movimento" },
 ];
@@ -29,7 +33,7 @@ const ACTIONS: { value: RuleAction; label: string }[] = [
  * take if it were saved now. A deleting rule empties those movements into the
  * trash on save, so its button says how many.
  */
-export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleSheetProps) {
+export function RuleSheet({ title, initial, categories, onSave, onRemove, onClose }: RuleSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fieldId = useId();
   const [draft, setDraft] = useState<RuleDraft>(initial);
@@ -42,6 +46,8 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const { tags } = useTags();
 
   useEffect(() => {
     if (!dialogRef.current?.open) dialogRef.current?.showModal();
@@ -118,6 +124,15 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
       amount_min: (draft.amount_min ?? "").trim() || null,
       amount_max: (draft.amount_max ?? "").trim() || null,
     });
+    setSaving(false);
+    if (message !== null) setSaveError(message);
+  };
+
+  const remove = async () => {
+    if (onRemove === undefined || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    const message = await onRemove();
     setSaving(false);
     if (message !== null) setSaveError(message);
   };
@@ -258,6 +273,26 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
             </div>
           ) : null}
 
+          {draft.action === "tag" ? (
+            <div className="field">
+              <label htmlFor={`${fieldId}-tag`}>Tag</label>
+              <input
+                id={`${fieldId}-tag`}
+                className="input"
+                type="text"
+                autoComplete="off"
+                list={`${fieldId}-tags`}
+                value={draft.target ?? ""}
+                onChange={(event) => set({ target: event.target.value })}
+              />
+              <datalist id={`${fieldId}-tags`}>
+                {tags.map((item) => (
+                  <option key={item.id} value={item.name} />
+                ))}
+              </datalist>
+            </div>
+          ) : null}
+
           {draft.action === "transfer" ? (
             <div className="field">
               <label htmlFor={`${fieldId}-destination`}>Verso</label>
@@ -332,7 +367,7 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
 
           {saveError !== null ? (
             <p className="state state--error" role="alert">
-              Regola non salvata: {saveError}
+              Regola non aggiornata: {saveError}
             </p>
           ) : null}
 
@@ -348,6 +383,35 @@ export function RuleSheet({ title, initial, categories, onSave, onClose }: RuleS
               Annulla
             </button>
           </div>
+
+          {onRemove === undefined ? null : confirmingRemove ? (
+            <div className="rule-row__confirm">
+              <p>
+                {initial.action === "delete"
+                  ? "Sicuro? I movimenti che ha cancellato restano nel cestino, e i prossimi non verranno più tolti"
+                  : "Sicuro? I suoi movimenti vanno alle altre regole, o a Da confermare"}
+              </p>
+              <button
+                type="button"
+                className="button button--danger"
+                onClick={() => void remove()}
+                disabled={saving}
+              >
+                Rimuovi
+              </button>
+              <button type="button" className="button" onClick={() => setConfirmingRemove(false)}>
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="button button--danger"
+              onClick={() => setConfirmingRemove(true)}
+            >
+              Rimuovi la regola
+            </button>
+          )}
         </form>
       </div>
     </dialog>

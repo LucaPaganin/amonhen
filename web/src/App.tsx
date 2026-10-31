@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, errorMessage } from "./api";
 import { rememberBucket } from "./category";
-import { Epigraph } from "./components/Epigraph";
+import { HelpContext } from "./components/Help";
 import { Navigation, TabBar } from "./components/Navigation";
 import type { TabId } from "./components/Navigation";
 import { Toast } from "./components/Toast";
@@ -10,6 +10,8 @@ import { AccountsScreen } from "./screens/Accounts";
 import { BudgetScreen } from "./screens/Budget";
 import { AssistantScreen } from "./screens/Assistant";
 import { DashboardScreen } from "./screens/Dashboard";
+import { GuideScreen } from "./screens/Guide";
+import type { GuideTopic } from "./screens/Guide";
 import { MovementsScreen } from "./screens/Movements";
 import { ImportScreen } from "./screens/Import";
 import { ReviewQueueScreen } from "./screens/ReviewQueue";
@@ -28,7 +30,7 @@ import { useSetup } from "./useSetup";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 30;
+const REQUIRED_API_VERSION = 31;
 
 export default function App() {
   // `?setup=1` is where the bank sends the browser back after a login, and the
@@ -36,6 +38,9 @@ export default function App() {
   // wizard is a normal section change.
   const [tab, setTab] = useState<TabId>(() => (hasSetupParam() ? "setup" : "dashboard"));
   const [staleServer, setStaleServer] = useState(false);
+  // Where a tap on another screen wants Movimenti or the Guide to open.
+  const [movementsCategory, setMovementsCategory] = useState<string | null>(null);
+  const [guideTopic, setGuideTopic] = useState<GuideTopic | null>(null);
   const [serverVersion, setServerVersion] = useState<string | null>(null);
   // What the assistant was opened from, when it was opened from a screen: the
   // question is composed there, and the section is handed the thing it is about.
@@ -106,6 +111,8 @@ export default function App() {
 
   const changeTab = useCallback((next: TabId) => {
     setTab(next);
+    setMovementsCategory(null);
+    setGuideTopic(null);
     // Any other section is a way out of the wizard, and a way out drops the
     // parameter: it was an instruction for the boot, not a place.
     if (next !== "setup") dropSetupParam();
@@ -118,6 +125,16 @@ export default function App() {
     review.reload();
     reloadCategories();
   }, [reloadCategories, review]);
+
+  const openCategory = useCallback((category: string) => {
+    setMovementsCategory(category);
+    setTab("movements");
+  }, []);
+
+  const openGuide = useCallback((topic: GuideTopic) => {
+    setGuideTopic(topic);
+    setTab("guide");
+  }, []);
 
   const openAssistant = useCallback((context: AssistantContext) => {
     setAssistantContext(context);
@@ -204,10 +221,6 @@ export default function App() {
     );
   }
 
-  // Il wizard è una schermata da fare, non da leggere: la fascia
-  // dell'iscrizione resta alle sezioni.
-  const showsEpigraph = tab !== "setup";
-
   return (
     <div className="app">
       <Navigation
@@ -220,7 +233,7 @@ export default function App() {
       />
 
       <main className="app__main">
-        {showsEpigraph ? <Epigraph /> : null}
+        <HelpContext.Provider value={openGuide}>
         {tab === "setup" ? (
           <SetupScreen
             setup={setup}
@@ -240,6 +253,7 @@ export default function App() {
         ) : null}
         {tab === "movements" ? (
           <MovementsScreen
+            key={movementsCategory ?? ""}
             categories={categories}
             categoriesError={categoriesError}
             onReloadCategories={reloadCategories}
@@ -247,10 +261,15 @@ export default function App() {
             onReviewReload={review.reload}
             refreshToken={syncedAt}
             onSaveRule={rules.add}
+            initialCategory={movementsCategory}
           />
         ) : null}
         {tab === "dashboard" ? (
-          <DashboardScreen categories={categories} refreshToken={syncedAt} />
+          <DashboardScreen
+            categories={categories}
+            refreshToken={syncedAt}
+            onOpenCategory={openCategory}
+          />
         ) : null}
         {tab === "budget" ? (
           <BudgetScreen onAskAssistant={openAssistant} refreshToken={syncedAt} />
@@ -272,6 +291,8 @@ export default function App() {
             updateCategoryFlags={updateCategoryFlags}
           />
         ) : null}
+        {tab === "guide" ? <GuideScreen topic={guideTopic} /> : null}
+        </HelpContext.Provider>
       </main>
 
       <TabBar active={tab} reviewCount={reviewCount} onChange={changeTab} />

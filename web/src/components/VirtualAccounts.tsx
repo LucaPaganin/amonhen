@@ -63,10 +63,6 @@ export function VirtualAccounts({ refreshToken }: VirtualAccountsProps) {
       <h2 className="section-title">
         Conti virtuali <span className="count">{accounts.length}</span>
       </h2>
-      <p className="hint">
-        Dove sono finiti i soldi che non sono né spesa né entrata: i giroconti verso un conto che la
-        banca non mostra. Il saldo è quanto ci è andato, meno quanto ne è tornato.
-      </p>
       {error !== null ? (
         <div className="state state--error" role="alert">
           <p>Impossibile caricare i conti virtuali: {error}</p>

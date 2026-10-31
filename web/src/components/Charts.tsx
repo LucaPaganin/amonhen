@@ -1,5 +1,5 @@
 /**
- * The three dashboard charts.
+ * The two dashboard charts.
  *
  * Every series arrives already summed by the API: these components only turn
  * strings into numbers and pick colours, so a chart can never disagree with the
@@ -11,8 +11,6 @@ import {
   Bar,
   BarChart,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,21 +18,7 @@ import {
 } from "recharts";
 
 import { formatAmount, formatDate, formatMonth, toAmount } from "../format";
-import type { CategorySpend, MonthlyFlow, NetWorthPoint } from "../types";
-import { categoryText } from "../category";
-
-/** Every slice is a gradient of its own colour, from the light end to the deep
-    one: a flat disc of eight saturated hues is the look this app does not have. */
-const SLICES: Array<[string, string]> = [
-  ["#f6d894", "#d99f36"],
-  ["#a8cff7", "#5f8fd0"],
-  ["#f6bda4", "#d0744f"],
-  ["#96e8c6", "#49b98b"],
-  ["#f6b6cd", "#cf6f95"],
-  ["#dcea94", "#9aae42"],
-  ["#d0c5ff", "#8d76e6"],
-  ["#b9c6d6", "#7a8da3"],
-];
+import type { MonthlyFlow, NetWorthPoint } from "../types";
 
 /* Nessuna griglia e nessuna linea d'asse: restano le etichette, e i numeri
    esatti li porta il tooltip. */
@@ -77,100 +61,6 @@ function labelFrom(payload: unknown, key: string): string {
   const rows = payload as Array<{ payload?: Record<string, string> }> | undefined;
   const value = rows?.[0]?.payload?.[key];
   return value ? (key === "month" ? formatMonth(value) : formatDate(value)) : "";
-}
-
-interface SpendingPieProps {
-  categories: CategorySpend[];
-  total: string;
-}
-
-export function SpendingPie({ categories, total }: SpendingPieProps) {
-  const data = categories.map((item) => ({
-    name: categoryText(item.category),
-    value: toAmount(item.amount),
-  }));
-  // The currency symbol is one character the figure does not need at full size:
-  // it is drawn smaller, which is room the digits get to use. Intl separates it
-  // with a non-breaking space, and ICU uses the narrow one just as often.
-  const written = formatAmount(total);
-  const parts = written.match(/^(.*?)[\s\u00a0\u202f]+(\S+)$/);
-  const amount = parts ? parts[1] : written;
-  const symbol = parts ? parts[2] : "";
-
-  return (
-    <div className="chart chart--pie">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <defs>
-            {data.map((_slice, index) => {
-              const [light, deep] = SLICES[index % SLICES.length];
-              return (
-                <linearGradient
-                  id={`slice-${index}`}
-                  key={`slice-${index}`}
-                  x1="0"
-                  y1="0"
-                  x2="1"
-                  y2="1"
-                >
-                  <stop offset="0%" stopColor={light} />
-                  <stop offset="100%" stopColor={deep} />
-                </linearGradient>
-              );
-            })}
-          </defs>
-          <Pie
-            data={data}
-            dataKey="value"
-            nameKey="name"
-            innerRadius="68%"
-            outerRadius="88%"
-            paddingAngle={3}
-            cornerRadius={6}
-            stroke="none"
-            isAnimationActive={false}
-          >
-            {data.map((slice, index) => (
-              <Cell key={slice.name} fill={`url(#slice-${index % SLICES.length})`} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={TOOLTIP} itemStyle={{ color: "var(--text)" }} formatter={money} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="chart__center" aria-hidden="true">
-        <span className="chart__center-label">Speso</span>
-        <span className="chart__center-value">
-          {amount}
-          {symbol !== "" ? <span className="chart__center-symbol"> {symbol}</span> : null}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-export function SpendingLegend({ categories, total }: SpendingPieProps) {
-  const whole = toAmount(total);
-  return (
-    <ul className="chart-legend">
-      {categories.map((item, index) => {
-        const share = whole > 0 ? Math.round((toAmount(item.amount) / whole) * 100) : 0;
-        return (
-          <li className="chart-legend__row" key={item.category}>
-            <span
-              className="chart-legend__swatch"
-              style={{
-                background: `linear-gradient(135deg, ${SLICES[index % SLICES.length][0]}, ${SLICES[index % SLICES.length][1]})`,
-              }}
-              aria-hidden="true"
-            />
-            <span className="chart-legend__name">{categoryText(item.category)}</span>
-            <span className="chart-legend__share">{share}%</span>
-            <span className="chart-legend__value">{formatAmount(item.amount)}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
 }
 
 export function FlowsChart({ months }: { months: MonthlyFlow[] }) {
@@ -226,13 +116,13 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
   const data = points.map((point) => ({
     date: point.date,
     label: formatDate(point.date),
-    Totale: toAmount(point.total),
+    Liquidità: toAmount(point.total),
   }));
 
   return (
     <div className="chart">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="networth-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.45} />
@@ -240,7 +130,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
             </linearGradient>
           </defs>
           <XAxis dataKey="label" {...AXIS} />
-          <YAxis {...AXIS} tickFormatter={compact} width={52} domain={["auto", "auto"]} />
+          <YAxis {...AXIS} tickFormatter={compact} width={64} domain={["auto", "auto"]} />
           <Tooltip
             contentStyle={TOOLTIP}
             itemStyle={{ color: "var(--text)" }}
@@ -250,7 +140,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
           />
           <Area
             type="monotone"
-            dataKey="Totale"
+            dataKey="Liquidità"
             stroke="var(--accent)"
             strokeWidth={2}
             fill="url(#networth-fill)"

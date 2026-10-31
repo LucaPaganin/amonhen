@@ -1,13 +1,16 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import { api, errorMessage } from "../api";
 import { bucketName, categoryText } from "../category";
+import { Help } from "../components/Help";
 import { RuleSheet, draftOf } from "../components/RuleSheet";
 import { Toggle } from "../components/Toggle";
 import { formatAmount } from "../format";
-import type { Category, Rule, RuleDraft } from "../types";
+import type { Category, Rule, RuleAction, RuleDraft } from "../types";
 import type { CategoryFlags } from "../useCategories";
 import type { RulesController } from "../useRules";
+import { useTags } from "../useTags";
 
 /** One is a singular in Italian, and the count is read out loud in the row. */
 function plural(count: number, singular: string, pluralForm: string): string {
@@ -32,7 +35,7 @@ function conditionsText(rule: Rule): string | null {
   return parts.length === 0 ? null : parts.join(" · ");
 }
 
-/** What a rule that does not assign a category does, said in a line. */
+/** What a rule with no category or tag to sit under does, said in a line. */
 function actionText(rule: Rule): string {
   return rule.action === "delete" ? "Cancella" : `Giroconto verso ${rule.target ?? ""}`;
 }
@@ -46,6 +49,142 @@ const EMPTY_DRAFT: RuleDraft = {
   amount_max: null,
 };
 
+interface RuleRowsProps {
+  rules: Rule[];
+  onOpen: (rule: Rule) => void;
+  /** What the row says beyond its text and conditions, where that is not obvious. */
+  does?: (rule: Rule) => string;
+}
+
+/** A rule is a line: its text and how many it holds. The rest opens on a tap. */
+function RuleRows({ rules, onOpen, does }: RuleRowsProps) {
+  return (
+    <ul className="rule-lines">
+      {rules.map((rule) => {
+        const detail = [does?.(rule), conditionsText(rule)].filter(Boolean).join(" · ");
+        return (
+          <li key={rule.id}>
+            <button type="button" className="rule-line" onClick={() => onOpen(rule)}>
+              <span className="rule-line__text">
+                <span className="rule-row__pattern">{rule.pattern}</span>
+                {detail === "" ? null : <span className="rule-line__detail">{detail}</span>}
+              </span>
+              <span className="rule-row__count">{rule.count}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+interface LabelRowProps {
+  name: string;
+  movements: number;
+  episodic: boolean;
+  essential: boolean;
+  open: boolean;
+  onToggle: () => void;
+  busy: boolean;
+  onFlag: (flags: CategoryFlags) => void;
+  rules: Rule[];
+  onOpenRule: (rule: Rule) => void;
+  onAddRule: (text: string) => Promise<boolean>;
+  /** The rule's failure, shown where its text was typed. */
+  error: string | null;
+  children?: ReactNode;
+}
+
+/**
+ * A category and a tag are the same thing on this screen: a name, how many
+ * movements it holds, the two flags, the texts that fill it. One control, so
+ * "rare" is learnt once.
+ */
+function LabelRow({
+  name,
+  movements,
+  episodic,
+  essential,
+  open,
+  onToggle,
+  busy,
+  onFlag,
+  rules,
+  onOpenRule,
+  onAddRule,
+  error,
+  children,
+}: LabelRowProps) {
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const add = async () => {
+    if (text.trim() === "" || saving) return;
+    setSaving(true);
+    if (await onAddRule(text.trim())) setText("");
+    setSaving(false);
+  };
+
+  return (
+    <li className="label-row">
+      <button type="button" className="label-row__head" aria-expanded={open} onClick={onToggle}>
+        <span className="label-row__name">{name}</span>
+        {episodic ? <span className="chip chip--tag">Spesa rara</span> : null}
+        {essential ? <span className="chip chip--tag">Irrinunciabile</span> : null}
+        <span className="label-row__count">{movements}</span>
+      </button>
+
+      {open ? (
+        <div className="label-row__body">
+          <div className="rule-group__flags">
+            <Toggle
+              label="Spesa rara"
+              ariaLabel={`Spesa rara ${name}`}
+              checked={episodic}
+              disabled={busy}
+              onChange={(next) => onFlag({ episodic: next })}
+            />
+            <Toggle
+              label="Irrinunciabile"
+              ariaLabel={`Irrinunciabile ${name}`}
+              checked={essential}
+              disabled={busy}
+              onChange={(next) => onFlag({ essential: next })}
+            />
+          </div>
+          {rules.length === 0 ? null : <RuleRows rules={rules} onOpen={onOpenRule} />}
+          <form
+            className="rule-add"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void add();
+            }}
+          >
+            <input
+              className="input"
+              type="text"
+              autoComplete="off"
+              aria-label={`Testo di una nuova regola per ${name}`}
+              placeholder="Nuova regola: testo, o /espressione/"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+            />
+            <button type="submit" className="button" disabled={text.trim() === "" || saving}>
+              {saving ? "Salvo…" : "Aggiungi"}
+            </button>
+          </form>
+          {error === null ? null : (
+            <p className="rule-add__error" role="alert">
+              {error}
+            </p>
+          )}
+          {children}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 interface CategoryRulesScreenProps {
   rules: RulesController;
   categories: Category[];
@@ -55,15 +194,10 @@ interface CategoryRulesScreenProps {
 }
 
 /**
- * Where a category is defined and where what falls into it is decided: one
- * entry per category carries its two flags and the rules that assign it, which
- * open inside it. A category and the rules that fill it are the same decision
- * seen from its two ends, so they are one screen and one list.
+ * Where a category or a tag is defined and where what falls into it is decided.
+ * The list is the categories; what is not a category sits in two closed blocks
+ * under it, and every explanation lives in the Guide.
  */
-function needleOf(query: string): string {
-  return query.trim().toLowerCase();
-}
-
 export function CategoryRulesScreen({
   rules,
   categories,
@@ -71,140 +205,110 @@ export function CategoryRulesScreen({
   onReloadCategories,
   updateCategoryFlags,
 }: CategoryRulesScreenProps) {
-  const [newCategory, setNewCategory] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [pending, setPending] = useState<number[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [savingFor, setSavingFor] = useState<string | null>(null);
-  // The form's own failure — a pattern the ledger refuses — belongs where the
-  // text was typed: the shared box sits at the top of a screen the reader has
-  // scrolled past to write the rule.
-  const [failedFor, setFailedFor] = useState<string | null>(null);
+  const tags = useTags();
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [confirming, setConfirming] = useState<number | null>(null);
+  const [creating, setCreating] = useState<"category" | "tag" | null>(null);
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+  // One row open at a time, whichever list it is in: a key per kind and name.
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [failedFor, setFailedFor] = useState<string | null>(null);
+  const [confirmingTag, setConfirmingTag] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // The rule open in the editor: a new one, or a saved one being changed.
   const [editing, setEditing] = useState<{ title: string; draft: RuleDraft } | null>(null);
 
-  // The rules that do something other than assign a category have no category
-  // to sit under, so they are a list of their own above the categories.
-  const actionRules = useMemo(
-    () =>
-      rules.rules.filter(
-        (rule) =>
-          rule.action !== "category" &&
-          (needleOf(query) === "" ||
-            rule.pattern.toLowerCase().includes(needleOf(query)) ||
-            (rule.target ?? "").toLowerCase().includes(needleOf(query))),
-      ),
-    [rules.rules, query],
-  );
-
-  const total = useMemo(
-    () => rules.rules.reduce((sum, rule) => sum + rule.count, 0),
-    [rules.rules],
-  );
-
   const needle = query.trim().toLowerCase();
+  const matches = (text: string | null) => (text ?? "").toLowerCase().includes(needle);
 
-  // Each category is an entry, and the texts that assign it are what opens
-  // inside: a search keeps the categories it matched, and inside them only the
-  // rules that matched, so one pattern in forty-five is still found — and a
-  // category is on the screen whether or not a rule points at it yet.
-  const entries = useMemo(
+  const rulesOf = (action: RuleAction, target: string) =>
+    rules.rules.filter((rule) => rule.action === action && rule.target === target);
+
+  // A search keeps the names it matched, and inside the others only the texts
+  // it matched, so one pattern in a hundred is still found.
+  const entry = <T extends { name: string }>(item: T, action: RuleAction, shownName: string) => {
+    const own = rulesOf(action, item.name);
+    const named = needle === "" || matches(shownName);
+    const shown = named ? own : own.filter((rule) => matches(rule.pattern));
+    return { item, own, shown, visible: named || shown.length > 0 };
+  };
+
+  const categoryEntries = useMemo(
     () =>
       categories
-        .map((item) => {
-          const own = rules.rules.filter(
-            (rule) => rule.action === "category" && rule.category === item.name,
-          );
-          const named = needle !== "" && categoryText(item.name).toLowerCase().includes(needle);
-          const shown =
-            needle === "" || named
-              ? own
-              : own.filter((rule) => rule.pattern.toLowerCase().includes(needle));
-          return {
-            category: item,
-            rules: shown,
-            movements: shown.reduce((sum, rule) => sum + rule.count, 0),
-            visible: needle === "" || named || shown.length > 0,
-          };
-        })
-        .filter((entry) => entry.visible)
+        .filter((item) => item.name !== bucketName())
+        .map((item) => entry(item, "category", categoryText(item.name)))
+        .filter((row) => row.visible)
         .sort((left, right) =>
-          categoryText(left.category.name).localeCompare(categoryText(right.category.name), "it"),
+          categoryText(left.item.name).localeCompare(categoryText(right.item.name), "it"),
         ),
     [categories, rules.rules, needle],
   );
 
-  // A rule that points at the review bucket would take movements out of the
-  // queue without categorizing them; the API refuses it too.
-  const options = categories.filter((item) => item.name !== bucketName());
+  const tagEntries = useMemo(
+    () =>
+      tags.tags.map((item) => entry(item, "tag", item.name)).filter((row) => row.visible),
+    [tags.tags, rules.rules, needle],
+  );
 
-  // Creating a category categorizes nothing by itself: it is a place movements
-  // can be pointed at, and they get there through a proposal, a rule or a hand.
-  const createCategory = async () => {
-    const name = newCategory.trim();
-    if (name === "" || creating) return;
-    setCreating(true);
+  const otherRules = useMemo(
+    () =>
+      rules.rules.filter(
+        (rule) =>
+          (rule.action === "delete" || rule.action === "transfer") &&
+          (needle === "" || matches(rule.pattern) || matches(rule.target)),
+      ),
+    [rules.rules, needle],
+  );
+
+  const toggleRow = (key: string) => {
+    setFailedFor(null);
+    setConfirmingTag(null);
+    setOpenRow(openRow === key ? null : key);
+  };
+
+  const create = async () => {
+    const name = newName.trim();
+    if (name === "" || busy || creating === null) return;
+    setBusy(true);
     setNotice(null);
     try {
-      await api.createCategory(name);
-      setNewCategory("");
-      onReloadCategories();
-      setNotice(`Categoria creata: ${name}`);
+      if (creating === "category") {
+        await api.createCategory(name);
+        onReloadCategories();
+        setOpenRow(`category:${name}`);
+      } else {
+        await api.createTag(name);
+        tags.reload();
+        setOpenRow(`tag:${name}`);
+      }
+      setNewName("");
+      setCreating(null);
     } catch (caught) {
-      setNotice(`Categoria non creata: ${errorMessage(caught)}`);
+      setNotice(`Non creato: ${errorMessage(caught)}`);
     } finally {
-      setCreating(false);
+      setBusy(false);
     }
   };
 
-  const toggleFlag = async (item: Category, flag: "episodic" | "essential", next: boolean) => {
-    if (pending.includes(item.id)) return;
+  const setFlags = async (update: () => Promise<string | null>) => {
+    setBusy(true);
     setNotice(null);
-    setPending((current) => [...current, item.id]);
-    const message = await updateCategoryFlags(
-      item.id,
-      flag === "episodic" ? { episodic: next } : { essential: next },
-    );
-    setPending((current) => current.filter((id) => id !== item.id));
-    if (message !== null) setNotice(`Categoria non aggiornata: ${message}`);
+    const message = await update();
+    setBusy(false);
+    if (message !== null) setNotice(`Non aggiornato: ${message}`);
   };
 
-  // The group is the form: a rule assigns the category it sits under, so the
-  // text goes where the rules it will join are, and the category is the one
-  // whose head was opened.
-  const addRule = async (item: Category) => {
-    const text = (drafts[item.name] ?? "").trim();
-    if (text === "" || savingFor !== null) return;
-    setSavingFor(item.name);
-    setNotice(null);
+  const addRule = async (key: string, action: RuleAction, target: string, text: string) => {
     setFailedFor(null);
-    const failed = await rules.add({ ...EMPTY_DRAFT, pattern: text, target: item.name });
-    setSavingFor(null);
-    setFailedFor(failed === null ? null : item.name);
-    if (failed === null) setDrafts((current) => ({ ...current, [item.name]: "" }));
+    const failed = await rules.add({ ...EMPTY_DRAFT, pattern: text, action, target });
+    setFailedFor(failed === null ? null : key);
+    if (failed === null && action === "tag") tags.reload();
+    return failed === null;
   };
 
-  const changeCategory = (rule: Rule, next: string) => {
-    setNotice(null);
-    setFailedFor(null);
-    void rules.add({ ...draftOf(rule), target: next });
-  };
-
-  const confirmRemove = async (rule: Rule) => {
-    setFailedFor(null);
-    const held = await rules.remove(rule.id);
-    setConfirming(null);
-    if (held === null) return;
-    setNotice(
-      rule.action === "delete"
-        ? `Regola rimossa: ${plural(held, "movimento cancellato", "movimenti cancellati")} da lei restano nel cestino, e ora si possono ripristinare`
-        : `Regola rimossa: ${plural(held, "movimento", "movimenti")} alle altre regole, o in coda`,
-    );
-  };
+  const openRule = (rule: Rule) =>
+    setEditing({ title: `La regola «${rule.pattern}»`, draft: draftOf(rule) });
 
   const saveEdited = async (draft: RuleDraft): Promise<string | null> => {
     const failed = await rules.add(draft);
@@ -212,65 +316,58 @@ export function CategoryRulesScreen({
     setEditing(null);
     setNotice(`Regola salvata: «${draft.pattern}»`);
     onReloadCategories();
+    tags.reload();
     return null;
   };
 
-  const removeControls = (rule: Rule) =>
-    confirming === rule.id ? (
-      <div className="rule-row__confirm">
-        <p>
-          {rule.action === "delete"
-            ? "Sicuro? I movimenti che ha cancellato restano nel cestino, e i prossimi non verranno più tolti"
-            : `Sicuro? La regola lascia ${plural(rule.count, "movimento", "movimenti")} alle altre regole, o in coda`}
-        </p>
-        <button type="button" className="button button--danger" onClick={() => void confirmRemove(rule)}>
-          Rimuovi
-        </button>
-        <button type="button" className="button" onClick={() => setConfirming(null)}>
-          Annulla
-        </button>
-      </div>
-    ) : (
-      <>
-        <button
-          type="button"
-          className="button"
-          onClick={() => setEditing({ title: `La regola «${rule.pattern}»`, draft: draftOf(rule) })}
-        >
-          Modifica
-        </button>
-        <button type="button" className="button button--danger" onClick={() => setConfirming(rule.id)}>
-          Rimuovi
-        </button>
-      </>
-    );
+  const removeEdited = async (id: number): Promise<string | null> => {
+    const held = await rules.remove(id);
+    if (held === null) return rules.operationError ?? "regola non rimossa";
+    setEditing(null);
+    setNotice(`Regola rimossa: ${plural(held, "movimento lasciato", "movimenti lasciati")} alle altre regole`);
+    tags.reload();
+    return null;
+  };
 
-  const reload = () => {
-    rules.reload();
-    onReloadCategories();
+  const deleteTag = async (id: number, name: string) => {
+    setBusy(true);
+    try {
+      await api.deleteTag(id);
+      setConfirmingTag(null);
+      setOpenRow(null);
+      setNotice(`Tag eliminato: ${name}`);
+      tags.reload();
+      rules.reload();
+    } catch (caught) {
+      setNotice(`Tag non eliminato: ${errorMessage(caught)}`);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <section className="screen">
       <header className="screen__header">
         <div>
-          <h1 className="screen__title">Categorie e regole</h1>
-          <p className="screen__subtitle">
-            {rules.loading && rules.rules.length === 0
-              ? "Caricamento…"
-              : `${plural(categories.length, "categoria", "categorie")} · ${plural(rules.rules.length, "regola", "regole")} · ${plural(total, "movimento", "movimenti")}`}
-          </p>
+          <h1 className="screen__title">
+            Categorie e regole <Help topic="rule" label="regola" />
+          </h1>
         </div>
         <div className="screen__actions">
+          <button
+            type="button"
+            className="button"
+            aria-expanded={creating === "category"}
+            onClick={() => setCreating(creating === "category" ? null : "category")}
+          >
+            Nuova categoria
+          </button>
           <button
             type="button"
             className="button button--primary"
             onClick={() => setEditing({ title: "Nuova regola", draft: EMPTY_DRAFT })}
           >
             Nuova regola
-          </button>
-          <button type="button" className="button" onClick={reload} disabled={rules.loading}>
-            Aggiorna
           </button>
         </div>
       </header>
@@ -284,89 +381,39 @@ export function CategoryRulesScreen({
         </div>
       ) : null}
 
-      {rules.operationError !== null && failedFor === null ? (
-        <div className="state state--error" role="alert">
-          <p>{rules.operationError}</p>
-        </div>
-      ) : null}
-
       {notice !== null ? <p className="state">{notice}</p> : null}
 
-      <form
-        className="filters filters--row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void createCategory();
-        }}
-      >
-        <div className="field">
-          <label htmlFor="new-category">Nuova categoria</label>
+      <input
+        className="input"
+        type="search"
+        placeholder="Cerca categoria, tag o testo…"
+        aria-label="Cerca fra categorie, tag e regole"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+
+      {creating === "category" ? (
+        <form
+          className="rule-add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void create();
+          }}
+        >
           <input
-            id="new-category"
             className="input"
             type="text"
             autoComplete="off"
-            placeholder="es. Salute, Animali, Regali"
-            value={newCategory}
-            onChange={(event) => setNewCategory(event.target.value)}
+            aria-label="Nome della nuova categoria"
+            placeholder="Nome della categoria"
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            autoFocus
           />
-        </div>
-        <button
-          type="submit"
-          className="button button--primary"
-          disabled={newCategory.trim() === "" || creating}
-        >
-          {creating ? "Creo…" : "Aggiungi"}
-        </button>
-      </form>
-      <p className="chart-note">
-        Una categoria non categorizza niente da sola: è il posto dove i movimenti possono finire.
-        <em>Spesa rara</em> dice che ci finisce qualcosa che capita poco (un viaggio, una
-        riparazione), che va nella riserva invece che nella spesa tipica; <em>Irrinunciabile</em>
-        che è spesa che non taglieresti.
-      </p>
-
-      <div className="filters">
-        <input
-          className="input"
-          type="search"
-          placeholder="Cerca testo o categoria…"
-          aria-label="Cerca fra le regole"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </div>
-
-      {actionRules.length > 0 ? (
-        <section className="card rule-group" aria-labelledby="action-rules-title">
-          <div className="rule-group__head">
-            <h2 className="rule-group__category" id="action-rules-title">
-              Cancellano o registrano un giroconto
-            </h2>
-          </div>
-          <ul className="rule-group__rules">
-            {actionRules.map((rule) => {
-              const narrowed = conditionsText(rule);
-              return (
-                <li className="rule-row" key={rule.id}>
-                  <div className="rule-row__head">
-                    <span className="rule-row__pattern">{rule.pattern}</span>
-                    <span className="rule-row__count">
-                      {rule.action === "delete"
-                        ? `${plural(rule.count, "movimento", "movimenti")} nel cestino`
-                        : plural(rule.count, "movimento", "movimenti")}
-                    </span>
-                  </div>
-                  <p className="rule-row__does">
-                    {actionText(rule)}
-                    {narrowed === null ? "" : ` · ${narrowed}`}
-                  </p>
-                  <div className="rule-row__controls">{removeControls(rule)}</div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+          <button type="submit" className="button button--primary" disabled={newName.trim() === "" || busy}>
+            Crea
+          </button>
+        </form>
       ) : null}
 
       {categoriesError !== null ? (
@@ -380,151 +427,131 @@ export function CategoryRulesScreen({
         <p className="state" aria-busy="true">
           Caricamento…
         </p>
-      ) : categories.length === 0 ? (
-        <p className="state state--empty">
-          Nessuna categoria. Scrivine una qui sopra: è il posto dove i movimenti possono finire.
-        </p>
-      ) : entries.length === 0 ? (
-        <p className="state">Nessuna regola per questa ricerca.</p>
+      ) : categoryEntries.length === 0 ? (
+        <p className="state">Nessuna categoria per questa ricerca.</p>
       ) : (
-        <ul className="card-list">
-          {entries.map((entry) => {
-            const name = entry.category.name;
-            const open = expanded[name] ?? needle !== "";
-            const busy = pending.includes(entry.category.id);
+        <ul className="flag-list">
+          {categoryEntries.map(({ item, own, shown }) => {
+            const key = `category:${item.name}`;
             return (
-              <li className="card rule-group" key={entry.category.id}>
-                <div className="rule-group__head">
-                  <button
-                    type="button"
-                    className="rule-group__toggle"
-                    aria-expanded={open}
-                    onClick={() => setExpanded({ ...expanded, [name]: !open })}
-                  >
-                    <span className="rule-group__chevron" aria-hidden="true">
-                      {open ? "▾" : "▸"}
-                    </span>
-                    <span className="rule-group__category">{categoryText(name)}</span>
-                    <span className="rule-group__count">
-                      {plural(entry.rules.length, "regola", "regole")} ·{" "}
-                      {plural(entry.movements, "movimento", "movimenti")}
-                    </span>
-                  </button>
-                  <div className="rule-group__flags">
-                    <Toggle
-                      label="Spesa rara"
-                      ariaLabel={`Spesa rara ${name}`}
-                      checked={entry.category.episodic}
-                      disabled={busy}
-                      onChange={(next) => void toggleFlag(entry.category, "episodic", next)}
-                    />
-                    <Toggle
-                      label="Irrinunciabile"
-                      ariaLabel={`Irrinunciabile ${name}`}
-                      checked={entry.category.essential}
-                      disabled={busy}
-                      onChange={(next) => void toggleFlag(entry.category, "essential", next)}
-                    />
-                  </div>
-                </div>
-
-                {open ? (
-                  <>
-                    {
-                    entry.rules.length === 0 ? (
-                      <p className="rule-group__empty">
-                        Nessuna regola per questa categoria: si scrive qui sotto, o si chiede
-                        mentre si accetta una proposta in coda.
-                      </p>
-                    ) : (
-                      <ul className="rule-group__rules">
-                        {entry.rules.map((rule) => (
-                          <li className="rule-row" key={rule.id}>
-                            <div className="rule-row__head">
-                              <span className="rule-row__pattern">{rule.pattern}</span>
-                              <span className="rule-row__count">
-                                {plural(rule.count, "movimento", "movimenti")}
-                              </span>
-                            </div>
-                            {conditionsText(rule) === null ? null : (
-                              <p className="rule-row__does">{conditionsText(rule)}</p>
-                            )}
-                            <div className="rule-row__controls">
-                              <select
-                                className="input"
-                                aria-label={`Categoria per ${rule.pattern}`}
-                                value={rule.category ?? ""}
-                                disabled={options.length === 0}
-                                onChange={(event) => changeCategory(rule, event.target.value)}
-                              >
-                                {options.map((item) => (
-                                  <option key={item.id} value={item.name}>
-                                    {item.name}
-                                  </option>
-                                ))}
-                              </select>
-
-                              {removeControls(rule)}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )
-                    }
-                    <form
-                      className="rule-add"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void addRule(entry.category);
-                      }}
-                    >
-                      <label className="visually-hidden" htmlFor={`add-${entry.category.id}`}>
-                        Testo di una nuova regola per {categoryText(name)}
-                      </label>
-                      <input
-                        id={`add-${entry.category.id}`}
-                        className="input"
-                        type="text"
-                        autoComplete="off"
-                        placeholder="Nuova regola: testo, o /espressione/"
-                        value={drafts[name] ?? ""}
-                        onChange={(event) =>
-                          setDrafts((current) => ({ ...current, [name]: event.target.value }))
-                        }
-                      />
-                      <button
-                        type="submit"
-                        className="button button--primary"
-                        disabled={(drafts[name] ?? "").trim() === "" || savingFor !== null}
-                      >
-                        {savingFor === name ? "Salvo…" : "Aggiungi"}
-                      </button>
-                    </form>
-                    {failedFor === name && rules.operationError !== null ? (
-                      <p className="rule-add__error" role="alert">
-                        {rules.operationError}
-                      </p>
-                    ) : null}
-                  </>
-                ) : null}
-              </li>
+              <LabelRow
+                key={item.id}
+                name={categoryText(item.name)}
+                movements={own.reduce((sum, rule) => sum + rule.count, 0)}
+                episodic={item.episodic}
+                essential={item.essential}
+                open={openRow === key || (needle !== "" && shown.length > 0)}
+                onToggle={() => toggleRow(key)}
+                busy={busy}
+                onFlag={(flags) => void setFlags(() => updateCategoryFlags(item.id, flags))}
+                rules={shown}
+                onOpenRule={openRule}
+                onAddRule={(text) => addRule(key, "category", item.name, text)}
+                error={failedFor === key ? rules.operationError : null}
+              />
             );
           })}
         </ul>
       )}
 
-      <p className="chart-note">
-        Una regola vale per ogni movimento la cui descrizione contiene il suo testo, senza badare
-        alle maiuscole: «addebito sdd» li prende tutti, «amazon prime» solo quelli, e se due testi
-        combaciano vince il più lungo, testo o espressione che sia. Fra barre è invece
-        un'espressione regolare — /amazon (eu|payments)/ prende una famiglia che la banca scrive in
-        troppi modi. Correggere una regola sposta i movimenti che teneva; rimuoverla li lascia alla
-        regola più ampia che combacia ancora, o in coda. Una regola si può restringere a un conto e a
-        un intervallo di importi, e a parità di testo vince quella più ristretta; oltre ad assegnare
-        una categoria può cancellare i movimenti, che finiscono nel cestino, o registrarli come
-        giroconto verso una destinazione. Se più regole combaciano, cancellare vince su giroconto e
-        giroconto su categoria.
-      </p>
+      <details className="manage-block" open={needle !== "" && tagEntries.length > 0 ? true : undefined}>
+        <summary>
+          Tag <span className="count">{tags.tags.length}</span>
+        </summary>
+        <div className="manage-block__body">
+          <div className="manage-block__actions">
+            <Help topic="tag" label="tag" />
+            <button
+              type="button"
+              className="button"
+              aria-expanded={creating === "tag"}
+              onClick={() => setCreating(creating === "tag" ? null : "tag")}
+            >
+              Nuovo tag
+            </button>
+          </div>
+          {creating === "tag" ? (
+            <form
+              className="rule-add"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void create();
+              }}
+            >
+              <input
+                className="input"
+                type="text"
+                autoComplete="off"
+                aria-label="Nome del nuovo tag"
+                placeholder="Nome del tag"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+              />
+              <button type="submit" className="button button--primary" disabled={newName.trim() === "" || busy}>
+                Crea
+              </button>
+            </form>
+          ) : null}
+          {tagEntries.length === 0 ? null : (
+            <ul className="flag-list">
+              {tagEntries.map(({ item, shown }) => {
+                const key = `tag:${item.name}`;
+                return (
+                  <LabelRow
+                    key={item.id}
+                    name={item.name}
+                    movements={item.movements}
+                    episodic={item.episodic}
+                    essential={item.essential}
+                    open={openRow === key || (needle !== "" && shown.length > 0)}
+                    onToggle={() => toggleRow(key)}
+                    busy={busy}
+                    onFlag={(flags) => void setFlags(() => tags.updateFlags(item.id, flags))}
+                    rules={shown}
+                    onOpenRule={openRule}
+                    onAddRule={(text) => addRule(key, "tag", item.name, text)}
+                    error={failedFor === key ? rules.operationError : null}
+                  >
+                    {confirmingTag === item.id ? (
+                      <div className="rule-row__confirm">
+                        <p>Sicuro? Il tag sparisce da {plural(item.movements, "movimento", "movimenti")}, con le sue regole</p>
+                        <button
+                          type="button"
+                          className="button button--danger"
+                          onClick={() => void deleteTag(item.id, item.name)}
+                          disabled={busy}
+                        >
+                          Elimina
+                        </button>
+                        <button type="button" className="button" onClick={() => setConfirmingTag(null)}>
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="button button--danger"
+                        onClick={() => setConfirmingTag(item.id)}
+                      >
+                        Elimina il tag
+                      </button>
+                    )}
+                  </LabelRow>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </details>
+
+      <details className="manage-block" open={needle !== "" && otherRules.length > 0 ? true : undefined}>
+        <summary>
+          Altre regole <span className="count">{otherRules.length}</span>
+        </summary>
+        <div className="manage-block__body">
+          <RuleRows rules={otherRules} onOpen={openRule} does={actionText} />
+        </div>
+      </details>
 
       {editing === null ? null : (
         <RuleSheet
@@ -532,10 +559,14 @@ export function CategoryRulesScreen({
           initial={editing.draft}
           categories={categories}
           onSave={saveEdited}
+          onRemove={
+            typeof editing.draft.id === "number"
+              ? () => removeEdited(editing.draft.id as number)
+              : undefined
+          }
           onClose={() => setEditing(null)}
         />
       )}
-
     </section>
   );
 }
