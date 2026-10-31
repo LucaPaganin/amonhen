@@ -22,4 +22,5 @@ Salvare una regola era lento perché `postings` non aveva un indice su `transact
 - [x] #1 I lati di un movimento e la sua coppia si trovano con un indice
 - [x] #2 Un ledger esistente riceve gli indici all'avvio, senza altre migrazioni
 - [x] #3 Il conteggio delle regole legge i movimenti una volta sola
+- [x] #4 All'avvio il sync non si scontra con la migrazione delle regole
 <!-- AC:END -->

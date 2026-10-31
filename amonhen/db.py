@@ -449,6 +449,14 @@ def _allow_tag_rules(conn: sqlite3.Connection) -> None:
             DROP TABLE rules_legacy;
             """
         )
+    # Every start and every sync pass come through here, the server's two at the
+    # same moment: an index already in its final shape is left alone, or the two
+    # race between the drop and the create and the sync dies on it.
+    index = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'rules_identity'"
+    ).fetchone()
+    if index is not None and "'tag'" in index["sql"]:
+        return
     conn.execute("DROP INDEX IF EXISTS rules_identity")
     conn.execute(
         """CREATE UNIQUE INDEX rules_identity ON rules (

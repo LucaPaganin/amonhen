@@ -227,6 +227,19 @@ def test_a_legacy_rule_shadowed_by_a_longer_text_hands_its_movement_over(tmp_pat
     assert ledger.category_of(movement) == "Groceries"
 
 
+def test_opening_a_ledger_again_does_not_touch_the_identity_of_the_rules(tmp_path):
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+    statements: list[str] = []
+    conn.set_trace_callback(statements.append)
+
+    initialize(conn)
+
+    conn.set_trace_callback(None)
+    assert [text for text in statements if "rules_identity" in text and "SELECT" not in text] == []
+    conn.close()
+
+
 def test_the_legs_of_a_movement_are_found_without_reading_them_all(tmp_path):
     conn = connect(tmp_path / "ledger.db")
     initialize(conn)
