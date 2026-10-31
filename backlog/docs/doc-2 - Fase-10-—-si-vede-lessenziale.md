@@ -23,4 +23,4 @@ una sola definizione, per categoria o per tag, e un solo controllo a schermo.
 3. Movimenti e anomalie (TASK-80).
 4. Conti e Categorie (TASK-81).
 5. Navigazione e Guida (TASK-82).
-6. Correzioni ai dati vivi e deploy (TASK-83): provate su copia, da eseguire solo su richiesta.
+6. Correzioni ai dati vivi e deploy (TASK-83): eseguite il 31 ottobre 2026.

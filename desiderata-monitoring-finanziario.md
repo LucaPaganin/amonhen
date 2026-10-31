@@ -606,7 +606,7 @@ Snapshot datati e consistenti del ledger e della configurazione (sezione 5.11): 
 Quanto descritto nella sezione 5.12: un tetto per categoria e per mese con il suo default, le voci dentro il tetto con data e priorità, la copia da un movimento passato o dal mese prima, e i mesi passati che restano quello che erano.
 *Fatto quando*: il mese prossimo si pianifica dall'app e cambiare un default non riscrive i mesi già vissuti.
 
-**Fase 10 — si vede l'essenziale.** *(costruita; correzioni ai dati vivi e deploy da fare)*
+**Fase 10 — si vede l'essenziale.** *(consegnata, v1.10.0)*
 Le decisioni della versione 1.23. Il cruscotto risponde alle due domande, una riga di ogni pagina mostra un dato forte e l'azione frequente, la navigazione è una sola su telefono e PC — Dashboard, Da confermare, Movimenti, Budget, Conti, e *Gestione* per Categorie e regole, Importa, Assistente, Configurazione e Guida. La pagina **Budget** non cambia. **Movimenti** nasconde di base giroconti e interessi del deposito e dice quanti sono; **Da confermare** perde le sezioni vuote e le etichette uguali su ogni riga, e ogni data dice l'anno quando non è quello corrente. La citazione resta in fondo al menu, non in cima a ogni pagina. Tag, broker e anomalie come nelle sezioni 5.13, 5.8 e 5.7.
 *Fatto quando*: aperta l'app, dove sono finiti i soldi e come va il mese si leggono senza scorrere; la liquidità non contiene il portafoglio; una spesa rara per tag cambia la riserva e la spesa tipica; le correzioni al ledger reale sono provate su una copia.
 
