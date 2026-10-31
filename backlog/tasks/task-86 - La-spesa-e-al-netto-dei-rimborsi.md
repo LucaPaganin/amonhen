@@ -1,7 +1,7 @@
 ---
 id: TASK-86
 title: La spesa è al netto dei rimborsi
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-01 09:00'
 updated_date: '2026-11-01 09:00'
@@ -23,5 +23,5 @@ La spesa contava solo le uscite: una spesa anticipata per altri restava intera a
 - [x] #2 Le categorie che hanno solo accrediti diventano Entrata alla migrazione
 - [x] #3 Un rimborso esce dalle entrate; un accredito senza categoria non conta come rimborso
 - [x] #4 Il segno Entrata si gestisce da Categorie e regole
-- [ ] #5 Rimborsi riassegnati alle categorie vere sul ledger vivo
+- [x] #5 Rimborsi riassegnati alle categorie vere sul ledger vivo
 <!-- AC:END -->
