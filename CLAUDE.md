@@ -58,7 +58,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals, held_transactions|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals, held_transactions|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
@@ -66,7 +66,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/transfers.py`|Transfer candidate graph, weights, link review state|
 |`amonhen/matching.py`|Exact maximum-weight bipartite matching (Hungarian)|
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
-|`amonhen/metrics.py`|Burn, episodic accrual, runway, savings flow, and the dashboard series|
+|`amonhen/metrics.py`|Burn, episodic accrual, runway, the month against its usual pace, and the dashboard series|
 |`amonhen/budgets.py`|Desiderata 5.12: a ceiling per category and month (a default from a month on, a month's own override) and the expenses planned inside it|
 |`amonhen/anomalies.py`|Deterministic, explained spending outliers|
 |`amonhen/classifier.py`|Char n-gram logistic proposals for uncovered merchants|
@@ -82,9 +82,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
 |`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
+|`web/src/screens/Guide.tsx`|Desiderata 5.14: a card per concept, the only place the pages explain; `components/Help.tsx` is the `?` that opens one|
+|`web/src/components/TagEditor.tsx`|The tags of one movement, in its sheet; `useTags.ts` is the list every screen reads|
 |`web/src/components/VirtualAccounts.tsx`|The virtual accounts under **Conti**: what each holds, how many movements put it there, and the movements on request (`/api/virtual-accounts`, `/api/transactions?virtual_account_id=`)|
 |`web/src/components/PeriodSync.tsx`|The period sync in an account's panel under **Conti**: the dates, a line per window, the preview, and the held probable duplicates with *Scrivi* / *Scarta*|
-|`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
+|`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and five go in the bar, the others under *Gestione* in the drawer and the rail, the same list on phone and PC; the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
 |`tools/dump_raw.py`|Dumps raw EB payloads to disk, for regenerating fixtures|
 |`tools/anonymize_dump.py`|Turns raw dumps into committed fixtures|
 |`tools/eb_stub.py`|A stand-in for Enable Banking that serves the anonymized fixtures, so the first setup can be walked without a real consent (signs and verifies nothing)|
@@ -99,14 +101,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `RETURNS_ACCOUNT`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `RARE_SQL`, `ESSENTIAL_SQL`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
-|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
+|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
 |`budgets`|`budget_status`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
@@ -280,11 +282,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   lower case). `categorize` never touches a split (several category postings) or
   a transfer leg (none). It runs inside `SyncService.run`, so the scheduled sync
   in the server process categorizes too.
-- **A reading is filtered by a `LedgerScope`, and the three filters are not
+- **A reading is filtered by a `LedgerScope`, and its filters are not
   equal.** `accounts` narrows everything that belongs to an account: spending by
   the account that paid it (a category posting has no account of its own, so
-  `_spending_scope` tests the real side of the same transaction), liquidity, the
-  savings flow and the net worth series. `categories` narrows spending alone —
+  `_spending_scope` tests the real side of the same transaction), liquidity and
+  the net worth series. `categories` and `tags` narrow spending alone —
   income is not categorized, and what the accounts are worth is not a category's
   business. The period is deliberately *not* part of the scope: `compute_metrics`
   takes no period, because the 6- and 24-month windows are what those metrics are,
@@ -307,8 +309,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   next sync would recreate it and import its history again. Nothing is kept to
   restore; the app asks for the name typed back. The
   Conti section of the PWA is their only writer. Budgets have a section of their
-  own, **Budget**, in the bottom bar where Conti used to be (Conti moved to the
-  menu): `PUT /api/budgets/{category_id}?month=` is the default from that month,
+  own, **Budget**: `PUT /api/budgets/{category_id}?month=` is the default from that month,
   `PUT …/override?month=` the month's own ceiling, `POST /api/budgets/{id}/copy`
   the copy from another month, and `POST|PUT|DELETE /api/budget-items` the items.
   Every one of them answers with the whole month, because a default or a moved
@@ -322,17 +323,34 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   padding past months with zeros.
 - **A metric is called in the code what it was called first, and on screen what it
   measures.** `recurring_burn`, `episodic_accrual`, `expected_burn`, `runway_months`,
-  `essential_monthly`, `discretionary_monthly` and `savings_flow` stay as they are in
+  `essential_monthly` and `discretionary_monthly` stay as they are in
   `metrics.py` and the API; a person reads *Spesa mensile tipica*, *Riserva per spese
-  rare*, *Spesa mensile attesa*, *Mesi di autonomia*, *Spesa irrinunciabile*, *Spesa
-  tagliabile* and *Investito*, and the category flags read *Spesa rara* and
-  *Irrinunciabile*. The dashboard cards, the assistant's packet keys and its prompt,
+  rare*, *Spesa mensile attesa*, *Mesi di autonomia*, *Spesa irrinunciabile* and *Spesa
+  tagliabile*, and the flags read *Spesa rara* and *Irrinunciabile*. The dashboard cards, the assistant's packet keys and its prompt,
   and the spec use those words — no "burn" or "runway" anywhere a person reads.
-- **Episodic and essential are category flags, not per-transaction ones.** A
-  rare event is modelled by putting it in an `episodic` category, which the
-  accrual then spreads over 24 months; `essential` marks the part of spending
-  that could not be cut. `investment` marks a real account whose inflows are
-  savings flow rather than spending.
+- **Rare and essential are one question, asked of a movement.** A movement is rare
+  when its category is `episodic` or one of its tags is; `essential` the same way.
+  `ledger.RARE_SQL` and `ledger.ESSENTIAL_SQL` are the only definition, and every
+  reading uses them, so a tag is not a second concept of rare: on screen the two share
+  one control (`LabelRow` in `CategoryRules.tsx`). It holds for the whole movement,
+  rare wins over essential, and rare leaves the typical spending, the month's reading
+  and the anomalies for the reserve, which is always a 24th. A tag a person wrote is
+  kept by the tombstone like a note (`deleted_transactions.tags`, `_written_tags`);
+  `by_rule` is what lets removing a rule take back only what the rule wrote. A `tag`
+  rule is the one action that adds instead of competing: every matching one applies,
+  splits and transfer legs included (`merchants._apply_tags`). `investment` marks
+  the broker: a real account added by hand whose balance is declared.
+- **The page shows one thing, the Guide explains it.** A row is one strong figure and
+  the frequent action; what is rare or dangerous is behind *Dettagli* (the account
+  row in Conti) or a tap (a rule's removal is in its sheet). An explanation is not
+  written on a page: it is a card in `web/src/screens/Guide.tsx`, reached by the `?`
+  (`components/Help.tsx`), and a change to a computation updates that card in the same
+  change, like the spec. A section with nothing in it is not drawn, and a label equal
+  on every row is not printed.
+- **Movimenti shows the everyday by default.** `everyday=true` on
+  `/api/transactions` leaves out movements with a virtual posting and everything on a
+  `computed_balance` account (transfers and the deposit's daily interest), and
+  `hidden` says how many, so the list never looks shorter than the ledger in silence.
 - **Rebuilding the queue is the server's job.** The review hook removes a row
   optimistically and then refetches `/api/review`; it never adjusts the totals
   itself, because the same `categorize` function is used from the Movements
@@ -441,10 +459,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   info and reports nothing), because a red nobody can clear teaches people to
   ignore the one line that matters; a difference the tombstones do not explain
   is still reported.
-- **The dashboard charts read three aggregations; the client never sums.**
-  `spend_by_category` adds up to `spend_between` by construction and keeps
-  `Uncategorized` as a slice, so the pie cannot look smaller than the money that
-  actually left; `monthly_flows` pairs income (money into a real account, with
+- **The dashboard answers two questions, and the client never sums.** `month_reading`
+  (`/api/month`) is what was spent so far this month against the same day of the
+  complete months before (their median, up to six, cut at each month's last day),
+  rare spending on a line of its own, and each category against its own usual, the
+  furthest first. Below it Liquidità and Mesi di autonomia, three anomalies at most,
+  on a PC two charts (`useWide`: a phone does not even fetch them), and the other
+  metrics behind *Dettagli*. `spend_by_category` still answers `/api/spending`, with
+  no reader in the app since the pie went. `monthly_flows` pairs income (money into a real account, with
   the legs of a linked transfer excluded) with expenses (the same category
   postings the burn uses), clipped to the months the ledger covers with the
   current one flagged `partial`; `net_worth_series` is the balance series above.
@@ -508,7 +530,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `first_date`/`last_date`; `Transfer clearing` left out) and `virtual_account_id` on
   `/api/transactions`. 29 is the broker's value: `POST /api/accounts/{id}/valuation`
   and `POST /api/import/scalable[/preview]` (PDFs as base64 in JSON); 30 took the
-  Scalable routes away again.
+  Scalable routes away again. 31 is the essential on screen: `/api/month`, the tags
+  (`/api/tags`, a transaction's `tags`, a `tag` rule, `POST /api/transactions/tag`,
+  `PUT /api/transactions/{id}/tags`, `tag` and `everyday` on `/api/transactions`, whose
+  page gained `hidden`, `tags` on the dashboard reads), and `savings_flow` gone.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -549,7 +574,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   account; what is left to test is the classifier. So each row carries
   `review_state`: `proposed` when its merchant has a pending suggestion (a
   decision is already waiting in the block above) and `unhandled` when nothing
-  claimed it, which the UI flags in amber as the genuine manual work. `state`,
+  claimed it, which the chip *Senza proposta* filters on. `state`,
   `account_id` and `search` narrow the page and never the counts — the chips are
   the real backlog, so a filter cannot make the work look small. Widening the
   queue beyond settled outflows is a product decision, not a bug fix.
@@ -900,36 +925,38 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   invisible, and is corrected with a movement rather than by re-anchoring.
 - **A rule's kind is in its pattern, not in a column.** A pattern written between slashes is a regular expression (section 5.5), matched with `re.search(..., re.IGNORECASE)` against the same collapsed, lower-cased description the plain rules compare, compiled once per source through an `lru_cache` because a sync runs the whole book against every description. `Rule.expression` and `rule_pattern()` are the only readers of the slashes, so the store, the API and the CLI carry no new field. The longest pattern wins, counted on what it says (the text, or the expression inside the slashes), so an expression that names a family is longer than the words it replaces while a broader one steals nothing from a narrower text; `set_rule` refuses an expression that does not compile (`ValueError`, which the app's handler turns into a 422), so a rule that could never match is never stored.
 
-- **A broker's return is a movement, not an opening.** `Ledger.record_valuation` is for a
-  real, `investment`, hand-added account: it writes `value − balance(date)` as a `BOOK`
-  movement described "Rivalutazione", `content_hash = valuation:<account>:<date>` (a
-  second valuation that day deletes and replaces it), against the virtual account
-  `Rendimento investimenti`, and records the value as `manual:available`. The hash
-  prefix is how it stays out of the way: `transfers._candidates`, `pair_candidates`,
-  `merchants._movement_rows` and the savings flow (`_SAVINGS_SQL`) all skip
+- **A broker holds its cash here, and nothing else.** The portfolio is not tracked
+  (section 5.8), so Scalable is a real account with its liquidity alone.
+  `Ledger.record_valuation` is for a real, `investment`, hand-added account: it writes
+  `value − balance(date)` as a `BOOK` movement described "Aggiornamento liquidità",
+  `content_hash = valuation:<account>:<date>` (a second one that day deletes and
+  replaces it), against the virtual account `Investimenti`, and records the figure as
+  `manual:available`. The hash prefix is how it stays out of the way:
+  `transfers._candidates`, `pair_candidates` and `merchants._movement_rows` skip
   `valuation:%`; income already skips any transaction with a virtual posting. `source`
-  stays `import` because the column has a CHECK. It is written by hand, rarely
-  (*Aggiorna il valore* in Conti): between two valuations the broker is worth what
-  went in, which the transfer rules already keep current. A reader of Scalable's PDF
-  statements existed in 1.9.4 and was removed — quarterly paperwork for one curve
-  of the net worth was more work than the figure is worth. Do not bring it back
-  without the product deciding the market value matters more than that.
+  stays `import` because the column has a CHECK. It is written by hand (*Aggiorna la
+  liquidità* in Conti, which replaces *Dichiara saldo* on that account). A monthly plan
+  that leaves a bank goes straight to `Investimenti` with a transfer rule. The readers
+  of Scalable's PDF statements and the market value were both removed: do not bring
+  them back without the product deciding otherwise.
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), fifteen tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), seventeen tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
 
 |Table|Columns|Holds|
 |---|---|---|
-|`accounts`|14|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `investment` is what makes a transfer into an account savings instead of spending; `reimport_deleted` decides whether the next sync writes back the movements deleted from this account; `computed_balance` makes the net worth read the account from its postings instead of a declaration|
+|`accounts`|14|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `investment` marks the broker, whose cash is declared by hand; `reimport_deleted` decides whether the next sync writes back the movements deleted from this account; `computed_balance` makes the net worth read the account from its postings instead of a declaration|
 |`transactions`|17|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`, `notes` (local, written by a person, never by an ingest path), `mirror_of` (the movement this row is the other half of, written by a transfer rule towards an account added by hand)|
 |`postings`|5|The double-entry legs: `transaction_id`, `account_id`, `amount`, `note`. A spend is one leg on the real account and one on a category account; a transfer is one leg on each real account, or on the virtual clearing account when only one side is in the ledger; a split is several category legs on one transaction|
-|`deleted_transactions`|18|A movement a person deleted, copied whole: the identity the ledger dedupes by, the bank's payload, the note, when it went and when it came back. It is what keeps the next sync from writing the movement in again|
+|`deleted_transactions`|19|A movement a person deleted, copied whole: the identity the ledger dedupes by, the bank's payload, the note, the tags a person wrote, when it went and when it came back. It is what keeps the next sync from writing the movement in again|
 |`transfer_links`|5|A pairing, proposed or confirmed: the two legs, `confidence`, `method`, `confirmed_by_human`|
-|`rules`|8|`id`; `key` (the text lower-cased, or the expression as typed — case is part of an expression, `\D` is not `\d`); `pattern` (what a person typed: a text, or `/an expression/`); `action` (`category` / `delete` / `transfer`); `target` (the category or the destination, NULL for a deletion); `account_id`, `amount_min`, `amount_max` (the conditions, sizes without sign). One rule per text and conditions: the unique index `rules_identity` is created by `_generalize_rules`, which also rebuilt the old `key, pattern, category` table|
+|`rules`|8|`id`; `key` (the text lower-cased, or the expression as typed — case is part of an expression, `\D` is not `\d`); `pattern` (what a person typed: a text, or `/an expression/`); `action` (`category` / `delete` / `transfer` / `tag`); `target` (the category, the destination or the tag, NULL for a deletion); `account_id`, `amount_min`, `amount_max` (the conditions, sizes without sign). One rule per text and conditions, and for a tag rule per tag too: the unique index `rules_identity` is created by `_allow_tag_rules`, and `_generalize_rules` rebuilt the old `key, pattern, category` table|
+|`tags`|4|A free label: `name`, and the same `episodic` / `essential` flags a category has|
+|`transaction_tags`|3|Which movement carries which tag, and `by_rule`, who put it there|
 |`account_balances`|4|What a bank declared, one row per `(account, date, source)`: the available and booked figures coexist so the 5.4 assertion can check each|
 |`budgets`|4|A category's default ceiling from `from_month` (YYYY-MM) on; a NULL `amount` removes it from that month|
 |`budget_months`|4|One month's own ceiling for a category, over the default|
@@ -944,7 +971,7 @@ Three shapes wrap the same movement: `IncomingTransaction` (`models.py`, 13 fiel
 is what a source reports before the ledger assigns ids, the balancing posting and
 the hash — a note is not part of what a source reports, which is why the class
 does not carry one; the row above is what is stored; `Transaction`
-(`web/src/types.ts`, 15 keys) is what the API returns — `category` is the posting's category (null when
+(`web/src/types.ts`, 16 keys) is what the API returns — `category` is the posting's category (null when
 there are several), `merchant` is the normalized name, and `review_state` /
 `proposed_category` exist only in the queue.
 
@@ -975,6 +1002,8 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Connect a new bank|**Configurazione** in the app (the drawer, or the rail above 1024), *Banca* step (`POST /api/setup/connect`, then the login happens at the bank) — or `http://<host>:8000/connect?bank=Revolut&country=IT`, the same route for a script. Then `uv run amonhen sync`, unless the wizard's *Primo sync* step already did it|
 |First setup on a fresh install|The app opens on the wizard by itself while `/api/setup` answers `configured: false` — *Credenziali* (application id, PEM key, redirect URL, holder: the URL it shows is what goes into the Enable Banking dashboard), *Banca*, *Conti*, *Primo sync*, *Saldi e verifica*. `PUT /api/setup/credentials` creates `accounts.json` and `private.pem`, so there is nothing to write by hand|
 |Add or change a categorization rule|The **Categorie e regole** section of the app — under the category it assigns, or *Nuova regola* for a rule with conditions or one that deletes or records a transfer (the sheet previews what it takes) — or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
+|Add or flag a tag, or tag movements|The block *Tag* in **Categorie e regole**, the movement's sheet, *Seleziona* in **Movimenti**, or a rule whose action is *Mette un tag*|
+|Explain a concept, or change how a figure is computed|The card in `web/src/screens/Guide.tsx`, in the same change|
 |Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|
 |Run the UI locally|`uv run amonhen serve` and `npm --prefix web run dev` (Vite proxies `/api`)|
 |Build the PWA|`npm --prefix web run build` — the API serves `web/dist`|
