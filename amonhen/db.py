@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS accounts (
     essential INTEGER NOT NULL DEFAULT 0,
     -- Money in on an income category is income; on any other it is a refund.
     income INTEGER NOT NULL DEFAULT 0,
+    -- Money in on a contribution category covers every expense: it takes the
+    -- total down and no category with it.
+    contribution INTEGER NOT NULL DEFAULT 0,
+    -- What a category is about, in a person's words.
+    description TEXT,
     -- Real-account flag: the broker, whose cash is declared by hand.
     investment INTEGER NOT NULL DEFAULT 0
 );
@@ -270,6 +275,8 @@ _ADDED_COLUMNS = (
     ("accounts", "episodic", "INTEGER NOT NULL DEFAULT 0"),
     ("accounts", "essential", "INTEGER NOT NULL DEFAULT 0"),
     ("accounts", "investment", "INTEGER NOT NULL DEFAULT 0"),
+    ("accounts", "contribution", "INTEGER NOT NULL DEFAULT 0"),
+    ("accounts", "description", "TEXT"),
     ("transactions", "notes", "TEXT"),
     ("accounts", "reimport_deleted", "INTEGER NOT NULL DEFAULT 0"),
     # An account no bank reports a balance for — a deposit only reachable

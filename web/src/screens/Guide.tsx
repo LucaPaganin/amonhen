@@ -11,6 +11,7 @@ export type GuideTopic =
   | "typical"
   | "rare"
   | "refund"
+  | "contribution"
   | "reserve"
   | "expected"
   | "runway"
@@ -46,7 +47,7 @@ const CARDS: Card[] = [
     means:
       "Quanto è uscito finora in questo mese, senza le spese rare, contro quanto esce di solito a questo punto del mese.",
     computed:
-      "Il solito è la mediana dei 6 mesi completi precedenti, ciascuno tagliato allo stesso giorno, per il totale e per ogni categoria. Sono mediane separate: i soliti delle categorie non sommano al solito del totale.",
+      "Il solito è la mediana dei 6 mesi completi precedenti, ciascuno tagliato allo stesso giorno, per il totale e per ogni categoria. Sono mediane separate: i soliti delle categorie non sommano al solito del totale. I contributi alle spese stanno fuori dal confronto, che così non dipende dal giorno in cui arrivano: hanno una riga loro, con quanto resta a tuo carico.",
     changes:
       "Dove sono finiti elenca le categorie con una spesa in questo mese, dalla più alta, ognuna con la sua distanza dal solito. Un tocco apre i suoi movimenti.",
   },
@@ -62,7 +63,7 @@ const CARDS: Card[] = [
   {
     id: "typical",
     title: "Spesa mensile tipica",
-    means: "Quanto spendi di solito in un mese, senza le spese rare.",
+    means: "Quanto resta a tuo carico in un mese normale, senza le spese rare e tolti i contributi.",
     computed:
       "Il valore centrale (la mediana) degli ultimi 6 mesi completi. Un mese strano non la sposta: sposta la riga solo se si ripete.",
     changes: "Segnare una spesa come rara la toglie da qui e la porta nella riserva.",
@@ -89,6 +90,17 @@ const CARDS: Card[] = [
       "Stipendio ed Entrate portano il segno Entrata: lì un accredito è un'entrata, non un rimborso. Un accredito senza categoria non conta come rimborso. Chi ti deve ancora dei soldi non si segue: finché non paga, la spesa resta alta.",
   },
   {
+    id: "contribution",
+    title: "Contributo alle spese",
+    means:
+      "Soldi che arrivano per coprire le spese in generale e non una spesa precisa: per esempio i versamenti di chi condivide con te un conto comune.",
+    computed:
+      "Un accredito in una categoria col segno Contributo alle spese abbassa il totale e nessuna categoria. Copre tutte le spese del conto su cui arriva: in ogni mese, irrinunciabile e tagliabile di quel conto scendono della stessa percentuale, e gli altri conti restano interi. Riduce spesa tipica e spesa attesa, quindi allunga i mesi di autonomia. La riserva per spese rare resta intera, e Questo mese e Dove sono finiti restano lordi.",
+    changes:
+      "Non è un'entrata né un rimborso. Il segno sta da solo: accenderlo spegne Spesa rara, Irrinunciabile ed Entrata. I mesi di autonomia contano che i contributi continuino anche se le tue entrate si fermano.",
+    now: (metrics) => amount(metrics.contributions_monthly),
+  },
+  {
     id: "reserve",
     title: "Riserva per spese rare",
     means: "Quanto mettere da parte ogni mese per quando le spese rare tornano.",
@@ -107,15 +119,15 @@ const CARDS: Card[] = [
   {
     id: "runway",
     title: "Mesi di autonomia",
-    means: "Per quanti mesi ce la fai se le entrate si fermano.",
-    computed: "Liquidità divisa per la spesa mensile attesa.",
+    means: "Per quanti mesi ce la fai se le tue entrate si fermano.",
+    computed: "Liquidità divisa per la spesa mensile attesa, che è già al netto dei contributi alle spese.",
     now: (metrics) => (metrics.runway_months === null ? null : formatMonths(metrics.runway_months)),
   },
   {
     id: "essential",
     title: "Irrinunciabile e tagliabile",
     means:
-      "Irrinunciabile è la spesa che non taglieresti; tagliabile è tutto il resto della spesa tipica.",
+      "Irrinunciabile è la spesa che non taglieresti; tagliabile è tutto il resto. Entrambe dicono quanto resta a tuo carico: i contributi alle spese le riducono in proporzione, sul conto su cui arrivano.",
     computed:
       "La mediana degli ultimi 6 mesi di ciò che porta il segno Irrinunciabile, su una categoria o su un tag.",
     changes: "Accendere il segno sposta la spesa da una all'altra; il totale resta lo stesso.",

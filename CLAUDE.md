@@ -101,7 +101,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
@@ -539,7 +539,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   (`/api/tags`, a transaction's `tags`, a `tag` rule, `POST /api/transactions/tag`,
   `PUT /api/transactions/{id}/tags`, `tag` and `everyday` on `/api/transactions`, whose
   page gained `hidden`, `tags` on the dashboard reads), and `savings_flow` gone. 32 is
-  the refund: a category gained `income`, and a spent figure can be negative.
+  the refund: a category gained `income`, and a spent figure can be negative. 33 is the
+  contribution: a category gained `contribution` and `description`, `/api/month`
+  `contributions` and `net`, the metrics `contributions_monthly`.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -602,6 +604,20 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   credits as refunds and the first start would otherwise net every salary. A new
   income category has to be marked by hand. The anomalies, the queue and the
   proposals stay on outflows.
+- **A contribution takes the total down, and no category.** Money in towards every
+  expense — what the joint account receives — sits on a category flagged `contribution`
+  (`ledger.CONTRIBUTION_SQL`). A refund takes down its category; a contribution covers
+  everything the account it reached pays. It is inside `SPENDING_SQL`, so
+  `recurring_burn`, `expected_burn`, the runway and the charts' expenses are net of it,
+  and `metrics._monthly_kinds` takes it off essential and cuttable by the same share,
+  per account and month: received over spent, capped at all of it, the other accounts
+  untouched. The reserve stays whole, and `month_reading` keeps `spent` and `usual`
+  gross, so the comparison does not depend on the day somebody pays in (`contributions`
+  and `net` are its own line). It leaves `spend_by_category` and the budgets too. The
+  flag stands alone: `set_category_flag`
+  clears the others when it turns on and clears it when one of them does, and it refuses
+  the review bucket, where every waiting outflow would read as money received. The
+  medians of the kinds and of the total do not add up, and were not meant to.
 - **Balance semantics.** `opening_balance` is the balance *before*
   `opening_date`, and `balance()` adds only postings strictly after it.
   `anchor` derives the opening from a declared balance so the section 5.4
@@ -965,7 +981,7 @@ by construction.
 
 |Table|Columns|Holds|
 |---|---|---|
-|`accounts`|15|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `income` says money in on a category is income, not a refund; `investment` marks the broker, whose cash is declared by hand; `reimport_deleted` decides whether the next sync writes back the movements deleted from this account; `computed_balance` makes the net worth read the account from its postings instead of a declaration|
+|`accounts`|17|One row per real account, virtual account (transfer clearing, an investment destination) and category — `type` is what separates them. `episodic` / `essential` are the flags the metrics read; `income` says money in on a category is income, not a refund; `contribution` that it covers every expense; `description` is what a category is about, in a person's words; `investment` marks the broker, whose cash is declared by hand; `reimport_deleted` decides whether the next sync writes back the movements deleted from this account; `computed_balance` makes the net worth read the account from its postings instead of a declaration|
 |`transactions`|17|One row per movement: `account_id`, `date`, `amount` (signed text, cents-exact), `description`, `status` (`BOOK` / `PDNG`), `external_id`, `content_hash` (the dedup key), `source` (`psd2` / `import`), `source_file`, `raw_payload` (the bank's payload verbatim), `counterparty`, `counterparty_account`, `currency`, `created_at`, `notes` (local, written by a person, never by an ingest path), `mirror_of` (the movement this row is the other half of, written by a transfer rule towards an account added by hand)|
 |`postings`|5|The double-entry legs: `transaction_id`, `account_id`, `amount`, `note`. A spend is one leg on the real account and one on a category account; a transfer is one leg on each real account, or on the virtual clearing account when only one side is in the ledger; a split is several category legs on one transaction|
 |`deleted_transactions`|19|A movement a person deleted, copied whole: the identity the ledger dedupes by, the bank's payload, the note, the tags a person wrote, when it went and when it came back. It is what keeps the next sync from writing the movement in again|

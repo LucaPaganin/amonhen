@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { api, errorMessage } from "../api";
@@ -85,6 +85,9 @@ interface LabelRowProps {
   essential: boolean;
   /** Only a category has it: a tag says nothing about money coming in. */
   income?: boolean;
+  contribution?: boolean;
+  /** Only a category has one: what it is about, in a person's words. */
+  description?: string | null;
   open: boolean;
   onToggle: () => void;
   busy: boolean;
@@ -108,6 +111,8 @@ function LabelRow({
   episodic,
   essential,
   income,
+  contribution,
+  description,
   open,
   onToggle,
   busy,
@@ -120,6 +125,9 @@ function LabelRow({
 }: LabelRowProps) {
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [about, setAbout] = useState(description ?? "");
+
+  useEffect(() => setAbout(description ?? ""), [description]);
 
   const add = async () => {
     if (text.trim() === "" || saving) return;
@@ -131,15 +139,35 @@ function LabelRow({
   return (
     <li className="label-row">
       <button type="button" className="label-row__head" aria-expanded={open} onClick={onToggle}>
-        <span className="label-row__name">{name}</span>
+        <span className="label-row__text">
+          <span className="label-row__name">{name}</span>
+          {description && !open ? (
+            <span className="label-row__description">{description}</span>
+          ) : null}
+        </span>
         {episodic ? <span className="chip chip--tag">Spesa rara</span> : null}
         {essential ? <span className="chip chip--tag">Irrinunciabile</span> : null}
         {income ? <span className="chip chip--tag">Entrata</span> : null}
+        {contribution ? <span className="chip chip--tag">Contributo</span> : null}
         <span className="label-row__count">{movements}</span>
       </button>
 
       {open ? (
         <div className="label-row__body">
+          {description === undefined ? null : (
+            <textarea
+              className="input"
+              rows={2}
+              aria-label={`Descrizione di ${name}`}
+              placeholder="Descrizione: di cosa si tratta"
+              value={about}
+              disabled={busy}
+              onChange={(event) => setAbout(event.target.value)}
+              onBlur={() => {
+                if (about.trim() !== (description ?? "")) onFlag({ description: about });
+              }}
+            />
+          )}
           <div className="rule-group__flags">
             <Toggle
               label="Spesa rara"
@@ -162,6 +190,15 @@ function LabelRow({
                 checked={income}
                 disabled={busy}
                 onChange={(next) => onFlag({ income: next })}
+              />
+            )}
+            {contribution === undefined ? null : (
+              <Toggle
+                label="Contributo alle spese"
+                ariaLabel={`Contributo alle spese ${name}`}
+                checked={contribution}
+                disabled={busy}
+                onChange={(next) => onFlag({ contribution: next })}
               />
             )}
           </div>
@@ -454,6 +491,8 @@ export function CategoryRulesScreen({
                 episodic={item.episodic}
                 essential={item.essential}
                 income={item.income}
+                contribution={item.name === bucketName() ? undefined : item.contribution}
+                description={item.description}
                 open={openRow === key || (needle !== "" && shown.length > 0)}
                 onToggle={() => toggleRow(key)}
                 busy={busy}

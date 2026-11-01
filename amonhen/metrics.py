@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable
 
-from amonhen.ledger import ESSENTIAL_SQL, RARE_SQL, SPENDING_SQL, Ledger
+from amonhen.ledger import CONTRIBUTION_SQL, ESSENTIAL_SQL, RARE_SQL, SPENDING_SQL, Ledger
 from amonhen.models import parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -56,6 +56,7 @@ class Metrics:
     period_end: dt.date
     window_months: int = 6
     episodic_months: int = 24
+    contributions_monthly: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -156,15 +157,16 @@ def _monthly_category_totals(
     end: dt.date,
     *,
     episodic: bool,
-    essential: bool | None = None,
     scope: LedgerScope = LedgerScope(),
 ) -> dict[str, Decimal]:
-    """Category posting totals per ``YYYY-MM`` month for one flag combination.
+    """Category posting totals per ``YYYY-MM`` month, rare or not.
 
     Spending is ``SPENDING_SQL``, exactly like ``Ledger.spend_between``: a
     refund's negative posting takes the month down, a salary's stays out. Rare
-    and essential are the ledger's two predicates, so a tag and a category answer
-    the same question, and a movement that is both counts as rare, once.
+    is the ledger's predicate, so a tag and a category answer the same question.
+
+    A contribution is never rare: it takes the non-rare total down, whatever tag
+    it carries.
     """
     sql = f"""
         SELECT substr(t.date, 1, 7) AS month, p.amount AS amount
@@ -173,12 +175,10 @@ def _monthly_category_totals(
         JOIN accounts a ON a.id = p.account_id
         WHERE a.type = 'category' AND t.status = 'BOOK'
           AND {SPENDING_SQL}
-          AND {RARE_SQL if episodic else "NOT " + RARE_SQL}
+          AND {f"{RARE_SQL} AND NOT {CONTRIBUTION_SQL}" if episodic else f"(NOT {RARE_SQL} OR {CONTRIBUTION_SQL})"}
           AND t.date >= ? AND t.date <= ?
     """
     params: list[object] = [start.isoformat(), end.isoformat()]
-    if essential is not None:
-        sql += f" AND {ESSENTIAL_SQL if essential else 'NOT ' + ESSENTIAL_SQL}"
     scoped, scope_params = _spending_scope(scope)
     sql += scoped
     params += scope_params
@@ -186,6 +186,74 @@ def _monthly_category_totals(
     for row in ledger.conn.execute(sql, params):
         month = row["month"]
         totals[month] = totals.get(month, Decimal(0)) + parse_decimal(row["amount"])
+    return totals
+
+
+def _monthly_kinds(
+    ledger: Ledger, start: dt.date, end: dt.date, scope: LedgerScope
+) -> tuple[dict[str, Decimal], dict[str, Decimal]]:
+    """Essential and cuttable spending per ``YYYY-MM`` month, net of contributions.
+
+    A contribution covers everything the account it reached pays and nothing the
+    others do, so within a month each account's two kinds lose the same share: what
+    it received over what it spent, at most all of it. Rare spending is neither kind
+    and is not part of the share. A movement that is rare and essential counts as
+    rare, once.
+    """
+    scoped, scope_params = _spending_scope(scope)
+    accounts: dict[tuple[str, int], dict[str, Decimal]] = {}
+    for row in ledger.conn.execute(
+        f"""SELECT substr(t.date, 1, 7) AS month, t.account_id AS account_id, p.amount AS amount,
+                   {CONTRIBUTION_SQL} AS contribution, {ESSENTIAL_SQL} AS essential
+            FROM postings p
+            JOIN transactions t ON t.id = p.transaction_id
+            JOIN accounts a ON a.id = p.account_id
+            WHERE a.type = 'category' AND t.status = 'BOOK'
+              AND {SPENDING_SQL}
+              AND (NOT {RARE_SQL} OR {CONTRIBUTION_SQL})
+              AND t.date >= ? AND t.date <= ?"""
+        + scoped,
+        [start.isoformat(), end.isoformat(), *scope_params],
+    ):
+        kind = (
+            "received" if row["contribution"] else "essential" if row["essential"] else "cuttable"
+        )
+        totals = accounts.setdefault((row["month"], row["account_id"]), {})
+        totals[kind] = totals.get(kind, Decimal(0)) + parse_decimal(row["amount"])
+
+    essential: dict[str, Decimal] = {}
+    cuttable: dict[str, Decimal] = {}
+    for (month, _), totals in accounts.items():
+        spent = totals.get("essential", Decimal(0)) + totals.get("cuttable", Decimal(0))
+        received = -totals.get("received", Decimal(0))
+        covered = min(received / spent, Decimal(1)) if spent > 0 and received > 0 else Decimal(0)
+        left = 1 - covered
+        if "essential" in totals:
+            essential[month] = essential.get(month, Decimal(0)) + totals["essential"] * left
+        if "cuttable" in totals:
+            cuttable[month] = cuttable.get(month, Decimal(0)) + totals["cuttable"] * left
+    return essential, cuttable
+
+
+def _monthly_contributions(
+    ledger: Ledger, start: dt.date, end: dt.date, scope: LedgerScope
+) -> dict[str, Decimal]:
+    """Money received towards the expenses per ``YYYY-MM`` month, as a positive amount."""
+    scoped, scope_params = _spending_scope(scope)
+    totals: dict[str, Decimal] = {}
+    for row in ledger.conn.execute(
+        f"""SELECT substr(t.date, 1, 7) AS month, p.amount AS amount
+            FROM postings p
+            JOIN transactions t ON t.id = p.transaction_id
+            JOIN accounts a ON a.id = p.account_id
+            WHERE a.type = 'category' AND t.status = 'BOOK'
+              AND {CONTRIBUTION_SQL}
+              AND t.date >= ? AND t.date <= ?"""
+        + scoped,
+        [start.isoformat(), end.isoformat(), *scope_params],
+    ):
+        month = row["month"]
+        totals[month] = totals.get(month, Decimal(0)) - parse_decimal(row["amount"])
     return totals
 
 
@@ -239,6 +307,7 @@ def compute_metrics(
     recurring_burn: Decimal | None = None
     essential_monthly: Decimal | None = None
     discretionary_monthly: Decimal | None = None
+    contributions_monthly: Decimal | None = None
     if window is not None:
         start, end = _month_bounds(window[0])[0], _month_bounds(window[1])[1]
         keys = [_month_key(index) for index in range(window[0], window[1] + 1)]
@@ -247,17 +316,15 @@ def compute_metrics(
         if non_episodic:
             recurring_burn = _median(_window_values(non_episodic, keys))
 
-        essential = _monthly_category_totals(
-            ledger, start, end, episodic=False, essential=True, scope=scope
-        )
+        essential, discretionary = _monthly_kinds(ledger, start, end, scope)
         if essential:
             essential_monthly = _median(_window_values(essential, keys))
-
-        discretionary = _monthly_category_totals(
-            ledger, start, end, episodic=False, essential=False, scope=scope
-        )
         if discretionary:
             discretionary_monthly = _median(_window_values(discretionary, keys))
+
+        contributions = _monthly_contributions(ledger, start, end, scope)
+        if contributions:
+            contributions_monthly = _median(_window_values(contributions, keys))
 
     episodic_accrual: Decimal | None = None
     if episodic_window is not None:
@@ -307,6 +374,7 @@ def compute_metrics(
         runway_months=runway_months,
         essential_monthly=essential_monthly,
         discretionary_monthly=discretionary_monthly,
+        contributions_monthly=contributions_monthly,
         period_start=period_start,
         period_end=period_end,
         window_months=window_months,
@@ -362,7 +430,9 @@ class MonthReading:
     """The month in progress against the same point of the months before it.
 
     ``usual`` is ``None`` when no complete month precedes this one, and rare
-    spending is outside both figures: it has a line of its own, ``rare``.
+    spending is outside both figures: it has a line of its own, ``rare``. So are
+    contributions: ``spent`` and ``usual`` compare what went out, which does not
+    depend on the day somebody pays in, and ``net`` is what is left of it.
     """
 
     month: str
@@ -372,6 +442,11 @@ class MonthReading:
     rare: Decimal
     months_compared: int
     categories: tuple[MonthCategory, ...]
+    contributions: Decimal = Decimal(0)
+
+    @property
+    def net(self) -> Decimal:
+        return self.spent - self.contributions
 
 
 @dataclass(frozen=True)
@@ -444,7 +519,8 @@ def month_reading(
     first = window[0] if window is not None else current
     scoped, extra = _spending_scope(scope)
     rows = ledger.conn.execute(
-        f"""SELECT t.date AS date, a.name AS category, p.amount AS amount, {RARE_SQL} AS rare
+        f"""SELECT t.date AS date, a.name AS category, p.amount AS amount, {RARE_SQL} AS rare,
+                   {CONTRIBUTION_SQL} AS contribution
             FROM postings p
             JOIN transactions t ON t.id = p.transaction_id
             JOIN accounts a ON a.id = p.account_id
@@ -461,6 +537,7 @@ def month_reading(
 
     spent: dict[str, Decimal] = {}
     rare = Decimal(0)
+    contributions = Decimal(0)
     past: dict[int, dict[str, Decimal]] = {}
     months = range(window[0], window[1] + 1) if window is not None else range(0)
     for index in months:
@@ -469,7 +546,9 @@ def month_reading(
         day = dt.date.fromisoformat(row["date"])
         index = _month_index(day)
         amount = parse_decimal(row["amount"])
-        if row["rare"]:
+        if row["contribution"]:
+            contributions -= amount if index == current else Decimal(0)
+        elif row["rare"]:
             rare += amount if index == current else Decimal(0)
         elif index == current:
             spent[row["category"]] = spent.get(row["category"], Decimal(0)) + amount
@@ -502,6 +581,7 @@ def month_reading(
         rare=rare,
         months_compared=len(past),
         categories=tuple(categories),
+        contributions=contributions,
     )
 
 
@@ -522,6 +602,7 @@ def spend_by_category(
            JOIN accounts a ON a.id = p.account_id
            WHERE a.type = 'category' AND t.status = 'BOOK'
              AND {SPENDING_SQL}
+             AND NOT {CONTRIBUTION_SQL}
              AND t.date >= ? AND t.date <= ?"""
         + scoped,
         (start.isoformat(), end.isoformat(), *extra),

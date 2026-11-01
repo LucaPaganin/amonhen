@@ -2576,13 +2576,27 @@ button.txn:active {
   cursor: pointer;
 }
 
-.label-row__name {
+.label-row__text {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-width: 0;
+}
+
+.label-row__name,
+.label-row__description {
   overflow: hidden;
-  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.label-row__name {
+  font-weight: 700;
+}
+
+.label-row__description {
+  color: var(--muted);
+  font-size: var(--text-sm);
 }
 
 .label-row__count {

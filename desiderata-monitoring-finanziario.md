@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.25 — novembre 2026
+Versione 1.26 — novembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -218,7 +218,11 @@ statistica. C'è una **Guida** con i concetti, e le pagine perdono i paragrafi c
 1.24 · *Dove sono finiti* mostra le categorie con una spesa nel mese, dalla più alta, e sotto
 ciascuna scrive in parole la distanza dal solito; il solito ha la sua scheda nella Guida.
 1.25 · la spesa è al netto dei rimborsi: un accredito in una categoria che non è *Entrata*
-abbassa quella categoria. Cade la frase per cui la categoria compensata restava com'era.*
+abbassa quella categoria. Cade la frase per cui la categoria compensata restava com'era.
+1.26 · esiste il *contributo alle spese*, denaro che copre tutte le spese e non una: abbassa
+il totale e nessuna categoria, quindi spesa tipica, spesa attesa e autonomia ne sono al netto,
+e irrinunciabile e tagliabile scendono in proporzione sul conto su cui arriva. Ogni categoria
+può avere una descrizione.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -254,7 +258,7 @@ Esplicitamente fuori scope, per evitare scope creep:
 - Previsioni di spesa, forecasting, ottimizzazione automatica del budget.
 - Categorizzazione completamente automatica senza revisione umana.
 - Multi-utente, multi-valuta, condivisione.
-- Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: nessun elenco dice chi deve ancora cosa, e finché non paga la spesa resta alta. **Un rimborso o una quota non sono entrate**, e quello che non si modella è la *coppia* con la singola spesa: un rimborso copre spesso molte spese insieme. La spesa però è al netto: un accredito messo in una categoria abbassa quella categoria (sezione 5.6).
+- Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: nessun elenco dice chi deve ancora cosa, e finché non paga la spesa resta alta. **Un rimborso o una quota non sono entrate**, e quello che non si modella è la *coppia* con la singola spesa: un rimborso copre spesso molte spese insieme. La spesa però è al netto: un accredito messo in una categoria abbassa quella categoria, e un contributo alle spese abbassa il totale (sezione 5.6).
 - App nativa. La UI è una PWA.
 
 ## 4. Vincoli
@@ -362,11 +366,15 @@ Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno
 - *Categoria.* Come sempre: riempie il vuoto, segue i propri cambiamenti, non sovrascrive una decisione presa a mano.
 - *Tag.* Mette un tag (sezione 5.13) a ogni movimento che combacia, compresi split e giroconti. Non compete con le altre azioni: si somma, quindi una regola di categoria e una di tag sullo stesso testo valgono insieme, e tutte le regole di tag che combaciano mettono il loro. Togliere la regola toglie il tag dai movimenti dove l'aveva messo lei; un tag messo a mano resta.
 
+Ogni categoria può avere una descrizione, scritta nella sua riga: dice di cosa si tratta, a chi legge fra un anno, e non cambia nessun calcolo.
+
 Le regole che non assegnano una categoria — cancellano, registrano un giroconto o mettono un tag — non stanno sotto una categoria: la sezione le elenca a parte, in due blocchi chiusi di base sotto le categorie (*Tag* e *Altre regole*); un pulsante *Nuova regola* apre lo stesso dialogo da zero, e ogni regola si apre per cambiarla.
 
 ### 5.6 Metriche esposte
 
 **La spesa è al netto dei rimborsi.** Un accredito in una categoria non marcata *Entrata* è un rimborso: abbassa quella categoria nel mese in cui arriva, e con i suoi tag vale anche per spesa rara e irrinunciabile. Non entra nelle entrate. Un accredito in una categoria *Entrata* è un'entrata, e uno senza categoria non conta come rimborso finché nessuno lo decide. Un mese o una categoria possono risultare negativi. Le anomalie guardano solo le uscite.
+
+**Il contributo alle spese abbassa il totale, non una categoria.** Il denaro che entra per coprire le spese in generale — i versamenti sul conto cointestato, che riguardano tutto ciò che quel conto paga — si mette in una categoria marcata *Contributo alle spese*. Non è un'entrata e non è il rimborso di niente: un rimborso abbassa la sua categoria, un contributo copre tutte le spese del conto su cui arriva. Spesa tipica, spesa attesa e mesi di autonomia ne sono al netto. Irrinunciabile e tagliabile anche: in ogni mese le due voci di quel conto scendono della stessa percentuale, quanto ha ricevuto sul quanto ha speso, al massimo tutto, e gli altri conti restano interi. La riserva per spese rare resta intera. Nel mese, *Questo mese* e il suo solito restano lordi, così il confronto non dipende dal giorno in cui il denaro arriva, e una riga sotto dice i contributi e quanto resta a carico. Il segno sta da solo: accenderlo spegne *Spesa rara*, *Irrinunciabile* ed *Entrata*. Nei grafici il contributo non è un'entrata e le uscite ne sono al netto, come per un rimborso. I budget di categoria non lo contano. L'autonomia presume che i contributi continuino anche se si fermano le entrate di chi usa l'app.
 
 Solo queste, in ordine di priorità. Ognuna si chiama con parole che dicono cosa misura, nell'app come qui e nelle letture dell'assistente; fra parentesi il nome con cui la conosce il codice.
 
@@ -476,7 +484,7 @@ Un tag è un'etichetta libera su un movimento, che tiene la sua categoria: Euron
 
 ### 5.14 Guida *(costruita)*
 
-Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, liquidità, spesa tipica, spesa rara, rimborso, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
+Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
 
 ## 6. Modello dati minimo
 

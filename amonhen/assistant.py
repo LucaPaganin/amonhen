@@ -215,6 +215,7 @@ def data_packet(
             "liquidità": _figure(metrics.liquidity),
             "spesa irrinunciabile": _figure(metrics.essential_monthly),
             "spesa tagliabile": _figure(metrics.discretionary_monthly),
+            "contributi alle spese": _figure(metrics.contributions_monthly),
         },
         "flussi_mensili": [
             {

@@ -7,6 +7,8 @@ export interface CategoryFlags {
   episodic?: boolean;
   essential?: boolean;
   income?: boolean;
+  contribution?: boolean;
+  description?: string;
 }
 
 export function useCategories() {
@@ -48,10 +50,18 @@ export function useCategories() {
     async (id: number, flags: CategoryFlags): Promise<string | null> => {
       const snapshot = latest.current;
       setCategories((current) =>
-        current.map((category) => (category.id === id ? { ...category, ...flags } : category)),
+        current.map((category) =>
+          category.id === id
+            ? { ...category, ...flags, description: flags.description ?? category.description }
+            : category,
+        ),
       );
       try {
-        await api.setCategoryFlags(id, flags);
+        // The server's row, because a contribution clears the other flags.
+        const saved = await api.setCategoryFlags(id, flags);
+        setCategories((current) =>
+          current.map((category) => (category.id === id ? { ...category, ...saved } : category)),
+        );
         return null;
       } catch (caught) {
         setCategories(snapshot);

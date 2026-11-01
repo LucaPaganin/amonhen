@@ -117,8 +117,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # `tags`, a `tag` rule, `tag` and `everyday` on `/api/transactions`, `tags` on the
 # dashboard reads) and `savings_flow` gone from the metrics. 32 is the refund: a
 # category gained `income`, and what `/api/month` and the budgets read as spent can
-# now be negative.
-API_VERSION = 32
+# now be negative. 33 is the contribution: a category gained `contribution` and
+# `description`, `/api/month` `contributions` and `net`, the metrics
+# `contributions_monthly`.
+API_VERSION = 33
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -252,6 +254,8 @@ class CategoryFlagsRequest(BaseModel):
     episodic: bool | None = None
     essential: bool | None = None
     income: bool | None = None
+    contribution: bool | None = None
+    description: str | None = None
 
 
 class AccountFlagsRequest(BaseModel):
@@ -721,19 +725,10 @@ def create_app(
     def categories() -> list[dict]:
         with ledger_scope() as ledger:
             rows = ledger.conn.execute(
-                "SELECT id, name, episodic, essential, income FROM accounts"
-                " WHERE type = 'category' ORDER BY name"
+                "SELECT id, name, episodic, essential, income, contribution, description"
+                " FROM accounts WHERE type = 'category' ORDER BY name"
             ).fetchall()
-            return [
-                {
-                    "id": row["id"],
-                    "name": row["name"],
-                    "episodic": bool(row["episodic"]),
-                    "essential": bool(row["essential"]),
-                    "income": bool(row["income"]),
-                }
-                for row in rows
-            ]
+            return [_category_payload(row) for row in rows]
 
     @app.get("/api/tags")
     def tags() -> list[dict]:
@@ -797,6 +792,8 @@ def create_app(
                 "spent": _money(reading.spent),
                 "usual": _money(reading.usual),
                 "rare": _money(reading.rare),
+                "contributions": _money(reading.contributions),
+                "net": _money(reading.net),
                 "months_compared": reading.months_compared,
                 "categories": [
                     {
@@ -1413,8 +1410,15 @@ def create_app(
 
     @app.patch("/api/categories/{account_id}")
     def patch_category(account_id: int, body: CategoryFlagsRequest) -> dict:
-        if body.episodic is None and body.essential is None and body.income is None:
-            raise HTTPException(status_code=422, detail="set episodic, essential or income")
+        if all(
+            value is None
+            for value in (
+                body.episodic, body.essential, body.income, body.contribution, body.description
+            )
+        ):
+            raise HTTPException(
+                status_code=422, detail="set a flag or the description of the category"
+            )
         with ledger_scope() as ledger:
             try:
                 if body.episodic is not None:
@@ -1423,17 +1427,14 @@ def create_app(
                     ledger.set_category_flag(account_id, "essential", body.essential)
                 if body.income is not None:
                     ledger.set_category_flag(account_id, "income", body.income)
+                if body.contribution is not None:
+                    ledger.set_category_flag(account_id, "contribution", body.contribution)
+                if body.description is not None:
+                    ledger.set_category_description(account_id, body.description)
             except (KeyError, ValueError) as exc:
                 raise HTTPException(status_code=404 if isinstance(exc, KeyError) else 422,
                                     detail=str(exc)) from exc
-            row = ledger.account(account_id)
-            return {
-                "id": row["id"],
-                "name": row["name"],
-                "episodic": bool(row["episodic"]),
-                "essential": bool(row["essential"]),
-                "income": bool(row["income"]),
-            }
+            return _category_payload(ledger.account(account_id))
 
     @app.get("/api/deleted")
     def deleted() -> list[dict]:
@@ -2453,6 +2454,18 @@ def _money(value) -> str | None:
     return format_decimal(value) if value is not None else None
 
 
+def _category_payload(row) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "episodic": bool(row["episodic"]),
+        "essential": bool(row["essential"]),
+        "income": bool(row["income"]),
+        "contribution": bool(row["contribution"]),
+        "description": row["description"],
+    }
+
+
 def _metrics_payload(metrics, scope: LedgerScope) -> dict:
     return {
         "currency": "EUR",
@@ -2471,6 +2484,7 @@ def _metrics_payload(metrics, scope: LedgerScope) -> dict:
         "runway_months": f"{metrics.runway_months:.1f}" if metrics.runway_months is not None else None,
         "essential_monthly": _money(metrics.essential_monthly),
         "discretionary_monthly": _money(metrics.discretionary_monthly),
+        "contributions_monthly": _money(metrics.contributions_monthly),
     }
 
 

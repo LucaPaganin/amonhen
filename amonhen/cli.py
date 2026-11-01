@@ -67,7 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     metrics = sub.add_parser("metrics", help="burn, accrual and runway")
 
     flags = sub.add_parser(
-        "category-flags", help="mark a category episodic, essential or income"
+        "category-flags",
+        help="mark a category episodic, essential, income or contribution, or describe it",
     )
     flags.add_argument("category")
     flags.add_argument("--episodic", action="store_true", default=None)
@@ -76,6 +77,9 @@ def build_parser() -> argparse.ArgumentParser:
     flags.add_argument("--not-essential", dest="essential", action="store_false")
     flags.add_argument("--income", action="store_true", default=None)
     flags.add_argument("--not-income", dest="income", action="store_false")
+    flags.add_argument("--contribution", action="store_true", default=None)
+    flags.add_argument("--not-contribution", dest="contribution", action="store_false")
+    flags.add_argument("--description", help="what the category is about; empty removes it")
 
     account_flags = sub.add_parser(
         "account-flags", help="mark a real account as investment, or as worth its own postings"
@@ -363,6 +367,7 @@ def cmd_metrics(ledger: Ledger, args) -> int:
     print(f"expected burn       {_money(metrics.expected_burn):>12}")
     print(f"essential monthly   {_money(metrics.essential_monthly):>12}")
     print(f"discretionary       {_money(metrics.discretionary_monthly):>12}")
+    print(f"contributions       {_money(metrics.contributions_monthly):>12}")
     print(f"liquidity (tracked) {_money(metrics.liquidity):>12}")
     runway = f"{metrics.runway_months:.1f}" if metrics.runway_months is not None else "n/a"
     print(f"runway (stress)     {runway:>12} months")
@@ -377,10 +382,14 @@ def cmd_category_flags(ledger: Ledger, args) -> int:
         ledger.set_category_flag(account_id, "essential", args.essential)
     if args.income is not None:
         ledger.set_category_flag(account_id, "income", args.income)
+    if args.contribution is not None:
+        ledger.set_category_flag(account_id, "contribution", args.contribution)
+    if args.description is not None:
+        ledger.set_category_description(account_id, args.description)
     row = ledger.account(account_id)
     print(
         f"{row['name']}: episodic={bool(row['episodic'])} essential={bool(row['essential'])}"
-        f" income={bool(row['income'])}"
+        f" income={bool(row['income'])} contribution={bool(row['contribution'])}"
     )
     return 0
 

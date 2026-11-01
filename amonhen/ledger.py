@@ -56,6 +56,11 @@ ESSENTIAL_SQL = _FLAGGED_SQL.format(flag="essential")
 SPENDING_SQL = f"""(CAST(t.amount AS REAL) < 0
     OR (a.income = 0 AND a.name <> '{UNCATEGORIZED}'))"""
 
+# A category that holds money towards every expense of the account it reaches. It
+# is part of the spending above, so what is left to pay is net of it, and it is
+# never a spending of its own: not rare, not essential, not a row among the categories.
+CONTRIBUTION_SQL = "a.contribution = 1"
+
 # Settled spending still waiting in the review bucket: a real outflow, a posting
 # on the `Uncategorized` category, and no leg of a transfer — linking a pair
 # moves a leg's posting to the clearing account, which is virtual. The queue
@@ -1049,15 +1054,43 @@ class Ledger:
         )
 
     def set_category_flag(self, account_id: int, flag: str, value: bool) -> None:
-        """Mark a category as episodic (accrued), essential (not cuttable) or
-        income (money in on it is income, not a refund)."""
-        if flag not in ("episodic", "essential", "income"):
+        """Mark a category as episodic (accrued), essential (not cuttable), income
+        (money in on it is income, not a refund) or contribution (money in on it
+        covers every expense).
+
+        A contribution is a kind of its own, so turning it on clears the other
+        flags and turning one of them on clears it. The review bucket cannot be
+        one: everything waiting there would count as money received.
+        """
+        if flag not in ("episodic", "essential", "income", "contribution"):
             raise ValueError(f"unknown category flag {flag!r}")
+        row = self.account(account_id)
+        if row["type"] != "category":
+            raise ValueError(f"account {account_id} is not a category")
+        if flag == "contribution" and value and row["name"] == UNCATEGORIZED:
+            raise ValueError("the review category cannot hold contributions")
+        with self.conn:
+            self.conn.execute(
+                f"UPDATE accounts SET {flag} = ? WHERE id = ?", (1 if value else 0, account_id)
+            )
+            if value and flag == "contribution":
+                self.conn.execute(
+                    "UPDATE accounts SET episodic = 0, essential = 0, income = 0 WHERE id = ?",
+                    (account_id,),
+                )
+            elif value:
+                self.conn.execute(
+                    "UPDATE accounts SET contribution = 0 WHERE id = ?", (account_id,)
+                )
+
+    def set_category_description(self, account_id: int, text: str) -> None:
+        """Say what a category is about; an empty text removes it."""
         if self.account(account_id)["type"] != "category":
             raise ValueError(f"account {account_id} is not a category")
         with self.conn:
             self.conn.execute(
-                f"UPDATE accounts SET {flag} = ? WHERE id = ?", (1 if value else 0, account_id)
+                "UPDATE accounts SET description = ? WHERE id = ?",
+                (text.strip() or None, account_id),
             )
 
     def set_investment(self, account_id: int, value: bool) -> None:

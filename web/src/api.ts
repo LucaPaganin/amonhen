@@ -1,3 +1,4 @@
+import type { CategoryFlags } from "./useCategories";
 import type {
   Account,
   AccountFlags,
@@ -254,7 +255,7 @@ export const api = {
   deleted: (signal?: AbortSignal) => get<DeletedMovement[]>("/deleted", signal),
   restoreDeleted: (deletedId: number) =>
     send<Transaction>("POST", `/deleted/${deletedId}/restore`, {}),
-  setCategoryFlags: (categoryId: number, flags: { episodic?: boolean; essential?: boolean }) =>
+  setCategoryFlags: (categoryId: number, flags: CategoryFlags) =>
     send<Category>("PATCH", `/categories/${categoryId}`, flags),
   // The account's own flags: whether it is a broker, whether the movements deleted from it may come back at the next sync, and whether its
   // balance is read from its movements.

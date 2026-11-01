@@ -205,6 +205,17 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
             value: metrics.discretionary_monthly,
             partial: false,
           },
+          ...(metrics.contributions_monthly === null
+            ? []
+            : [
+                {
+                  key: "contributions",
+                  label: "Contributi alle spese",
+                  topic: "contribution" as const,
+                  value: metrics.contributions_monthly,
+                  partial: metrics.partial,
+                },
+              ]),
         ];
 
   return (
@@ -321,6 +332,12 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
                 ? `Più ${formatAmount(month.rare)} di spese rare`
                 : `Meno ${formatAmount(-toAmount(month.rare))} di rimborsi su spese rare`}{" "}
               <Help topic="rare" label="spesa rara" />
+            </p>
+          )}
+          {toAmount(month.contributions) === 0 ? null : (
+            <p className="chart-note">
+              Contributi −{formatAmount(month.contributions)} · A tuo carico{" "}
+              {formatAmount(month.net)} <Help topic="contribution" label="contributo alle spese" />
             </p>
           )}
         </section>

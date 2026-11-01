@@ -1,7 +1,7 @@
 ---
 id: TASK-88
-title: Le quote del cointestato riducono il totale
-status: To Do
+title: I contributi alle spese riducono il totale
+status: Done
 assignee: []
 created_date: '2026-11-01 00:45'
 updated_date: '2026-11-01 00:45'
@@ -14,12 +14,14 @@ ordinal: 88000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-I versamenti sul cointestato coprono tutte le spese del conto, non alcune categorie: vanno sottratti dal totale, senza ripartirli. Da decidere dopo aver visto l'effetto dei soli rimborsi.
+Un terzo tipo di denaro in entrata, generale e non legato al cointestato: i contributi coprono tutte le spese, quindi abbassano il totale senza ripartirli. Ogni categoria può avere una descrizione.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Una voce unica prende i versamenti sul conto cointestato
-- [ ] #2 Le categorie restano lorde
-- [ ] #3 La riga negativa in Dove sono finiti è chiara
+- [x] #1 Una categoria col segno Contributo alle spese prende i versamenti
+- [x] #2 Irrinunciabile e tagliabile scendono in proporzione sul conto che riceve; le categorie restano lorde
+- [x] #3 Spesa tipica, spesa attesa e autonomia sono al netto
+- [x] #4 Questo mese dice i contributi e quanto resta a carico
+- [x] #5 Ogni categoria può avere una descrizione
 <!-- AC:END -->

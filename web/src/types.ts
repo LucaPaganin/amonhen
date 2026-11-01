@@ -245,6 +245,9 @@ export interface Category {
   episodic: boolean;
   essential: boolean;
   income: boolean;
+  /** Money in on it covers every expense: it takes the total down, and no category. */
+  contribution: boolean;
+  description: string | null;
 }
 
 export interface Split {
@@ -395,6 +398,7 @@ export interface Metrics {
   runway_months: string | null;
   essential_monthly: string | null;
   discretionary_monthly: string | null;
+  contributions_monthly: string | null;
 }
 
 /** One category of the month in progress, against its own usual pace. */
@@ -411,10 +415,13 @@ export interface MonthReading {
   applied: Applied;
   month: string;
   day: number;
-  /** Rare spending is outside both figures: it has a line of its own. */
+  /** Rare spending and contributions are outside both figures: each has a line of its own. */
   spent: string;
   usual: string | null;
   rare: string;
+  contributions: string;
+  /** What is left of `spent` once the contributions are taken off. */
+  net: string;
   months_compared: number;
   categories: MonthCategory[];
 }

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable
 
-from amonhen.ledger import SPENDING_SQL, Ledger
+from amonhen.ledger import CONTRIBUTION_SQL, SPENDING_SQL, Ledger
 from amonhen.models import format_decimal, parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -311,6 +311,7 @@ def _spent(ledger: Ledger, month: str) -> dict[int, Decimal]:
            JOIN accounts a ON a.id = p.account_id
            WHERE a.type = 'category' AND t.status = 'BOOK'
              AND {SPENDING_SQL}
+             AND NOT {CONTRIBUTION_SQL}
              AND t.date >= ? AND t.date <= ?""",
         (start.isoformat(), end.isoformat()),
     ):
