@@ -483,18 +483,18 @@ after `pytest` and the bundle build pass); the NAS pulls it and runs it. What th
 NAS carries is two small files, the configuration folder and the ledger.
 
 ```bash
-# Once, on the NAS, in a directory of its own (e.g. /volume1/docker/amonhen):
-ssh nas mkdir -p /volume1/docker/amonhen
-scp docker-compose.yaml nas:/volume1/docker/amonhen/
-scp .env.example        nas:/volume1/docker/amonhen/.env    # then edit it
-ssh nas 'cd /volume1/docker/amonhen && mkdir -p config backups && chown 10001:10001 config backups'
+# Once, on the NAS, in a directory of its own (e.g. /home/luca/hometech/homelab/amonhen):
+ssh nas mkdir -p /home/luca/hometech/homelab/amonhen
+scp docker-compose.yaml nas:/home/luca/hometech/homelab/amonhen/
+scp .env.example        nas:/home/luca/hometech/homelab/amonhen/.env    # then edit it
+ssh nas 'cd /home/luca/hometech/homelab/amonhen && mkdir -p config backups && chown 10001:10001 config backups'
 
 # A deployment from before the config folder existed carries the two files in the
 # compose directory instead: move them in, and let the container write there.
-ssh nas 'cd /volume1/docker/amonhen && mkdir -p config && mv accounts.json private.pem config/ && chown 10001:10001 config'
+ssh nas 'cd /home/luca/hometech/homelab/amonhen && mkdir -p config && mv accounts.json private.pem config/ && chown 10001:10001 config'
 
 # At every deploy, on the NAS:
-cd /volume1/docker/amonhen
+cd /home/luca/hometech/homelab/amonhen
 docker compose pull
 docker compose up -d
 docker compose logs -f amonhen
@@ -623,7 +623,7 @@ Every update of the live NAS follows these rules, whoever prepares the release.
    one — a snapshot taken now, so nothing written since is lost on a rollback:
 
    ```bash
-   cd /volume1/docker/amonhen
+   cd /home/luca/hometech/homelab/amonhen
    docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
    ```
 
@@ -659,7 +659,7 @@ the moment it ran:
 ```bash
 # Inside the container, from the compose directory on the NAS:
 docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
-# /volume1/docker/amonhen/backups/2026-09-26T101500Z/
+# /home/luca/hometech/homelab/amonhen/backups/2026-09-26T101500Z/
 #   amonhen.db  accounts.json  private.pem  manifest.json
 ```
 
@@ -677,12 +677,12 @@ On the NAS it is a cron entry, which is also the whole of what "nightly backup"
 means here:
 
 ```cron
-15 3 * * *  cd /volume1/docker/amonhen && docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
+15 3 * * *  cd /home/luca/hometech/homelab/amonhen && docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
 ```
 
 **A snapshot on the NAS is not yet a backup**: it is on the same disks as the
 ledger. Getting it off the machine is the NAS's own job — point its backup tool at
-`/volume1/docker/amonhen/backups` — or, by hand:
+`/home/luca/hometech/homelab/amonhen/backups` — or, by hand:
 
 ```bash
 docker compose cp amonhen:/backups/2026-09-26T101500Z .
@@ -694,7 +694,7 @@ so `/data` may also hold `amonhen.db-wal` and `amonhen.db-shm`: remove them with
 the copy, or SQLite replays the old ledger's log onto the restored file.
 
 ```bash
-cd /volume1/docker/amonhen
+cd /home/luca/hometech/homelab/amonhen
 docker compose stop amonhen
 docker compose run --rm --no-deps --user root --entrypoint sh amonhen \
   -c 'rm -f /data/amonhen.db-wal /data/amonhen.db-shm && cp /backups/2026-09-26T101500Z/amonhen.db /data/amonhen.db && chown 10001:10001 /data/amonhen.db'
