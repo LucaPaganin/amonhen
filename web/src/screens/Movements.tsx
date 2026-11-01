@@ -7,8 +7,17 @@ import { RuleSheet, merchantDraft } from "../components/RuleSheet";
 import { Toast } from "../components/Toast";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferPanel } from "../components/TransferPanel";
-import { currentMonth, formatAmount, formatMonth, monthBounds, shiftMonth, toAmount } from "../format";
+import {
+  currentMonth,
+  formatAmount,
+  formatDateWithYear,
+  formatMonth,
+  monthBounds,
+  shiftMonth,
+  toAmount,
+} from "../format";
 import { useTags } from "../useTags";
+import { PeriodRange, type Period } from "../components/PeriodRange";
 import type { Account, Category, RuleDraft, Transaction } from "../types";
 import type { ReviewQueueController } from "../useReviewQueue";
 import { categoryText } from "../category";
@@ -41,6 +50,8 @@ export function MovementsScreen({
   initialCategory = null,
 }: MovementsScreenProps) {
   const [month, setMonth] = useState(currentMonth);
+  // A period someone typed, in place of the month while it is there.
+  const [period, setPeriod] = useState<Period | null>(null);
   const [accountId, setAccountId] = useState("");
   const [category, setCategory] = useState(initialCategory ?? "");
   const [tag, setTag] = useState("");
@@ -73,7 +84,7 @@ export function MovementsScreen({
   const [batchBusy, setBatchBusy] = useState(false);
   const latestRequest = useRef(0);
 
-  const bounds = useMemo(() => monthBounds(month), [month]);
+  const bounds = useMemo(() => period ?? monthBounds(month), [period, month]);
   // What the closed bar does not show: the selects that narrow the list.
   const activeFilters =
     [accountId, category, tag].filter((value) => value !== "").length +
@@ -283,7 +294,10 @@ export function MovementsScreen({
         <div>
           <h1 className="screen__title">Movimenti</h1>
           <p className="screen__subtitle">
-            {formatMonth(month)} · {items.length} movimenti · totale {formatAmount(loadedTotal)}
+            {period === null
+              ? formatMonth(month)
+              : `${formatDateWithYear(period.from)} – ${formatDateWithYear(period.to)}`}{" "}
+            · {items.length} movimenti · totale {formatAmount(loadedTotal)}
             {items.length < total ? " (parziale)" : ""}
           </p>
         </div>
@@ -299,36 +313,48 @@ export function MovementsScreen({
         </div>
       </header>
 
-      <div className="month-picker">
-        <button
-          type="button"
-          className="button"
-          onClick={() => setMonth(shiftMonth(month, -1))}
-          aria-label="Mese precedente"
-        >
-          ‹
-        </button>
-        <label className="visually-hidden" htmlFor="month">
-          Mese
-        </label>
-        <input
-          id="month"
-          className="month-picker__input"
-          type="month"
-          value={month}
-          onChange={(event) => {
-            if (event.target.value !== "") setMonth(event.target.value);
-          }}
-        />
-        <button
-          type="button"
-          className="button"
-          onClick={() => setMonth(shiftMonth(month, 1))}
-          aria-label="Mese successivo"
-        >
-          ›
-        </button>
-      </div>
+      {period === null ? (
+        <div className="month-picker month-picker--period">
+          <button
+            type="button"
+            className="button"
+            onClick={() => setMonth(shiftMonth(month, -1))}
+            aria-label="Mese precedente"
+          >
+            ‹
+          </button>
+          <label className="visually-hidden" htmlFor="month">
+            Mese
+          </label>
+          <input
+            id="month"
+            className="month-picker__input"
+            type="month"
+            value={month}
+            onChange={(event) => {
+              if (event.target.value !== "") setMonth(event.target.value);
+            }}
+          />
+          <button
+            type="button"
+            className="button"
+            onClick={() => setMonth(shiftMonth(month, 1))}
+            aria-label="Mese successivo"
+          >
+            ›
+          </button>
+          <button type="button" className="button" onClick={() => setPeriod(monthBounds(month))}>
+            Periodo
+          </button>
+        </div>
+      ) : (
+        <>
+          <PeriodRange id="movements-period" period={period} onChange={setPeriod} />
+          <button type="button" className="button" onClick={() => setPeriod(null)}>
+            Torna al mese
+          </button>
+        </>
+      )}
 
       {/* The search is what a person reaches for, so it stays on the bar; the three
           selects are one tap away below 1024 and beside it above. Four labelled

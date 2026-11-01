@@ -15,6 +15,7 @@ import type {
   DashboardFilters,
   Declaration,
   Flows,
+  Spending,
   Health,
   Metrics,
   MonthReading,
@@ -49,7 +50,6 @@ import type {
   TransferUnlink,
   VirtualAccount,
 } from "./types";
-import { monthBounds } from "./format";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -187,11 +187,9 @@ async function drop<T>(path: string): Promise<T> {
   );
 }
 
-/** The dashboard reads: a period in months, and the names to narrow it to. */
+/** The dashboard reads: a period of days, and the names to narrow it to. */
 function filterSearch(filters: DashboardFilters): string {
-  const start = monthBounds(filters.from);
-  const end = monthBounds(filters.to);
-  const params = new URLSearchParams({ from: start.from, to: end.to });
+  const params = new URLSearchParams({ from: filters.from, to: filters.to });
   if (filters.accounts.length > 0) params.set("accounts", filters.accounts.join(","));
   if (filters.categories.length > 0) params.set("categories", filters.categories.join(","));
   if (filters.tags.length > 0) params.set("tags", filters.tags.join(","));
@@ -226,6 +224,8 @@ export const api = {
     get<Metrics>(`/metrics?${filterSearch(filters)}`, signal),
   month: (filters: DashboardFilters, signal?: AbortSignal) =>
     get<MonthReading>(`/month?${filterSearch(filters)}`, signal),
+  spending: (filters: DashboardFilters, signal?: AbortSignal) =>
+    get<Spending>(`/spending?${filterSearch(filters)}`, signal),
   flows: (filters: DashboardFilters, signal?: AbortSignal) =>
     get<Flows>(`/flows?${filterSearch(filters)}`, signal),
   // Net worth is what the accounts are worth: categories have nothing to say.

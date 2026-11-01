@@ -13,6 +13,11 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   `/api/transactions` leaves out movements with a virtual posting and everything on a
   `computed_balance` account (transfers and the deposit's daily interest), and
   `hidden` says how many, so the list never looks shorter than the ledger in silence.
+- **A period is two dates, and it reaches the screen whole.** `components/PeriodRange.tsx`
+  holds what is being typed and hands over only a valid period, so a half-written date
+  or a start after the end leaves the screen as it was. The dashboard's chips and
+  Movimenti's month are ways of filling the same `from`/`to`. The period and the donut
+  are drawn on the phone too; the other two charts stay the PC's.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build

@@ -86,6 +86,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`web/src/screens/Guide.tsx`|Desiderata 5.14: a card per concept, the only place the pages explain; `components/Help.tsx` is the `?` that opens one|
 |`web/src/components/TagEditor.tsx`|The tags of one movement, in its sheet; `useTags.ts` is the list every screen reads|
 |`web/src/components/VirtualAccounts.tsx`|The virtual accounts under **Conti**: what each holds, how many movements put it there, and the movements on request (`/api/virtual-accounts`, `/api/transactions?virtual_account_id=`)|
+|`web/src/components/PeriodRange.tsx`|A period of two dates, handed over only when valid: the dashboard's *Personalizzato* and Movimenti's *Periodo*|
 |`web/src/components/PeriodSync.tsx`|The period sync in an account's panel under **Conti**: the dates, a line per window, the preview, and the held probable duplicates with *Scrivi* / *Scarta*|
 |`web/`|React PWA source (recharts for the dashboard charts); the sections are declared once in `web/src/components/Navigation.tsx`, and five go in the bar, the others under *Gestione* in the drawer and the rail, the same list on phone and PC; the first-setup wizard (desiderata 5.10) is one of them — `Configurazione`, `inBar: false`; built to `web/dist`, served by the API|
 |`tools/dump_raw.py`|Dumps raw EB payloads to disk, for regenerating fixtures|

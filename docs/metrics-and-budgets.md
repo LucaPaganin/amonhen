@@ -12,7 +12,9 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   takes no period, because the 6- and 24-month windows are what those metrics are,
   and the dashboard cards say which window they used. The charts do take a period
   (`from`/`to`, defaulting to the last twelve months), applied in SQL — never
-  summed in the browser — and every filtered endpoint echoes what it applied in
+  summed in the browser. They are days, not months: `monthly_flows` cuts its first
+  and last month to them and marks a cut month `partial`, or the bars would show a
+  different period from the donut beside them. Every filtered endpoint echoes what it applied in
   `applied`, so the client cannot show one window while the server read another.
 - **Accounts and budgets are managed from the app, not only from the command
   line.** `POST /api/accounts` adds a real account by hand (the broker, or a bank

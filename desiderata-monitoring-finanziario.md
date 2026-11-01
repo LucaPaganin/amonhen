@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.35 — novembre 2026
+Versione 1.36 — novembre 2026
 
 *1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
 non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
@@ -16,7 +16,8 @@ mese, quindi la riserva ne è al netto e lo stesso denaro non conta due volte.
 1.33 · il numero su **Da confermare** conta anche gli accrediti da chiarire.
 1.34 · il limite di richieste di una banca ferma quel conto invece di trattenere il sync (sezione 5.1), un riavvio
 non consuma il limite, e una regola di giroconto si applica subito e prima dell'abbinamento (sezione 5.3).
-1.35 · gli accrediti da chiarire partono da una data che si imposta: sul NAS è tutta la storia.*
+1.35 · gli accrediti da chiarire partono da una data che si imposta: sul NAS è tutta la storia.
+1.36 · la ciambella delle spese per categoria torna sul cruscotto, anche sul telefono; il periodo ha *Questo mese* e due date a scelta, anche in **Movimenti**.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -199,9 +200,11 @@ Solo queste, in ordine di priorità. Ognuna si chiama con parole che dicono cosa
 - **Mesi di autonomia** (*runway*) = liquidità / spesa mensile attesa: per quanti mesi si va avanti se le entrate si fermano. La rata del mutuo non è più una voce fissa del denominatore: un pagamento del mutuo è un movimento come gli altri, e se deve contare sta in una categoria.
 - **Spesa irrinunciabile e spesa tagliabile** (*quota incomprimibile e discrezionale*): la spesa tipica divisa fra quella irrinunciabile — per categoria o per tag, con la stessa regola di rara — e il resto, cioè quanto sarebbe tagliabile se servisse. Un movimento raro e irrinunciabile conta come raro, una volta sola.
 
-Il cruscotto risponde a due domande, in quest'ordine e senza scorrere: **Questo mese** (quanto è uscito finora contro quanto esce di solito a questo punto del mese: la mediana dei 6 mesi completi precedenti alla stessa data, senza spese rare, che hanno una riga a parte) e **Dove sono finiti** (le categorie con una spesa nel mese, dalla più alta, ognuna con la distanza dal suo solito scritta in parole, e ognuna apre i suoi movimenti). Sotto stanno liquidità e mesi di autonomia, le anomalie, e su PC i due grafici: entrate e uscite, e la curva della liquidità. Le altre cifre della sezione 5.6 sono sotto *Dettagli*. I grafici non fanno aritmetica: ogni serie si calcola nel backend. Il periodo e i filtri (conti, categoria, tag) stanno sopra i grafici e pesano diversamente: il **periodo** decide cosa mostrano i grafici; i **conti** restringono tutto ciò che è di conto; **categoria e tag** restringono solo le spese. Un filtro si applica nel backend, mai nel browser.
+Il cruscotto risponde a due domande, in quest'ordine e senza scorrere: **Questo mese** (quanto è uscito finora contro quanto esce di solito a questo punto del mese: la mediana dei 6 mesi completi precedenti alla stessa data, senza spese rare, che hanno una riga a parte) e **Dove sono finiti** (le categorie con una spesa nel mese, dalla più alta, ognuna con la distanza dal suo solito scritta in parole, e ognuna apre i suoi movimenti). Sotto stanno liquidità e mesi di autonomia, le anomalie, il periodo, la ciambella delle spese per categoria e, su PC, altri due grafici: entrate e uscite, e la curva della liquidità. Le altre cifre della sezione 5.6 sono sotto *Dettagli*. I grafici non fanno aritmetica: ogni serie si calcola nel backend. I filtri (conti, categoria, tag) e il periodo pesano diversamente: il **periodo** decide cosa mostrano i grafici, si sceglie fra *Questo mese*, 3, 6, 12 e 24 mesi o due date a scelta, e conta i giorni scelti anche quando taglia un mese; i **conti** restringono tutto ciò che è di conto; **categoria e tag** restringono solo le spese. Un filtro si applica nel backend, mai nel browser.
 
 Le metriche non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista.
+
+**Movimenti** si legge per mese e, con *Periodo*, fra due date a scelta. Il budget resta per mese: il tetto è di un mese, e un periodo qualunque non avrebbe un tetto con cui confrontarsi (sezione 5.12).
 
 Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con nome, saldo in evidenza ed esito della verifica; dietro *Dettagli* sta tutto il resto: la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante della sezione 5.4 torni a valere, la sincronizzazione di un periodo, i flag e l'eliminazione. Un conto reale si crea anche a mano (il broker, o una banca non collegata). Eliminare un conto toglie i suoi movimenti, il suo cestino, i saldi dichiarati e le regole ristrette a lui, e se è collegato a una banca lo toglie anche da `accounts.json`, altrimenti il sync successivo lo ricreerebbe con tutta la sua storia; l'altra gamba di un giroconto non si cancella — quel denaro è davvero entrato o uscito da un altro conto — e torna in coda. Non c'è cestino per un conto: si conferma scrivendone il nome, e per tornare indietro serve uno snapshot (sezione 5.11). Il budget di ogni categoria ha una sezione sua (sezione 5.12). I flag delle categorie e la loro creazione stanno invece nella sezione che le categorie le definisce insieme alle regole che le riempiono (sezione 5.5).
 

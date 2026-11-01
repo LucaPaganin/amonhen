@@ -605,7 +605,9 @@ def monthly_flows(
     The period is clipped to the months the ledger covers and to the present —
     a chart cannot show a month that has not happened — so a young ledger does
     not chart half a year of nothing. Empty months inside the period stay, so a
-    flat month reads as a flat month.
+    flat month reads as a flat month. A period that starts or ends inside a month
+    counts those days only, like the category chart beside it, and that month is
+    marked `partial` like the one in progress.
     """
     last = min(_month_index(end), _month_index(dt.date.today()))
     earliest = _first_month_with_data(ledger)
@@ -615,7 +617,8 @@ def monthly_flows(
     if first > last:
         return []
     keys = [_month_key(index) for index in range(first, last + 1)]
-    bounds = (_month_bounds(first)[0], _month_bounds(last)[1])
+    whole = (_month_bounds(first)[0], _month_bounds(last)[1])
+    bounds = (max(start, whole[0]), min(end, whole[1]))
 
     scoped, extra = _spending_scope(scope)
     account_scoped, account_params = _account_scope(scope, "a.name")
@@ -634,12 +637,15 @@ def monthly_flows(
         income[row["month"]] = income.get(row["month"], Decimal(0)) + parse_decimal(row["amount"])
 
     current = _month_key(_month_index(dt.date.today()))
+    cut = {keys[0]} if bounds[0] > whole[0] else set()
+    if bounds[1] < whole[1]:
+        cut.add(keys[-1])
     return [
         MonthlyFlow(
             month=key,
             income=income.get(key, Decimal(0)),
             expenses=expenses.get(key, Decimal(0)),
-            partial=key == current,
+            partial=key == current or key in cut,
         )
         for key in keys
     ]

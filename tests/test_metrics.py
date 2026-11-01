@@ -268,6 +268,22 @@ def test_monthly_flows_pair_income_and_spending_and_leave_transfers_out(ledger, 
     assert [flow.partial for flow in flows] == [False, False, True]
 
 
+def test_monthly_flows_count_only_the_days_of_a_period_cut_inside_a_month(ledger, freeze_today):
+    freeze_today(TODAY)
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    groceries = ledger.category("Groceries")
+    for date in ("2026-06-05", "2026-06-20", "2026-07-10", "2026-08-05", "2026-08-25"):
+        spend(ledger, account, groceries, date, "-10.00")
+
+    flows = monthly_flows(ledger, dt.date(2026, 6, 15), dt.date(2026, 8, 15))
+
+    assert [(flow.month, flow.expenses, flow.partial) for flow in flows] == [
+        ("2026-06", Decimal("10.00"), True),
+        ("2026-07", Decimal("10.00"), False),
+        ("2026-08", Decimal("10.00"), True),
+    ]
+
+
 def test_monthly_flows_do_not_count_money_arriving_from_an_own_account(ledger):
     """A purchase funded from the deposit is spending; the arrival is not income."""
     account = ledger.ensure_account(Account(name="Revolut", type="real"))

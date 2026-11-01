@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "../api";
 import { categoryText } from "../category";
-import { FlowsChart, NetWorthChart } from "../components/Charts";
+import { FlowsChart, NetWorthChart, SpendingLegend, SpendingPie } from "../components/Charts";
 import { Help } from "../components/Help";
+import { PeriodRange, type Period } from "../components/PeriodRange";
 import {
-  currentMonth,
   formatAmount,
   formatDate,
   formatMonths,
-  shiftMonth,
+  lastMonths,
   toAmount,
 } from "../format";
 import type { GuideTopic } from "./Guide";
@@ -22,14 +22,15 @@ import type {
   Metrics,
   MonthReading,
   NetWorth,
+  Spending,
 } from "../types";
 import { useTags } from "../useTags";
 import { useWide } from "../useWide";
 
 /** The period the charts open on. */
 const DEFAULT_MONTHS = 12;
-/** The periods the quick chips offer, in months. */
-const PERIODS = [3, 6, 12, 24];
+/** The periods the quick chips offer, in months: one is the month in progress. */
+const PERIODS = [1, 3, 6, 12, 24];
 /** How many anomalies and categories are on screen before anyone asks for more. */
 const ANOMALIES_SHOWN = 3;
 const CATEGORIES_SHOWN = 6;
@@ -59,7 +60,9 @@ function monthComparison(reading: MonthReading): string {
 
 export function DashboardScreen({ categories, refreshToken, onOpenCategory }: DashboardScreenProps) {
   const wide = useWide();
-  const [fromMonth, setFromMonth] = useState(() => shiftMonth(currentMonth(), -(DEFAULT_MONTHS - 1)));
+  // `null` months is a period someone typed: the two dates are then what it is.
+  const [months, setMonths] = useState<number | null>(DEFAULT_MONTHS);
+  const [period, setPeriod] = useState<Period>(() => lastMonths(DEFAULT_MONTHS));
   const [scopedAccounts, setScopedAccounts] = useState<string[]>([]);
   const [scopedCategory, setScopedCategory] = useState("");
   const [scopedTag, setScopedTag] = useState("");
@@ -67,6 +70,7 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
   const [month, setMonth] = useState<MonthReading | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [spending, setSpending] = useState<Spending | null>(null);
   const [flows, setFlows] = useState<Flows | null>(null);
   const [netWorth, setNetWorth] = useState<NetWorth | null>(null);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
@@ -77,13 +81,13 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
 
   const filters = useMemo<DashboardFilters>(
     () => ({
-      from: fromMonth,
-      to: currentMonth(),
+      from: period.from,
+      to: period.to,
       accounts: scopedAccounts,
       categories: scopedCategory === "" ? [] : [scopedCategory],
       tags: scopedTag === "" ? [] : [scopedTag],
     }),
-    [fromMonth, scopedAccounts, scopedCategory, scopedTag],
+    [period, scopedAccounts, scopedCategory, scopedTag],
   );
 
   const load = useCallback(
@@ -112,7 +116,18 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
     return () => controller.abort();
   }, [load]);
 
-  // The charts are the PC's: a phone neither draws nor asks for them.
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .spending(filters, controller.signal)
+      .then(setSpending)
+      .catch((caught) => {
+        if (!isAbortError(caught)) setLoadError(errorMessage(caught));
+      });
+    return () => controller.abort();
+  }, [filters, refreshToken]);
+
+  // The other two charts are the PC's: a phone neither draws nor asks for them.
   useEffect(() => {
     if (!wide) return;
     const controller = new AbortController();
@@ -438,25 +453,53 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
         </section>
       )}
 
+      <div className="filters__chips" role="group" aria-label="Il periodo dei grafici">
+        {PERIODS.map((count) => (
+          <button
+            key={count}
+            type="button"
+            className={months === count ? "chip chip--toggle chip--on" : "chip chip--toggle"}
+            aria-pressed={months === count}
+            onClick={() => {
+              setMonths(count);
+              setPeriod(lastMonths(count));
+            }}
+          >
+            {count === 1 ? "Questo mese" : `${count} mesi`}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={months === null ? "chip chip--toggle chip--on" : "chip chip--toggle"}
+          aria-pressed={months === null}
+          onClick={() => setMonths(null)}
+        >
+          Personalizzato
+        </button>
+      </div>
+
+      {months === null ? (
+        <PeriodRange id="dashboard-period" period={period} onChange={setPeriod} />
+      ) : null}
+
+      <section className="panel">
+        <h2 className="section-title">Spese per categoria</h2>
+        {spending === null ? (
+          <p className="state" aria-busy="true">
+            Caricamento…
+          </p>
+        ) : spending.categories.length === 0 ? (
+          <p className="state">Nessuna spesa nel periodo.</p>
+        ) : (
+          <>
+            <SpendingPie categories={spending.categories} total={spending.total} />
+            <SpendingLegend categories={spending.categories} total={spending.total} />
+          </>
+        )}
+      </section>
+
       {wide ? (
         <>
-          <div className="filters__chips" role="group" aria-label="Il periodo dei grafici">
-            {PERIODS.map((months) => {
-              const on = fromMonth === shiftMonth(currentMonth(), -(months - 1));
-              return (
-                <button
-                  key={months}
-                  type="button"
-                  className={on ? "chip chip--toggle chip--on" : "chip chip--toggle"}
-                  aria-pressed={on}
-                  onClick={() => setFromMonth(shiftMonth(currentMonth(), -(months - 1)))}
-                >
-                  {months} mesi
-                </button>
-              );
-            })}
-          </div>
-
           <section className="panel panel--pair">
             <h2 className="section-title">Entrate e uscite</h2>
             {flows === null ? (

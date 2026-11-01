@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { api } from "../api";
-import { currentMonth, formatAmount, formatMonths } from "../format";
+import { currentMonth, formatAmount, formatMonths, monthBounds } from "../format";
 import type { Metrics } from "../types";
 
 export type GuideTopic =
@@ -209,9 +209,9 @@ export function GuideScreen({ topic }: { topic: GuideTopic | null }) {
   // The figures are examples: without them the cards still say all they say.
   useEffect(() => {
     const controller = new AbortController();
-    const month = currentMonth();
+    const { from, to } = monthBounds(currentMonth());
     api
-      .metrics({ from: month, to: month, accounts: [], categories: [], tags: [] }, controller.signal)
+      .metrics({ from, to, accounts: [], categories: [], tags: [] }, controller.signal)
       .then(setMetrics)
       .catch(() => undefined);
     return () => controller.abort();

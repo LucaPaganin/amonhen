@@ -68,3 +68,9 @@ export function monthBounds(month: string): { from: string; to: string } {
   const lastDay = new Date(year, monthNumber, 0).getDate();
   return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2, "0")}` };
 }
+
+/** The last `months` months, the one in progress included, as a period of days. */
+export function lastMonths(months: number): { from: string; to: string } {
+  const month = currentMonth();
+  return { from: monthBounds(shiftMonth(month, -(months - 1))).from, to: monthBounds(month).to };
+}
