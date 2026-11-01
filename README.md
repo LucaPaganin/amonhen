@@ -358,7 +358,7 @@ survives every write, and hand-editing the file stays possible: each command rea
 it at startup. Every runtime path and tunable reads a `AMONHEN_<NAME>`
 environment variable: `AMONHEN_DB_PATH`, `AMONHEN_CONFIG_FILE`,
 `AMONHEN_EB_API`, `AMONHEN_SYNC_INTERVAL_HOURS`, `AMONHEN_UNCATEGORIZED`,
-`AMONHEN_HOST`, `AMONHEN_PORT`.
+`AMONHEN_CREDITS_REVIEW_FROM`, `AMONHEN_HOST`, `AMONHEN_PORT`.
 
 The holder's name the wizard asks for is `account_holder_name`, read as
 `own_names`: a movement whose counterparty is the holder's own name is relabelled
@@ -677,12 +677,15 @@ On the NAS it is a cron entry, which is also the whole of what "nightly backup"
 means here:
 
 ```cron
-15 3 * * *  cd /home/luca/hometech/homelab/amonhen && docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14
+15 3 * * *  cd /home/luca/hometech/homelab/amonhen && docker compose exec -T amonhen python -m amonhen backup --dest /backups --keep 14 >> /home/luca/hometech/homelab/amonhen/backup-cron.log 2>&1
 ```
 
 **A snapshot on the NAS is not yet a backup**: it is on the same disks as the
-ledger. Getting it off the machine is the NAS's own job — point its backup tool at
-`/home/luca/hometech/homelab/amonhen/backups` — or, by hand:
+ledger. Getting it off the machine is the NAS's own job: `backups/` sits in the
+personal folder, which the UGOS routine copies, while the live ledger's Docker
+volume does not, so a snapshot is the only form of the ledger that leaves the NAS.
+It carries `private.pem` in clear, and the routine has to read a file only uid
+10001 can open. By hand:
 
 ```bash
 docker compose cp amonhen:/backups/2026-09-26T101500Z .

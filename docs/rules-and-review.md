@@ -89,7 +89,8 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   the real backlog, so a filter cannot make the work look small. Widening the
   queue beyond settled outflows is a product decision, not a bug fix.
 - **A credit is asked about in its own block.** `ledger.CREDITS_WHERE` is settled
-  money in on `Uncategorized` from `settings.CREDITS_REVIEW_FROM` (2026-08-01) on,
+  money in on `Uncategorized` from `settings.CREDITS_REVIEW_FROM` on (2026-08-01
+  by default, 2025-08-01 on the NAS through `AMONHEN_CREDITS_REVIEW_FROM`),
   no transfer leg, no split; `/api/review` answers it as `credits` and
   `credits_total`, outside the list's filters. The badge counts them with the
   proposals and the transfers: it left them out while they were 94 daily interests, and
