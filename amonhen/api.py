@@ -97,6 +97,17 @@ from amonhen.transfers import link_passthrough_legs, link_transfers, pair_candid
 
 WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 
+# Before 20, and the three the paragraph below skips: `/api/rules` moved from
+# `merchant`/`released` to `pattern`/`held` in 5; a transaction's `is_transfer`
+# became the `transfer` object in 6; in 7 the dashboard reads took
+# `from`/`to`/`accounts`/`categories` and answer with `applied` (`/api/spending`
+# lost its `month`, `/api/flows` its `months`, an account row gained
+# `opening_balance`). 18 is the first setup: `/api/setup` and the four writes
+# around it, `/callback` answering a 303 into the app. 19 is the CSV import:
+# `/api/import/csv` and its preview. 28 is the virtual accounts:
+# `GET /api/virtual-accounts` and `virtual_account_id` on `/api/transactions`. 29 is
+# the broker's value: `POST /api/accounts/{id}/valuation` and
+# `POST /api/import/scalable[/preview]`; 30 took the Scalable routes away again.
 # Bump when a response shape changes: the PWA compares this with the version it
 # was built for and, when the server is older, says so instead of crashing on a
 # key that is not there. The bundle is read from disk on every request while the
