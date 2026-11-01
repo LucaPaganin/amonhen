@@ -95,7 +95,7 @@ const CARDS: Card[] = [
     means:
       "Soldi che arrivano per coprire le spese in generale e non una spesa precisa: per esempio i versamenti di chi condivide con te un conto comune.",
     computed:
-      "Un accredito in una categoria col segno Contributo alle spese abbassa il totale e nessuna categoria. Copre tutte le spese del conto su cui arriva: in ogni mese, irrinunciabile e tagliabile di quel conto scendono della stessa percentuale, e gli altri conti restano interi. Riduce spesa tipica e spesa attesa, quindi allunga i mesi di autonomia. La riserva per spese rare resta intera, e Questo mese e Dove sono finiti restano lordi.",
+      "Un accredito in una categoria col segno Contributo alle spese abbassa il totale e nessuna categoria. Copre tutte le spese del conto su cui arriva, rare comprese: in ogni mese tutto ciò che quel conto ha pagato scende della stessa percentuale, e gli altri conti restano interi. Riduce spesa tipica, riserva per spese rare e spesa attesa, quindi allunga i mesi di autonomia. Questo mese e Dove sono finiti restano lordi.",
     changes:
       "Non è un'entrata né un rimborso. Il segno sta da solo: accenderlo spegne Spesa rara, Irrinunciabile ed Entrata. I mesi di autonomia contano che i contributi continuino anche se le tue entrate si fermano.",
     now: (metrics) => amount(metrics.contributions_monthly),
@@ -105,7 +105,7 @@ const CARDS: Card[] = [
     title: "Riserva per spese rare",
     means: "Quanto mettere da parte ogni mese per quando le spese rare tornano.",
     computed:
-      "Le spese rare degli ultimi 24 mesi completi, tolti i loro rimborsi, divise sempre per 24. Con meno di 24 mesi di storia è sottostimata: le spese ci sono, i mesi no.",
+      "Le spese rare degli ultimi 24 mesi completi, tolti i loro rimborsi e la parte coperta dai contributi, divise sempre per 24. Con meno di 24 mesi di storia è sottostimata: le spese ci sono, i mesi no.",
     changes: "Cresce quando segni qualcosa come raro.",
     now: (metrics) => amount(metrics.episodic_accrual),
   },

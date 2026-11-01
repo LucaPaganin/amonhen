@@ -630,11 +630,14 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   expense — what the joint account receives — sits on a category flagged `contribution`
   (`ledger.CONTRIBUTION_SQL`). A refund takes down its category; a contribution covers
   everything the account it reached pays. It is inside `SPENDING_SQL`, so
-  `recurring_burn`, `expected_burn`, the runway and the charts' expenses are net of it,
-  and `metrics._monthly_kinds` takes it off essential and cuttable by the same share,
-  per account and month: received over spent, capped at all of it, the other accounts
-  untouched. The reserve stays whole, and `month_reading` keeps `spent` and `usual`
-  gross, so the comparison does not depend on the day somebody pays in (`contributions`
+  the charts' expenses are net of it, and `metrics._monthly_net` takes it off essential,
+  cuttable and rare by one share, per account and month: received over everything the
+  account spent, capped at all of it, the other accounts untouched. So `recurring_burn`,
+  `episodic_accrual`, `expected_burn` and the runway are net of it. The share has to be
+  one: reducing the rare spending by a share computed on the rest alone counts the same
+  euro twice (on a month of 635 normal, 506 rare and 550 received, 988 of relief). What
+  an account received beyond what it spent covers nothing, because the others stay
+  whole. `month_reading` keeps `spent` and `usual` gross, so the comparison does not depend on the day somebody pays in (`contributions`
   and `net` are its own line). It leaves `spend_by_category` and the budgets too. The
   flag stands alone: `set_category_flag`
   clears the others when it turns on and clears it when one of them does, and it refuses

@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.30 — novembre 2026
+Versione 1.31 — novembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -230,7 +230,9 @@ non entra nella curva della liquidità; se è negativo, Conti lo dice come avvis
 1.29 · i saldi della banca che contano sono un elenco chiuso (sezione 5.4): un tipo che non vi
 compare non si verifica, non entra nei saldi e **Conti** lo segnala, invece di valere come
 disponibile.
-1.30 · una categoria si rinomina, e le sue regole la seguono.*
+1.30 · una categoria si rinomina, e le sue regole la seguono.
+1.31 · il contributo copre anche le spese rare: si divide su tutto ciò che il conto paga nel
+mese, quindi la riserva ne è al netto e lo stesso denaro non conta due volte.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -397,7 +399,7 @@ Le regole che non assegnano una categoria — cancellano, registrano un girocont
 
 **La spesa è al netto dei rimborsi.** Un accredito in una categoria non marcata *Entrata* è un rimborso: abbassa quella categoria nel mese in cui arriva, e con i suoi tag vale anche per spesa rara e irrinunciabile. Non entra nelle entrate. Un accredito in una categoria *Entrata* è un'entrata, e uno senza categoria non conta come rimborso finché nessuno lo decide: è il blocco *Accrediti da chiarire* a chiederlo (sezione 5.5). Un mese o una categoria possono risultare negativi. Le anomalie guardano solo le uscite.
 
-**Il contributo alle spese abbassa il totale, non una categoria.** Il denaro che entra per coprire le spese in generale — i versamenti sul conto cointestato, che riguardano tutto ciò che quel conto paga — si mette in una categoria marcata *Contributo alle spese*. Non è un'entrata e non è il rimborso di niente: un rimborso abbassa la sua categoria, un contributo copre tutte le spese del conto su cui arriva. Spesa tipica, spesa attesa e mesi di autonomia ne sono al netto. Irrinunciabile e tagliabile anche: in ogni mese le due voci di quel conto scendono della stessa percentuale, quanto ha ricevuto sul quanto ha speso, al massimo tutto, e gli altri conti restano interi. La riserva per spese rare resta intera. Nel mese, *Questo mese* e il suo solito restano lordi, così il confronto non dipende dal giorno in cui il denaro arriva, e una riga sotto dice i contributi e quanto resta a carico. Il segno sta da solo: accenderlo spegne *Spesa rara*, *Irrinunciabile* ed *Entrata*. Nei grafici il contributo non è un'entrata e le uscite ne sono al netto, come per un rimborso. I budget di categoria non lo contano. L'autonomia presume che i contributi continuino anche se si fermano le entrate di chi usa l'app.
+**Il contributo alle spese abbassa il totale, non una categoria.** Il denaro che entra per coprire le spese in generale — i versamenti sul conto cointestato, che riguardano tutto ciò che quel conto paga — si mette in una categoria marcata *Contributo alle spese*. Non è un'entrata e non è il rimborso di niente: un rimborso abbassa la sua categoria, un contributo copre tutte le spese del conto su cui arriva. Spesa tipica, spesa attesa, mesi di autonomia, irrinunciabile, tagliabile e riserva per spese rare ne sono al netto: in ogni mese tutto ciò che quel conto ha pagato, spese rare comprese, scende della stessa percentuale, quanto ha ricevuto sul quanto ha speso, al massimo tutto, e gli altri conti restano interi. Una percentuale sola è ciò che fa contare il denaro una volta: ridurre le spese rare con la quota calcolata sulle sole spese normali toglierebbe due volte gli stessi euro. Nel mese, *Questo mese* e il suo solito restano lordi, così il confronto non dipende dal giorno in cui il denaro arriva, e una riga sotto dice i contributi e quanto resta a carico. Il segno sta da solo: accenderlo spegne *Spesa rara*, *Irrinunciabile* ed *Entrata*. Nei grafici il contributo non è un'entrata e le uscite ne sono al netto, come per un rimborso. I budget di categoria non lo contano. L'autonomia presume che i contributi continuino anche se si fermano le entrate di chi usa l'app.
 
 Solo queste, in ordine di priorità. Ognuna si chiama con parole che dicono cosa misura, nell'app come qui e nelle letture dell'assistente; fra parentesi il nome con cui la conosce il codice.
 

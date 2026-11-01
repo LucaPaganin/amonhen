@@ -117,7 +117,9 @@ def test_a_contribution_covers_at_most_all_of_it(ledger, account, contribution):
     assert compute_metrics(ledger, TODAY).essential_monthly == Decimal("0")
 
 
-def test_a_contribution_leaves_the_rare_spending_alone(ledger, account, contribution):
+def test_a_contribution_takes_one_share_off_everything_the_account_paid(
+    ledger, account, contribution
+):
     travel = ledger.category("Viaggi")
     ledger.set_category_flag(travel, "episodic", True)
     food = ledger.category("Alimentari")
@@ -129,8 +131,39 @@ def test_a_contribution_leaves_the_rare_spending_alone(ledger, account, contribu
 
     metrics = compute_metrics(ledger, TODAY)
 
-    assert metrics.episodic_accrual == Decimal("300")
-    assert metrics.essential_monthly == Decimal("50")
+    # 50 over 2500 is 2%, on the three months of the fixture.
+    assert metrics.episodic_accrual == Decimal("294")
+    assert metrics.essential_monthly == Decimal("98")
+    assert metrics.recurring_burn == Decimal("98")
+
+
+def test_the_same_money_counts_once(ledger, account, contribution):
+    """Reducing the rare spending by the share of the rest alone would relieve 988 here."""
+    travel = ledger.category("Viaggi")
+    ledger.set_category_flag(travel, "episodic", True)
+    other = ledger.category("Svago")
+    for day in MONTHS:
+        move(ledger, account, other, day, "-635", f"svago {day}")
+        move(ledger, account, travel, day, "-505", f"viaggio {day}")
+        move(ledger, account, contribution, day, "550", f"quota {day}")
+
+    metrics = compute_metrics(ledger, TODAY)
+
+    left_each_month = metrics.recurring_burn + metrics.episodic_accrual * 24 / len(MONTHS)
+    assert left_each_month.quantize(Decimal("0.01")) == Decimal("590.00")
+
+
+def test_what_an_account_received_beyond_its_spending_leaves_the_others_whole(
+    ledger, account, contribution
+):
+    other = ledger.ensure_account(Account(name="Altro", type="real"))
+    food = ledger.category("Alimentari")
+    for day in MONTHS:
+        move(ledger, account, food, day, "-100", f"spesa {day}")
+        move(ledger, account, contribution, day, "300", f"quota {day}")
+        move(ledger, other, food, day, "-100", f"altra {day}")
+
+    assert compute_metrics(ledger, TODAY).recurring_burn == Decimal("100")
 
 
 def test_a_rare_tag_does_not_move_a_contribution_into_the_reserve(ledger, account, contribution):
