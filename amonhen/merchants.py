@@ -18,7 +18,12 @@ from functools import lru_cache
 from typing import Iterable, Sequence
 
 from amonhen.db import deferred_commits
-from amonhen.ledger import TRANSFER_CLEARING, UNCATEGORIZED_WHERE, Ledger
+from amonhen.ledger import (
+    DECIDABLE_BY_ONE_CATEGORY,
+    TRANSFER_CLEARING,
+    UNCATEGORIZED_WHERE,
+    Ledger,
+)
 from amonhen.models import format_decimal, parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -53,16 +58,6 @@ _METADATA_SEGMENT = re.compile(
     re.IGNORECASE,
 )
 _WHITESPACE = re.compile(r"\s+")
-
-# What one category can decide: a movement whose balancing side is a single
-# posting. It rides on `UNCATEGORIZED_WHERE`, whose rows are the queue's, and it
-# is shared by the stake and by the acceptance so the two cannot disagree about
-# what a merchant's yes would settle. A split is what it leaves out: several
-# category postings are the person's own division of the movement, and pointing
-# it at one category would throw the parts away.
-DECIDABLE_BY_ONE_CATEGORY = """
-    AND (SELECT COUNT(*) FROM postings p JOIN accounts a ON a.id = p.account_id
-         WHERE p.transaction_id = t.id AND a.type = 'category') = 1"""
 
 
 @dataclass(frozen=True)

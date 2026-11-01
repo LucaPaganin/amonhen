@@ -81,6 +81,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
 |`amonhen/cli.py`|Argument parsing and the command implementations|
+|`web/src/components/CreditCard.tsx`|One credit of *Accrediti da chiarire*: the type, then the category, and the rule on request|
 |`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
 |`web/src/screens/Guide.tsx`|Desiderata 5.14: a card per concept, the only place the pages explain; `components/Help.tsx` is the `?` that opens one|
 |`web/src/components/TagEditor.tsx`|The tags of one movement, in its sheet; `useTags.ts` is the list every screen reads|
@@ -98,10 +99,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 |Module|Public surface|
 |---|---|
-|`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`|
+|`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`, `CREDITS_REVIEW_FROM`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
@@ -542,7 +543,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   the refund: a category gained `income`, and a spent figure can be negative. 33 is the
   contribution: a category gained `contribution` and `description`, `/api/month`
   `contributions` and `net`, the metrics `contributions_monthly`. 34 is the forecast: an
-  account row gained `forecast`.
+  account row gained `forecast`. 35 is the credits: `/api/review` gained `credits` and `credits_total`.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -577,8 +578,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `Uncategorized`: it would take movements out of the queue while categorizing
   nothing.
 - **The review queue is settled outflows only, and says what each row survived.**
-  Income and `PDNG` rows are not review work, so `/api/review` filters to `BOOK`
-  and negative amounts. A row that reaches the backlog has already escaped the
+  Income and `PDNG` rows are not review work, so its list filters to `BOOK`
+  and negative amounts; the credits have a block of their own (below). A row that reaches the backlog has already escaped the
   transfer matcher, because linking a pair moves a leg's posting to the clearing
   account; what is left to test is the classifier. So each row carries
   `review_state`: `proposed` when its merchant has a pending suggestion (a
@@ -587,6 +588,19 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   `account_id` and `search` narrow the page and never the counts — the chips are
   the real backlog, so a filter cannot make the work look small. Widening the
   queue beyond settled outflows is a product decision, not a bug fix.
+- **A credit is asked about in its own block.** `ledger.CREDITS_WHERE` is settled
+  money in on `Uncategorized` from `settings.CREDITS_REVIEW_FROM` (2026-08-01) on,
+  no transfer leg, no split; `/api/review` answers it as `credits` and
+  `credits_total`, outside the list's filters and outside the badge, which counts
+  what an automatic pass produced. `CreditCard.tsx` asks the type, and the type
+  picks the categories it offers: `income`, `contribution`, or neither for a
+  refund. What it writes is an ordinary `set_category`, so nothing new is stored.
+  The deposit's daily interest leaves by a category rule towards an `income`
+  category, which the rules already apply to credits (`_movement_rows` has no sign)
+  and which moves no figure, because a credit in the bucket already counts as
+  income in the charts. That rule is data, not code: it is not seeded. A credit
+  decided by hand, wrongly too, is found in **Movimenti** by its category; on
+  purpose there is no second view for it.
 - **`serve` can run the sync loop in-process.** One process means one writer for
   the SQLite file; the container uses that instead of a second service sharing
   the volume. The loop opens its own connection per run, so nothing is shared
@@ -1044,6 +1058,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Add or change a categorization rule|The **Categorie e regole** section of the app — under the category it assigns, or *Nuova regola* for a rule with conditions or one that deletes or records a transfer (the sheet previews what it takes) — or `uv run amonhen rule-add "addebito sdd" "Bollette"` (the text the description contains, or `/an expression/`); `uv run amonhen rule-remove "addebito sdd"` releases its movements|
 |Add or flag a tag, or tag movements|The block *Tag* in **Categorie e regole**, the movement's sheet, *Seleziona* in **Movimenti**, or a rule whose action is *Mette un tag*|
 |Explain a concept, or change how a figure is computed|The card in `web/src/screens/Guide.tsx`, in the same change|
+|Clear up a credit|**Da confermare**, *Accrediti da chiarire*: the type, the category, *Crea una regola* when it repeats|
 |Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|
 |Run the UI locally|`uv run amonhen serve` and `npm --prefix web run dev` (Vite proxies `/api`)|
 |Build the PWA|`npm --prefix web run build` — the API serves `web/dist`|

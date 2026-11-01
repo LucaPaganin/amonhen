@@ -352,6 +352,9 @@ export interface ReviewQueue {
   transfers: TransferCandidate[];
   transfers_total: number;
   proposals_total: number;
+  /** Settled money in nobody has decided yet; the list's filters leave it alone. */
+  credits: Transaction[];
+  credits_total: number;
 }
 
 export interface TransactionPage {

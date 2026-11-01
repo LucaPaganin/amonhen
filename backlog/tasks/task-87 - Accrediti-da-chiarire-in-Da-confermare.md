@@ -19,7 +19,7 @@ La coda mostra solo le uscite, quindi un rimborso senza categoria non viene mai 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Un blocco separato mostra gli accrediti senza categoria da agosto 2026 in poi
-- [ ] #2 Una regola toglie gli interessi del deposito
-- [ ] #3 Da lì un accredito si porta in una categoria o in una categoria Entrata
+- [x] #1 Un blocco separato mostra gli accrediti senza categoria da agosto 2026 in poi
+- [ ] #2 Una regola toglie gli interessi del deposito (si scrive sul ledger vivo: provata sulla copia, sul NAS ancora no)
+- [x] #3 Da lì un accredito si dichiara entrata, rimborso o contributo
 <!-- AC:END -->

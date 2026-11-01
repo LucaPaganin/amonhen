@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { deletionNotice } from "../notices";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { CreditCard } from "../components/CreditCard";
 import { RuleSheet, merchantDraft } from "../components/RuleSheet";
 import { TransactionRow } from "../components/TransactionRow";
 import { TransferCard } from "../components/TransferCard";
@@ -169,6 +170,7 @@ export function ReviewQueueScreen({
     review.uncategorizedTotal === 0 &&
     review.transfersTotal === 0 &&
     review.proposalsTotal === 0 &&
+    review.creditsTotal === 0 &&
     !review.loading &&
     !review.loadError;
 
@@ -397,7 +399,9 @@ export function ReviewQueueScreen({
           <p className="screen__subtitle">
             {review.loading && decisions === 0
               ? "Caricamento…"
-              : `${decisions} da decidere · ${review.uncategorizedTotal} senza categoria`}
+              : `${decisions} da decidere · ${review.uncategorizedTotal} senza categoria${
+                  review.creditsTotal > 0 ? ` · ${review.creditsTotal} accrediti da chiarire` : ""
+                }`}
           </p>
         </div>
         <div className="screen__actions">
@@ -537,6 +541,33 @@ export function ReviewQueueScreen({
             ))}
           </ul>
         </>
+      ) : null}
+
+      {review.creditsTotal > 0 ? (
+        <section className="panel">
+          <h2 className="section-title">
+            Accrediti da chiarire <span className="count">{review.creditsTotal}</span>
+          </h2>
+          <ul className="card-list">
+            {review.credits.map((transaction) => (
+              <CreditCard
+                key={transaction.id}
+                transaction={transaction}
+                categories={categoryOptions}
+                onOpen={setPickerFor}
+                onDecide={(category, rule) => {
+                  if (rule) setMovementRule({ transaction, category });
+                  else void review.categorize(transaction, category);
+                }}
+              />
+            ))}
+          </ul>
+          {review.credits.length < review.creditsTotal ? (
+            <p className="chart-note">
+              I {review.credits.length} più recenti: gli altri arrivano man mano che li decidi.
+            </p>
+          ) : null}
+        </section>
       ) : null}
 
       <section className="panel" hidden={review.uncategorizedTotal === 0}>

@@ -79,6 +79,11 @@ VERSION = _version()
 # Category account that names transactions which no rule has classified yet.
 UNCATEGORIZED = _env_str("UNCATEGORIZED", "Uncategorized")
 
+# The first day the credits waiting for a decision are asked about. Older ones
+# were read when the refunds moved (November 2026), and asking again would bury
+# the new ones.
+CREDITS_REVIEW_FROM = _env_str("CREDITS_REVIEW_FROM", "2026-08-01")
+
 # Optional external LLM, used only to propose a category for merchants nobody
 # has seen before. Without a URL the whole feature stays off.
 LLM_URL = _env_str("LLM_URL", "")

@@ -87,7 +87,7 @@ const CARDS: Card[] = [
     computed:
       "Un accredito messo in una categoria abbassa quella categoria nel mese in cui arriva, con i tag del movimento. Non serve abbinarlo alla spesa: basta la stessa categoria. Può rendere negativo un mese.",
     changes:
-      "Stipendio ed Entrate portano il segno Entrata: lì un accredito è un'entrata, non un rimborso. Un accredito senza categoria non conta come rimborso. Chi ti deve ancora dei soldi non si segue: finché non paga, la spesa resta alta.",
+      "Stipendio ed Entrate portano il segno Entrata: lì un accredito è un'entrata, non un rimborso. Un accredito senza categoria non conta come rimborso: da agosto 2026 lo trovi in Da confermare, in Accrediti da chiarire, dove scegli se è entrata, rimborso o contributo. Quando ha una categoria esce da lì, e si ritrova in Movimenti filtrando per categoria. Chi ti deve ancora dei soldi non si segue: finché non paga, la spesa resta alta.",
   },
   {
     id: "contribution",

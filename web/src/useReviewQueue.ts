@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "./api";
+import { toAmount } from "./format";
 import type {
   AccountRef,
   ReviewState,
@@ -18,6 +19,8 @@ interface ReviewQueueState {
   transfers: TransferCandidate[];
   transfersTotal: number;
   proposalsTotal: number;
+  credits: Transaction[];
+  creditsTotal: number;
 }
 
 export interface ReviewQueueController {
@@ -29,6 +32,8 @@ export interface ReviewQueueController {
   transfers: TransferCandidate[];
   transfersTotal: number;
   proposalsTotal: number;
+  credits: Transaction[];
+  creditsTotal: number;
   filters: ReviewFilters;
   setFilters: (next: Partial<ReviewFilters>) => void;
   loading: boolean;
@@ -50,6 +55,8 @@ const EMPTY_QUEUE: ReviewQueueState = {
   transfers: [],
   transfersTotal: 0,
   proposalsTotal: 0,
+  credits: [],
+  creditsTotal: 0,
 };
 
 function byDateDescending(a: Transaction, b: Transaction): number {
@@ -86,6 +93,8 @@ export function useReviewQueue(): ReviewQueueController {
         transfers: data.transfers,
         transfersTotal: data.transfers_total,
         proposalsTotal: data.proposals_total,
+        credits: data.credits,
+        creditsTotal: data.credits_total,
       });
       setLoadError(null);
       setLoading(false);
@@ -116,15 +125,22 @@ export function useReviewQueue(): ReviewQueueController {
       setQueue((current) => ({
         ...current,
         uncategorized: current.uncategorized.filter((item) => item.id !== transaction.id),
+        credits: current.credits.filter((item) => item.id !== transaction.id),
       }));
 
       try {
         await api.setCategory(transaction.id, category);
         void load();
       } catch (error) {
+        const isCredit = toAmount(transaction.amount) > 0;
         setQueue((current) => ({
           ...current,
-          uncategorized: [...current.uncategorized, transaction].sort(byDateDescending),
+          uncategorized: isCredit
+            ? current.uncategorized
+            : [...current.uncategorized, transaction].sort(byDateDescending),
+          credits: isCredit
+            ? [...current.credits, transaction].sort(byDateDescending)
+            : current.credits,
         }));
         setNotice(`Categoria non salvata: ${errorMessage(error)}`);
         return false;
@@ -175,6 +191,8 @@ export function useReviewQueue(): ReviewQueueController {
     transfers: queue.transfers,
     transfersTotal: queue.transfersTotal,
     proposalsTotal: queue.proposalsTotal,
+    credits: queue.credits,
+    creditsTotal: queue.creditsTotal,
     filters,
     setFilters,
     loading,

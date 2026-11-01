@@ -256,6 +256,97 @@ def test_rejecting_a_transfer_gives_the_expense_back(api):
         assert restored["category"] == "Uncategorized"
 
 
+def _credits(client) -> list[str]:
+    return [item["description"] for item in client.get("/api/review").json()["credits"]]
+
+
+@pytest.fixture
+def credits_api(api):
+    client, db_path = api
+    conn = connect(db_path)
+    ledger = Ledger(conn)
+    revolut = ledger.find_account(name="Revolut")["id"]
+    ledger.record(make_txn(ledger, revolut, "2026-07-31", "20.00", "Prima del blocco"))
+    ledger.record(make_txn(ledger, revolut, "2026-08-01", "20.00", "Marco mi rende la cena"))
+    ledger.record(make_txn(ledger, revolut, "2026-08-02", "20.00", "In arrivo", status="PDNG"))
+    yield client, ledger
+    conn.close()
+
+
+def test_review_asks_about_settled_credits_from_august_on(credits_api):
+    client, _ = credits_api
+
+    queue = client.get("/api/review").json()
+
+    # Neither the older credit nor the pending one, and neither half of a transfer.
+    assert [item["description"] for item in queue["credits"]] == [
+        "Stipendio", "Marco mi rende la cena",
+    ]
+    assert queue["credits_total"] == 2
+    # The list of outflows has not moved.
+    assert queue["uncategorized_total"] == 2
+
+
+def test_the_review_filters_leave_the_credits_alone(credits_api):
+    client, _ = credits_api
+
+    queue = client.get("/api/review", params={"search": "ekom", "limit": 1}).json()
+
+    assert len(queue["uncategorized"]) == 1
+    assert len(queue["credits"]) == 1
+    assert queue["credits_total"] == 2
+
+
+@pytest.mark.parametrize("flag", ["income", "contribution", None])
+def test_every_type_of_credit_leaves_the_block(credits_api, flag):
+    client, ledger = credits_api
+    category = ledger.category("Scelta")
+    if flag is not None:
+        ledger.set_category_flag(category, flag, True)
+    credit = client.get("/api/review").json()["credits"][1]
+
+    response = client.post(f"/api/transactions/{credit['id']}/category", json={"category": "Scelta"})
+
+    assert response.status_code == 200
+    assert _credits(client) == ["Stipendio"]
+
+
+def test_a_split_credit_is_already_decided(credits_api):
+    client, ledger = credits_api
+    credit = client.get("/api/review").json()["credits"][1]
+
+    ledger.set_splits(
+        credit["id"],
+        [(ledger.uncategorized(), Decimal("-5.00")), (ledger.category("Svago"), Decimal("-15.00"))],
+    )
+
+    assert _credits(client) == ["Stipendio"]
+
+
+def test_a_rule_takes_the_daily_interest_out_and_moves_no_income(credits_api):
+    client, ledger = credits_api
+    deposit = ledger.ensure_account(Account(name="Deposito", type="real"))
+    for day in ("2026-08-03", "2026-08-04"):
+        ledger.record(make_txn(ledger, deposit, day, "1.10", "Interessi netti"))
+    ledger.set_category_flag(ledger.category("Entrate"), "income", True)
+    period = {"from": "2026-08-01", "to": "2026-08-31"}
+    income = client.get("/api/flows", params=period).json()
+
+    response = client.post(
+        "/api/rules",
+        json={
+            "pattern": "interessi netti",
+            "action": "category",
+            "target": "Entrate",
+            "account_id": deposit,
+        },
+    )
+
+    assert response.status_code < 300
+    assert _credits(client) == ["Stipendio", "Marco mi rende la cena"]
+    assert client.get("/api/flows", params=period).json() == income
+
+
 def test_review_totals_are_not_capped_by_the_page(api):
     client, _ = api
 

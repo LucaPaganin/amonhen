@@ -54,7 +54,13 @@ from amonhen.csv_import import (
     profile_from_mapping,
     read_mapped,
 )
-from amonhen.ledger import TRANSFER_CLEARING, UNCATEGORIZED_WHERE, BalanceCheck, Ledger
+from amonhen.ledger import (
+    CREDITS_WHERE,
+    TRANSFER_CLEARING,
+    UNCATEGORIZED_WHERE,
+    BalanceCheck,
+    Ledger,
+)
 from amonhen.llm import LlmOff, llm_config
 from amonhen.merchants import (
     Rule,
@@ -84,7 +90,7 @@ from amonhen.providers.enable_banking import (
     refusal_code,
     refusal_detail,
 )
-from amonhen.settings import CONFIG_FILE, DB_PATH, UNCATEGORIZED, VERSION
+from amonhen.settings import CONFIG_FILE, CREDITS_REVIEW_FROM, DB_PATH, UNCATEGORIZED, VERSION
 from amonhen.suggestions import propose_for_unseen
 from amonhen.sync import PeriodInvalid, PeriodSyncResult, SyncBusy, SyncResult, SyncService
 from amonhen.transfers import link_passthrough_legs, link_transfers, pair_candidates
@@ -120,8 +126,9 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # now be negative. 33 is the contribution: a category gained `contribution` and
 # `description`, `/api/month` `contributions` and `net`, the metrics
 # `contributions_monthly`. 34 is the bank's forecast: an account row gained
-# `forecast`, and a forecast left the verification.
-API_VERSION = 34
+# `forecast`, and a forecast left the verification. 35 is the credits waiting for a
+# decision: `/api/review` gained `credits` and `credits_total`.
+API_VERSION = 35
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -1317,6 +1324,9 @@ def create_app(
         the classifier: a merchant with a pending proposal is waiting for a
         decision, one without it fell through every automatic pass and is manual
         work — that is the state the UI flags.
+
+        `credits` is the block beside it, money in from `CREDITS_REVIEW_FROM` on.
+        The filters are the list's: they leave it alone.
         """
         with ledger_scope() as ledger:
             pending = {
@@ -1365,6 +1375,15 @@ def create_app(
                         "leg_b": _transaction(leg_b, ledger),
                     }
                 )
+            waiting = (CREDITS_REVIEW_FROM, UNCATEGORIZED)
+            credits_total = ledger.conn.execute(
+                f"SELECT COUNT(*) AS c FROM transactions t {CREDITS_WHERE}", waiting
+            ).fetchone()["c"]
+            credits = ledger.conn.execute(
+                f"""SELECT t.* FROM transactions t {CREDITS_WHERE}
+                    ORDER BY t.date DESC, t.id DESC LIMIT ?""",
+                (*waiting, limit),
+            ).fetchall()
             # The accounts that actually have rows in the backlog, so the filter
             # offers only choices that can return something.
             accounts = [
@@ -1388,6 +1407,8 @@ def create_app(
                 "transfers": transfers,
                 "transfers_total": transfers_total,
                 "proposals_total": len(pending),
+                "credits": [_transaction(row, ledger) for row in credits],
+                "credits_total": credits_total,
                 "applied": {"state": state, "account_id": account_id, "search": search},
             }
 

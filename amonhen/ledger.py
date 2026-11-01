@@ -61,13 +61,10 @@ SPENDING_SQL = f"""(CAST(t.amount AS REAL) < 0
 # never a spending of its own: not rare, not essential, not a row among the categories.
 CONTRIBUTION_SQL = "a.contribution = 1"
 
-# Settled spending still waiting in the review bucket: a real outflow, a posting
-# on the `Uncategorized` category, and no leg of a transfer — linking a pair
-# moves a leg's posting to the clearing account, which is virtual. The queue
-# counts its rows and a proposal's stake is read with this same fragment, so the
-# two can never disagree about what is still undecided.
-UNCATEGORIZED_WHERE = """
-    WHERE t.status = 'BOOK' AND CAST(t.amount AS REAL) < 0
+# What waits in the review bucket: a posting on the `Uncategorized` category, and
+# no leg of a transfer — linking a pair moves a leg's posting to the clearing
+# account, which is virtual.
+_WAITING_SQL = """
     AND EXISTS (
         SELECT 1 FROM postings p JOIN accounts a ON a.id = p.account_id
         WHERE p.transaction_id = t.id AND a.type = 'category' AND a.name = ?
@@ -76,6 +73,28 @@ UNCATEGORIZED_WHERE = """
         SELECT 1 FROM postings p JOIN accounts a ON a.id = p.account_id
         WHERE p.transaction_id = t.id AND a.type = 'virtual'
     )"""
+
+# What one category can decide: a movement whose balancing side is a single
+# posting. A split is what it leaves out: several category postings are the
+# person's own division of the movement, and pointing it at one category would
+# throw the parts away.
+DECIDABLE_BY_ONE_CATEGORY = """
+    AND (SELECT COUNT(*) FROM postings p JOIN accounts a ON a.id = p.account_id
+         WHERE p.transaction_id = t.id AND a.type = 'category') = 1"""
+
+# Settled spending still waiting. The queue counts its rows and a proposal's stake
+# is read with this same fragment, so the two can never disagree about what is
+# still undecided.
+UNCATEGORIZED_WHERE = "WHERE t.status = 'BOOK' AND CAST(t.amount AS REAL) < 0" + _WAITING_SQL
+
+# Settled money in still waiting, from a date on (section 5.5). Until somebody
+# decides it counts as neither a refund nor a contribution. Takes the date, then
+# the bucket's name.
+CREDITS_WHERE = (
+    "WHERE t.status = 'BOOK' AND CAST(t.amount AS REAL) > 0 AND t.date >= ?"
+    + _WAITING_SQL
+    + DECIDABLE_BY_ONE_CATEGORY
+)
 
 _TRANSACTION_COLUMNS = (
     "account_id", "date", "amount", "description", "status", "external_id",

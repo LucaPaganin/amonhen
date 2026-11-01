@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.27 — novembre 2026
+Versione 1.28 — novembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -224,7 +224,9 @@ il totale e nessuna categoria, quindi spesa tipica, spesa attesa e autonomia ne 
 e irrinunciabile e tagliabile scendono in proporzione sul conto su cui arriva. Ogni categoria
 può avere una descrizione.
 1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
-non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.*
+non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
+1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
+*Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -370,13 +372,15 @@ Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno
 - *Categoria.* Come sempre: riempie il vuoto, segue i propri cambiamenti, non sovrascrive una decisione presa a mano.
 - *Tag.* Mette un tag (sezione 5.13) a ogni movimento che combacia, compresi split e giroconti. Non compete con le altre azioni: si somma, quindi una regola di categoria e una di tag sullo stesso testo valgono insieme, e tutte le regole di tag che combaciano mettono il loro. Togliere la regola toglie il tag dai movimenti dove l'aveva messo lei; un tag messo a mano resta.
 
+**Anche un accredito va chiarito.** Finché nessuno decide, un accredito senza categoria non abbassa nessuna spesa e nei grafici conta come entrata. Il blocco *Accrediti da chiarire* di **Da confermare**, separato dalla lista delle uscite e fuori dai suoi filtri, mostra quelli contabilizzati dal 1° agosto 2026 in poi, esclusi giroconti e split: i precedenti sono stati riletti quando i rimborsi sono entrati nel calcolo. Da ogni accredito si sceglie il tipo — entrata, rimborso o contributo alle spese (sezione 5.6) — e poi la categoria fra quelle di quel tipo; un tipo con una categoria sola non chiede altro. Per un rimborso la categoria è quella della spesa. La riga aperta porta allo stesso foglio di ogni movimento, per ciò che i tre tipi non dicono: un giroconto, una nota, una cancellazione. Un accredito che si ripete si risolve con una regola, non a uno a uno, ed è così che restano fuori gli interessi giornalieri del conto deposito: una regola di categoria verso una categoria *Entrata*, che non cambia nessuna cifra perché lì erano già entrate. Una categoria decisa fa uscire l'accredito dal blocco, anche quando è sbagliata; si ritrova in **Movimenti** filtrando per categoria, senza una vista apposta.
+
 Ogni categoria può avere una descrizione, scritta nella sua riga: dice di cosa si tratta, a chi legge fra un anno, e non cambia nessun calcolo.
 
 Le regole che non assegnano una categoria — cancellano, registrano un giroconto o mettono un tag — non stanno sotto una categoria: la sezione le elenca a parte, in due blocchi chiusi di base sotto le categorie (*Tag* e *Altre regole*); un pulsante *Nuova regola* apre lo stesso dialogo da zero, e ogni regola si apre per cambiarla.
 
 ### 5.6 Metriche esposte
 
-**La spesa è al netto dei rimborsi.** Un accredito in una categoria non marcata *Entrata* è un rimborso: abbassa quella categoria nel mese in cui arriva, e con i suoi tag vale anche per spesa rara e irrinunciabile. Non entra nelle entrate. Un accredito in una categoria *Entrata* è un'entrata, e uno senza categoria non conta come rimborso finché nessuno lo decide. Un mese o una categoria possono risultare negativi. Le anomalie guardano solo le uscite.
+**La spesa è al netto dei rimborsi.** Un accredito in una categoria non marcata *Entrata* è un rimborso: abbassa quella categoria nel mese in cui arriva, e con i suoi tag vale anche per spesa rara e irrinunciabile. Non entra nelle entrate. Un accredito in una categoria *Entrata* è un'entrata, e uno senza categoria non conta come rimborso finché nessuno lo decide: è il blocco *Accrediti da chiarire* a chiederlo (sezione 5.5). Un mese o una categoria possono risultare negativi. Le anomalie guardano solo le uscite.
 
 **Il contributo alle spese abbassa il totale, non una categoria.** Il denaro che entra per coprire le spese in generale — i versamenti sul conto cointestato, che riguardano tutto ciò che quel conto paga — si mette in una categoria marcata *Contributo alle spese*. Non è un'entrata e non è il rimborso di niente: un rimborso abbassa la sua categoria, un contributo copre tutte le spese del conto su cui arriva. Spesa tipica, spesa attesa e mesi di autonomia ne sono al netto. Irrinunciabile e tagliabile anche: in ogni mese le due voci di quel conto scendono della stessa percentuale, quanto ha ricevuto sul quanto ha speso, al massimo tutto, e gli altri conti restano interi. La riserva per spese rare resta intera. Nel mese, *Questo mese* e il suo solito restano lordi, così il confronto non dipende dal giorno in cui il denaro arriva, e una riga sotto dice i contributi e quanto resta a carico. Il segno sta da solo: accenderlo spegne *Spesa rara*, *Irrinunciabile* ed *Entrata*. Nei grafici il contributo non è un'entrata e le uscite ne sono al netto, come per un rimborso. I budget di categoria non lo contano. L'autonomia presume che i contributi continuino anche se si fermano le entrate di chi usa l'app.
 
