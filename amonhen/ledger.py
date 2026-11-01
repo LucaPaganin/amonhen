@@ -1130,6 +1130,38 @@ class Ledger:
                     "UPDATE accounts SET contribution = 0 WHERE id = ?", (account_id,)
                 )
 
+    def rename_category(self, account_id: int, name: str) -> None:
+        """Give a category another name, and everything that names it with it.
+
+        A posting points at the account's id, but a rule and a proposal hold the
+        name: left behind, the next `categorize` would create the old name again
+        and move the rule's movements back into it. The review bucket keeps its
+        name, because the whole ledger finds it by that name.
+        """
+        wanted = name.strip()
+        row = self.account(account_id)
+        if row["type"] != "category":
+            raise ValueError(f"account {account_id} is not a category")
+        if row["name"] == UNCATEGORIZED:
+            raise ValueError("the review category keeps its name")
+        if not wanted:
+            raise ValueError("a category needs a name")
+        other = self.find_account(name=wanted)
+        if other is not None and other["id"] != account_id:
+            raise ValueError(f"another account is already called {wanted!r}")
+        old = row["name"]
+        with self.conn:
+            self.conn.execute("UPDATE accounts SET name = ? WHERE id = ?", (wanted, account_id))
+            self.conn.execute(
+                "UPDATE rules SET target = ? WHERE action = 'category' AND target = ?", (wanted, old)
+            )
+            self.conn.execute(
+                "UPDATE merchant_suggestions SET category = ? WHERE category = ?", (wanted, old)
+            )
+            self.conn.execute(
+                "UPDATE budget_proposals SET category = ? WHERE category = ?", (wanted, old)
+            )
+
     def set_category_description(self, account_id: int, text: str) -> None:
         """Say what a category is about; an empty text removes it."""
         if self.account(account_id)["type"] != "category":

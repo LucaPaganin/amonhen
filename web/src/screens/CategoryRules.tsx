@@ -88,6 +88,8 @@ interface LabelRowProps {
   contribution?: boolean;
   /** Only a category has one: what it is about, in a person's words. */
   description?: string | null;
+  /** The name as stored, when the row may rename it: a tag and the review bucket may not. */
+  renameFrom?: string;
   open: boolean;
   onToggle: () => void;
   busy: boolean;
@@ -113,6 +115,7 @@ function LabelRow({
   income,
   contribution,
   description,
+  renameFrom,
   open,
   onToggle,
   busy,
@@ -128,6 +131,8 @@ function LabelRow({
   const [about, setAbout] = useState(description ?? "");
 
   useEffect(() => setAbout(description ?? ""), [description]);
+  const [title, setTitle] = useState(renameFrom ?? "");
+  useEffect(() => setTitle(renameFrom ?? ""), [renameFrom]);
 
   const add = async () => {
     if (text.trim() === "" || saving) return;
@@ -154,6 +159,20 @@ function LabelRow({
 
       {open ? (
         <div className="label-row__body">
+          {renameFrom === undefined ? null : (
+            <input
+              className="input"
+              aria-label={`Nome di ${name}`}
+              value={title}
+              disabled={busy}
+              onChange={(event) => setTitle(event.target.value)}
+              onBlur={() => {
+                const wanted = title.trim();
+                if (wanted !== "" && wanted !== renameFrom) onFlag({ name: wanted });
+                else setTitle(renameFrom);
+              }}
+            />
+          )}
           {description === undefined ? null : (
             <textarea
               className="input"
@@ -493,10 +512,18 @@ export function CategoryRulesScreen({
                 income={item.income}
                 contribution={item.name === bucketName() ? undefined : item.contribution}
                 description={item.description}
+                renameFrom={item.name === bucketName() ? undefined : item.name}
                 open={openRow === key || (needle !== "" && shown.length > 0)}
                 onToggle={() => toggleRow(key)}
                 busy={busy}
-                onFlag={(flags) => void setFlags(() => updateCategoryFlags(item.id, flags))}
+                onFlag={(flags) =>
+                  void setFlags(async () => {
+                    const message = await updateCategoryFlags(item.id, flags);
+                    // A rule holds the name, and the server has just rewritten it.
+                    if (message === null && flags.name !== undefined) rules.reload();
+                    return message;
+                  })
+                }
                 rules={shown}
                 onOpenRule={openRule}
                 onAddRule={(text) => addRule(key, "category", item.name, text)}

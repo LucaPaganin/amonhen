@@ -260,6 +260,7 @@ class CategoryNameRequest(BaseModel):
 
 
 class CategoryFlagsRequest(BaseModel):
+    name: str | None = None
     episodic: bool | None = None
     essential: bool | None = None
     income: bool | None = None
@@ -1436,14 +1437,17 @@ def create_app(
         if all(
             value is None
             for value in (
-                body.episodic, body.essential, body.income, body.contribution, body.description
+                body.name, body.episodic, body.essential, body.income, body.contribution,
+                body.description,
             )
         ):
             raise HTTPException(
-                status_code=422, detail="set a flag or the description of the category"
+                status_code=422, detail="set a name, a flag or the description of the category"
             )
         with ledger_scope() as ledger:
             try:
+                if body.name is not None:
+                    ledger.rename_category(account_id, body.name)
                 if body.episodic is not None:
                     ledger.set_category_flag(account_id, "episodic", body.episodic)
                 if body.essential is not None:

@@ -119,6 +119,10 @@ def build_parser() -> argparse.ArgumentParser:
     category_add = sub.add_parser("category-add", help="create a category for the UI and rules")
     category_add.add_argument("name")
 
+    category_rename = sub.add_parser("category-rename", help="rename a category and its rules")
+    category_rename.add_argument("name")
+    category_rename.add_argument("new_name")
+
     rule_add = sub.add_parser("rule-add", help="add or change a rule")
     rule_add.add_argument("pattern", help="text the description contains, or /an expression/")
     rule_add.add_argument("category")
@@ -512,6 +516,17 @@ def _money(value) -> str:
     return format_decimal(value) if value is not None else "n/a"
 
 
+def cmd_category_rename(ledger: Ledger, args) -> int:
+    account = require_account(ledger, args.name)
+    try:
+        ledger.rename_category(account["id"], args.new_name)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"category {account['id']}: {args.name} -> {args.new_name.strip()}")
+    return 0
+
+
 def cmd_category_add(ledger: Ledger, args) -> int:
     try:
         account_id = ledger.category(args.name)
@@ -761,6 +776,7 @@ HANDLERS = {
     "suggest": cmd_suggest,
     "llm-suggest": cmd_llm_suggest,
     "category-add": cmd_category_add,
+    "category-rename": cmd_category_rename,
     "rule-add": cmd_rule_add,
     "rule-remove": cmd_rule_remove,
     "accounts": cmd_accounts,

@@ -4,6 +4,7 @@ import { api, errorMessage, isAbortError } from "./api";
 import type { Category } from "./types";
 
 export interface CategoryFlags {
+  name?: string;
   episodic?: boolean;
   essential?: boolean;
   income?: boolean;

@@ -162,7 +162,7 @@ const CARDS: Card[] = [
     computed:
       "Se due testi combaciano vince il più lungo, e a parità quello più ristretto: una regola si può limitare a un conto e a un intervallo di importi. Oltre ad assegnare una categoria può cancellare, registrare un giroconto o mettere un tag. Cancellare vince su giroconto, giroconto su categoria; il tag si somma sempre.",
     changes:
-      "Si applica subito. Correggerla sposta i movimenti che teneva; rimuoverla li lascia alla regola più ampia che combacia ancora, o a Da confermare. Una categoria decisa a mano non si tocca.",
+      "Si applica subito. Rinominare una categoria non le toglie niente: le sue regole la seguono. Correggerla sposta i movimenti che teneva; rimuoverla li lascia alla regola più ampia che combacia ancora, o a Da confermare. Una categoria decisa a mano non si tocca.",
   },
   {
     id: "tag",

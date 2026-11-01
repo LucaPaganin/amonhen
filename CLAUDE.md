@@ -42,7 +42,7 @@ Global options come **before** the subcommand: `uv run amonhen --db <path> valid
 
 Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 `spend`, `balances`, `anchor`, `balance-check`, `categorize`, `rules`,
-`rule-add`, `rule-remove`, `category-add`, `metrics`, `category-flags`, `account-flags`,
+`rule-add`, `rule-remove`, `category-add`, `category-rename`, `metrics`, `category-flags`, `account-flags`,
 `split`, `set`, `budget`, `budgets`, `anomalies`, `suggest`, `llm-suggest`,
 `validate`, `backup`.
 
@@ -485,6 +485,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   mortgage payment is a movement like any other, so if it should count it
   belongs in a category. Do not reintroduce a fixed monthly cost that is not a
   movement.
+- **A category is renamed with what names it.** `Ledger.rename_category` (`name` in
+  `PATCH /api/categories/{id}`, `category-rename`, the name field in its row) also
+  rewrites `rules.target` and the two proposal tables: a posting holds the id, they
+  hold the text, and a rule left on the old name would recreate it at the next
+  `categorize` and pull its movements back. The review bucket keeps its name.
 - **`Ledger.category(name)` refuses a name owned by a real or virtual
   account**, and an empty name. Without that, a rule or picker could post to
   something that is not a category and fail halfway through the ledger write.
@@ -1069,6 +1074,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Add or flag a tag, or tag movements|The block *Tag* in **Categorie e regole**, the movement's sheet, *Seleziona* in **Movimenti**, or a rule whose action is *Mette un tag*|
 |Explain a concept, or change how a figure is computed|The card in `web/src/screens/Guide.tsx`, in the same change|
 |Clear up a credit|**Da confermare**, *Accrediti da chiarire*: the type, the category, *Crea una regola* when it repeats|
+|Rename a category|Open its row in **Categorie e regole** and change the name — or `uv run amonhen category-rename <name> <new name>`|
 |Add a category|The same section, *Nuova categoria* (or the picker on a movement, or a proposal's select) — `POST /api/categories`. A category categorizes nothing by itself|
 |Run the UI locally|`uv run amonhen serve` and `npm --prefix web run dev` (Vite proxies `/api`)|
 |Build the PWA|`npm --prefix web run build` — the API serves `web/dist`|
