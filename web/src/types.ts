@@ -75,6 +75,8 @@ export interface Account extends AccountRef {
   balance: string;
   /** The bank expects the account below zero on that date: an advisory, not a state. */
   forecast: { date: string; balance: string } | null;
+  /** Balance types the bank declared that nothing reads: neither checked nor counted. */
+  unrecognized_balances: { type: string; date: string; balance: string }[];
   investment: boolean;
   /** On: the next sync writes back the movements deleted from this account. */
   reimport_deleted: boolean;

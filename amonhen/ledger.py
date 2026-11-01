@@ -157,14 +157,16 @@ class BalanceCheck:
 # groups that are different numbers for the same date — the ones that include
 # the pending movements and the ones that leave them out. The order inside each
 # group is what to prefer when the bank declares several: the interim figures
-# describe now, the closing ones the end of a statement period. The last two
-# entries are not EB types: they are the words an opening we derived ourselves is tagged with, so
-# that row lands in the bucket of the figure it was derived from.
-BALANCE_TYPES = (
+# describe now, the closing ones the end of a statement period. This list is the
+# one section 5.4 of the spec names: a type outside it and outside the forecasts
+# is read by nothing.
+BANK_BALANCE_TYPES = (
     ("ITAV", "available"), ("CLAV", "available"), ("OPAV", "available"),
     ("ITBD", "booked"), ("CLBD", "booked"), ("OPBD", "booked"), ("PRCD", "booked"),
-    ("AVAILABLE", "available"), ("BOOKED", "booked"),
 )
+# The last two are not EB types: they are the words a figure a person wrote is
+# tagged with, so that row lands in the bucket of the figure it stands for.
+BALANCE_TYPES = (*BANK_BALANCE_TYPES, ("AVAILABLE", "available"), ("BOOKED", "booked"))
 BALANCE_KINDS = dict(BALANCE_TYPES)
 BALANCE_TYPE_ORDER = {name: index for index, (name, _kind) in enumerate(BALANCE_TYPES)}
 
@@ -173,15 +175,37 @@ BALANCE_TYPE_ORDER = {name: index for index, (name, _kind) in enumerate(BALANCE_
 # the net worth: it is kept for `Ledger.overdraft_forecast` alone.
 FORECAST_SOURCES_SQL = "('eb:FWAV', 'eb:XPCD')"
 
+_COUNTED_BANK_SOURCES = tuple(f"eb:{name}" for name, _kind in BANK_BALANCE_TYPES)
+_COUNTED_BANK_SOURCES_SQL = "(" + ", ".join(f"'{source}'" for source in _COUNTED_BANK_SOURCES) + ")"
+
+# What counts as a balance: every figure a person wrote, and of the bank's only the
+# types above. A type nobody has read the definition of may be a forecast, a credit
+# line or a statement note, so it stays out instead of being guessed: that guess is
+# how `FWAV` once failed the check and bent the liquidity curve with nobody told.
+COUNTED_SOURCES_SQL = f"(source NOT LIKE 'eb:%' OR source IN {_COUNTED_BANK_SOURCES_SQL})"
+UNRECOGNIZED_SOURCES_SQL = (
+    f"(source LIKE 'eb:%' AND source NOT IN {_COUNTED_BANK_SOURCES_SQL}"
+    f" AND source NOT IN {FORECAST_SOURCES_SQL})"
+)
+
+
+def bank_balance_source(balance_type: str | None) -> str:
+    """The `eb:<TYPE>` tag a balance from the bank is recorded under."""
+    return f"eb:{(balance_type or 'unknown').strip().upper()}"
+
 
 def balance_kind(source: str) -> str:
-    """Which of the bank's two figures a declared balance is.
+    """Which of the bank's two figures a counted balance is.
 
     Comparing a declaration against the wrong figure invents a difference that
     is exactly the pending sum, so the type decides which computed balance it is
-    asserted against. Anything unrecognised — a balance a person wrote — counts
-    as available, which is the figure the ledger's own arithmetic produces.
+    asserted against. A figure a person wrote that names neither counts as
+    available, which is the figure the ledger's own arithmetic produces. A bank's
+    type outside the list has no kind at all, and `COUNTED_SOURCES_SQL` keeps it
+    from reaching here.
     """
+    if source.startswith("eb:") and source not in _COUNTED_BANK_SOURCES:
+        raise ValueError(f"{source} is not a balance this ledger reads")
     return BALANCE_KINDS.get(_balance_type(source), "available")
 
 
@@ -1811,16 +1835,29 @@ class Ledger:
         )
 
     def declarations(self, account_id: int, as_of: dt.date | None = None) -> list[sqlite3.Row]:
-        """Every balance declared for the account, optionally up to a date."""
+        """Every counted balance declared for the account, optionally up to a date."""
         sql = (
-            "SELECT date, balance, source FROM account_balances WHERE account_id = ?"
-            f" AND source NOT IN {FORECAST_SOURCES_SQL}"
+            f"SELECT date, balance, source FROM account_balances WHERE account_id = ?"
+            f" AND {COUNTED_SOURCES_SQL}"
         )
         params: list = [account_id]
         if as_of is not None:
             sql += " AND date <= ?"
             params.append(as_of.isoformat())
         return list(self.conn.execute(sql, params))
+
+    def unrecognized_balances(self, account_id: int) -> list[sqlite3.Row]:
+        """Each balance type the bank declared that nothing reads, at its newest date.
+
+        The rows are kept: they are the evidence for adding the type to the list,
+        and for as long as nobody has, Conti says the account has them.
+        """
+        return self.conn.execute(
+            f"""SELECT source, balance, MAX(date) AS date FROM account_balances
+                WHERE account_id = ? AND {UNRECOGNIZED_SOURCES_SQL}
+                GROUP BY source ORDER BY source""",
+            (account_id,),
+        ).fetchall()
 
     def overdraft_forecast(self, account_id: int, today: dt.date) -> sqlite3.Row | None:
         """The bank's furthest forecast for the account, when it has it below zero.

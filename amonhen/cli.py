@@ -12,7 +12,7 @@ from pathlib import Path
 from amonhen.backup import make_snapshot
 from amonhen.budgets import budget_status, month_of, set_default
 from amonhen.config import load_config
-from amonhen.ledger import Ledger, balance_kind
+from amonhen.ledger import Ledger, balance_kind, bank_balance_source
 from amonhen.merchants import RuleBook, categorize, rule_usage
 from amonhen.models import Account, format_decimal, parse_decimal
 from amonhen.settings import (
@@ -624,9 +624,11 @@ def cmd_balances(ledger: Ledger, args) -> int:
             reference = (balance.get("reference_date") or dt.date.today().isoformat())[:10]
             ledger.record_declared_balance(
                 account["id"], dt.date.fromisoformat(reference), parse_decimal(amount["amount"]),
-                f"eb:{balance.get('balance_type', 'unknown')}",
+                bank_balance_source(balance.get("balance_type")),
             )
             print(f"{entry.name}: {reference} {balance.get('balance_type')} {amount['amount']} {amount.get('currency')}")
+        for row in ledger.unrecognized_balances(account["id"]):
+            print(f"{entry.name}: {row['source']} is recorded but not read", file=sys.stderr)
     return 1 if failures else 0
 
 

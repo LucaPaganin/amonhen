@@ -127,8 +127,9 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # `description`, `/api/month` `contributions` and `net`, the metrics
 # `contributions_monthly`. 34 is the bank's forecast: an account row gained
 # `forecast`, and a forecast left the verification. 35 is the credits waiting for a
-# decision: `/api/review` gained `credits` and `credits_total`.
-API_VERSION = 35
+# decision: `/api/review` gained `credits` and `credits_total`. 36 is the bank's
+# unknown balance types: an account row gained `unrecognized_balances`.
+API_VERSION = 36
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -2137,6 +2138,17 @@ def _forecast(ledger: Ledger, account_id: int) -> dict | None:
     return None if row is None else {"date": row["date"], "balance": row["balance"]}
 
 
+def _unrecognized_balances(ledger: Ledger, account_id: int) -> list[dict]:
+    return [
+        {
+            "type": row["source"].removeprefix("eb:"),
+            "date": row["date"],
+            "balance": row["balance"],
+        }
+        for row in ledger.unrecognized_balances(account_id)
+    ]
+
+
 def _verification_state(checks: list[BalanceCheck]) -> str:
     """Which of the four outcomes the account is in.
 
@@ -2277,6 +2289,7 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         "connected": row["external_uid"] is not None,
         "verification": _verification(ledger, row["id"]),
         "forecast": _forecast(ledger, row["id"]),
+        "unrecognized_balances": _unrecognized_balances(ledger, row["id"]),
     }
 
 

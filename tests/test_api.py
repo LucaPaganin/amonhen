@@ -132,6 +132,23 @@ def test_accounts_report_whether_the_balance_agrees_with_the_bank(api):
     ]
 
 
+def test_an_account_row_names_the_balance_types_nothing_reads(api):
+    client, db_path = api
+    conn = connect(db_path)
+    ledger = Ledger(conn)
+    revolut = ledger.find_account(name="Revolut")["id"]
+    ledger.record_declared_balance(revolut, dt.date(2026, 9, 12), Decimal("99999.00"), "eb:INFO")
+    conn.close()
+
+    rows = {row["name"]: row for row in client.get("/api/accounts").json()}
+
+    assert rows["Revolut"]["unrecognized_balances"] == [
+        {"type": "INFO", "date": "2026-09-12", "balance": "99999.00"}
+    ]
+    assert rows["Revolut"]["verification"]["state"] == "unverified"
+    assert rows["Fineco"]["unrecognized_balances"] == []
+
+
 def test_categories_include_the_review_bucket(api):
     client, _ = api
 

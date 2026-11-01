@@ -18,8 +18,8 @@ from typing import Iterable
 
 from amonhen.ledger import (
     CONTRIBUTION_SQL,
+    COUNTED_SOURCES_SQL,
     ESSENTIAL_SQL,
-    FORECAST_SOURCES_SQL,
     RARE_SQL,
     SPENDING_SQL,
     Ledger,
@@ -705,7 +705,7 @@ def net_worth_series(
            FROM account_balances ab
            JOIN accounts a ON a.id = ab.account_id
            WHERE a.type = 'real' AND a.computed_balance = 0
-             AND ab.source NOT IN {FORECAST_SOURCES_SQL}"""
+             AND {COUNTED_SOURCES_SQL}"""
         + scoped
         + " ORDER BY ab.date, ab.account_id",
         extra,
@@ -763,7 +763,7 @@ def latest_balances(ledger: Ledger, scope: LedgerScope = LedgerScope()) -> list[
             continue
         row = ledger.conn.execute(
             f"""SELECT date, balance FROM account_balances
-               WHERE account_id = ? AND source NOT IN {FORECAST_SOURCES_SQL}
+               WHERE account_id = ? AND {COUNTED_SOURCES_SQL}
                ORDER BY date DESC LIMIT 1""",
             (account["id"],),
         ).fetchone()

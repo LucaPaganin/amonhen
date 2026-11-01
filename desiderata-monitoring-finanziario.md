@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.28 — novembre 2026
+Versione 1.29 — novembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -226,7 +226,10 @@ può avere una descrizione.
 1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
 non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
 1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
-*Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.*
+*Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
+1.29 · i saldi della banca che contano sono un elenco chiuso (sezione 5.4): un tipo che non vi
+compare non si verifica, non entra nei saldi e **Conti** lo segnala, invece di valere come
+disponibile.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -334,6 +337,17 @@ Per ogni conto e ogni periodo:
 ```
 saldo_iniziale + Σ movimenti == saldo dichiarato dalla banca
 ```
+
+Quali saldi contano è un elenco chiuso, per tipo dichiarato dalla banca:
+
+| Tipi | Che cosa sono | Che cosa fa il sistema |
+|---|---|---|
+| `ITAV`, `CLAV`, `OPAV` | disponibile, movimenti in attesa compresi | si verifica contro il saldo calcolato con tutti i movimenti, ed entra nei saldi |
+| `ITBD`, `CLBD`, `OPBD`, `PRCD` | contabilizzato | si verifica contro il saldo dei soli movimenti contabilizzati, ed entra nei saldi |
+| `FWAV`, `XPCD` | previsione | si conserva, non si verifica e non entra nei saldi; serve solo all'avviso qui sotto |
+| ogni altro tipo | sconosciuto | si conserva, non si verifica, non entra nei saldi e **Conti** lo segnala sul conto |
+
+Un tipo sconosciuto non vale mai come disponibile: potrebbe essere una previsione, un fido o una nota, e il valore «disponibile» dato a tutto ciò che non si riconosceva è il modo in cui `FWAV` ha falsato verifica e curva della liquidità senza che nulla lo dicesse. Il segnale resta finché il tipo non entra in questo elenco, che è una decisione presa leggendone il significato. I saldi scritti da una persona (`manual:`, `anchor:`) non sono tipi della banca e contano sempre. Un conto la cui banca dichiara solo tipi sconosciuti resta `non verificato`.
 
 Un saldo previsto dalla banca per una data futura resta fuori: descrive qualcosa che non è successo, quindi non si verifica e non entra nella liquidità. Se è negativo, il conto dice in **Conti** che la banca lo vede andare in rosso se si continua così: è un avviso, e non cambia né il saldo né l'esito della verifica.
 

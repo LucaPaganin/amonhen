@@ -722,6 +722,14 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                       <Help topic="check" label="verifica del saldo" />
                     </p>
                   )}
+                  {account.unrecognized_balances.length === 0 ? null : (
+                    <p className="account-row__forecast">
+                      {`La banca dichiara un saldo di un tipo che l'app non conosce (${account.unrecognized_balances
+                        .map((item) => item.type)
+                        .join(", ")}): non si verifica e non entra nei saldi.`}{" "}
+                      <Help topic="check" label="verifica del saldo" />
+                    </p>
+                  )}
                   <details className="account-row__more">
                     <summary>{heldHere > 0 ? `Dettagli · ${heldHere} da decidere` : "Dettagli"}</summary>
                   {account.opening_balance !== null && account.opening_date !== null ? (

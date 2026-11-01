@@ -211,6 +211,22 @@ def test_the_first_sync_anchors_a_new_account_to_the_booked_figure(ledger):
     assert result.accounts[0].anchored == parse_decimal(account["opening_balance"])
 
 
+def test_the_sync_records_an_unknown_balance_type_warns_and_does_not_anchor_on_it(ledger, caplog):
+    balances = [reported_balance("99999.00", "INFO", TODAY.isoformat())]
+
+    with caplog.at_level("WARNING"):
+        result = SyncService(
+            ledger, FakeClient(fixture_transactions(), balances=balances), build_config(), today=TODAY
+        ).run()
+
+    account = ledger.find_account(name="Revolut personale")
+    assert result.accounts[0].balance_mismatch is None
+    assert result.accounts[0].anchored is None
+    assert account["opening_date"] is None
+    assert [row["source"] for row in ledger.unrecognized_balances(account["id"])] == ["eb:INFO"]
+    assert "eb:INFO is recorded but not read" in caplog.text
+
+
 def test_the_sync_never_anchors_an_account_that_has_an_opening(ledger):
     """After the first time the opening is the fixed point a difference is measured from."""
     transactions = fixture_transactions()

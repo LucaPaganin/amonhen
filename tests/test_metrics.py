@@ -333,6 +333,28 @@ def test_a_forecast_is_neither_a_point_of_the_net_worth_nor_the_latest_balance(l
     assert [row.balance for row in latest_balances(ledger)] == [Decimal("1000.00")]
 
 
+def test_an_unknown_type_is_neither_a_point_of_the_net_worth_nor_the_latest_balance(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real"))
+    ledger.record_declared_balance(account, dt.date(2026, 9, 1), Decimal("1000.00"), "eb:ITBD")
+    ledger.record_declared_balance(account, dt.date(2026, 9, 30), Decimal("50000.00"), "eb:INFO")
+
+    assert [(point.date, point.total) for point in net_worth_series(ledger)] == [
+        (dt.date(2026, 9, 1), Decimal("1000.00"))
+    ]
+    assert [row.balance for row in latest_balances(ledger)] == [Decimal("1000.00")]
+
+
+def test_a_balance_written_by_hand_is_still_a_point_of_the_net_worth(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real"))
+    ledger.record_declared_balance(account, dt.date(2026, 9, 1), Decimal("1000.00"), "manual:available")
+    ledger.record_declared_balance(account, dt.date(2026, 9, 2), Decimal("1100.00"), "anchor:booked")
+
+    assert [point.total for point in net_worth_series(ledger)] == [
+        Decimal("1000.00"), Decimal("1100.00"),
+    ]
+    assert [row.balance for row in latest_balances(ledger)] == [Decimal("1100.00")]
+
+
 def test_net_worth_series_counts_an_account_from_its_first_reported_balance(ledger):
     revolut = ledger.ensure_account(Account(name="Revolut", type="real"))
     fineco = ledger.ensure_account(Account(name="Fineco", type="real"))

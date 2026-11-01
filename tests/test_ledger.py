@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from amonhen.ledger import balance_kind, bank_balance_source
 from amonhen.models import Account, IncomingTransaction
 
 JAN = dt.date(2026, 1, 1)
@@ -720,6 +721,85 @@ def test_the_figure_we_trust_more_wins_when_the_bank_declares_two_of_a_kind(ledg
     assert [
         (check.source, check.kind, check.ok) for check in ledger.declared_checks(account)
     ] == [("eb:ITAV", "available", True)]
+
+
+def test_a_balance_of_an_unknown_type_is_not_checked_and_is_reported(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real", opening_balance=Decimal("70.00")))
+    ledger.record_declared_balance(account, dt.date(2026, 1, 31), Decimal("70.00"), "eb:ITAV")
+    ledger.record_declared_balance(account, dt.date(2026, 2, 1), Decimal("999.00"), "eb:INFO")
+    ledger.record_declared_balance(account, dt.date(2026, 2, 2), Decimal("888.00"), "eb:INFO")
+
+    assert [(check.source, check.ok) for check in ledger.declared_checks(account)] == [
+        ("eb:ITAV", True)
+    ]
+    assert ledger.declaration_for(account, dt.date(2026, 2, 28))["source"] == "eb:ITAV"
+    assert [(row["source"], row["date"], row["balance"]) for row in ledger.unrecognized_balances(account)] == [
+        ("eb:INFO", "2026-02-02", "888.00")
+    ]
+
+
+def test_an_account_with_only_unknown_types_stays_unverified(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real"))
+    ledger.record_declared_balance(account, dt.date(2026, 1, 31), Decimal("70.00"), "eb:OTHR")
+
+    assert ledger.declared_checks(account) == []
+
+
+def test_the_words_a_person_writes_are_not_types_of_the_bank(ledger):
+    """`AVAILABLE` is what a hand-written row says: from a bank it means nothing."""
+    account = ledger.ensure_account(Account(name="Fineco", type="real", opening_balance=Decimal("70.00")))
+    ledger.record_declared_balance(account, dt.date(2026, 1, 31), Decimal("999.00"), "eb:AVAILABLE")
+
+    assert ledger.declared_checks(account) == []
+    assert [row["source"] for row in ledger.unrecognized_balances(account)] == ["eb:AVAILABLE"]
+
+
+def test_a_forecast_is_not_an_unknown_type(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real"))
+    ledger.record_declared_balance(account, dt.date(2026, 1, 31), Decimal("70.00"), "eb:FWAV")
+
+    assert ledger.unrecognized_balances(account) == []
+
+
+@pytest.mark.parametrize(
+    ("source", "kind"),
+    [
+        ("manual:available", "available"),
+        ("manual:booked", "booked"),
+        ("anchor:available", "available"),
+        ("anchor:booked", "booked"),
+        ("eb:ITAV", "available"),
+        ("eb:PRCD", "booked"),
+    ],
+)
+def test_every_counted_source_has_a_kind(source, kind):
+    assert balance_kind(source) == kind
+
+
+@pytest.mark.parametrize("source", ["eb:INFO", "eb:AVAILABLE", "eb:FWAV", "eb:UNKNOWN"])
+def test_a_source_nothing_reads_has_no_kind_to_guess(source):
+    with pytest.raises(ValueError):
+        balance_kind(source)
+
+
+@pytest.mark.parametrize("kind", ["available", "booked"])
+def test_a_balance_written_by_hand_keeps_counting_beside_an_unknown_type(ledger, kind):
+    account = ledger.ensure_account(Account(name="Fineco", type="real", opening_balance=Decimal("70.00")))
+    ledger.record_declared_balance(account, dt.date(2026, 1, 31), Decimal("70.00"), f"manual:{kind}")
+    ledger.record_declared_balance(account, dt.date(2026, 2, 1), Decimal("70.00"), f"anchor:{kind}")
+    ledger.record_declared_balance(account, dt.date(2026, 2, 2), Decimal("999.00"), "eb:VALU")
+
+    assert [(check.source, check.kind, check.ok) for check in ledger.declared_checks(account)] == [
+        (f"anchor:{kind}", kind, True)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("declared", "tag"),
+    [("ITAV", "eb:ITAV"), ("itbd", "eb:ITBD"), (" INFO ", "eb:INFO"), (None, "eb:UNKNOWN")],
+)
+def test_the_tag_of_a_bank_balance_is_one_spelling(declared, tag):
+    assert bank_balance_source(declared) == tag
 
 
 def test_a_forecast_is_not_checked_and_does_not_hide_the_check_before_it(ledger):

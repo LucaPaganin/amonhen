@@ -102,7 +102,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`, `CREDITS_REVIEW_FROM`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `unrecognized_balances`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `COUNTED_SOURCES_SQL`, `UNRECOGNIZED_SOURCES_SQL`, `bank_balance_source`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
@@ -544,6 +544,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   contribution: a category gained `contribution` and `description`, `/api/month`
   `contributions` and `net`, the metrics `contributions_monthly`. 34 is the forecast: an
   account row gained `forecast`. 35 is the credits: `/api/review` gained `credits` and `credits_total`.
+  36 is the bank's unknown balance types: an account row gained
+  `unrecognized_balances`.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -643,13 +645,21 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   would be wrong to leave them out. A hand-typed `--declared` has no `eb:` tag
   to say which figure it is, so it carries the word (`manual:booked`) and the
   recorded row is tagged `anchor:<kind>`, both read by the same `balance_kind`.
-- **A bank's forecast is not a balance.** Fineco declares `FWAV`, what it expects the
-  account to hold on a coming date, and read as a declaration it failed the 5.4 check
-  (a red on an account that was fine) and put the future into `net_worth_series` and
-  `latest_balances`. `ledger.FORECAST_SOURCES_SQL` keeps those rows out of `declarations`
-  and both series, and the sync still records them because
-  `Ledger.overdraft_forecast` reads them: below zero it is `forecast` on the account
-  row, a line in Conti that changes neither the balance nor the verification.
+- **A bank's balance counts only if its type is on the list.** Fineco declares `FWAV`,
+  what it expects the account to hold on a coming date, and `balance_kind` used to read
+  any unknown type as available: it failed the 5.4 check (a red on an account that was
+  fine) and put the future into `net_worth_series` and `latest_balances`. Now
+  `ledger.BANK_BALANCE_TYPES` is the list section 5.4 names, and
+  `COUNTED_SOURCES_SQL` is the one filter `declarations` and both series read: every
+  `manual:`/`anchor:` row, and of the `eb:` rows only those types. The sync still
+  records everything. `FORECAST_SOURCES_SQL` rows feed `Ledger.overdraft_forecast`:
+  below zero it is `forecast` on the account row, a line in Conti that changes neither
+  the balance nor the verification. Any other `eb:` type is
+  `Ledger.unrecognized_balances`: a warning at every sync and `unrecognized_balances`
+  on the account row, a line in Conti that stays until the type is added to the list,
+  which means reading what it is. `balance_kind` raises on such a row rather than
+  guess. `bank_balance_source` writes the tag in upper case, so the SQL lists and the
+  stored rows cannot disagree on the spelling.
 - **The opening is a fixed point, and re-deriving it hides a difference.** An
   anchor makes the 5.4 check agree by construction: whatever the ledger is
   missing or holds twice goes into the opening. Revolut subtracts a card

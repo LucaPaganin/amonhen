@@ -12,7 +12,7 @@ from decimal import Decimal
 import requests
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
-from amonhen.ledger import Ledger
+from amonhen.ledger import Ledger, bank_balance_source
 from amonhen.merchants import RuleBook, categorize
 from amonhen.models import Account, IncomingTransaction, RecordAction, format_decimal, parse_decimal
 from amonhen.providers.eb_normalize import iban_of, normalize_account, normalize_transaction
@@ -375,9 +375,15 @@ class SyncService:
                 account_id,
                 dt.date.fromisoformat(reference),
                 parse_decimal(amount["amount"]),
-                f"eb:{balance.get('balance_type', 'unknown')}",
+                bank_balance_source(balance.get("balance_type")),
             )
             recorded += 1
+        for row in self.ledger.unrecognized_balances(account_id):
+            log.warning(
+                "account %s: balance type %s is recorded but not read: "
+                "neither checked nor counted (latest %s on %s)",
+                entry.name, row["source"], row["balance"], row["date"],
+            )
         return recorded
 
     def _account_record(self, entry: ConfiguredAccount) -> Account:
