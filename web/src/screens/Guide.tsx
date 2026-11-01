@@ -21,7 +21,8 @@ export type GuideTopic =
   | "rule"
   | "tag"
   | "anomaly"
-  | "check";
+  | "check"
+  | "sync-limit";
 
 interface Card {
   id: GuideTopic;
@@ -181,6 +182,12 @@ const CARDS: Card[] = [
     computed:
       "Lo confronta con la mediana della categoria, e dice di quante volte la supera. Sotto i 100 € non segnala niente, come per cambi valuta e spese rare.",
     changes: "Una spesa rara non è un'anomalia: segnarla la toglie dall'elenco.",
+  },
+  {
+    id: "sync-limit",
+    title: "Limite della banca",
+    means:
+      "Le banche limitano quante volte al giorno un'app può leggere un conto senza di te. Oltre il limite rifiutano, e quel conto resta fermo all'ultima lettura finché il limite non si azzera: gli altri conti si leggono lo stesso. Riavviare l'app non consuma il limite, premere Sincronizza sì.",
   },
   {
     id: "check",

@@ -1,6 +1,12 @@
 const currency = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const shortDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" });
 const longDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" });
+const moment = new Intl.DateTimeFormat("it-IT", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 const monthName = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" });
 
 export function toAmount(value: string): number {
@@ -23,6 +29,12 @@ export function formatDate(iso: string): string {
 export function formatDateWithYear(iso: string): string {
   const date = new Date(`${iso}T00:00:00`);
   return Number.isNaN(date.getTime()) ? iso : longDate.format(date);
+}
+
+/** A moment a sync recorded, in the viewer's own time. */
+export function formatMoment(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : moment.format(date);
 }
 
 export function formatMonth(month: string): string {

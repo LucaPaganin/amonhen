@@ -18,9 +18,12 @@ from amonhen.settings import EB_API
 
 log = logging.getLogger(__name__)
 
-# Number of attempts before a 429 is surfaced to the caller.
-_RATE_LIMIT_ATTEMPTS = 4
+# Number of attempts before a 429 is surfaced to the caller. Few on purpose: a
+# bank's daily quota does not reset in a minute, and each attempt may spend it.
+_RATE_LIMIT_ATTEMPTS = 3
 _RATE_LIMIT_BASE_SECONDS = 5
+# A `Retry-After` beyond this is the end of a quota, not a pause to sit through.
+_RATE_LIMIT_MAX_WAIT_SECONDS = 60
 _PAGE_DELAY_SECONDS = 1
 # Inclusive window width; ASPSPs reject broader transaction ranges. An account
 # can ask for a narrower one (`max_window_days` in accounts.json).
@@ -49,6 +52,10 @@ class FetchedWindow:
     date_to: dt.date
     transactions: list[dict] = field(default_factory=list)
     error: str | None = None
+
+
+class RateLimitedError(requests.HTTPError):
+    """A 429 that waiting here will not cure: the account is done for this run."""
 
 
 def refusal_detail(response: requests.Response) -> str:
@@ -226,6 +233,8 @@ class EnableBankingClient:
         window rather than one per day. Any other failure is the window's own
         and is reported without halving. A dead consent is not a window's
         failure: it raises, because every other window would fail the same way.
+        A rate limit stops the period at the window it hit, reported failed: the
+        next window would be refused too, and would spend the quota to learn it.
 
         Windows are whole days on purpose: the ledger numbers identical
         movements of one day inside a batch, and a day split across two batches
@@ -240,6 +249,9 @@ class EnableBankingClient:
             asked_end = asked_end or window_end
             try:
                 transactions = self._fetch_window(account_uid, window_start, window_end)
+            except RateLimitedError as exc:
+                windows.append(FetchedWindow(window_start, asked_end, error=_window_error(exc)))
+                return windows
             except requests.HTTPError as exc:
                 status = exc.response.status_code if exc.response is not None else None
                 if status in _RANGE_REFUSALS and width > 1:
@@ -295,15 +307,23 @@ class EnableBankingClient:
     # -- internals ----------------------------------------------------------
 
     def _get(self, url: str, params: dict | None = None) -> requests.Response:
-        """GET with 429 backoff; 401/403 means the consent is no longer valid."""
+        """GET with 429 backoff; 401/403 means the consent is no longer valid.
+
+        A `Retry-After` the bank sends is obeyed when it is short and ends the
+        attempts when it is not. `RateLimitedError` carries the bank's own words.
+        """
         response = None
+        detail = ""
         for attempt in range(_RATE_LIMIT_ATTEMPTS):
             response = requests.get(
                 url, headers=self._headers(), params=params, timeout=self.timeout
             )
             if response.status_code == 429:
-                wait = min(_RATE_LIMIT_BASE_SECONDS * 2**attempt, 60)
-                log.warning("Enable Banking rate limited, retrying in %ds", wait)
+                detail = refusal_detail(response)
+                wait = _rate_limit_wait(response, attempt)
+                if wait is None or attempt == _RATE_LIMIT_ATTEMPTS - 1:
+                    break
+                log.warning("Enable Banking rate limited (%s), retrying in %ds", detail, wait)
                 time.sleep(wait)
                 continue
             if response.status_code == 401:
@@ -317,7 +337,19 @@ class EnableBankingClient:
                     f"application lacks the required permission ({refusal_detail(response)})"
                 )
             return response
-        return response
+        log.warning(
+            "Enable Banking rate limited (%s, Retry-After %s), giving up",
+            detail, response.headers.get("Retry-After"),
+        )
+        raise RateLimitedError(f"429 Too Many Requests: {detail}", response=response)
+
+
+def _rate_limit_wait(response: requests.Response, attempt: int) -> int | None:
+    """Seconds to wait before asking again, or None when asking again is pointless."""
+    asked = response.headers.get("Retry-After", "").strip()
+    if asked.isdigit():
+        return int(asked) if int(asked) <= _RATE_LIMIT_MAX_WAIT_SECONDS else None
+    return _RATE_LIMIT_BASE_SECONDS * 2**attempt
 
 
 def _window_error(exc: requests.HTTPError) -> str:

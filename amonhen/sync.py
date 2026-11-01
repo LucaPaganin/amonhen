@@ -13,10 +13,14 @@ import requests
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
 from amonhen.ledger import Ledger, bank_balance_source
-from amonhen.merchants import RuleBook, categorize
+from amonhen.merchants import RuleBook, apply_transfer_rules, categorize
 from amonhen.models import Account, IncomingTransaction, RecordAction, format_decimal, parse_decimal
 from amonhen.providers.eb_normalize import iban_of, normalize_account, normalize_transaction
-from amonhen.providers.enable_banking import ConsentExpiredError, EnableBankingClient
+from amonhen.providers.enable_banking import (
+    ConsentExpiredError,
+    EnableBankingClient,
+    RateLimitedError,
+)
 from amonhen.transfers import link_passthrough_legs, link_transfers
 
 log = logging.getLogger("amonhen.sync")
@@ -30,6 +34,29 @@ DEFAULT_BACKFILL_DAYS = 90
 # state worth having. The CLI and the daemon are separate processes, with their
 # own copy of this lock, so the guard costs them nothing.
 _SYNC_LOCK = threading.Lock()
+
+# When the last full pass ended: what lets a restart leave the banks' quota alone.
+_LAST_RUN_KEY = "sync:last_run"
+
+
+def _last_read_key(account_id: int) -> str:
+    return f"sync:last_read:{account_id}"
+
+
+def _limited_key(account_id: int) -> str:
+    return f"sync:limited:{account_id}"
+
+
+def _now() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+
+def sync_limit(ledger: Ledger, account_id: int) -> dict | None:
+    """Since when the bank refuses this account for too many requests, if it does."""
+    since = ledger.setting(_limited_key(account_id))
+    if not since:
+        return None
+    return {"since": since, "last_read": ledger.setting(_last_read_key(account_id)) or None}
 
 
 class SyncBusy(RuntimeError):
@@ -47,6 +74,7 @@ class AccountSyncResult:
     balances: int = 0
     actions: dict[str, int] = field(default_factory=dict)
     error: str | None = None
+    rate_limited: bool = False
     balance_mismatch: str | None = None
     # The opening this run derived from the bank's first figure, if it did.
     anchored: Decimal | None = None
@@ -134,6 +162,7 @@ class SyncService:
         self.today = today or dt.date.today()
         self._sessions: dict[str, dict[str, dict]] = {}
         self._details: dict[str, dict] = {}
+        self._limited: dict[str, str] = {}
 
     def run(self) -> SyncResult:
         """One full pass, or `SyncBusy` when another one is already running."""
@@ -143,6 +172,32 @@ class SyncService:
             return self._run()
         finally:
             _SYNC_LOCK.release()
+
+    def settle(self) -> None:
+        """What a pass does after asking the banks, with no bank asked.
+
+        A process stopped halfway leaves movements written and their rules
+        unapplied, so the server does this when it starts and a pass is not due.
+        """
+        if not _SYNC_LOCK.acquire(blocking=False):
+            raise SyncBusy("a sync is already running in this process")
+        try:
+            apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
+            self._link_and_categorize()
+        finally:
+            _SYNC_LOCK.release()
+
+    def due_in(self, interval_hours: float, now: dt.datetime | None = None) -> float:
+        """Seconds until a pass is due: zero when none ever ended, or one is late.
+
+        Every pass spends the banks' quota, and a restart is no reason to spend it.
+        """
+        last = self.ledger.setting(_LAST_RUN_KEY)
+        if not last:
+            return 0.0
+        moment = now or dt.datetime.now(dt.timezone.utc)
+        elapsed = (moment - dt.datetime.fromisoformat(last)).total_seconds()
+        return max(0.0, interval_hours * 3600 - elapsed)
 
     def run_period(
         self, account: str, date_from: dt.date, date_to: dt.date, *, preview: bool = False
@@ -225,6 +280,7 @@ class SyncService:
         result.held = len(self.ledger.held_transactions(account_id))
         # The same steps as the incremental pass, from the start of the period:
         # a leg older than any `start_sync_date` must still find its pair.
+        apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
         result.transfers_linked = link_transfers(self.ledger, since=date_from)
         result.passthrough_legs = link_passthrough_legs(self.ledger, self.config.passthrough)
         self.ledger.validate()
@@ -250,7 +306,19 @@ class SyncService:
         ]
 
     def _run(self) -> SyncResult:
-        results = [self._sync_account(entry) for entry in self.config.accounts]
+        results = []
+        for entry in self.config.accounts:
+            result = self._sync_account(entry)
+            results.append(result)
+            if result.fetched:
+                apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
+        linked, legs, applied = self._link_and_categorize()
+        for entry, result in zip(self.config.accounts, results):
+            result.balance_mismatch = self._declared_balance_mismatch(entry)
+        self.ledger.set_setting(_LAST_RUN_KEY, _now())
+        return SyncResult(results, linked, rules_applied=applied, passthrough_legs=legs)
+
+    def _link_and_categorize(self) -> tuple[int, int, int]:
         linked = link_transfers(self.ledger, since=self._earliest_start())
         # Declared own accounts come after the pairing, so a real pair between
         # two tracked accounts always wins over a label match.
@@ -258,10 +326,7 @@ class SyncService:
         self.ledger.validate()
         # The deterministic rules belong to ingest: every sync path, including
         # the one inside the server, must leave categorized rows behind.
-        applied = categorize(self.ledger, RuleBook(self.ledger.conn))
-        for entry, result in zip(self.config.accounts, results):
-            result.balance_mismatch = self._declared_balance_mismatch(entry)
-        return SyncResult(results, linked, rules_applied=applied, passthrough_legs=legs)
+        return linked, legs, categorize(self.ledger, RuleBook(self.ledger.conn))
 
     def _declared_balance_mismatch(self, entry: ConfiguredAccount) -> str | None:
         """Desiderata 5.4: the ledger must agree with the bank's own balance.
@@ -300,6 +365,8 @@ class SyncService:
         result = AccountSyncResult(account=entry.name)
         account_id = self.ledger.ensure_account(self._account_record(entry))
         date_from = self._start_date(entry, account_id)
+        if entry.account_uid in self._limited:
+            return self._rate_limited(result, account_id, self._limited[entry.account_uid])
         try:
             transactions = self.client.fetch_transactions(
                 entry.account_uid, date_from, self.today, entry.max_window_days
@@ -308,6 +375,8 @@ class SyncService:
             result.error = f"consent expired: {exc}"
             log.warning("account %s: %s", entry.name, result.error)
             return result
+        except RateLimitedError as exc:
+            return self._rate_limited(result, account_id, str(exc))
         except requests.RequestException as exc:
             # One unreachable bank must not abort the rest of the run.
             result.error = f"fetch failed: {exc}"
@@ -320,7 +389,19 @@ class SyncService:
         )
         result.balances = self._record_balances(entry, account_id)
         result.anchored = self._anchor_first_opening(entry, account_id)
+        self.ledger.set_setting(_last_read_key(account_id), _now())
+        self.ledger.set_setting(_limited_key(account_id), "")
         log.info("account %s: %s, %d balance(s)", entry.name, result.actions, result.balances)
+        return result
+
+    def _rate_limited(
+        self, result: AccountSyncResult, account_id: int, detail: str
+    ) -> AccountSyncResult:
+        """The bank has had enough of this account: nothing else is asked of it."""
+        result.rate_limited = True
+        result.error = f"rate limited: {detail}"
+        self.ledger.set_setting(_limited_key(account_id), _now())
+        log.warning("account %s: %s", result.account, result.error)
         return result
 
     def _anchor_first_opening(self, entry: ConfiguredAccount, account_id: int) -> Decimal | None:
@@ -397,8 +478,13 @@ class SyncService:
         if record.iban is None:
             # A session names an account but does not identify it: its own IBAN
             # only comes from the details endpoint, and the transfer matcher
-            # compares it with the counterparty each bank printed on a leg.
-            record = replace(record, iban=iban_of(self._account_details(entry).get("account_id")))
+            # compares it with the counterparty each bank printed on a leg. An
+            # IBAN does not change, and that call counts against the bank's quota.
+            known = self.ledger.find_account(name=entry.name)
+            iban = known["iban"] if known is not None else None
+            record = replace(
+                record, iban=iban or iban_of(self._account_details(entry).get("account_id"))
+            )
         if record.external_uid is None:
             return replace(record, external_uid=entry.account_uid)
         return record
@@ -412,6 +498,9 @@ class SyncService:
         if entry.account_uid not in self._details:
             try:
                 payload = self.client.fetch_account_details(entry.account_uid)
+            except RateLimitedError as exc:
+                self._limited[entry.account_uid] = str(exc)
+                payload = {}
             except Exception as exc:  # session metadata is optional enrichment
                 log.warning(
                     "could not read account details for %s: %s", entry.name, type(exc).__name__

@@ -66,6 +66,13 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   rejected on the live ledger: pairing a credit with the debit it compensates
   (no such pair exists) and a refund category of its own (a category posting on a credit
   leaves it in income).
+- **A transfer rule runs first.** `apply_transfer_rules` follows every account that
+  fetched something, and comes before `link_transfers` in a pass, a period and
+  `settle`. After each account, because the other half used to appear only when the
+  slowest bank of the run had finished; before the pairing, because a paired leg is not
+  `_decidable`, so an equal amount on another account would have taken a transfer the
+  person named with a rule. Category rules still run last: on a leg the matcher pairs,
+  the pair wins.
 - **A transfer rule towards an account added by hand writes the other half.** The
   Revolut deposit is reachable only through a consent that does not cover it, so its
   transfers reach the ledger on the personal account alone. When a transfer rule's

@@ -325,15 +325,27 @@ def cmd_serve(ledger: Ledger, args) -> int:
 
 
 def _sync_loop(db_path: str, config_path: str, interval_hours: float) -> None:
-    """Scheduled PSD2 sync inside the server process: one writer, one database."""
+    """Scheduled PSD2 sync inside the server process: one writer, one database.
+
+    A pass runs when one is due, counting from the last that ended, the button's
+    included, so a restart spends none of the banks' quota. Otherwise the wake-up
+    finishes locally what a stopped process may have left, and waits.
+    """
     from amonhen.db import open_ledger_db
 
     while True:
+        wait = interval_hours * 3600
         try:
             conn = open_ledger_db(db_path)
             try:
                 config = load_config(config_path)
-                SyncService(Ledger(conn), build_client(config), config).run()
+                service = SyncService(Ledger(conn), build_client(config), config)
+                due = service.due_in(interval_hours)
+                if due > 0:
+                    service.settle()
+                    wait = due
+                else:
+                    service.run()
             finally:
                 conn.close()
         except SyncBusy:
@@ -342,7 +354,7 @@ def _sync_loop(db_path: str, config_path: str, interval_hours: float) -> None:
             logging.info("scheduled sync skipped: another one is running")
         except Exception:
             logging.exception("scheduled sync failed")
-        time.sleep(interval_hours * 3600)
+        time.sleep(wait)
 
 
 def cmd_rules(ledger: Ledger, args) -> int:

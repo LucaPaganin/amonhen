@@ -92,7 +92,14 @@ from amonhen.providers.enable_banking import (
 )
 from amonhen.settings import CONFIG_FILE, CREDITS_REVIEW_FROM, DB_PATH, UNCATEGORIZED, VERSION
 from amonhen.suggestions import propose_for_unseen
-from amonhen.sync import PeriodInvalid, PeriodSyncResult, SyncBusy, SyncResult, SyncService
+from amonhen.sync import (
+    PeriodInvalid,
+    PeriodSyncResult,
+    SyncBusy,
+    SyncResult,
+    SyncService,
+    sync_limit,
+)
 from amonhen.transfers import link_passthrough_legs, link_transfers, pair_candidates
 
 WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
@@ -139,8 +146,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # `contributions_monthly`. 34 is the bank's forecast: an account row gained
 # `forecast`, and a forecast left the verification. 35 is the credits waiting for a
 # decision: `/api/review` gained `credits` and `credits_total`. 36 is the bank's
-# unknown balance types: an account row gained `unrecognized_balances`.
-API_VERSION = 36
+# unknown balance types: an account row gained `unrecognized_balances`. 37 is the
+# bank's rate limit: an account row gained `sync_limit`, and a sync's account
+# `rate_limited` and `last_read`.
+API_VERSION = 37
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -2039,6 +2048,8 @@ def _sync_payload(ledger: Ledger, result: SyncResult) -> dict:
                 "balances": entry.balances,
                 "actions": entry.actions,
                 "error": entry.error,
+                "rate_limited": entry.rate_limited,
+                "last_read": (sync_limit(ledger, row["id"]) or {}).get("last_read") if row else None,
                 "balance_mismatch": entry.balance_mismatch,
                 # Set on the run that gave a new account its opening.
                 "anchored": format_decimal(entry.anchored) if entry.anchored is not None else None,
@@ -2305,6 +2316,7 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         "verification": _verification(ledger, row["id"]),
         "forecast": _forecast(ledger, row["id"]),
         "unrecognized_balances": _unrecognized_balances(ledger, row["id"]),
+        "sync_limit": sync_limit(ledger, row["id"]),
     }
 
 

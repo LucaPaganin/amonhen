@@ -50,7 +50,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 `sync`/`import` → normalizers (`providers/`, `adapters/`) → `IncomingTransaction`
 → `Ledger.record` (dedup + pending→booked) → postings in SQLite →
-`transfers.link_transfers` → `spend_between` / `balance` / `check_balance`.
+`merchants.apply_transfer_rules` → `transfers.link_transfers` → `spend_between` / `balance` / `check_balance`.
 
 ## File map
 
@@ -105,10 +105,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `unrecognized_balances`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `COUNTED_SOURCES_SQL`, `UNRECOGNIZED_SOURCES_SQL`, `bank_balance_source`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
-|`sync`|`SyncService`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
+|`sync`|`SyncService` (with `settle`, `due_in`), `sync_limit`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
-|`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
+|`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
 |`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
 |`budgets`|`budget_status`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
 |`anomalies`|`detect_anomalies`, `Anomaly`|
@@ -116,7 +116,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
 |`api`|`create_app`|
 |`backup`|`Snapshot`, `make_snapshot`|
-|`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `ConsentExpiredError`, `normalize_transaction`, `normalize_account`, `iban_of`|
+|`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
 |`cli`|`main`, `build_parser`|
 
@@ -288,6 +288,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Change what the product must do|The spec (`desiderata-monitoring-finanziario.md`) first, then the code — section 9 holds the order of work and the status of each phase|
 |Change the sync cadence|`AMONHEN_SYNC_INTERVAL_HOURS` or `daemon --interval-hours`|
 |Sync one account over a past period, or fill a gap|The account's panel in **Conti**, *Sincronizza un periodo* (preview first) — or `uv run amonhen sync --account <name> --from YYYY-MM-DD --to YYYY-MM-DD [--preview]`. Then decide the held probable duplicates in the same panel. A bank that refuses 30-day ranges gets `max_window_days` in its `accounts.json` entry|
+|A bank refuses with 429|The body is in the logs (`Enable Banking rate limited (…)`), the account in **Conti** says so, and the other accounts carry on: see `docs/sync-and-banks.md`. Every press of *Sincronizza* spends the quota, a restart does not|
 |Ask the banks for data now|The **Sincronizza** button in the app's top bar (`POST /api/sync`), or `uv run amonhen sync`|
 |Mark a movement without touching what the bank said|The note field in the movement sheet (`PUT /api/transactions/{id}/notes`) — the only field of a movement the app writes|
 |Track an account no bank exposes (the Revolut deposit)|**Conti**: add it by hand, then a transfer rule in **Categorie e regole** with the text the bank prints and the account as *Verso* — the rule writes the other half of every transfer on it. Declare today's balance and *Ricalcola il saldo iniziale* (it previews the opening first), then turn on *Saldo dai movimenti* so the net worth reads it; correct interest with a movement. CLI: `account-flags <name> --computed-balance`|

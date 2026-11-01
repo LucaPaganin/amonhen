@@ -599,6 +599,19 @@ def categorize(ledger: Ledger, book: RuleBook) -> int:
     return apply_rule_changes(ledger, rules, rules)
 
 
+def apply_transfer_rules(ledger: Ledger, book: RuleBook) -> int:
+    """Record now what a transfer rule matches, ahead of everything else a sync does.
+
+    Before the pairing, because a leg the matcher paired is no rule's to move: an
+    equal amount on another account would take a transfer the person named with a
+    rule. And after each account, because the other half must not wait for the
+    slowest bank of the run.
+    """
+    rules = book.rules()
+    with deferred_commits(ledger.conn):
+        return _apply_transfers(ledger, rules, rules)
+
+
 def apply_rule_changes(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) -> int:
     """Make the movements say what the rules say, in the order the actions win.
 

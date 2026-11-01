@@ -9,7 +9,7 @@ import { Toast } from "../components/Toast";
 import { Toggle } from "../components/Toggle";
 import { ValuationForm } from "../components/ValuationForm";
 import { VirtualAccounts } from "../components/VirtualAccounts";
-import { formatAmount, formatDate, formatDateWithYear, toAmount } from "../format";
+import { formatAmount, formatDate, formatDateWithYear, formatMoment, toAmount } from "../format";
 import type {
   Account,
   AccountFlags,
@@ -720,6 +720,16 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                         account.forecast.balance,
                       )} al ${formatDate(account.forecast.date)}`}{" "}
                       <Help topic="check" label="verifica del saldo" />
+                    </p>
+                  )}
+                  {account.sync_limit === null ? null : (
+                    <p className="account-row__forecast">
+                      {`La banca ha rifiutato troppe richieste: riprova il prossimo sync. ${
+                        account.sync_limit.last_read === null
+                          ? ""
+                          : `Ultima lettura ${formatMoment(account.sync_limit.last_read)}.`
+                      }`}{" "}
+                      <Help topic="sync-limit" label="limite della banca" />
                     </p>
                   )}
                   {account.unrecognized_balances.length === 0 ? null : (

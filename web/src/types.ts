@@ -77,6 +77,8 @@ export interface Account extends AccountRef {
   forecast: { date: string; balance: string } | null;
   /** Balance types the bank declared that nothing reads: neither checked nor counted. */
   unrecognized_balances: { type: string; date: string; balance: string }[];
+  /** Since when the bank refuses this account for too many requests. */
+  sync_limit: { since: string; last_read: string | null } | null;
   investment: boolean;
   /** On: the next sync writes back the movements deleted from this account. */
   reimport_deleted: boolean;
@@ -161,6 +163,9 @@ export interface SyncAccountResult {
   /** How the movements were absorbed: `inserted`, `promoted`, `duplicate`, … */
   actions: Record<string, number>;
   error: string | null;
+  rate_limited: boolean;
+  /** The last read that worked, when `rate_limited`. */
+  last_read: string | null;
   /** The sync's own 5.4 sentence, when the ledger and the bank disagreed. */
   balance_mismatch: string | null;
   /** The opening the sync derived from the bank's first figure, on that run only. */

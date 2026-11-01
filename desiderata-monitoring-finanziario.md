@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.33 — novembre 2026
+Versione 1.34 — novembre 2026
 
 *1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
 non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
@@ -13,7 +13,9 @@ disponibile.
 1.31 · il contributo copre anche le spese rare: si divide su tutto ciò che il conto paga nel
 mese, quindi la riserva ne è al netto e lo stesso denaro non conta due volte.
 1.32 · la storia delle versioni e il dettaglio delle fasi concluse stanno in `docs/storia-desiderata.md`; i motivi che vivevano solo lì sono passati nel corpo.
-1.33 · il numero su **Da confermare** conta anche gli accrediti da chiarire.*
+1.33 · il numero su **Da confermare** conta anche gli accrediti da chiarire.
+1.34 · il limite di richieste di una banca ferma quel conto invece di trattenere il sync (sezione 5.1), un riavvio
+non consuma il limite, e una regola di giroconto si applica subito e prima dell'abbinamento (sezione 5.3).*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -71,6 +73,8 @@ Esplicitamente fuori scope, per evitare scope creep:
 Due percorsi distinti che **devono convergere nella stessa tabella e condividere la stessa logica di deduplica**.
 
 **Percorso A — sync PSD2 (continuo).** Sync automatico schedulato da Enable Banking su tutti i conti già collegati in console. Copre il presente e il futuro.
+
+**Il limite della banca.** Una banca conta le letture fatte senza la persona e, oltre il limite, le rifiuta con un 429: Fineco lo ha fatto tre volte in un giorno di riavvii. Insistere non serve e può consumarne altre, quindi l'app riprova per pochi secondi, poi lascia quel conto per questo giro e passa agli altri; un `Retry-After` breve si rispetta, uno lungo chiude subito. Il corpo del rifiuto finisce nei log, e **Conti** dice sul conto che è fermo e quando è stato letto l'ultima volta, finché una lettura non riesce. Un riavvio non è un sync: il server conta l'intervallo dall'ultimo sync finito, e all'avvio applica soltanto, senza chiedere nulla alle banche, ciò che un processo fermato a metà ha lasciato indietro. L'IBAN già noto di un conto non si richiede.
 
 **Un periodo scelto, per un conto.** Il sync incrementale decide da sé da dove partire — l'ultimo movimento del conto meno una settimana — e un buco in mezzo allo storico non lo richiede mai. Per questo un conto collegato si sincronizza anche su un periodo `dal`/`al` scelto da chi lo lancia, passato compreso: dal pannello del conto in **Conti**, da `POST /api/sync/period` e da `amonhen sync --account <nome> --from AAAA-MM-GG --to AAAA-MM-GG`, con un'anteprima che non scrive niente. Il periodo si controlla prima di chiamare la banca (`dal` non dopo `al`, `al` non dopo oggi, conto collegato) e condivide il lucchetto del sync normale.
 

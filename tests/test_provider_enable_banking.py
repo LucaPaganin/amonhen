@@ -16,6 +16,7 @@ from amonhen.dedup import content_hash
 from amonhen.models import Account, IncomingTransaction
 from amonhen.providers import (
     ConsentExpiredError,
+    RateLimitedError,
     EnableBankingClient,
     normalize_account,
     normalize_transaction,
@@ -379,6 +380,56 @@ def test_rate_limit_is_retried(client, monkeypatch):
 
     assert client.fetch_balances("acc-9") == {"balances": []}
     assert slept and slept[0] > 0
+
+
+@responses.activate
+def test_a_rate_limit_gives_up_with_the_banks_words_and_no_pause_after_the_last_try(client, monkeypatch):
+    slept: list[float] = []
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", slept.append)
+    responses.get(f"{API}/accounts/acc-9/balances", status=429, json={"message": "quota exceeded"})
+
+    with pytest.raises(RateLimitedError, match="quota exceeded"):
+        client.fetch_balances("acc-9")
+
+    assert slept == [5, 10]
+    assert len(responses.calls) == 3
+
+
+@responses.activate
+def test_a_long_retry_after_ends_the_attempts_at_once(client, monkeypatch):
+    slept: list[float] = []
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", slept.append)
+    responses.get(f"{API}/accounts/acc-9/balances", status=429, headers={"Retry-After": "3600"})
+
+    with pytest.raises(RateLimitedError):
+        client.fetch_balances("acc-9")
+
+    assert slept == []
+    assert len(responses.calls) == 1
+
+
+@responses.activate
+def test_a_short_retry_after_is_obeyed(client, monkeypatch):
+    slept: list[float] = []
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", slept.append)
+    responses.get(f"{API}/accounts/acc-9/balances", status=429, headers={"Retry-After": "7"})
+    responses.get(f"{API}/accounts/acc-9/balances", json={"balances": []})
+
+    assert client.fetch_balances("acc-9") == {"balances": []}
+    assert slept == [7]
+
+
+@responses.activate
+def test_a_rate_limit_stops_a_period_at_the_window_it_hit(client, monkeypatch):
+    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _: None)
+    responses.get(f"{API}/accounts/acc-9/transactions", status=429)
+
+    windows = client.fetch_transaction_windows(
+        "acc-9", dt.date(2026, 1, 1), dt.date(2026, 3, 31)
+    )
+
+    assert len(windows) == 1 and "429" in windows[0].error
+    assert len(responses.calls) == 3
 
 
 @responses.activate

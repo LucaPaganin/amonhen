@@ -1,3 +1,4 @@
+import { formatMoment } from "./format";
 import type { CsvImportOutcome, Deletion, SyncAccountResult, SyncOutcome } from "./types";
 
 /**
@@ -35,6 +36,10 @@ export function syncSummary(outcome: SyncOutcome): string {
 }
 
 function accountLine(account: SyncAccountResult): string {
+  if (account.rate_limited) {
+    const last = account.last_read === null ? "" : `, ultima lettura ${formatMoment(account.last_read)}`;
+    return `${account.account}: la banca ha rifiutato troppe richieste, non letto${last}`;
+  }
   if (account.error !== null) return `${account.account}: ${account.error}`;
 
   const inserted = account.actions.inserted ?? 0;

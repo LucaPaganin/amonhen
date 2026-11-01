@@ -43,6 +43,21 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   the SQLite file; the container uses that instead of a second service sharing
   the volume. The loop opens its own connection per run, so nothing is shared
   across threads.
+- **A 429 ends the account, not the sync.** `EnableBankingClient._get` tries three
+  times (5 and 10 seconds), obeys a `Retry-After` up to 60 and gives up at once on a
+  longer one, then raises `RateLimitedError`, an `HTTPError` carrying the bank's words,
+  which are also logged. It used to wait 75 seconds per call and sit through a third
+  useless pause on a daily quota: two calls held the whole run for 2.5 minutes, with the
+  rules unapplied behind them. `_sync_account` asks nothing else of that account, the
+  period stops at the window it hit, and `sync_limit` (settings `sync:limited:<id>`,
+  `sync:last_read:<id>`, cleared by the next read that works) is what Conti shows. The
+  limit is presumed daily and PSD2's, not proven: read the logged body when one arrives.
+- **A restart is not a sync.** `_sync_loop` counts the interval from `sync:last_run`,
+  written when any full pass ends, the button's included and one that hit a limit too.
+  When no pass is due it calls `SyncService.settle` and sleeps what is left, so a deploy
+  spends no quota and a process stopped halfway still gets its rules applied. A pass that
+  never ended writes no key: the next start runs one. `_account_record` reads a stored
+  IBAN instead of calling `/details`, which is one read of the quota per sync.
 - **A consent can be dead even when the session looks authorized.** The Fineco
   session metadata still said `AUTHORIZED` while `/transactions` returned
   401/403, and its session listing still answered with four uids. Sync reports
