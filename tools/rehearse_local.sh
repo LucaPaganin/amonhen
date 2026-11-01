@@ -106,7 +106,7 @@ cat > "$target/deploy/.env" <<EOF
 AMONHEN_TAG=rehearsal
 AMONHEN_EB_API=http://eb-stub:9001
 # No clock-driven sync: the wizard asks for the accounts, and the run stays
-# deterministic. No AMONHEN_LLM_*: the assistant stays off.
+# deterministic. No AMONHEN_LLM_*: the proposals from the model stay off.
 AMONHEN_SYNC_INTERVAL_HOURS=0
 EOF
 

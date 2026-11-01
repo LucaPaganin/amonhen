@@ -1,8 +1,9 @@
-"""Ledger readings: the 5.6 metrics and the dashboard series.
+"""Ledger readings: the 5.6 metrics, the dashboard series and the statistics.
 
 Desiderata 5.6 asks for burn, episodic accrual and runway; the
 dashboard asks for what each category took, what came in and what went out per
-month, and what the tracked accounts are worth over time. Both are a pure
+month, and what the tracked accounts are worth over time; 5.15 reads each
+category's complete months as a median and a mean. All are a pure
 reporting layer: they read the ledger through :class:`Ledger` and never write.
 Every money value is a :class:`~decimal.Decimal`; a metric that cannot be
 computed from the available history is ``None``, and the ``partial`` flags say
@@ -30,18 +31,23 @@ from amonhen.settings import UNCATEGORIZED
 __all__ = [
     "AccountBalance",
     "CategorySpend",
+    "CategoryStatistics",
     "LedgerScope",
     "Metrics",
     "MonthCategory",
     "MonthReading",
     "MonthlyFlow",
     "NetWorthPoint",
+    "SeriesStatistics",
+    "SpendingStatistics",
     "compute_metrics",
     "latest_balances",
     "month_reading",
     "monthly_flows",
     "net_worth_series",
     "spend_by_category",
+    "spending_statistics",
+    "usual_spending",
 ]
 
 
@@ -432,6 +438,41 @@ class CategorySpend:
 
 
 @dataclass(frozen=True)
+class SeriesStatistics:
+    """A run of complete months, one value each, and what they say together."""
+
+    series: tuple[Decimal, ...]
+    median: Decimal
+    mean: Decimal
+    minimum: Decimal
+    maximum: Decimal
+    active_months: int
+
+
+@dataclass(frozen=True)
+class CategoryStatistics:
+    """One category across the window."""
+
+    category: str
+    statistics: SeriesStatistics
+
+
+@dataclass(frozen=True)
+class SpendingStatistics:
+    """Spending per category over the last complete months.
+
+    ``months`` are the ones read, oldest first and the same for every series; fewer
+    than ``requested`` means the ledger does not go back that far. ``total`` is
+    ``None`` when no month has finished yet.
+    """
+
+    months: tuple[str, ...]
+    requested: int
+    total: SeriesStatistics | None
+    categories: tuple[CategoryStatistics, ...]
+
+
+@dataclass(frozen=True)
 class MonthlyFlow:
     """One month of the income/expense chart.
 
@@ -588,6 +629,97 @@ def spend_by_category(
         for category, amount in sorted(totals.items(), key=lambda item: (-item[1], item[0]))
         if amount != 0
     ]
+
+
+def _category_months(ledger: Ledger, first: int, last: int) -> dict[str, dict[int, Decimal]]:
+    """What each category took per month, as the budgets count it.
+
+    Net of refunds and not of contributions: a statistic is read beside a ceiling,
+    and rare spending stays in because the ceiling is held to it too.
+    """
+    months: dict[str, dict[int, Decimal]] = {}
+    for row in ledger.conn.execute(
+        f"""SELECT a.name AS category, t.date AS date, p.amount AS amount
+           FROM postings p
+           JOIN transactions t ON t.id = p.transaction_id
+           JOIN accounts a ON a.id = p.account_id
+           WHERE a.type = 'category' AND t.status = 'BOOK'
+             AND {SPENDING_SQL}
+             AND NOT {CONTRIBUTION_SQL}
+             AND t.date >= ? AND t.date <= ?""",
+        (_month_bounds(first)[0].isoformat(), _month_bounds(last)[1].isoformat()),
+    ):
+        index = _month_index(dt.date.fromisoformat(row["date"]))
+        totals = months.setdefault(row["category"], {})
+        totals[index] = totals.get(index, Decimal(0)) + parse_decimal(row["amount"])
+    return months
+
+
+def _statistics(values: list[Decimal]) -> SeriesStatistics:
+    return SeriesStatistics(
+        series=tuple(values),
+        median=_median(values),
+        mean=sum(values, Decimal(0)) / len(values),
+        minimum=min(values),
+        maximum=max(values),
+        active_months=sum(1 for value in values if value != 0),
+    )
+
+
+def spending_statistics(ledger: Ledger, today: dt.date, months: int = 12) -> SpendingStatistics:
+    """Each category's last ``months`` complete months, the largest mean first.
+
+    A month without spending in a category counts as a zero: that is what makes
+    the median and the mean of a category that spends now and then differ, and the
+    difference is the point. The total is read from its own months, so it is not
+    the sum of the medians below it.
+    """
+    window = _window(_first_month_with_data(ledger), _month_index(today) - 1, months)
+    if window is None:
+        return SpendingStatistics(months=(), requested=months, total=None, categories=())
+    indexes = range(window[0], window[1] + 1)
+    by_category = _category_months(ledger, window[0], window[1])
+    categories = [
+        CategoryStatistics(
+            category=name,
+            statistics=_statistics([totals.get(index, Decimal(0)) for index in indexes]),
+        )
+        for name, totals in by_category.items()
+        if any(amount != 0 for amount in totals.values())
+    ]
+    categories.sort(key=lambda item: (-item.statistics.mean, item.category))
+    return SpendingStatistics(
+        months=tuple(_month_key(index) for index in indexes),
+        requested=months,
+        total=_statistics(
+            [
+                sum((totals.get(index, Decimal(0)) for totals in by_category.values()), Decimal(0))
+                for index in indexes
+            ]
+        ),
+        categories=tuple(categories),
+    )
+
+
+def usual_spending(
+    ledger: Ledger, month: str, today: dt.date, window_months: int = 6
+) -> dict[str, Decimal]:
+    """Each category's median month among the complete ones before ``month``.
+
+    A month being planned is read against what came before it, so a past month
+    reopened shows the usual it had then, and one still to come stops at the last
+    month that has finished. A category with no spending in the window is absent.
+    """
+    year, number = (int(part) for part in month.split("-"))
+    last_complete = min(year * 12 + number - 1, _month_index(today)) - 1
+    window = _window(_first_month_with_data(ledger), last_complete, window_months)
+    if window is None:
+        return {}
+    indexes = range(window[0], window[1] + 1)
+    return {
+        name: _median([totals.get(index, Decimal(0)) for index in indexes])
+        for name, totals in _category_months(ledger, window[0], window[1]).items()
+    }
 
 
 def monthly_flows(

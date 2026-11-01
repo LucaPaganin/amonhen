@@ -4,9 +4,16 @@ import type { MouseEvent } from "react";
 import { api, errorMessage, isAbortError } from "../api";
 import { categoryText } from "../category";
 import { Toast } from "../components/Toast";
-import { currentMonth, formatAmount, formatDate, formatMonth, monthBounds, shiftMonth } from "../format";
+import {
+  currentMonth,
+  formatAmount,
+  formatDate,
+  formatMonth,
+  monthBounds,
+  shiftMonth,
+  toAmount,
+} from "../format";
 import type {
-  AssistantContext,
   Budget,
   BudgetItem,
   BudgetItemDraft,
@@ -15,8 +22,6 @@ import type {
 } from "../types";
 
 interface BudgetScreenProps {
-  /** Opens the assistant on one budget: the question is composed at that row. */
-  onAskAssistant: (context: AssistantContext) => void;
   /** Bumped after a sync: what was spent is read again. */
   refreshToken: number;
 }
@@ -45,16 +50,23 @@ function moveDay(iso: string, month: string): string {
   return `${month}-${String(day).padStart(2, "0")}`;
 }
 
+/** What the months before say, when they say anything. */
+function usualText(budget: Budget): string {
+  return budget.usual !== null && toAmount(budget.usual) > 0
+    ? ` · di solito ${formatAmount(budget.usual)}`
+    : "";
+}
+
 /** What the ceiling says, in one line: the budget, and whether the month holds. */
 function ceilingLine(budget: Budget): string {
-  if (budget.budget === null) return "Nessun budget impostato";
+  if (budget.budget === null) return `Nessun budget impostato${usualText(budget)}`;
   const origin = budget.override !== null ? "solo questo mese" : "dal default";
   const remaining = Number.parseFloat(budget.remaining ?? "0");
   const state =
     remaining < 0
       ? `sforato di ${formatAmount(-remaining)}`
       : `restano ${formatAmount(budget.remaining ?? "0")}`;
-  return `Budget ${formatAmount(budget.budget)} (${origin}) · ${state}`;
+  return `Budget ${formatAmount(budget.budget)} (${origin}) · ${state}${usualText(budget)}`;
 }
 
 /** What the items take of the ceiling; nothing when there are none. */
@@ -389,7 +401,7 @@ function BudgetItemSheet({ state, month, budgets, onClose, onSave, onDelete }: B
   );
 }
 
-export function BudgetScreen({ onAskAssistant, refreshToken }: BudgetScreenProps) {
+export function BudgetScreen({ refreshToken }: BudgetScreenProps) {
   const [month, setMonth] = useState(currentMonth);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -723,15 +735,6 @@ export function BudgetScreen({ onAskAssistant, refreshToken }: BudgetScreenProps
                       >
                         Copia dal mese prima
                       </button>
-                      {budget.budget === null ? null : (
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={() => onAskAssistant({ kind: "budget", id: budget.id })}
-                        >
-                          Regge?
-                        </button>
-                      )}
                     </div>
                   )}
                 </li>

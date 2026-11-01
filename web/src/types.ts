@@ -15,59 +15,29 @@ export interface Health {
   uncategorized?: string;
 }
 
-/** What a question is about, when it is about one thing: a row, a budget. */
-export interface AssistantContext {
-  kind: "cruscotto" | "movimento" | "budget";
-  id?: number;
+/** A run of complete months and what they say together: the server computes all of it. */
+export interface SeriesStatistics {
+  median: string;
+  mean: string;
+  min: string;
+  max: string;
+  /** How many of the months spent something. */
+  active_months: number;
+  /** One amount per entry of `Statistics.months`. */
+  series: string[];
 }
 
-/** Desiderata 5.9: whether the assistant is on, and what it already proposed. */
-export interface AssistantState {
-  configured: boolean;
-  model: string | null;
-  calls_today: number;
-  call_limit: number;
-  budget_proposals: BudgetProposal[];
-}
-
-/** A monthly budget the assistant proposed: nothing is applied until accepted. */
-export interface BudgetProposal {
+export interface CategoryStatistics extends SeriesStatistics {
   category: string;
-  amount: string;
-  source: string;
-  created_at: string;
 }
 
-/**
- * What a reading proposes. A category proposal is confirmed where every other
- * proposal is, in the queue; a budget one is decided here.
- */
-export interface AssistantProposal {
-  kind: "categoria" | "budget";
-  merchant?: string;
-  category: string;
-  amount?: string;
-}
-
-/** One reading of the numbers already computed, with the model that wrote it. */
-export interface AssistantReading {
-  question: string;
-  answer: string;
-  model: string;
-  /** The data it read, hashed: the same question on it is not asked twice. */
-  fingerprint: string;
-  created_at: string;
-  cached: boolean;
-  proposals: AssistantProposal[];
-}
-
-/** A reading kept, refusals included: `refused` says why it was not shown. */
-export interface AssistantHistoryEntry {
-  question: string;
-  answer: string;
-  model: string;
-  created_at: string;
-  refused: string | null;
+/** Desiderata 5.15: spending per category over the last complete months. */
+export interface Statistics {
+  applied: { months: number; available: number };
+  months: string[];
+  /** Null while no month has finished. */
+  total: SeriesStatistics | null;
+  categories: CategoryStatistics[];
 }
 
 export interface Account extends AccountRef {
@@ -535,6 +505,8 @@ export interface Budget {
   default: string | null;
   /** This month's own budget, when it has one. */
   override: string | null;
+  /** The category's median month before this one; null with nothing to read it from. */
+  usual: string | null;
   spent: string;
   /** null when there is no budget; negative when the month is over budget. */
   remaining: string | null;

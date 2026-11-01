@@ -244,3 +244,26 @@ def test_a_budget_written_before_months_existed_becomes_a_default_from_always(tm
     assert status_of(ledger, "2019-01")["budget"] == "250.00"
     assert status_of(ledger, "2026-11")["budget"] == "250.00"
     conn.close()
+
+
+def test_a_row_says_what_the_category_usually_takes(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    groceries = ledger.category("Groceries")
+    for date, amount in (("2026-08-10", "-100"), ("2026-09-10", "-300"), ("2026-10-10", "-200")):
+        ledger.record(
+            IncomingTransaction(
+                account_id=account,
+                date=dt.date.fromisoformat(date),
+                amount=Decimal(amount),
+                description="spesa",
+                status="BOOK",
+                source="import",
+                balancing_account_id=groceries,
+            )
+        )
+
+    rows = budget_status(ledger, "2026-11", dt.date(2026, 11, 2))
+    usual = {row["category"]: row["usual"] for row in rows}
+
+    assert usual["Groceries"] == "200.00"
+    assert budget_status(ledger, "2026-08", dt.date(2026, 11, 2))[0]["usual"] is None

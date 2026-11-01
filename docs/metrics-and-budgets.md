@@ -48,7 +48,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   `essential_monthly` and `discretionary_monthly` stay as they are in
   `metrics.py` and the API; a person reads *Spesa mensile tipica*, *Riserva per spese
   rare*, *Spesa mensile attesa*, *Mesi di autonomia*, *Spesa irrinunciabile* and *Spesa
-  tagliabile*, and the flags read *Spesa rara* and *Irrinunciabile*. The dashboard cards, the assistant's packet keys and its prompt,
+  tagliabile*, and the flags read *Spesa rara* and *Irrinunciabile*. The dashboard cards
   and the spec use those words — no "burn" or "runway" anywhere a person reads.
 - **Rare and essential are one question, asked of a movement.** A movement is rare
   when its category is `episodic` or one of its tags is; `essential` the same way.
@@ -71,9 +71,8 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   month: one amount for every month rewrote the past each time it changed.
   `budget_months` is one month's own ceiling, which wins over the default. A
   ledger written before months existed is rebuilt by `_date_budgets`, each old
-  amount becoming a default from `0000-00`, before every month. The assistant's
-  accepted proposal and the `budget` command both write a default from the
-  current month. Spending is still per category — `SPENDING_SQL`, like
+  amount becoming a default from `0000-00`, before every month. The `budget`
+  command writes a default from the current month. Spending is still per category — `SPENDING_SQL`, like
   `spend_between` — and an item never learns whether it was paid.
 - **Items sit inside the ceiling, and the priority orders without cutting.**
   `budget_items` are expenses planned for one category and month (description,
@@ -87,6 +86,13 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   already holds with the same description and amount, so a second press copies
   nothing. Prefilling from a past movement is the client's: it fills the form,
   and nothing is written until the person saves.
+- **The statistics read as the budgets do.** `spending_statistics` (`/api/statistics`,
+  desiderata section 5.15) takes the last complete months and `_category_months` counts them
+  net of refunds, gross of contributions, rare spending inside: the figures exist to be
+  read beside a ceiling. A month with no spending is a zero, the total has its own series, and
+  `usual_spending` is the same reading as a median of the six months before the one on
+  screen, which is the `usual` of a budget row. The period chips are windows of complete
+  months and not dates: a statistic of half a month would be a different number.
 - **The dashboard answers two questions, and the client never sums.** `month_reading`
   (`/api/month`) is what was spent so far this month against the same day of the
   complete months before (their median, up to six, cut at each month's last day),

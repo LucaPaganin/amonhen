@@ -240,33 +240,6 @@ CREATE TABLE IF NOT EXISTS merchant_suggestions (
     decision TEXT NOT NULL DEFAULT 'pending'
         CHECK (decision IN ('pending', 'accepted', 'dismissed'))
 );
-
--- Desiderata 5.9: a reading of the numbers already computed is kept with the
--- model that wrote it and the fingerprint of the data it read, so a reading can
--- be read again in six months knowing what it was based on. A refused reading
--- has no answer text and carries the reason instead: the figures a model
--- produced on its own are the thing that rule exists to catch.
-CREATE TABLE IF NOT EXISTS assistant_readings (
-    id INTEGER PRIMARY KEY,
-    question TEXT NOT NULL,
-    answer TEXT NOT NULL,
-    model TEXT NOT NULL,
-    fingerprint TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    refused TEXT,
-    UNIQUE (question, fingerprint)
-);
-
--- A proposal the assistant may make that is not a merchant -> category pair.
--- Like merchant_suggestions, nothing here is applied: a person decides.
-CREATE TABLE IF NOT EXISTS budget_proposals (
-    category TEXT PRIMARY KEY,
-    amount TEXT NOT NULL,
-    source TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    decision TEXT NOT NULL DEFAULT 'pending'
-        CHECK (decision IN ('pending', 'accepted', 'dismissed'))
-);
 """
 
 # Columns added after the first release. A single-user local ledger does not
@@ -578,10 +551,14 @@ def _drop_obsolete(conn: sqlite3.Connection) -> None:
 
     A ledger created before the balance table existed carries an unused
     ``net_worth_snapshots``, and one created before the mortgage was dropped
-    still carries its setting.
+    still carries its setting. The assistant left two tables and its daily count
+    of calls.
     """
     conn.execute("DROP TABLE IF EXISTS net_worth_snapshots")
+    conn.execute("DROP TABLE IF EXISTS assistant_readings")
+    conn.execute("DROP TABLE IF EXISTS budget_proposals")
     conn.execute("DELETE FROM settings WHERE key = 'mortgage_monthly'")
+    conn.execute("DELETE FROM settings WHERE key LIKE 'assistant_calls:%'")
 
 
 def _restrict_to_owner(conn: sqlite3.Connection) -> None:

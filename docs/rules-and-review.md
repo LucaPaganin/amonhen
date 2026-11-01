@@ -103,16 +103,6 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   income in the charts. That rule is data, not code: it is not seeded. A credit
   decided by hand, wrongly too, is found in **Movimenti** by its category; on
   purpose there is no second view for it.
-- **The assistant is guarded in code, not in its prompt.** Three rules live in
-  `assistant.py`: every number in the prose must be one the packet contained
-  (checked token by token, Italian separators and dates normalized first) or the
-  reading is refused and recorded with no text; a proposal must name a merchant
-  and a category that were in the packet, or a category with no budget and a
-  positive amount; and nothing identifying leaves the process (IBANs are replaced
-  by `[iban]`). The fingerprint that makes a repeated question free covers the
-  figures and deliberately not `merchant_senza_categoria`, which changes because
-  the assistant itself answered. Without `AMONHEN_LLM_URL` the section says it is
-  off, and the day's calls are counted in `settings`.
 - **The queue's predicate is one constant.** `ledger.UNCATEGORIZED_WHERE` is settled
   outflows still on `Uncategorized` with no transfer leg; `/api/review` counts its rows
   with it and `merchants.uncovered_spending` measures a proposal's stake with the same

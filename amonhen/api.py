@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from amonhen import assistant, db
+from amonhen import db
 from amonhen.anomalies import MIN_AMOUNT, detect_anomalies
 from amonhen.budgets import (
     ItemFields,
@@ -81,7 +81,9 @@ from amonhen.metrics import (
     month_reading,
     monthly_flows,
     net_worth_series,
+    SeriesStatistics,
     spend_by_category,
+    spending_statistics,
 )
 from amonhen.models import Account, format_decimal, parse_decimal
 from amonhen.providers.enable_banking import (
@@ -148,8 +150,9 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # decision: `/api/review` gained `credits` and `credits_total`. 36 is the bank's
 # unknown balance types: an account row gained `unrecognized_balances`. 37 is the
 # bank's rate limit: an account row gained `sync_limit`, and a sync's account
-# `rate_limited` and `last_read`.
-API_VERSION = 37
+# `rate_limited` and `last_read`. 38 took the assistant's routes away and added
+# `/api/statistics`; a budget row gained `usual`.
+API_VERSION = 38
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -210,18 +213,6 @@ class ReviewRequest(BaseModel):
 class TransferPassthroughRequest(BaseModel):
     transaction_id: int
     destination: str
-
-
-class AssistantAskRequest(BaseModel):
-    """A question, and optionally the thing the question is about."""
-
-    question: str = ""
-    context: dict | None = None
-
-
-class BudgetProposalDecisionRequest(BaseModel):
-    category: str
-    decision: str
 
 
 class TransferPairRequest(BaseModel):
@@ -848,6 +839,22 @@ def create_app(
         with ledger_scope() as ledger:
             return _metrics_payload(compute_metrics(ledger, dt.date.today(), scope=scope), scope)
 
+    @app.get("/api/statistics")
+    def statistics(months: int = Query(12, ge=1, le=60)) -> dict:
+        """Each category's last complete months: the median, the mean, the range."""
+        with ledger_scope() as ledger:
+            reading = spending_statistics(ledger, dt.date.today(), months)
+            return {
+                "currency": "EUR",
+                "applied": {"months": months, "available": len(reading.months)},
+                "months": list(reading.months),
+                "total": None if reading.total is None else _statistics_payload(reading.total),
+                "categories": [
+                    {"category": item.category, **_statistics_payload(item.statistics)}
+                    for item in reading.categories
+                ],
+            }
+
     @app.get("/api/spending")
     def spending(
         from_date: str | None = Query(None, alias="from"),
@@ -1220,62 +1227,6 @@ def create_app(
                 raise HTTPException(
                     status_code=502, detail=f"the model answered unusably: {exc}"
                 ) from exc
-
-    @app.get("/api/assistant")
-    def assistant_state() -> dict:
-        """Whether the assistant is on, what it has spent today, what it proposed."""
-        with ledger_scope() as ledger:
-            return assistant.state(ledger, llm_config())
-
-    @app.get("/api/assistant/readings")
-    def assistant_readings() -> list[dict]:
-        """The readings kept: what was asked, what came back, on which numbers."""
-        with ledger_scope() as ledger:
-            return assistant.readings(ledger)
-
-    @app.post("/api/assistant/ask")
-    def assistant_ask(body: AssistantAskRequest) -> dict:
-        """Read the numbers this ledger has already computed.
-
-        Nothing here is a query language: the packet is built from the same
-        functions the screens read, and the model is handed the figures.
-        """
-        with ledger_scope() as ledger:
-            try:
-                reading = assistant.ask(ledger, llm_config(), body.question, context=body.context)
-            except LlmOff as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-            except RuntimeError as exc:
-                # The day's ceiling: the answer is a message, not a failure.
-                raise HTTPException(status_code=429, detail=str(exc)) from exc
-            except requests.RequestException as exc:
-                raise HTTPException(
-                    status_code=502, detail=f"la chiamata al modello non è riuscita: {exc}"
-                ) from exc
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=502, detail=f"la lettura non è utilizzabile: {exc}"
-                ) from exc
-            return {
-                "question": reading.question,
-                "answer": reading.answer,
-                "model": reading.model,
-                "fingerprint": reading.fingerprint,
-                "created_at": reading.created_at,
-                "cached": reading.cached,
-                "proposals": list(reading.proposals),
-            }
-
-    @app.post("/api/assistant/budgets/decision")
-    def assistant_budget_decision(body: BudgetProposalDecisionRequest) -> dict:
-        """Accept or drop a budget the assistant proposed, and only that."""
-        with ledger_scope() as ledger:
-            try:
-                return assistant.decide_budget_proposal(ledger, body.category, body.decision)
-            except KeyError as exc:
-                raise HTTPException(status_code=404, detail=str(exc)) from exc
-            except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/transactions")
     def transactions(
@@ -2516,6 +2467,17 @@ def _last_connect(ledger: Ledger) -> dict | None:
         return json.loads(raw)
     except ValueError:
         return None
+
+
+def _statistics_payload(statistics: SeriesStatistics) -> dict:
+    return {
+        "median": _money(statistics.median),
+        "mean": _money(statistics.mean),
+        "min": _money(statistics.minimum),
+        "max": _money(statistics.maximum),
+        "active_months": statistics.active_months,
+        "series": [_money(value) for value in statistics.series],
+    }
 
 
 def _money(value) -> str | None:

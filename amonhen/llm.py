@@ -1,8 +1,6 @@
 """The one place a chat-completion request is built, sent and parsed.
 
-Two features talk to a model — the proposals for unseen merchants (5.5) and the
-reading of 5.9 — and they must do it the same way: one transport, one shape of
-request, one set of failure modes. The endpoint is any OpenAI-compatible chat
+The proposals for unseen merchants (5.5) talk to a model through here. The endpoint is any OpenAI-compatible chat
 completion gateway, configured in the environment (README, ``AMONHEN_LLM_*``).
 
 Two protocol requirements live here because they belong to the protocol and not

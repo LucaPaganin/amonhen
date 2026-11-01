@@ -11,7 +11,7 @@ export type TabId =
   | "accounts"
   | "categories"
   | "import"
-  | "assistant"
+  | "statistics"
   | "setup"
   | "guide";
 
@@ -86,12 +86,12 @@ const SECTIONS: Section[] = [
     Icon: ImportIcon,
   },
   {
-    id: "assistant",
-    label: "Assistente",
-    short: "Assistente",
-    hint: "Una lettura dei numeri già calcolati",
+    id: "statistics",
+    label: "Statistiche",
+    short: "Statistiche",
+    hint: "Mediane e medie delle spese, categoria per categoria",
     inBar: false,
-    Icon: AssistantIcon,
+    Icon: StatisticsIcon,
   },
   {
     id: "setup",
@@ -203,7 +203,7 @@ function ImportIcon() {
   );
 }
 
-function AssistantIcon() {
+function StatisticsIcon() {
   return (
     <svg
       className="navicon"
@@ -215,8 +215,8 @@ function AssistantIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M4 5.5h16v10H9l-5 4z" />
-      <path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" />
+      <path d="M4 18c3 0 3.5-11 8-11s5 11 8 11" />
+      <path d="M12 7v11" />
     </svg>
   );
 }

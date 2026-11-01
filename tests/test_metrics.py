@@ -9,6 +9,8 @@ from amonhen.metrics import (
     monthly_flows,
     net_worth_series,
     spend_by_category,
+    spending_statistics,
+    usual_spending,
 )
 from amonhen.models import Account, IncomingTransaction
 from amonhen.config import Passthrough
@@ -501,3 +503,83 @@ def test_the_period_of_the_net_worth_line_cuts_points_not_the_running_total(ledg
     assert [(point.date.isoformat(), point.total) for point in points] == [
         ("2026-08-01", Decimal("300.00"))
     ]
+
+
+def spending_history(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    groceries = ledger.category("Groceries")
+    trips = ledger.category("Trips")
+    spend(ledger, account, groceries, "2026-06-10", "-100")
+    spend(ledger, account, groceries, "2026-07-10", "-300")
+    spend(ledger, account, groceries, "2026-08-10", "-200")
+    spend(ledger, account, trips, "2026-08-11", "-900")
+    return account, groceries
+
+
+def test_statistics_read_complete_months_and_count_an_empty_one_as_zero(ledger):
+    account, groceries = spending_history(ledger)
+    # The month in progress is not a month yet.
+    spend(ledger, account, groceries, "2026-09-02", "-5000")
+
+    reading = spending_statistics(ledger, TODAY, 12)
+
+    assert reading.months == ("2026-06", "2026-07", "2026-08")
+    assert reading.requested == 12
+    assert [item.category for item in reading.categories] == ["Trips", "Groceries"]
+    trips, food = (item.statistics for item in reading.categories)
+    assert trips.series == (Decimal(0), Decimal(0), Decimal(900))
+    assert (trips.median, trips.mean) == (Decimal(0), Decimal(300))
+    assert (trips.minimum, trips.maximum, trips.active_months) == (Decimal(0), Decimal(900), 1)
+    assert (food.median, food.mean) == (Decimal(200), Decimal(200))
+
+
+def test_the_total_is_its_own_series_not_the_sum_of_the_medians(ledger):
+    spending_history(ledger)
+
+    total = spending_statistics(ledger, TODAY, 12).total
+
+    assert total.series == (Decimal(100), Decimal(300), Decimal(1100))
+    assert total.median == Decimal(300)
+
+
+def test_statistics_stop_at_the_window(ledger):
+    spending_history(ledger)
+
+    reading = spending_statistics(ledger, TODAY, 2)
+
+    assert reading.months == ("2026-07", "2026-08")
+    assert reading.categories[1].statistics.median == Decimal(250)
+
+
+def test_statistics_are_net_of_refunds_and_not_of_contributions(ledger):
+    account, groceries = spending_history(ledger)
+    shared = ledger.category("Shared")
+    ledger.set_category_flag(shared, "contribution", True)
+    record(ledger, account, groceries, "2026-07-20", "50", "refund")
+    record(ledger, account, shared, "2026-07-21", "150", "from a partner")
+
+    reading = spending_statistics(ledger, TODAY, 12)
+
+    assert [item.category for item in reading.categories] == ["Trips", "Groceries"]
+    assert reading.categories[1].statistics.series[1] == Decimal(250)
+
+
+def test_statistics_with_no_complete_month_say_so(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    spend(ledger, account, ledger.category("Groceries"), "2026-09-02", "-5")
+
+    reading = spending_statistics(ledger, TODAY, 12)
+
+    assert reading.months == ()
+    assert reading.total is None
+    assert reading.categories == ()
+
+
+def test_the_usual_of_a_month_reads_only_the_months_before_it(ledger):
+    spending_history(ledger)
+
+    assert usual_spending(ledger, "2026-08", TODAY)["Groceries"] == Decimal(200)
+    assert "Trips" not in usual_spending(ledger, "2026-08", TODAY)
+    # A month still to come stops at the last month that has finished.
+    assert usual_spending(ledger, "2026-12", TODAY)["Groceries"] == Decimal(200)
+    assert usual_spending(ledger, "2026-06", TODAY) == {}

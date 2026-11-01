@@ -3,10 +3,6 @@ import type {
   Account,
   AccountFlags,
   Anomaly,
-  AssistantContext,
-  AssistantHistoryEntry,
-  AssistantReading,
-  AssistantState,
   Budget,
   BudgetItemDraft,
   Category,
@@ -33,6 +29,7 @@ import type {
   SetupBanks,
   SetupCredentials,
   SetupState,
+  Statistics,
   Suggestion,
   Tag,
   DeletedMovement,
@@ -283,16 +280,8 @@ export const api = {
   unlinkTransfer: (transactionId: number) =>
     send<TransferUnlink>("POST", "/transfers/unlink", { transaction_id: transactionId }),
   rules: (signal?: AbortSignal) => get<Rule[]>("/rules", signal),
-  assistant: (signal?: AbortSignal) => get<AssistantState>("/assistant", signal),
-  assistantHistory: (signal?: AbortSignal) =>
-    get<AssistantHistoryEntry[]>("/assistant/readings", signal),
-  askAssistant: (question: string, context: AssistantContext | null) =>
-    send<AssistantReading>("POST", "/assistant/ask", { question, context }),
-  decideBudgetProposal: (category: string, decision: "accept" | "dismiss") =>
-    send<{ category: string; decision: string }>("POST", "/assistant/budgets/decision", {
-      category,
-      decision,
-    }),
+  statistics: (months: number, signal?: AbortSignal) =>
+    get<Statistics>(`/statistics?months=${months}`, signal),
   // Writing a rule applies it at once — a deleting one empties what it matches —
   // so the editor asks for the preview first.
   createRule: (draft: RuleDraft) => send<Rule>("POST", "/rules", draft),

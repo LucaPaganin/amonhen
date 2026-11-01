@@ -306,3 +306,17 @@ def test_the_ledger_is_opened_in_wal_mode(tmp_path):
     writer.commit()
     reader.close()
     writer.close()
+
+
+def test_what_the_assistant_left_behind_goes(tmp_path):
+    conn = connect(tmp_path / "old.db")
+    initialize(conn)
+    conn.execute("CREATE TABLE assistant_readings (id INTEGER PRIMARY KEY)")
+    conn.execute("CREATE TABLE budget_proposals (category TEXT PRIMARY KEY)")
+    conn.execute("INSERT INTO settings (key, value) VALUES ('assistant_calls:2026-11-01', '3')")
+
+    initialize(conn)
+
+    tables = {row["name"] for row in conn.execute("PRAGMA table_list")}
+    assert not tables & {"assistant_readings", "budget_proposals"}
+    assert conn.execute("SELECT COUNT(*) FROM settings WHERE key LIKE 'assistant%'").fetchone()[0] == 0

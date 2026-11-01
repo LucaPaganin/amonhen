@@ -1172,90 +1172,6 @@ def test_a_malformed_model_reply_is_reported_as_an_upstream_failure(api, monkeyp
     assert "unusably" in response.json()["detail"]
 
 
-def fake_model(answer: dict):
-    """A stand-in for the chat completion call: one request, one answer, counted."""
-    calls: list[dict] = []
-
-    class Reply:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"choices": [{"message": {"content": json.dumps(answer)}}]}
-
-    def post(url, json=None, headers=None, timeout=None):
-        calls.append(json)
-        return Reply()
-
-    return post, calls
-
-
-def test_the_assistant_says_it_is_off_instead_of_failing(api, monkeypatch):
-    from amonhen import api as api_module
-    from amonhen.llm import LlmConfig
-
-    monkeypatch.setattr(api_module, "llm_config", lambda: LlmConfig(url="", api_key="", model=""))
-    client, _ = api
-
-    response = client.post("/api/assistant/ask", json={"question": "Come va?"})
-
-    assert response.status_code == 503
-    assert "no LLM configured" in response.json()["detail"]
-    assert client.get("/api/assistant").json()["configured"] is False
-
-
-def test_the_assistant_answers_with_the_numbers_it_was_given(api, monkeypatch):
-    import requests
-
-    from amonhen import api as api_module
-    from amonhen.llm import LlmConfig
-
-    # A reading that quotes a figure the fixture really computes, and one that
-    # quotes a figure nobody did: only the first is allowed through.
-    post, calls = fake_model({"lettura": "Ad agosto sono entrati 1200,00."})
-    monkeypatch.setattr(requests, "post", post)
-    monkeypatch.setattr(
-        api_module,
-        "llm_config",
-        lambda: LlmConfig(url="https://llm.test/v1/chat/completions", api_key="k", model="m"),
-    )
-    client, _ = api
-
-    first = client.post("/api/assistant/ask", json={"question": "Quanto e' entrato?"}).json()
-    second = client.post("/api/assistant/ask", json={"question": "Quanto e' entrato?"}).json()
-
-    assert first["answer"] == "Ad agosto sono entrati 1200,00."
-    assert first["cached"] is False
-    assert second["cached"] is True
-    assert len(calls) == 1
-    assert client.get("/api/assistant").json()["calls_today"] == 1
-    assert client.get("/api/assistant/readings").json()[0]["model"] == "m"
-
-
-def test_a_reading_that_invents_a_figure_is_refused_by_the_api(api, monkeypatch):
-    import requests
-
-    from amonhen import api as api_module
-    from amonhen.llm import LlmConfig
-
-    post, _ = fake_model({"lettura": "Hai speso 9876,54 in piu' del solito."})
-    monkeypatch.setattr(requests, "post", post)
-    monkeypatch.setattr(
-        api_module,
-        "llm_config",
-        lambda: LlmConfig(url="https://llm.test/v1/chat/completions", api_key="k", model="m"),
-    )
-    client, _ = api
-
-    response = client.post("/api/assistant/ask", json={"question": "Come va?"})
-
-    assert response.status_code == 502
-    assert "cifre non calcolate" in response.json()["detail"]
-    refused = client.get("/api/assistant/readings").json()[0]
-    assert refused["refused"] is not None
-    assert refused["answer"] == ""
-
-
 def test_a_rule_reports_how_many_movements_it_holds(api):
     client, _ = api
 
@@ -2193,3 +2109,13 @@ def test_virtual_accounts_say_where_the_money_that_left_the_burn_went(api):
     ).json()
     assert [item["id"] for item in held["items"]] == [salary["id"]]
     assert transfer["id"] != salary["id"]
+
+
+def test_statistics_answer_with_the_months_they_read(api):
+    client, _ = api
+
+    body = client.get("/api/statistics", params={"months": 6}).json()
+
+    assert body["applied"]["months"] == 6
+    assert body["applied"]["available"] == len(body["months"]) <= 6
+    assert client.get("/api/statistics", params={"months": 0}).status_code == 422

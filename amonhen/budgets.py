@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Iterable
 
 from amonhen.ledger import CONTRIBUTION_SQL, SPENDING_SQL, Ledger
+from amonhen.metrics import usual_spending
 from amonhen.models import format_decimal, parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -94,9 +95,14 @@ def set_month_override(ledger: Ledger, category_id: int, month: str, amount: Dec
         )
 
 
-def budget_status(ledger: Ledger, month: str) -> list[dict]:
-    """Per category, for one month: the ceiling, the items inside it, what was spent."""
+def budget_status(ledger: Ledger, month: str, today: dt.date | None = None) -> list[dict]:
+    """Per category, for one month: the ceiling, the items inside it, what was spent.
+
+    ``usual`` is the category's median month before this one (desiderata 5.15):
+    what a ceiling is decided against. It is None with nothing to read it from.
+    """
     month = parse_month(month)
+    usual = usual_spending(ledger, month, today or dt.date.today())
     defaults = _defaults(ledger, month)
     overrides = _overrides(ledger, month)
     spent = _spent(ledger, month)
@@ -121,6 +127,7 @@ def budget_status(ledger: Ledger, month: str) -> list[dict]:
                 "budget": _text(ceiling),
                 "default": _text(default),
                 "override": _text(override),
+                "usual": _text(usual.get(row["name"])),
                 "spent": format_decimal(category_spent),
                 "remaining": _text(None if ceiling is None else ceiling - category_spent),
                 "planned": format_decimal(planned),

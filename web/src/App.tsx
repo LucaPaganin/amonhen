@@ -8,7 +8,6 @@ import type { TabId } from "./components/Navigation";
 import { Toast } from "./components/Toast";
 import { AccountsScreen } from "./screens/Accounts";
 import { BudgetScreen } from "./screens/Budget";
-import { AssistantScreen } from "./screens/Assistant";
 import { DashboardScreen } from "./screens/Dashboard";
 import { GuideScreen } from "./screens/Guide";
 import type { GuideTopic } from "./screens/Guide";
@@ -16,9 +15,9 @@ import { MovementsScreen } from "./screens/Movements";
 import { ImportScreen } from "./screens/Import";
 import { ReviewQueueScreen } from "./screens/ReviewQueue";
 import { CategoryRulesScreen } from "./screens/CategoryRules";
+import { StatisticsScreen } from "./screens/Statistics";
 import { SetupScreen, setupStartStep } from "./screens/Setup";
 import { syncSummary } from "./notices";
-import type { AssistantContext } from "./types";
 import { useCategories } from "./useCategories";
 import { useReviewQueue } from "./useReviewQueue";
 import { useRules } from "./useRules";
@@ -30,7 +29,7 @@ import { useSetup } from "./useSetup";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 37;
+const REQUIRED_API_VERSION = 38;
 
 export default function App() {
   // `?setup=1` is where the bank sends the browser back after a login, and the
@@ -42,11 +41,6 @@ export default function App() {
   const [movementsCategory, setMovementsCategory] = useState<string | null>(null);
   const [guideTopic, setGuideTopic] = useState<GuideTopic | null>(null);
   const [serverVersion, setServerVersion] = useState<string | null>(null);
-  // What the assistant was opened from, when it was opened from a screen: the
-  // question is composed there, and the section is handed the thing it is about.
-  // The section asks it only when a button is pressed, so this survives until
-  // the person asks it or drops it.
-  const [assistantContext, setAssistantContext] = useState<AssistantContext | null>(null);
   // A sync writes movements underneath every screen, so a number that counts
   // them is bumped and the screens that read the ledger fetch again. A key that
   // only grows, rather than a remount: a filter a person chose survives it.
@@ -136,11 +130,6 @@ export default function App() {
     setTab("guide");
   }, []);
 
-  const openAssistant = useCallback((context: AssistantContext) => {
-    setAssistantContext(context);
-    setTab("assistant");
-  }, []);
-  const clearAssistantContext = useCallback(() => setAssistantContext(null), []);
   const dismissSyncNotice = useCallback(() => setSyncNotice(null), []);
 
   // The server does the work and the answer is the summary; the screens are
@@ -272,15 +261,12 @@ export default function App() {
           />
         ) : null}
         {tab === "budget" ? (
-          <BudgetScreen onAskAssistant={openAssistant} refreshToken={syncedAt} />
+          <BudgetScreen refreshToken={syncedAt} />
         ) : null}
         {tab === "accounts" ? <AccountsScreen refreshToken={syncedAt} /> : null}
         {tab === "import" ? <ImportScreen onImported={noteWrote} /> : null}
-        {tab === "assistant" ? (
-          <AssistantScreen
-            context={assistantContext}
-            onContextDone={clearAssistantContext}
-          />
+        {tab === "statistics" ? (
+          <StatisticsScreen refreshToken={syncedAt} onOpenCategory={openCategory} />
         ) : null}
         {tab === "categories" ? (
           <CategoryRulesScreen

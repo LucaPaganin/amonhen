@@ -58,7 +58,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, assistant_readings, budget_proposals, held_transactions|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
@@ -66,14 +66,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/transfers.py`|Transfer candidate graph, weights, link review state|
 |`amonhen/matching.py`|Exact maximum-weight bipartite matching (Hungarian)|
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
-|`amonhen/metrics.py`|Burn, episodic accrual, runway, the month against its usual pace, and the dashboard series|
+|`amonhen/metrics.py`|Burn, episodic accrual, runway, the month against its usual pace, the dashboard series, and the statistics per category|
 |`amonhen/budgets.py`|Desiderata 5.12: a ceiling per category and month (a default from a month on, a month's own override) and the expenses planned inside it|
 |`amonhen/anomalies.py`|Deterministic, explained spending outliers|
 |`amonhen/classifier.py`|Char n-gram logistic proposals for uncovered merchants|
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
-|`amonhen/assistant.py`|Desiderata 5.9: a reading of the numbers already computed, and the guards on it|
-|`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, assistant, dashboard series, first setup) and PWA host; `/callback` answers 303 to `/?setup=1`|
+|`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, statistics, dashboard series, first setup) and PWA host; `/callback` answers 303 to `/?setup=1`|
 |`amonhen/backup.py`|`make_snapshot`: a dated snapshot of the living ledger (SQLite's backup API, not a file copy) plus the configuration it needs, a manifest, and the retention that keeps it bounded|
 |`amonhen/providers/enable_banking.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances)|
 |`amonhen/providers/eb_normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` (pure)|
@@ -84,6 +83,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`web/src/components/CreditCard.tsx`|One credit of *Accrediti da chiarire*: the type, then the category, and the rule on request|
 |`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
 |`web/src/screens/Guide.tsx`|Desiderata 5.14: a card per concept, the only place the pages explain; `components/Help.tsx` is the `?` that opens one|
+|`web/src/screens/Statistics.tsx`|Desiderata 5.15: each category over the last complete months, the median and the mean, and its months on request|
 |`web/src/components/TagEditor.tsx`|The tags of one movement, in its sheet; `useTags.ts` is the list every screen reads|
 |`web/src/components/VirtualAccounts.tsx`|The virtual accounts under **Conti**: what each holds, how many movements put it there, and the movements on request (`/api/virtual-accounts`, `/api/transactions?virtual_account_id=`)|
 |`web/src/components/PeriodRange.tsx`|A period of two dates, handed over only when valid: the dashboard's *Personalizzato* and Movimenti's *Periodo*|
@@ -110,7 +110,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
-|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
+|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
 |`budgets`|`budget_status`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
@@ -131,9 +131,9 @@ change, like the spec.
 |---|---|
 |Movements, notes, deletions, balances, the opening, the 5.4 check, net worth, WAL, the broker|`docs/ledger.md`|
 |Pairing, giroconti, `passthrough`, mirrors|`docs/transfers.md`|
-|Rules, Da confermare, proposals, the classifier, the LLM, the assistant, anomalies|`docs/rules-and-review.md`|
+|Rules, Da confermare, proposals, the classifier, the LLM, anomalies|`docs/rules-and-review.md`|
 |Sync, periods, held duplicates, consents, `accounts.json`, the key, CSV import|`docs/sync-and-banks.md`|
-|Metrics, `LedgerScope`, the dashboard, contributions, budgets|`docs/metrics-and-budgets.md`|
+|Metrics, `LedgerScope`, the dashboard, the statistics, contributions, budgets|`docs/metrics-and-budgets.md`|
 |Anything in `web/`|`docs/frontend.md`|
 |The image, snapshots, `.env`|`docs/operations.md`|
 
@@ -168,15 +168,9 @@ change, like the spec.
   (`…-unverified`). Ambiguity inside that graph is resolved exactly by
   `max_weight_matching`, never greedily: a locally best pair can block a larger
   total.
-- **No call to the model starts by itself.** `/api/assistant/ask` and
-  `/api/llm-suggest` are reached from a click or a submit in the app, and from the
-  `llm-suggest` command; there is no effect, timer or background loop that asks in
-  someone's place. The entry point from a budget row composes the question and
-  shows it with the button that asks it (`AssistantScreen`, the *Domanda pronta*
-  panel) instead of asking on mount, and in **Assistente** the button that sent the
-  request names the model while it is in flight. A question whose data fingerprint
-  matches a stored reading returns that reading and spends no call, and a call that
-  fails leaves the composed question in its panel to be tried again.
+- **No call to the model starts by itself.** `/api/llm-suggest` is reached from a
+  press in the queue and from the `llm-suggest` command; there is no effect, timer or
+  background loop that asks in someone's place.
 - **The mortgage instalment is gone on purpose.** It used to be a `settings`
   row feeding the runway denominator; it is not a concept any more
   (`compute_metrics` takes no such argument, there is no `/api/settings`
@@ -249,7 +243,7 @@ change, like the spec.
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), seventeen tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), fifteen tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
@@ -270,8 +264,6 @@ by construction.
 |`budget_items`|9|An expense planned inside a category's ceiling for one month: description, amount, optional date, priority, note|
 |`merchant_suggestions`|5|A merchant → category proposal with its `source` and `decision` (`pending` / `accepted` / `dismissed`)|
 |`held_transactions`|11|A movement a period sync did not write because it looks like one the other ingest path wrote under a different description: the movement as it arrived, its occurrence, the row it resembles (`twin_id`), and the `decision` (`pending` / `written` / `discarded`). One row per `(account_id, key)`|
-|`budget_proposals`|5|The assistant's budget proposals, decided the same way|
-|`assistant_readings`|7|A reading, the model that wrote it, the fingerprint of the data it read, and `refused` when a guard rejected it|
 |`settings`|2|Key/value odds and ends|
 
 Three shapes wrap the same movement: `IncomingTransaction` (`models.py`, 13 fields)
@@ -304,6 +296,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Inspect the ledger|`sqlite3 amonhen.db` — accounts, transactions, postings, transfer_links (see *Ledger schema* above)|
 |See the balances behind the net worth|`sqlite3 amonhen.db "select * from account_balances"` — written by `sync`, `balances` and `anchor`|
 |Plan a month|The **Budget** section: a category's ceiling (*Da questo mese in poi* or *Solo questo mese*), then *Aggiungi voce* — from scratch or from a past movement — or *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
+|See what a category usually takes|**Statistiche**: the median and the mean over 6, 12 or 24 complete months; the **Budget** row says *di solito*, the median of the six before that month|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|
 |Regenerate parsing fixtures|`uv run python tools/dump_raw.py` then `uv run python tools/anonymize_dump.py dumps`|

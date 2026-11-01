@@ -1158,9 +1158,6 @@ class Ledger:
             self.conn.execute(
                 "UPDATE merchant_suggestions SET category = ? WHERE category = ?", (wanted, old)
             )
-            self.conn.execute(
-                "UPDATE budget_proposals SET category = ? WHERE category = ?", (wanted, old)
-            )
 
     def set_category_description(self, account_id: int, text: str) -> None:
         """Say what a category is about; an empty text removes it."""
@@ -1264,99 +1261,6 @@ class Ledger:
                AND account_id IN (SELECT id FROM accounts WHERE type != 'real')""",
             (transaction_id,),
         )
-
-    def record_reading(
-        self,
-        question: str,
-        answer: str,
-        model: str,
-        fingerprint: str,
-        refused: str | None = None,
-    ) -> None:
-        """Keep a reading, or the refusal of one, with what it was based on."""
-        with self.conn:
-            self.conn.execute(
-                """INSERT INTO assistant_readings
-                       (question, answer, model, fingerprint, created_at, refused)
-                   VALUES (?, ?, ?, ?, ?, ?)
-                   ON CONFLICT (question, fingerprint) DO UPDATE SET
-                       answer = excluded.answer,
-                       model = excluded.model,
-                       created_at = excluded.created_at,
-                       refused = excluded.refused""",
-                (
-                    question,
-                    answer,
-                    model,
-                    fingerprint,
-                    dt.datetime.now().replace(microsecond=0).isoformat(sep=" "),
-                    refused,
-                ),
-            )
-
-    def reading(self, question: str, fingerprint: str) -> sqlite3.Row | None:
-        """The answer already given to this question about this data, if any."""
-        return self.conn.execute(
-            """SELECT * FROM assistant_readings
-               WHERE question = ? AND fingerprint = ? AND refused IS NULL""",
-            (question, fingerprint),
-        ).fetchone()
-
-    def readings(self, limit: int = 10) -> list[dict]:
-        """What was asked and what came back, newest first, refusals included."""
-        return [
-            dict(row)
-            for row in self.conn.execute(
-                """SELECT question, answer, model, created_at, refused
-                   FROM assistant_readings ORDER BY id DESC LIMIT ?""",
-                (limit,),
-            )
-        ]
-
-    def record_budget_proposal(self, category: str, amount: str, source: str) -> None:
-        """Remember a proposed monthly budget; a person decides, nothing is applied."""
-        with self.conn:
-            self.conn.execute(
-                """INSERT INTO budget_proposals (category, amount, source, created_at, decision)
-                   VALUES (?, ?, ?, ?, 'pending')
-                   ON CONFLICT (category) DO UPDATE SET
-                       amount = excluded.amount,
-                       source = excluded.source,
-                       created_at = excluded.created_at,
-                       decision = 'pending'""",
-                (
-                    category,
-                    amount,
-                    source,
-                    dt.datetime.now().replace(microsecond=0).isoformat(sep=" "),
-                ),
-            )
-
-    def budget_proposals(self, decision: str = "pending") -> list[dict]:
-        return [
-            dict(row)
-            for row in self.conn.execute(
-                """SELECT category, amount, source, created_at FROM budget_proposals
-                   WHERE decision = ? ORDER BY category""",
-                (decision,),
-            )
-        ]
-
-    def budget_proposal(self, category: str) -> sqlite3.Row | None:
-        return self.conn.execute(
-            "SELECT * FROM budget_proposals WHERE category = ?", (category,)
-        ).fetchone()
-
-    def decide_budget_proposal(self, category: str, decision: str) -> None:
-        if decision not in ("accepted", "dismissed"):
-            raise ValueError(f"unknown decision {decision!r}")
-        with self.conn:
-            cursor = self.conn.execute(
-                "UPDATE budget_proposals SET decision = ? WHERE category = ? AND decision = 'pending'",
-                (decision, category),
-            )
-        if cursor.rowcount == 0:
-            raise KeyError(f"no budget proposal for {category!r}")
 
     def set_category(self, transaction_id: int, account_id: int) -> None:
         """Point the balancing side of a transaction at a category account.

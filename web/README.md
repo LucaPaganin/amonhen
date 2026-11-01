@@ -2,7 +2,7 @@
 
 Mobile-first React PWA over the `amonhen` FastAPI backend. Five screens in the bottom bar,
 reachable from there or from the hamburger in the top bar — and above 1024 px from the rail, which
-carries all eight — plus the entries with no column for them: **Importa**, **Assistente** (its own
+carries all eight — plus the entries with no column for them: **Importa**, **Statistiche** (its own
 section below) and **Configurazione**, the setup wizard:
 
 - **Da confermare** — the review queue: the merchant proposals to accept or dismiss, each with the
@@ -48,7 +48,7 @@ surfaces are off and the rail takes over: the same list standing up in a 248 px 
 left, full height, every section named in full, the current one marked with `aria-current="page"`.
 The sections and their icons are declared once, in `src/components/Navigation.tsx`, and all three
 paths render from that list — the rail and the drawer share the item itself (`.navitem`).
-**Importa**, **Assistente** and **Configurazione** are `inBar: false`, because eight labels do not fit
+**Importa**, **Statistiche** and **Configurazione** are `inBar: false`, because eight labels do not fit
 the bar's five columns and the drawer names each of them in full.
 
 ## Importa
@@ -69,29 +69,13 @@ importing the same file twice writes nothing, the identity being the same conten
 mapping cannot read is listed with its line and does not stop the import; its reason is the parser's
 own sentence, in English, as every backend `detail` is shown.
 
-## Assistente
+## Statistiche
 
-The section reads the numbers the backend already computed. Three chips ask the questions that come
-up most often, a field takes a free one, and the answer arrives as a card whose caption says it was
-generated and names the model and the fingerprint of the data. The card carries the figures the
-packet contained and nothing else: a reading that cited a figure nobody computed is refused by the
-server and shows up in the history as *rifiutata: citava una cifra non calcolata* — without the
-figure itself, which is exactly what must not reach the screen.
-
-Proposals come back with the reading and are cards of their own: a category proposal says it is
-confirmed in **Da confermare**, where every proposal is, and a budget proposal has *Accetta* and
-*Scarta* here. Nothing is applied by the model — accepting a budget calls
-`POST /api/assistant/budgets/decision` and writes the budget the way the Conti screen does. The
-history lists what has been asked, with the model and the refusal, and the state line under the
-title says how many calls the day has left.
-
-The section is also reachable from where the question is composed: *Regge?* on a budget row opens it
-with that budget as the context. The question the row implies — *Questo budget regge?* — arrives in a
-panel of its own that names the model that would answer it, with two buttons, *Chiedi* and *Lascia
-perdere*; nothing reaches `POST /api/assistant/ask` until the first is pressed, the button that sent
-it names the model while the request is in flight, and a call that fails leaves the panel standing so
-the question can be tried again. No effect, timer or background loop asks in the person's place; the
-reading says whether it was a new call or one already had.
+`src/screens/Statistics.tsx` reads `GET /api/statistics?months=`: chips for 6, 12 and 24 complete
+months, a panel with the total, and a row per category, the largest mean first, with the median
+strong and the mean beside it. A row opens its months as bars, and from there *Apri i movimenti*.
+The server computes every figure; the bar's length is the only division in the browser, and it is
+a drawing. The Guide's card *Mediana e media* explains them, and a row of **Budget** shows `usual`.
 
 ## Configurazione
 
@@ -556,14 +540,13 @@ becomes a two-column grid, and the panels that share a row are marked where they
 (`panel--pair`: the two period charts, the accounts and the budgets) rather than guessed from what
 they contain — with two charts drawn instead of three, or one of the two lists missing, a guess
 leaves a panel half-wide next to an empty half. The net-worth curve has no partner and stays full
-width. A list of cards — the assistant's, the rule groups — turns back into a grid of cards: each
+width. A list of cards — the rule groups — turns back into a grid of cards: each
 entry gets back the radius, fill and shadow `.card-list > .card` had taken away to make it a row of
 one sheet, and the sheet itself stops drawing a surface. The queue's own list is the exception: above
 1024 it is the left half of a two-column panel, so its proposals stay one per row. A list of rows
 (movements, accounts, budgets) keeps its sheet and its hairline at every width. From 1440 the eight
 metric tiles fit on one row (145 px each; the longest figure asks for 103 of them), which is the case
-a wide window exists for. Prose keeps a book's measure: `.chart-note`, `.screen__subtitle` and
-`.assistant__answer` cap at 72 `ch`, and at 1484 the widest note measures 72 characters a line.
+a wide window exists for. Prose keeps a book's measure: `.chart-note` and `.screen__subtitle` cap at 72 `ch`, and at 1484 the widest note measures 72 characters a line.
 
 **And the sections get a rail instead of a floating pill.** A bottom bar of five words in the
 middle of a window, plus a drawer for the two names that did not fit, is the phone's answer to a

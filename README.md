@@ -99,7 +99,7 @@ update can look like it never happened.
 The app has five sections in the bottom bar, reachable in one tap there or from the hamburger in the
 top bar; the drawer it opens names each section in full, says what the section holds and carries the
 count of what is waiting, which is more than a fifth of the screen can, and adds the three sections
-with no column there — **Importa**, **Assistente** and **Configurazione**, the setup wizard (see
+with no column there — **Importa**, **Statistiche** and **Configurazione**, the setup wizard (see
 *Connecting a bank*). Above 1024 px both of those surfaces are off and the same list stands up as a rail down the
 left, with all eight sections named in full. The wizard is what a fresh install opens on: with
 nothing configured it replaces the app shell and starts at the first step whose requirement is
@@ -365,8 +365,7 @@ The holder's name the wizard asks for is `account_holder_name`, read as
 with the remittance text instead, because money coming back to you is not a payment
 to yourself, and a counterparty of your own name tells the ledger nothing.
 
-The optional model — it proposes a category for merchants no rule covers, and it
-reads the numbers back to you in **Assistente** — is configured with
+The optional model, which proposes a category for merchants no rule covers, is configured with
 `AMONHEN_LLM_URL`, `AMONHEN_LLM_API_KEY` and `AMONHEN_LLM_MODEL`.
 **`AMONHEN_LLM_URL` is the whole endpoint** — the client posts to it as given,
 with no path appended — so a provider's base URL is not enough:
@@ -390,12 +389,9 @@ is off and the API answers 503 with an explanation; nothing else depends on it,
 and it is never part of a sync.
 
 **Nothing reaches the model by itself.** Every call is one a person asked for:
-the *Chiedi al modello* button in the queue, *Chiedi* in **Assistente**, the
-`llm-suggest` command, and the question a budget row composes when it opens the
-section — that one arrives ready and waits for its own press. No effect, timer or
-background loop asks in someone else's place, and in **Assistente** the button
-names the model while the request is in flight, so a call to a third party is
-always something you did and something you saw.
+the *Chiedi al modello* button in the queue and the `llm-suggest` command. No effect,
+timer or background loop asks in someone else's place, so a call to a third party
+is always something you did.
 
 `passthrough` declares the money that is neither spending nor income: what you
 move to an account that is **not** connected to Enable Banking, and what arrives
@@ -437,43 +433,16 @@ sheet answers a pairing the matcher proposed (*È un giroconto* /
 *Non è un giroconto*) and pairs two movements by hand, offering only the legs the
 matcher's own rules would have accepted.
 
-## Assistente
+## Statistiche
 
-The **Assistente** section (desiderata 5.9) reads the numbers the backend has
-already computed and talks about them. It is not a chat about the world and not a
-second calculator: the packet it is handed is built from the same functions the
-screens read, so the prose and the charts cannot be about two different ledgers.
-
-Three rules are enforced in code rather than promised in a prompt.
-
-- **Every number in the prose was sent.** The reading is checked token by token
-  against the figures of the packet — "1.234,56" and "1234.56" are the same
-  figure, an Italian date is folded to the ISO the packet uses — and refused whole
-  if it cites anything else. A refusal is recorded and never shown.
-- **A proposal names something the request contained**: a merchant and a category
-  that were in the packet, or a category with no budget and a positive amount.
-  Anything else is dropped and logged. Nothing is written to the ledger: a
-  category proposal waits in `merchant_suggestions` where every other proposal
-  waits, a budget one in `budget_proposals`, and a person accepts either.
-- **Nothing identifying is sent**: no IBAN, no account number, no raw payload,
-  and no counterparty that is not already the normalized merchant. An IBAN
-  printed inside a bank description is replaced by `[iban]` before the packet
-  leaves the process.
-
-The question and a fingerprint of the data are the key: asking the same thing
-about the same figures does not reach the model twice. The fingerprint covers the
-figures, not the merchant list — that list changes because the assistant answered,
-and hashing it would make the same question cost a second call. Calls are counted
-per day (`CALL_LIMIT`, 20) and the count is on the screen; the model, the
-fingerprint and the answer are kept in `assistant_readings`, so a reading can be
-read again in six months knowing what it was based on.
-
-Where the question is composed, the section is reachable from there: **Regge?** on
-a budget row opens it with *that* budget as the context, and the question it
-composes — *Questo budget regge?* — arrives in a panel that names the model and
-carries the button that asks it and one that drops it. Opening the section asks
-nothing: the panel waits. Without `AMONHEN_LLM_URL` the section says it is off,
-and nothing else in the app depends on it.
+The **Statistiche** section (desiderata 5.15) reads each category over the last 6, 12 or
+24 complete months: the median, the mean, the range and how many months spent something, with
+the months themselves one tap away. The median is the normal month, the mean what the
+category costs in the long run, and a month with no spending counts as a zero, which is what
+makes the two differ on a category that spends now and then. The figures are counted as the
+budgets count them, net of refunds and gross of contributions with rare spending inside, so a
+row of **Budget** can say *di solito* beside its ceiling: the median of the six complete months
+before the month on screen.
 
 ## On the NAS
 
@@ -789,7 +758,6 @@ rm -rf $HOME/amonhen-rehearsal
 |`amonhen/classifier.py`|Char n-gram logistic classifier proposing categories|
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
 |`amonhen/suggestions.py`|Optional LLM proposals for unseen merchants|
-|`amonhen/assistant.py`|Desiderata 5.9: a reading of the numbers already computed, and the guards on it|
 |`amonhen/api.py`|FastAPI surface and PWA host|
 |`amonhen/backup.py`|Dated, consistent snapshots of the ledger and its configuration|
 |`amonhen/cli.py`|`python -m amonhen`|
@@ -853,6 +821,6 @@ from raw dumps.
 |4|Budgets, anomalies, classifier and optional LLM proposals|done|
 |UI|Dashboard: spending per category, monthly income/expense, observed net worth|done|
 |UI|Dashboard filters (period, accounts, category) and the Conti section: accounts, declared balances, budgets|done|
-|5|Assistant (section 5.9): a prose reading of the computed series, with proposals to confirm|done|
+|5|Assistant (section 5.9): a prose reading of the computed series|removed in v1.16.0|
 |6|Sync button, a local note on a movement, deletion with tombstone and trash, per-account reimport flag|done|
 |7|First setup guided by the app (section 5.10), backup and restore (section 5.11), the local Docker rehearsal|done|
