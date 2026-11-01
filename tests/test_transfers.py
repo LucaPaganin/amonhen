@@ -478,6 +478,17 @@ def test_a_leg_recorded_to_an_own_account_names_it(ledger):
     ledger.validate()
 
 
+def test_a_leg_moves_from_one_own_account_to_another_and_stays_balanced(ledger):
+    revolut, _ = setup_accounts(ledger)
+    leg = ledger.record(make_txn(ledger, revolut, "2026-02-10", "-500.00", f"To {DEPOSIT}"))[0]
+    ledger.mark_passthrough(leg, DEPOSIT)
+
+    ledger.mark_passthrough(leg, "Altro conto")
+
+    assert ledger.transfer_of(leg)["target"] == "Altro conto"
+    ledger.validate()
+
+
 def test_a_leg_cannot_be_recorded_anywhere_but_an_own_account(ledger):
     revolut, _ = setup_accounts(ledger)
     leg = ledger.record(make_txn(ledger, revolut, "2026-02-10", "-500.00", "Bonifico"))[0]

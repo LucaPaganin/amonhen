@@ -1449,7 +1449,7 @@ class Ledger:
         amount = parse_decimal(row["amount"])
         self.conn.execute(
             """DELETE FROM postings WHERE transaction_id = ?
-               AND account_id IN (SELECT id FROM accounts WHERE type = 'category')""",
+               AND account_id IN (SELECT id FROM accounts WHERE type IN ('category', 'virtual'))""",
             (transaction_id,),
         )
         self.conn.execute(
