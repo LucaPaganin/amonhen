@@ -722,6 +722,31 @@ def test_the_figure_we_trust_more_wins_when_the_bank_declares_two_of_a_kind(ledg
     ] == [("eb:ITAV", "available", True)]
 
 
+def test_a_forecast_is_not_checked_and_does_not_hide_the_check_before_it(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real", opening_balance=Decimal("70.00")))
+    ledger.record_declared_balance(account, dt.date(2026, 1, 31), Decimal("70.00"), "eb:ITAV")
+    ledger.record_declared_balance(account, dt.date(2026, 2, 28), Decimal("-115.23"), "eb:FWAV")
+
+    assert [(check.source, check.ok) for check in ledger.declared_checks(account)] == [
+        ("eb:ITAV", True)
+    ]
+
+
+def test_a_forecast_below_zero_is_an_advisory_while_its_date_has_not_passed(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real"))
+    today = dt.date(2026, 2, 1)
+    assert ledger.overdraft_forecast(account, today) is None
+
+    ledger.record_declared_balance(account, dt.date(2026, 1, 31), Decimal("-5.00"), "eb:FWAV")
+    assert ledger.overdraft_forecast(account, today) is None
+
+    ledger.record_declared_balance(account, dt.date(2026, 2, 28), Decimal("-115.23"), "eb:FWAV")
+    assert ledger.overdraft_forecast(account, today)["balance"] == "-115.23"
+
+    ledger.record_declared_balance(account, dt.date(2026, 3, 31), Decimal("20.00"), "eb:FWAV")
+    assert ledger.overdraft_forecast(account, today) is None
+
+
 def test_validate_detects_a_broken_transaction(ledger):
     account = ledger.ensure_account(Account(name="Revolut", type="real"))
     ledger.conn.execute(

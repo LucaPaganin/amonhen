@@ -322,6 +322,17 @@ def test_monthly_flows_on_an_empty_ledger_report_the_current_month_alone(ledger)
     assert [(flow.month, flow.expenses) for flow in flows] == [("2026-09", Decimal("0"))]
 
 
+def test_a_forecast_is_neither_a_point_of_the_net_worth_nor_the_latest_balance(ledger):
+    account = ledger.ensure_account(Account(name="Fineco", type="real"))
+    ledger.record_declared_balance(account, dt.date(2026, 9, 1), Decimal("1000.00"), "eb:ITBD")
+    ledger.record_declared_balance(account, dt.date(2026, 9, 30), Decimal("-115.23"), "eb:FWAV")
+
+    assert [(point.date, point.total) for point in net_worth_series(ledger)] == [
+        (dt.date(2026, 9, 1), Decimal("1000.00"))
+    ]
+    assert [row.balance for row in latest_balances(ledger)] == [Decimal("1000.00")]
+
+
 def test_net_worth_series_counts_an_account_from_its_first_reported_balance(ledger):
     revolut = ledger.ensure_account(Account(name="Revolut", type="real"))
     fineco = ledger.ensure_account(Account(name="Fineco", type="real"))

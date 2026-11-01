@@ -73,6 +73,8 @@ export interface AssistantHistoryEntry {
 export interface Account extends AccountRef {
   type: string;
   balance: string;
+  /** The bank expects the account below zero on that date: an advisory, not a state. */
+  forecast: { date: string; balance: string } | null;
   investment: boolean;
   /** On: the next sync writes back the movements deleted from this account. */
   reimport_deleted: boolean;

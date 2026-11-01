@@ -541,7 +541,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   page gained `hidden`, `tags` on the dashboard reads), and `savings_flow` gone. 32 is
   the refund: a category gained `income`, and a spent figure can be negative. 33 is the
   contribution: a category gained `contribution` and `description`, `/api/month`
-  `contributions` and `net`, the metrics `contributions_monthly`.
+  `contributions` and `net`, the metrics `contributions_monthly`. 34 is the forecast: an
+  account row gained `forecast`.
 - **The release is on screen.** The foot of the drawer and of the rail says
   `AmonHen <bundle>`, and `· server <version>` beside it when the two differ. The
   image gets the tag as the `AMONHEN_VERSION` build-arg (`image.yml`; the build
@@ -628,6 +629,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
   would be wrong to leave them out. A hand-typed `--declared` has no `eb:` tag
   to say which figure it is, so it carries the word (`manual:booked`) and the
   recorded row is tagged `anchor:<kind>`, both read by the same `balance_kind`.
+- **A bank's forecast is not a balance.** Fineco declares `FWAV`, what it expects the
+  account to hold on a coming date, and read as a declaration it failed the 5.4 check
+  (a red on an account that was fine) and put the future into `net_worth_series` and
+  `latest_balances`. `ledger.FORECAST_SOURCES_SQL` keeps those rows out of `declarations`
+  and both series, and the sync still records them because
+  `Ledger.overdraft_forecast` reads them: below zero it is `forecast` on the account
+  row, a line in Conti that changes neither the balance nor the verification.
 - **The opening is a fixed point, and re-deriving it hides a difference.** An
   anchor makes the 5.4 check agree by construction: whatever the ledger is
   missing or holds twice goes into the opening. Revolut subtracts a card

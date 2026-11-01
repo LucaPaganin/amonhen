@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.26 — novembre 2026
+Versione 1.27 — novembre 2026
 
 *0.1 · prima stesura. 0.2 · allineamento al costruito: fasi 0-4 e cruscotto
 consegnati, regole sul testo contenuto nella descrizione, giroconti visibili e
@@ -222,7 +222,9 @@ abbassa quella categoria. Cade la frase per cui la categoria compensata restava 
 1.26 · esiste il *contributo alle spese*, denaro che copre tutte le spese e non una: abbassa
 il totale e nessuna categoria, quindi spesa tipica, spesa attesa e autonomia ne sono al netto,
 e irrinunciabile e tagliabile scendono in proporzione sul conto su cui arriva. Ogni categoria
-può avere una descrizione.*
+può avere una descrizione.
+1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
+non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.*
 
 Questo file è la definizione di prodotto: cosa il sistema deve fare, i vincoli,
 i non-obiettivi, l'ordine dei lavori e lo stato di ciascuna fase (sezione 9). `CLAUDE.md`
@@ -330,6 +332,8 @@ Per ogni conto e ogni periodo:
 ```
 saldo_iniziale + Σ movimenti == saldo dichiarato dalla banca
 ```
+
+Un saldo previsto dalla banca per una data futura resta fuori: descrive qualcosa che non è successo, quindi non si verifica e non entra nella liquidità. Se è negativo, il conto dice in **Conti** che la banca lo vede andare in rosso se si continua così: è un avviso, e non cambia né il saldo né l'esito della verifica.
 
 Questa è la quantità conservata del sistema. Va verificata a ogni sync e l'esito è **visibile per conto** (pannello Conti), non sepolto in un log: non è una metrica di spesa, è lo stato di affidabilità di quel conto. La banca dichiara due figure per la stessa data — disponibile e contabilizzata — e ognuna si confronta con il saldo calcolato che significa la stessa cosa, così un controllo che fallisce dice quale delle due non torna, ed è ciò che distingue un movimento in attesa da un duplicato. Lo dice solo quando l'altra figura è stata dichiarata e torna: una banca che dichiara una figura sola — Revolut, il disponibile — non dice dove sta la differenza, e la verifica ne mostra l'importo. Un conto per cui nessuno ha dichiarato un saldo resta `non verificato`: il silenzio non è un assenso. Se non torna, ogni numero a valle è inaffidabile.
 

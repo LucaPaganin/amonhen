@@ -190,7 +190,7 @@ const CARDS: Card[] = [
     computed:
       "Verificato: coincidono. Discrepanza: manca un movimento o ce n'è uno doppio, di solito fra gli ultimi. D'accordo salvo i cancellati: la differenza è esattamente ciò che hai cancellato a mano. Non verificato: nessuno ha dichiarato un saldo, e il silenzio non è un accordo.",
     changes:
-      "Ricalcolare il saldo iniziale fa tornare i conti per costruzione: nasconde la differenza invece di spiegarla, e si fa solo sapendo perché. Con Ripristina i cancellati, i movimenti cancellati di un conto tornano al prossimo sync con la loro nota.",
+      "Ricalcolare il saldo iniziale fa tornare i conti per costruzione: nasconde la differenza invece di spiegarla, e si fa solo sapendo perché. Con Ripristina i cancellati, i movimenti cancellati di un conto tornano al prossimo sync con la loro nota. Il saldo che una banca prevede per una data futura non si verifica e non conta nella liquidità: se è negativo, Conti lo dice come avviso, e il conto non è in rosso.",
   },
 ];
 

@@ -16,7 +16,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable
 
-from amonhen.ledger import CONTRIBUTION_SQL, ESSENTIAL_SQL, RARE_SQL, SPENDING_SQL, Ledger
+from amonhen.ledger import (
+    CONTRIBUTION_SQL,
+    ESSENTIAL_SQL,
+    FORECAST_SOURCES_SQL,
+    RARE_SQL,
+    SPENDING_SQL,
+    Ledger,
+)
 from amonhen.models import parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -694,10 +701,11 @@ def net_worth_series(
     totals: dict[str, Decimal] = {}
     scoped, extra = _account_scope(scope, "a.name")
     for row in ledger.conn.execute(
-        """SELECT ab.date AS date, ab.account_id AS account_id, ab.balance AS balance
+        f"""SELECT ab.date AS date, ab.account_id AS account_id, ab.balance AS balance
            FROM account_balances ab
            JOIN accounts a ON a.id = ab.account_id
-           WHERE a.type = 'real' AND a.computed_balance = 0"""
+           WHERE a.type = 'real' AND a.computed_balance = 0
+             AND ab.source NOT IN {FORECAST_SOURCES_SQL}"""
         + scoped
         + " ORDER BY ab.date, ab.account_id",
         extra,
@@ -754,8 +762,9 @@ def latest_balances(ledger: Ledger, scope: LedgerScope = LedgerScope()) -> list[
             )
             continue
         row = ledger.conn.execute(
-            """SELECT date, balance FROM account_balances
-               WHERE account_id = ? ORDER BY date DESC LIMIT 1""",
+            f"""SELECT date, balance FROM account_balances
+               WHERE account_id = ? AND source NOT IN {FORECAST_SOURCES_SQL}
+               ORDER BY date DESC LIMIT 1""",
             (account["id"],),
         ).fetchone()
         if row is not None:

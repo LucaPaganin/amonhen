@@ -119,8 +119,9 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # category gained `income`, and what `/api/month` and the budgets read as spent can
 # now be negative. 33 is the contribution: a category gained `contribution` and
 # `description`, `/api/month` `contributions` and `net`, the metrics
-# `contributions_monthly`.
-API_VERSION = 33
+# `contributions_monthly`. 34 is the bank's forecast: an account row gained
+# `forecast`, and a forecast left the verification.
+API_VERSION = 34
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -2110,6 +2111,11 @@ def _verification(ledger: Ledger, account_id: int) -> dict:
     }
 
 
+def _forecast(ledger: Ledger, account_id: int) -> dict | None:
+    row = ledger.overdraft_forecast(account_id, dt.date.today())
+    return None if row is None else {"date": row["date"], "balance": row["balance"]}
+
+
 def _verification_state(checks: list[BalanceCheck]) -> str:
     """Which of the four outcomes the account is in.
 
@@ -2249,6 +2255,7 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         # sync needs. An account added by hand has no uid and nothing to ask.
         "connected": row["external_uid"] is not None,
         "verification": _verification(ledger, row["id"]),
+        "forecast": _forecast(ledger, row["id"]),
     }
 
 

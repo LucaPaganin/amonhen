@@ -906,7 +906,7 @@ select option {
 }
 
 .field--wide {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
 }
 
 .field > label {
@@ -1719,6 +1719,13 @@ button.txn:active {
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: normal;
+}
+
+.account-row__forecast {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
 }
 
 .metric__warning {

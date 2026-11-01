@@ -138,17 +138,21 @@ class BalanceCheck:
 # groups that are different numbers for the same date — the ones that include
 # the pending movements and the ones that leave them out. The order inside each
 # group is what to prefer when the bank declares several: the interim figures
-# describe now, the closing ones the end of a statement period, and a forecast
-# describes a future that has not happened. The last two entries are not EB
-# types: they are the words an opening we derived ourselves is tagged with, so
+# describe now, the closing ones the end of a statement period. The last two
+# entries are not EB types: they are the words an opening we derived ourselves is tagged with, so
 # that row lands in the bucket of the figure it was derived from.
 BALANCE_TYPES = (
-    ("ITAV", "available"), ("CLAV", "available"), ("OPAV", "available"), ("FWAV", "available"),
+    ("ITAV", "available"), ("CLAV", "available"), ("OPAV", "available"),
     ("ITBD", "booked"), ("CLBD", "booked"), ("OPBD", "booked"), ("PRCD", "booked"),
     ("AVAILABLE", "available"), ("BOOKED", "booked"),
 )
 BALANCE_KINDS = dict(BALANCE_TYPES)
 BALANCE_TYPE_ORDER = {name: index for index, (name, _kind) in enumerate(BALANCE_TYPES)}
+
+# What a bank expects an account to hold on a coming date. It describes a future
+# that has not happened, so it is neither checked against the ledger nor a point of
+# the net worth: it is kept for `Ledger.overdraft_forecast` alone.
+FORECAST_SOURCES_SQL = "('eb:FWAV', 'eb:XPCD')"
 
 
 def balance_kind(source: str) -> str:
@@ -1789,12 +1793,29 @@ class Ledger:
 
     def declarations(self, account_id: int, as_of: dt.date | None = None) -> list[sqlite3.Row]:
         """Every balance declared for the account, optionally up to a date."""
-        sql = "SELECT date, balance, source FROM account_balances WHERE account_id = ?"
+        sql = (
+            "SELECT date, balance, source FROM account_balances WHERE account_id = ?"
+            f" AND source NOT IN {FORECAST_SOURCES_SQL}"
+        )
         params: list = [account_id]
         if as_of is not None:
             sql += " AND date <= ?"
             params.append(as_of.isoformat())
         return list(self.conn.execute(sql, params))
+
+    def overdraft_forecast(self, account_id: int, today: dt.date) -> sqlite3.Row | None:
+        """The bank's furthest forecast for the account, when it has it below zero.
+
+        An advisory about what may happen, never a state of the account: its
+        balance and its check are what they are.
+        """
+        row = self.conn.execute(
+            f"""SELECT date, balance FROM account_balances
+                WHERE account_id = ? AND source IN {FORECAST_SOURCES_SQL} AND date >= ?
+                ORDER BY date DESC LIMIT 1""",
+            (account_id, today.isoformat()),
+        ).fetchone()
+        return row if row is not None and parse_decimal(row["balance"]) < 0 else None
 
     def declaration_for(self, account_id: int, as_of: dt.date) -> sqlite3.Row | None:
         """The declaration to assert against for that date: the newest, deterministically."""
