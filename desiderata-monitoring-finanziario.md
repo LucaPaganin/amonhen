@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.36 — novembre 2026
+Versione 1.37 — novembre 2026
 
 *1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
 non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
@@ -17,7 +17,8 @@ mese, quindi la riserva ne è al netto e lo stesso denaro non conta due volte.
 1.34 · il limite di richieste di una banca ferma quel conto invece di trattenere il sync (sezione 5.1), un riavvio
 non consuma il limite, e una regola di giroconto si applica subito e prima dell'abbinamento (sezione 5.3).
 1.35 · gli accrediti da chiarire partono da una data che si imposta: sul NAS è tutta la storia.
-1.36 · la ciambella delle spese per categoria torna sul cruscotto, anche sul telefono; il periodo ha *Questo mese* e due date a scelta, anche in **Movimenti**.*
+1.36 · la ciambella delle spese per categoria torna sul cruscotto, anche sul telefono; il periodo ha *Questo mese* e due date a scelta, anche in **Movimenti**.
+1.37 · un conto chiuso non si ricostruisce: la storia parte dall'apertura di Fineco e il denaro arrivato da lì sta su un conto virtuale (sezione 5.3).*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -123,6 +124,7 @@ Ogni movimento è composto da N *postings* la cui somma è zero.
 - Ogni link ha un livello di confidenza e resta rivedibile a mano: si conferma, si annulla, si registra una gamba sola verso una destinazione dichiarata (sezione 5.3) e si abbinano due gambe a mano. L'abbinamento manuale accetta solo le coppie che il matcher stesso accetterebbe: conti reali diversi, importi uguali e opposti, nessuna split da perdere.
 - Annullare una coppia **rifiuta** il link invece di cancellarlo, così il matcher non la ripropone al sync successivo; annullare una gamba sola la riporta in coda, senza categoria.
 - **Il denaro che non è né spesa né entrata si dichiara.** Una voce di `passthrough` in `accounts.json` nomina una destinazione — il conto virtuale in cui finisce il lato non reale — e i testi che la banca stampa su quei movimenti, con `incoming_only` per le etichette che nominano una persona o una ditta: lo stesso nome vale nelle due direzioni, e il nome di una ditta porterebbe fuori dalla spesa il premio oltre al rimborso. Serve perché i due casi non si riconoscono altrimenti: un conto proprio non collegato non ha una contro-gamba da appaiare, e un accredito da fuori non ha un addebito che lo compensi. Sulla contabilità viva nessuno degli accrediti di un mese di prova ha un addebito di pari importo: quello che hanno in comune è chi li manda, non cosa pagano. Restano quindi fuori dalle entrate e fuori dalle spese, la loro categoria non viene toccata, e restano sul libro col nome della destinazione.
+- **Un conto chiuso non si ricostruisce.** La storia parte dal 26 agosto 2025, quando Fineco è stato aperto: il periodo prima resta fuori, e con lui il conto ING chiuso. I bonifici arrivati da ING dopo quella data stanno sul conto virtuale *ING*, quelli di origine non ritrovata da un conto proprio su *Altri conti miei*: non sono né entrate né spese.
 
 ### 5.4 Invariante di correttezza
 

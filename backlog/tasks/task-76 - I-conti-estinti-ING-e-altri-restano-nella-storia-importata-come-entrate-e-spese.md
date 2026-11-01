@@ -3,9 +3,10 @@ id: TASK-76
 title: >-
   I conti estinti (ING e altri) restano nella storia importata come entrate e
   spese
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28 21:40'
+updated_date: '2026-11-01 22:00'
 labels: []
 dependencies: []
 ordinal: 75500
@@ -19,7 +20,13 @@ Lo storico importato da Revolut (dal 2025) e quello di Fineco contengono bonific
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Si sa quali conti estinti compaiono nello storico importato, con periodo e totale dei movimenti verso ciascuno
-- [ ] #2 I giroconti verso un conto estinto non contano né come entrate né come spese
-- [ ] #3 La scelta fatta per i conti estinti è scritta nella specifica
+- [x] #1 Si sa quali conti estinti compaiono nello storico importato, con periodo e totale dei movimenti verso ciascuno
+- [x] #2 I giroconti verso un conto estinto non contano né come entrate né come spese
+- [x] #3 La scelta fatta per i conti estinti è scritta nella specifica
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+L'unico conto estinto nello storico è ING: sei accrediti da agosto a ottobre 2025 sul conto virtuale ING, e nessuna uscita verso di lui fra le 1.696 del ledger. Due accrediti da un conto proprio non ritrovato stanno su Altri conti miei. La storia parte dall'apertura di Fineco; la scelta è nella specifica, sezione 5.3.
+<!-- SECTION:FINAL_SUMMARY:END -->
