@@ -63,7 +63,7 @@ export default function App() {
   } = useCategories();
   // Writing a rule changes what the queue has left to decide, so refresh it.
   const rules = useRules(review.reload);
-  const reviewCount = review.proposalsTotal + review.transfersTotal;
+  const reviewCount = review.proposalsTotal + review.transfersTotal + review.creditsTotal;
 
   useEffect(() => {
     const controller = new AbortController();

@@ -91,8 +91,9 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
 - **A credit is asked about in its own block.** `ledger.CREDITS_WHERE` is settled
   money in on `Uncategorized` from `settings.CREDITS_REVIEW_FROM` (2026-08-01) on,
   no transfer leg, no split; `/api/review` answers it as `credits` and
-  `credits_total`, outside the list's filters and outside the badge, which counts
-  what an automatic pass produced. `CreditCard.tsx` asks the type, and the type
+  `credits_total`, outside the list's filters. The badge counts them with the
+  proposals and the transfers: it left them out while they were 94 daily interests, and
+  a credit nobody can see from the bar is a credit nobody answers. `CreditCard.tsx` asks the type, and the type
   picks the categories it offers: `income`, `contribution`, or neither for a
   refund. What it writes is an ordinary `set_category`, so nothing new is stored.
   The deposit's daily interest leaves by a category rule towards an `income`

@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.32 — novembre 2026
+Versione 1.33 — novembre 2026
 
 *1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
 non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
@@ -12,7 +12,8 @@ disponibile.
 1.30 · una categoria si rinomina, e le sue regole la seguono.
 1.31 · il contributo copre anche le spese rare: si divide su tutto ciò che il conto paga nel
 mese, quindi la riserva ne è al netto e lo stesso denaro non conta due volte.
-1.32 · la storia delle versioni e il dettaglio delle fasi concluse stanno in `docs/storia-desiderata.md`; i motivi che vivevano solo lì sono passati nel corpo.*
+1.32 · la storia delle versioni e il dettaglio delle fasi concluse stanno in `docs/storia-desiderata.md`; i motivi che vivevano solo lì sono passati nel corpo.
+1.33 · il numero su **Da confermare** conta anche gli accrediti da chiarire.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -173,7 +174,7 @@ Nessuno stadio scrive una categoria definitiva senza che sia rivedibile. Nessuno
 - *Categoria.* Come sempre: riempie il vuoto, segue i propri cambiamenti, non sovrascrive una decisione presa a mano.
 - *Tag.* Mette un tag (sezione 5.13) a ogni movimento che combacia, compresi split e giroconti. Non compete con le altre azioni: si somma, quindi una regola di categoria e una di tag sullo stesso testo valgono insieme, e tutte le regole di tag che combaciano mettono il loro. Togliere la regola toglie il tag dai movimenti dove l'aveva messo lei; un tag messo a mano resta.
 
-**Anche un accredito va chiarito.** Finché nessuno decide, un accredito senza categoria non abbassa nessuna spesa e nei grafici conta come entrata. Il blocco *Accrediti da chiarire* di **Da confermare**, separato dalla lista delle uscite e fuori dai suoi filtri, mostra quelli contabilizzati dal 1° agosto 2026 in poi, esclusi giroconti e split: i precedenti sono stati riletti quando i rimborsi sono entrati nel calcolo. Da ogni accredito si sceglie il tipo — entrata, rimborso o contributo alle spese (sezione 5.6) — e poi la categoria fra quelle di quel tipo; un tipo con una categoria sola non chiede altro. Per un rimborso la categoria è quella della spesa. La riga aperta porta allo stesso foglio di ogni movimento, per ciò che i tre tipi non dicono: un giroconto, una nota, una cancellazione. Un accredito che si ripete si risolve con una regola, non a uno a uno, ed è così che restano fuori gli interessi giornalieri del conto deposito: una regola di categoria verso una categoria *Entrata*, che non cambia nessuna cifra perché lì erano già entrate. Una categoria decisa fa uscire l'accredito dal blocco, anche quando è sbagliata; si ritrova in **Movimenti** filtrando per categoria, senza una vista apposta.
+**Anche un accredito va chiarito.** Finché nessuno decide, un accredito senza categoria non abbassa nessuna spesa e nei grafici conta come entrata. Il blocco *Accrediti da chiarire* di **Da confermare**, separato dalla lista delle uscite e fuori dai suoi filtri, mostra quelli contabilizzati dal 1° agosto 2026 in poi, esclusi giroconti e split: i precedenti sono stati riletti quando i rimborsi sono entrati nel calcolo. Da ogni accredito si sceglie il tipo — entrata, rimborso o contributo alle spese (sezione 5.6) — e poi la categoria fra quelle di quel tipo; un tipo con una categoria sola non chiede altro. Per un rimborso la categoria è quella della spesa. La riga aperta porta allo stesso foglio di ogni movimento, per ciò che i tre tipi non dicono: un giroconto, una nota, una cancellazione. Un accredito che si ripete si risolve con una regola, non a uno a uno, ed è così che restano fuori gli interessi giornalieri del conto deposito: una regola di categoria verso una categoria *Entrata*, che non cambia nessuna cifra perché lì erano già entrate. Una categoria decisa fa uscire l'accredito dal blocco, anche quando è sbagliata; si ritrova in **Movimenti** filtrando per categoria, senza una vista apposta. Il numero sulla voce **Da confermare** conta anche questi accrediti: tolti gli interessi sono pochi, e uno che non si vede dalla barra non riceve risposta.
 
 Ogni categoria può avere una descrizione, scritta nella sua riga: dice di cosa si tratta, a chi legge fra un anno, e non cambia nessun calcolo.
 
