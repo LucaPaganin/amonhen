@@ -127,6 +127,18 @@ def test_removing_a_rule_takes_its_tag_and_leaves_a_persons(ledger, account):
     assert ledger.tags_of(movement) == ["A mano"]
 
 
+def test_a_tag_a_person_already_wrote_is_not_a_change(ledger, account):
+    uncategorized = ledger.uncategorized()
+    movement = spend(ledger, account, uncategorized, "2026-08-11", "-500", "Euronics")
+    book = RuleBook(ledger.conn)
+    ledger.add_tag(movement, "Casa")
+    book.set_rule("euronics", "Casa", ledger, action="tag")
+    categorize(ledger, book)
+
+    assert categorize(ledger, book) == 0
+    assert ledger.tags_of(movement) == ["Casa"]
+
+
 def test_a_sync_tags_the_new_movements(ledger, account):
     book = RuleBook(ledger.conn)
     book.set_rule("euronics", "Elettrodomestici", ledger, action="tag")

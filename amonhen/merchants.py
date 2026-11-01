@@ -812,15 +812,18 @@ def _apply_tags(ledger: Ledger, rules: Sequence[Rule]) -> int:
     Every tag rule that matches puts its tag, on any movement a rule may read,
     splits and legs included: a tag does not decide anything about where the
     money went. A tag a rule wrote and no rule claims any more goes; a tag a
-    person wrote is not this function's business.
+    person wrote is not this function's business, and a movement already
+    carrying it has nothing to change when a rule asks for the same tag.
     """
     tagging = _by_action(rules)["tag"]
     written: dict[int, set[str]] = {}
+    personal: dict[int, set[str]] = {}
     for row in ledger.conn.execute(
-        """SELECT tt.transaction_id, g.name FROM transaction_tags tt
-           JOIN tags g ON g.id = tt.tag_id WHERE tt.by_rule = 1"""
+        """SELECT tt.transaction_id, g.name, tt.by_rule FROM transaction_tags tt
+           JOIN tags g ON g.id = tt.tag_id"""
     ):
-        written.setdefault(row["transaction_id"], set()).add(row["name"])
+        holder = written if row["by_rule"] else personal
+        holder.setdefault(row["transaction_id"], set()).add(row["name"])
     if not tagging and not written:
         return 0
     changed = 0
@@ -830,6 +833,7 @@ def _apply_tags(ledger: Ledger, rules: Sequence[Rule]) -> int:
             for rule in _candidate_rules(row["description"], tagging, _movement_of(row))
             if rule.target is not None
         }
+        wanted -= personal.get(row["id"], set())
         current = written.get(row["id"], set())
         if wanted == current:
             continue
