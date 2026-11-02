@@ -24,6 +24,11 @@ import { categoryText } from "../category";
 
 const PAGE_SIZE = 100;
 
+/** What was typed, as the API reads an amount: the comma is how a person writes it. */
+function amountText(value: string): string {
+  return value.trim().replace(",", ".");
+}
+
 interface MovementsScreenProps {
   categories: Category[];
   categoriesError: string | null;
@@ -58,6 +63,8 @@ export function MovementsScreen({
   const { tags, reload: reloadTags } = useTags();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [amountInput, setAmountInput] = useState({ min: "", max: "" });
+  const [amount, setAmount] = useState({ min: "", max: "" });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [items, setItems] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
@@ -88,7 +95,8 @@ export function MovementsScreen({
   // What the closed bar does not show: the selects that narrow the list.
   const activeFilters =
     [accountId, category, tag].filter((value) => value !== "").length +
-    (transferFilter === "everyday" ? 0 : 1);
+    (transferFilter === "everyday" ? 0 : 1) +
+    (amount.min === "" && amount.max === "" ? 0 : 1);
 
   const filters = useMemo(
     () => ({
@@ -98,10 +106,12 @@ export function MovementsScreen({
       category: category === "" ? undefined : category,
       search: search === "" ? undefined : search,
       tag: tag === "" ? undefined : tag,
+      amountMin: amount.min === "" ? undefined : amount.min,
+      amountMax: amount.max === "" ? undefined : amount.max,
       transfer: transferFilter === "only" ? true : undefined,
       everyday: transferFilter === "everyday",
     }),
-    [bounds, accountId, category, tag, search, transferFilter],
+    [bounds, accountId, category, tag, search, amount, transferFilter],
   );
 
   useEffect(() => {
@@ -134,6 +144,14 @@ export function MovementsScreen({
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setAmount({ min: amountText(amountInput.min), max: amountText(amountInput.max) }),
+      300,
+    );
+    return () => window.clearTimeout(timer);
+  }, [amountInput]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -356,8 +374,8 @@ export function MovementsScreen({
         </>
       )}
 
-      {/* The search is what a person reaches for, so it stays on the bar; the three
-          selects are one tap away below 1024 and beside it above. Four labelled
+      {/* The search is what a person reaches for, so it stays on the bar; the
+          other filters are one tap away below 1024 and beside it above. Four labelled
           fields stacked one under the other pushed the first movement half a
           screen down. Each select says what it holds in its own first option. */}
       <div className="movement-filters">
@@ -437,6 +455,26 @@ export function MovementsScreen({
             <option value="all">Con giroconti e interessi</option>
             <option value="only">Solo giroconti</option>
           </select>
+          <div className="movement-filters__range" role="group" aria-label="Importo, senza segno">
+            <input
+              className="input"
+              type="text"
+              inputMode="decimal"
+              aria-label="Importo minimo"
+              placeholder="Importo da"
+              value={amountInput.min}
+              onChange={(event) => setAmountInput({ ...amountInput, min: event.target.value })}
+            />
+            <input
+              className="input"
+              type="text"
+              inputMode="decimal"
+              aria-label="Importo massimo"
+              placeholder="a"
+              value={amountInput.max}
+              onChange={(event) => setAmountInput({ ...amountInput, max: event.target.value })}
+            />
+          </div>
         </div>
       </div>
 

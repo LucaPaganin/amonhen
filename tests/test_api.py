@@ -176,6 +176,26 @@ def test_transactions_are_filterable(api):
     assert pending["total"] == 1
 
 
+def test_transactions_are_filterable_by_size(api):
+    client, _ = api
+    amounts = sorted(
+        abs(Decimal(item["amount"])) for item in client.get("/api/transactions").json()["items"]
+    )
+    low, high = amounts[1], amounts[-2]
+
+    def found(**params):
+        body = client.get("/api/transactions", params=params).json()
+        return sorted(abs(Decimal(item["amount"])) for item in body["items"])
+
+    assert found(amount_min=str(low), amount_max=str(high)) == amounts[1:-1]
+    assert found(amount_min=str(amounts[-1])) == amounts[-1:]
+    assert found(amount_max=str(amounts[0])) == [a for a in amounts if a == amounts[0]]
+    # The sign is not part of a size, and an empty end is no end.
+    assert found(amount_min=f"-{low}", amount_max="") == amounts[1:]
+    assert found(amount_min="2", amount_max="1") == []
+    assert client.get("/api/transactions", params={"amount_min": "tanto"}).status_code == 422
+
+
 def test_transactions_paginate(api):
     client, _ = api
 

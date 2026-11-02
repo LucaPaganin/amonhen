@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.38 — novembre 2026
+Versione 1.39 — novembre 2026
 
 *1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
 non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
@@ -19,7 +19,8 @@ non consuma il limite, e una regola di giroconto si applica subito e prima dell'
 1.35 · gli accrediti da chiarire partono da una data che si imposta: sul NAS è tutta la storia.
 1.36 · la ciambella delle spese per categoria torna sul cruscotto, anche sul telefono; il periodo ha *Questo mese* e due date a scelta, anche in **Movimenti**.
 1.37 · un conto chiuso non si ricostruisce: la storia parte dall'apertura di Fineco e il denaro arrivato da lì sta su un conto virtuale (sezione 5.3).
-1.38 · l'assistente è tolto (sezione 5.9); **Statistiche** legge ogni categoria sui mesi completi, e il **Budget** dice quanto prende di solito (sezione 5.15).*
+1.38 · l'assistente è tolto (sezione 5.9); **Statistiche** legge ogni categoria sui mesi completi, e il **Budget** dice quanto prende di solito (sezione 5.15).
+1.39 · **Movimenti** si stringe anche per importo.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -207,7 +208,7 @@ Il cruscotto risponde a due domande, in quest'ordine e senza scorrere: **Questo 
 
 Le metriche non seguono il periodo: le loro finestre di 6 e 24 mesi sono la definizione della metrica, non una vista.
 
-**Movimenti** si legge per mese e, con *Periodo*, fra due date a scelta. Il budget resta per mese: il tetto è di un mese, e un periodo qualunque non avrebbe un tetto con cui confrontarsi (sezione 5.12).
+**Movimenti** si legge per mese e, con *Periodo*, fra due date a scelta, e si stringe per importo: un minimo e un massimo senza segno, estremi compresi, come le condizioni di una regola (sezione 5.5). L'importo è quello del movimento intero, anche quando è diviso fra più categorie. Il budget resta per mese: il tetto è di un mese, e un periodo qualunque non avrebbe un tetto con cui confrontarsi (sezione 5.12).
 
 Conti e budget si gestiscono da una sezione dell'app, non dal cruscotto: l'elenco dei conti con nome, saldo in evidenza ed esito della verifica; dietro *Dettagli* sta tutto il resto: la dichiarazione di un saldo letto dalla banca, l'allineamento del saldo iniziale perché l'invariante della sezione 5.4 torni a valere, la sincronizzazione di un periodo, i flag e l'eliminazione. Un conto reale si crea anche a mano (il broker, o una banca non collegata). Eliminare un conto toglie i suoi movimenti, il suo cestino, i saldi dichiarati e le regole ristrette a lui, e se è collegato a una banca lo toglie anche da `accounts.json`, altrimenti il sync successivo lo ricreerebbe con tutta la sua storia; l'altra gamba di un giroconto non si cancella — quel denaro è davvero entrato o uscito da un altro conto — e torna in coda. Non c'è cestino per un conto: si conferma scrivendone il nome, e per tornare indietro serve uno snapshot (sezione 5.11). Il budget di ogni categoria ha una sezione sua (sezione 5.12). I flag delle categorie e la loro creazione stanno invece nella sezione che le categorie le definisce insieme alle regole che le riempiono (sezione 5.5).
 

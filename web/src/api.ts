@@ -108,6 +108,9 @@ export interface TransactionQuery {
   /** Only the movements posted to this virtual account. */
   virtualAccountId?: number;
   tag?: string;
+  /** Sizes, sign left out, both ends included. */
+  amountMin?: string;
+  amountMax?: string;
   /** Leaves out what only moves own money; the page says how many. */
   everyday?: boolean;
   limit?: number;
@@ -125,6 +128,8 @@ function transactionSearch(query: TransactionQuery): string {
   if (query.transfer !== undefined) params.set("transfer", String(query.transfer));
   if (query.virtualAccountId !== undefined) params.set("virtual_account_id", String(query.virtualAccountId));
   if (query.tag) params.set("tag", query.tag);
+  if (query.amountMin) params.set("amount_min", query.amountMin);
+  if (query.amountMax) params.set("amount_max", query.amountMax);
   if (query.everyday) params.set("everyday", "true");
   if (query.limit !== undefined) params.set("limit", String(query.limit));
   if (query.offset !== undefined) params.set("offset", String(query.offset));

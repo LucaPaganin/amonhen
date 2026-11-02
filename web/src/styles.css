@@ -1075,6 +1075,12 @@ select option {
   display: none;
 }
 
+.movement-filters__range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
 /* I filtri della coda: i chip, poi la ricerca e il conto, e tutto va a capo solo
    quando non ci sta. La ricerca prende il posto che resta, il menu è largo
    quanto quello che dice. */
@@ -3839,7 +3845,12 @@ button.txn:active {
 
   .movement-filters .movement-filters__more {
     display: flex;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+  }
+
+  .movement-filters__range {
+    width: 15rem;
   }
 
   .movement-filters__more select {

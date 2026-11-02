@@ -151,8 +151,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # unknown balance types: an account row gained `unrecognized_balances`. 37 is the
 # bank's rate limit: an account row gained `sync_limit`, and a sync's account
 # `rate_limited` and `last_read`. 38 took the assistant's routes away and added
-# `/api/statistics`; a budget row gained `usual`.
-API_VERSION = 38
+# `/api/statistics`; a budget row gained `usual`. 39 is the size of a movement:
+# `amount_min` and `amount_max` on `/api/transactions`, which an older server would
+# ignore and answer with the whole list as if it were the filtered one.
+API_VERSION = 39
 
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
@@ -1239,6 +1241,8 @@ def create_app(
         transfer: bool | None = None,
         virtual_account_id: int | None = None,
         tag: str | None = None,
+        amount_min: str | None = None,
+        amount_max: str | None = None,
         everyday: bool = False,
         limit: int = Query(100, ge=1, le=500),
         offset: int = Query(0, ge=0),
@@ -1249,7 +1253,7 @@ def create_app(
         so the list can never look shorter than the ledger without saying so.
         """
         filters = (from_date, to_date, account_id, category, status, search, transfer,
-                   virtual_account_id, tag)
+                   virtual_account_id, tag, _size(amount_min), _size(amount_max))
         where, params = _transaction_filters(*filters, everyday=everyday)
         with ledger_scope() as ledger:
             count = (
@@ -2176,6 +2180,16 @@ def _amount(value: str | None) -> Decimal | None:
         raise HTTPException(status_code=422, detail=f"{value!r} is not an amount") from None
 
 
+def _size(value: str | None) -> str | None:
+    """An amount to compare a movement with, as the ledger stores one, sign left out."""
+    if value is None or not value.strip():
+        return None
+    try:
+        return format_decimal(abs(parse_decimal(value.strip())))
+    except InvalidOperation:
+        raise HTTPException(status_code=422, detail=f"{value!r} is not an amount") from None
+
+
 def _period(from_date: str | None, to_date: str | None) -> tuple[dt.date, dt.date]:
     """The period a chart covers: the last twelve months unless asked otherwise.
 
@@ -2281,6 +2295,8 @@ def _transaction_filters(
     transfer: bool | None,
     virtual_account_id: int | None = None,
     tag: str | None = None,
+    amount_min: str | None = None,
+    amount_max: str | None = None,
     *,
     everyday: bool = False,
 ) -> tuple[str, list]:
@@ -2327,6 +2343,14 @@ def _transaction_filters(
                        WHERE tt.transaction_id = t.id AND g.name = ?)"""
         )
         params.append(tag)
+    # A size, like a rule's conditions: both ends count, and the sign does not. The
+    # bound is cast by SQLite too, so an amount typed exactly is an amount found.
+    if amount_min is not None:
+        clauses.append("ABS(CAST(t.amount AS REAL)) >= CAST(? AS REAL)")
+        params.append(amount_min)
+    if amount_max is not None:
+        clauses.append("ABS(CAST(t.amount AS REAL)) <= CAST(? AS REAL)")
+        params.append(amount_max)
     if everyday:
         clauses.append(
             """a.computed_balance = 0 AND NOT EXISTS (
