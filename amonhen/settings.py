@@ -84,6 +84,13 @@ UNCATEGORIZED = _env_str("UNCATEGORIZED", "Uncategorized")
 # the new ones.
 CREDITS_REVIEW_FROM = _env_str("CREDITS_REVIEW_FROM", "2026-08-01")
 
+# How many days apart the two legs of a transfer may be. The matcher proposes
+# pairs within TRANSFER_MAX_GAP_DAYS; a person pairing by hand sees candidates
+# within MANUAL_PAIR_MAX_GAP_DAYS, wider because a withdrawal from a wallet can
+# reach the bank days later and the person choosing is the evidence.
+TRANSFER_MAX_GAP_DAYS = int(_env_str("TRANSFER_MAX_GAP_DAYS", "2"))
+MANUAL_PAIR_MAX_GAP_DAYS = int(_env_str("MANUAL_PAIR_MAX_GAP_DAYS", "7"))
+
 # Optional external LLM, used only to propose a category for merchants nobody
 # has seen before. Without a URL the whole feature stays off.
 LLM_URL = _env_str("LLM_URL", "")

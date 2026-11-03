@@ -154,7 +154,7 @@ const CARDS: Card[] = [
     means:
       "Soldi che passano da un tuo conto a un altro: non sono né spesa né entrata, e Movimenti li nasconde di base.",
     computed:
-      "Due movimenti di pari importo e segno opposto su conti diversi, a non più di due giorni, vengono proposti in Da confermare. Il nome del conto stampato dalla banca conferma la coppia.",
+      "Due movimenti di pari importo e segno opposto su conti diversi, a non più di due giorni, vengono proposti in Da confermare. Il nome del conto stampato dalla banca conferma la coppia. A mano si possono abbinare anche due movimenti fino a sette giorni di distanza.",
     changes:
       "Rifiutare un giroconto riporta i due movimenti fra le spese da categorizzare. Una regola può registrarne uno anche quando l'altra metà non è qui.",
   },

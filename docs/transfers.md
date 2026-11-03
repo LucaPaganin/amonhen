@@ -37,7 +37,11 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   `Uncategorized` and flipping only the flag would have counted them as spending
   while the ledger claimed a confirmed transfer. `unlink_transfer` rejects rather
   than deletes the row, for the reason above, and `pair_candidates` offers a
-  manual pairing nothing but the pairs the matcher would have accepted.
+  manual pairing nothing but the pairs the matcher would have accepted, except
+  for the distance: `settings.MANUAL_PAIR_MAX_GAP_DAYS` (7) instead of
+  `TRANSFER_MAX_GAP_DAYS` (2), because a withdrawal from PayPal reaches the bank
+  days later. A day costs 10 of the evidence weight down to a floor of 1, so a
+  wide gap ranks a candidate last instead of dropping it.
   `mark_own_transfer` is the single-movement version of `own_accounts`: the
   label it takes becomes the virtual account, so the leg leaves the burn and the
   income series at once (the income query already skips any transaction with a

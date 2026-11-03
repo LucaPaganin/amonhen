@@ -525,3 +525,14 @@ def test_a_dead_consent_stops_the_period(client, monkeypatch):
 
     with pytest.raises(ConsentExpiredError):
         client.fetch_transaction_windows("acc-1", dt.date(2026, 1, 1), dt.date(2026, 1, 20))
+
+
+def test_a_session_of_bare_uids_still_lists_its_accounts():
+    """PayPal can answer with the uids alone: they are accounts, not noise."""
+    from amonhen.providers.enable_banking import session_accounts
+
+    assert session_accounts({"accounts": ["pp-1"]}) == [{"uid": "pp-1"}]
+    assert session_accounts(
+        {"accounts": ["u1", "u2"], "accounts_data": [{"uid": "u1", "currency": "EUR"}]}
+    ) == [{"uid": "u1", "currency": "EUR"}, {"uid": "u2"}]
+    assert session_accounts({"accounts": []}) == []

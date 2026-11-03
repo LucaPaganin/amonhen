@@ -358,7 +358,9 @@ survives every write, and hand-editing the file stays possible: each command rea
 it at startup. Every runtime path and tunable reads a `AMONHEN_<NAME>`
 environment variable: `AMONHEN_DB_PATH`, `AMONHEN_CONFIG_FILE`,
 `AMONHEN_EB_API`, `AMONHEN_SYNC_INTERVAL_HOURS`, `AMONHEN_UNCATEGORIZED`,
-`AMONHEN_CREDITS_REVIEW_FROM`, `AMONHEN_HOST`, `AMONHEN_PORT`.
+`AMONHEN_CREDITS_REVIEW_FROM`, `AMONHEN_TRANSFER_MAX_GAP_DAYS` (how many days apart the
+matcher pairs two legs, 2), `AMONHEN_MANUAL_PAIR_MAX_GAP_DAYS` (the same for a pairing by
+hand, 7), `AMONHEN_HOST`, `AMONHEN_PORT`.
 
 The holder's name the wizard asks for is `account_holder_name`, read as
 `own_names`: a movement whose counterparty is the holder's own name is relabelled
@@ -786,7 +788,8 @@ rm -rf $HOME/amonhen-rehearsal
   because that money was either moved in from an account that is not connected
   here or sent by somebody else.
 - The transfer candidate rule is deliberately conservative: equal magnitude,
-  opposite sign, different tracked accounts, at most two days apart, and a pair
+  opposite sign, different tracked accounts, at most two days apart (seven for a pairing by
+  hand; both are settings), and a pair
   where only one side names the counterparty account is refused. Ambiguity
   inside that candidate graph is resolved exactly, by maximum-weight bipartite
   matching, and every link stays reviewable from the UI. A pairing made by hand

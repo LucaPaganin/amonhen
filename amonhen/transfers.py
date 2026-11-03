@@ -1,7 +1,8 @@
 """Pair the two legs of an internal transfer so it never counts as spending.
 
 Candidates are equal-and-opposite amounts on two different real accounts at
-most ``MAX_GAP_DAYS`` apart. What corroborates a pair is the IBAN each bank
+most ``settings.TRANSFER_MAX_GAP_DAYS`` apart (``MANUAL_PAIR_MAX_GAP_DAYS``
+when a person pairs by hand). What corroborates a pair is the IBAN each bank
 printed on its own leg: the two legs must each name the *other* account, and a
 leg naming any other account refuses the pair. When an account carries no IBAN
 to compare against, the pair falls back to counting who named a counterparty at
@@ -18,6 +19,7 @@ from collections.abc import Iterable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from amonhen import settings
 from amonhen.ledger import Ledger
 
 if TYPE_CHECKING:
@@ -25,13 +27,12 @@ if TYPE_CHECKING:
 from amonhen.matching import max_weight_matching
 from amonhen.models import format_decimal, parse_decimal
 
-MAX_GAP_DAYS = 2
 CORROBORATED = "high"
 AMOUNT_ONLY = "medium"
 # Evidence weights: a pair whose two legs each name the other's account outranks
 # one where a single leg identifies its counterpart, which in turn outranks a
-# bare amount-and-date coincidence; each extra day of distance costs 10. With a
-# gap of at most MAX_GAP_DAYS every candidate stays positive.
+# bare amount-and-date coincidence; each extra day of distance costs 10, down to
+# a floor of 1, so a wide configured gap never turns a candidate into a non-pair.
 BOTH_NAMED_WEIGHT = 100
 ONE_SIDED_WEIGHT = 80
 NEITHER_NAMED_WEIGHT = 50
@@ -56,9 +57,11 @@ def pair_candidates(ledger: Ledger, transaction_id: int) -> list[sqlite3.Row]:
     """The legs a person could pair this one with, best evidence first.
 
     The same rules the matcher applies to the whole ledger — equal and opposite
-    amounts, two different real accounts, a couple of days apart at most, neither
-    leg spoken for — run against one leg chosen by hand, so a manual link can
-    only make a pair the matcher itself would have accepted. A leg with no
+    amounts, two different real accounts, neither leg spoken for — run against
+    one leg chosen by hand, so a manual link can only make a pair the matcher
+    would have accepted, except for the distance: the legs may be up to
+    `settings.MANUAL_PAIR_MAX_GAP_DAYS` apart, wider than the matcher's, because
+    a withdrawal from a wallet can reach the bank days later. A leg with no
     candidate left is a fact worth showing: it means the other half is missing.
     A leg whose proposed pair was rejected is free again here, unlike for the
     matcher: the person choosing is the one who said no.
@@ -90,17 +93,23 @@ def pair_candidates(ledger: Ledger, transaction_id: int) -> list[sqlite3.Row]:
             chosen["id"],
             chosen["account_id"],
             chosen["date"],
-            MAX_GAP_DAYS,
+            settings.MANUAL_PAIR_MAX_GAP_DAYS,
         ),
     ).fetchall()
-    weighted = [(row, _score(chosen, row)[0]) for row in rows]
+    weighted = [
+        (row, _score(chosen, row, settings.MANUAL_PAIR_MAX_GAP_DAYS)[0]) for row in rows
+    ]
     return [row for row, weight in sorted(weighted, key=lambda pair: -pair[1]) if weight > 0]
 
 
-def _score(leg_a: sqlite3.Row, leg_b: sqlite3.Row) -> tuple[int, str | None, str | None]:
+def _score(
+    leg_a: sqlite3.Row, leg_b: sqlite3.Row, max_gap: int | None = None
+) -> tuple[int, str | None, str | None]:
     """Weight, confidence and method of a candidate pair. Weight 0 = not a pair.
 
-    The two legs must sit on different accounts and be close enough in time.
+    The two legs must sit on different accounts and be close enough in time:
+    `max_gap` days, the matcher's `settings.TRANSFER_MAX_GAP_DAYS` unless a
+    manual pairing passes its own.
     What corroborates them is the IBAN each bank printed on its own leg: a leg
     naming the *other* leg's account is evidence, and a leg naming some other
     account is a contradiction — the amount coincidence this matcher exists to
@@ -110,7 +119,7 @@ def _score(leg_a: sqlite3.Row, leg_b: sqlite3.Row) -> tuple[int, str | None, str
     if leg_a["account_id"] == leg_b["account_id"]:
         return 0, None, None
     gap = _days_between(leg_a["date"], leg_b["date"])
-    if gap > MAX_GAP_DAYS:
+    if gap > (settings.TRANSFER_MAX_GAP_DAYS if max_gap is None else max_gap):
         return 0, None, None
 
     own_a, own_b = _canonical_iban(leg_a["account_iban"]), _canonical_iban(leg_b["account_iban"])
@@ -129,9 +138,9 @@ def _score(leg_a: sqlite3.Row, leg_b: sqlite3.Row) -> tuple[int, str | None, str
     corroborates_a = key_a is not None and key_a == own_b
     corroborates_b = key_b is not None and key_b == own_a
     if corroborates_a and corroborates_b:
-        return BOTH_NAMED_WEIGHT - DAY_PENALTY * gap, CORROBORATED, "amount-date-counterparty"
+        return _weight(BOTH_NAMED_WEIGHT, gap), CORROBORATED, "amount-date-counterparty"
     if corroborates_a or corroborates_b:
-        return ONE_SIDED_WEIGHT - DAY_PENALTY * gap, AMOUNT_ONLY, "amount-date-counterparty-one-sided"
+        return _weight(ONE_SIDED_WEIGHT, gap), AMOUNT_ONLY, "amount-date-counterparty-one-sided"
     if names_a != names_b:
         # Exactly one side names a counterparty, and it is not the other leg's
         # account — or there is no IBAN to check it against. An amount
@@ -139,8 +148,13 @@ def _score(leg_a: sqlite3.Row, leg_b: sqlite3.Row) -> tuple[int, str | None, str
         # keeping it wrong is not.
         return 0, None, None
     if names_a:
-        return BOTH_NAMED_WEIGHT - DAY_PENALTY * gap, AMOUNT_ONLY, "amount-date-counterparty-unverified"
-    return NEITHER_NAMED_WEIGHT - DAY_PENALTY * gap, AMOUNT_ONLY, "amount-date"
+        return _weight(BOTH_NAMED_WEIGHT, gap), AMOUNT_ONLY, "amount-date-counterparty-unverified"
+    return _weight(NEITHER_NAMED_WEIGHT, gap), AMOUNT_ONLY, "amount-date"
+
+
+def _weight(base: int, gap: int) -> int:
+    """The evidence weight less the distance, never below 1: still a pair."""
+    return max(base - DAY_PENALTY * gap, 1)
 
 
 def _canonical_iban(value: str | None) -> str | None:

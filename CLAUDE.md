@@ -100,7 +100,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 |Module|Public surface|
 |---|---|
-|`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`, `CREDITS_REVIEW_FROM`|
+|`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`, `CREDITS_REVIEW_FROM`, `TRANSFER_MAX_GAP_DAYS`, `MANUAL_PAIR_MAX_GAP_DAYS`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
 |`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `unrecognized_balances`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `COUNTED_SOURCES_SQL`, `UNRECOGNIZED_SOURCES_SQL`, `bank_balance_source`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
@@ -117,7 +117,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
 |`api`|`create_app`|
 |`backup`|`Snapshot`, `make_snapshot`|
-|`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`|
+|`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `session_accounts`, `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
 |`cli`|`main`, `build_parser`|
 
@@ -158,7 +158,9 @@ change, like the spec.
 - **Transfers are excluded from spending by construction.** A transfer leg's
   balancing posting goes to the `Transfer clearing` virtual account instead of
   a category account, so `spend_between` never sees it. Candidates are equal
-  magnitude, opposite sign, different real accounts, at most two days apart.
+  magnitude, opposite sign, different real accounts, at most
+  `settings.TRANSFER_MAX_GAP_DAYS` apart (2; a pairing by hand reaches
+  `MANUAL_PAIR_MAX_GAP_DAYS`, 7).
   What corroborates a pair is the IBAN each bank printed on its own leg: a leg
   naming the *other* account is evidence, and a leg naming any other account
   contradicts the pair — an amount coincidence is exactly what the matcher

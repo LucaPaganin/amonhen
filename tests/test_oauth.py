@@ -251,3 +251,46 @@ def test_one_consent_with_nameless_accounts_names_each_one_apart(tmp_path, rsa_p
         "FinecoBank carta EUR",
         "FinecoBank",
     ]
+
+
+def _start(client, tmp_path, bank="PayPal"):
+    responses_lib.post(f"{API}/auth", json={"url": "https://bank.example/authorize"})
+    client.get("/connect", params={"bank": bank, "country": "IT"}, follow_redirects=False)
+    return pending_state(tmp_path)
+
+
+@responses_lib.activate
+def test_a_session_of_bare_uids_writes_its_accounts(tmp_path, rsa_pem, monkeypatch):
+    """The PayPal consent that wrote nothing: its session listed uids only."""
+    pem_path, _ = rsa_pem
+    monkeypatch.setattr(provider, "EB_API", API)
+    config = make_config(tmp_path, pem_path)
+    client = make_client(tmp_path, config)
+    state = _start(client, tmp_path)
+    responses_lib.post(f"{API}/sessions", json={"session_id": "sess-pp", "accounts": ["pp-1"]})
+    responses_lib.get(f"{API}/accounts/pp-1/details", json={"currency": "EUR"})
+
+    client.get("/callback", params={"code": "c", "state": state}, follow_redirects=False)
+
+    saved = json.loads(config.read_text(encoding="utf-8"))
+    assert [entry["account_uid"] for entry in saved["accounts"]] == ["pp-1"]
+    assert saved["accounts"][0]["notes"] == "PayPal EUR"
+
+
+@responses_lib.activate
+def test_an_empty_session_asks_once_more_then_says_nothing_was_written(
+    tmp_path, rsa_pem, monkeypatch
+):
+    pem_path, _ = rsa_pem
+    monkeypatch.setattr(provider, "EB_API", API)
+    config = make_config(tmp_path, pem_path)
+    client = make_client(tmp_path, config)
+    state = _start(client, tmp_path)
+    responses_lib.post(f"{API}/sessions", json={"session_id": "sess-0", "accounts": []})
+    responses_lib.get(f"{API}/sessions/sess-0", json={"accounts": []})
+
+    done = client.get("/callback", params={"code": "c", "state": state}, follow_redirects=False)
+
+    assert done.status_code == 303
+    assert client.get("/api/setup").json()["last_connect"]["written"] == []
+    assert any(call.request.url == f"{API}/sessions/sess-0" for call in responses_lib.calls)

@@ -608,6 +608,14 @@ function AccountsStep({ state, onRename, onRemove, onGoToBank }: AccountsStepPro
         resta.
       </p>
 
+      {state.last_connect !== null && state.last_connect.written.length === 0 && (
+        <p className="state state--error" role="alert">
+          L'ultima autorizzazione non ha restituito nessun conto: la banca ha aperto la sessione
+          ma non ha condiviso conti, quindi qui non è cambiato niente. Riprova dal passo{" "}
+          <em>Banca</em>; se succede di nuovo, il log del server dice cosa ha risposto.
+        </p>
+      )}
+
       {state.accounts.length === 0 ? (
         <p className="state">
           Nessun conto configurato: autorizza una banca, e i conti che risponde compaiono qui.

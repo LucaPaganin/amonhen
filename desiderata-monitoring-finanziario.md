@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.40 — novembre 2026
+Versione 1.41 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -22,7 +22,9 @@ non consuma il limite, e una regola di giroconto si applica subito e prima dell'
 1.40 · il sistema pianifica anche verso dove si vuole andare (sezione 5.16): obiettivi, i fatti
 che il ledger non vede, i parametri fiscali come dati con la loro fonte, il confronto fra fondo
 pensione e PAC, il portafoglio dichiarato a mano e le proiezioni per scenari. Le proiezioni non
-sono previsioni (sezione 3), e l'analisi periodica con un modello si fa fuori dall'app (sezione 8).*
+sono previsioni (sezione 3), e l'analisi periodica con un modello si fa fuori dall'app (sezione 8).
+1.41 · la distanza in giorni fra le due gambe di un giroconto si configura: due giorni per
+l'abbinamento automatico, sette per quello a mano, che arriva al prelievo da PayPal accreditato giorni dopo.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -123,12 +125,12 @@ Ogni movimento è composto da N *postings* la cui somma è zero.
 
 ### 5.3 Riconciliazione trasferimenti
 
-- Match su: importo opposto, conti diversi, |Δt| ≤ 2 giorni, nessuna delle due gambe già appaiata.
+- Match su: importo opposto, conti diversi, |Δt| ≤ 2 giorni (`AMONHEN_TRANSFER_MAX_GAP_DAYS`), nessuna delle due gambe già appaiata.
 - **La prova è l'IBAN che ciascuna banca stampa sulla propria gamba.** Una gamba che nomina il conto dell'altra è evidenza; una che ne nomina un altro è una contraddizione, e la coppia si rifiuta: è la coincidenza d'importo che il matcher esiste per non accettare. Due accrediti dello stesso importo nello stesso giorno si distinguono così, e non tirando a indovinare.
 - L'IBAN del conto si legge da `GET /accounts/{uid}/details` — la sessione elenca gli uid e nient'altro — e il sync lo registra sul conto quando manca. Senza quell'IBAN la prova non è disponibile, e i candidati si ordinano solo per chi nomina una controparte: entrambe le gambe (più forte), una sola, nessuna. Il metodo del link dice quale dei tre casi è stato (`…-unverified` quando il confronto non era possibile).
 - Mai match sulle descrizioni (incoerenti tra istituti).
 - In caso di ambiguità (più candidati compatibili), risoluzione via matching bipartito di peso massimo, non greedy.
-- Ogni link ha un livello di confidenza e resta rivedibile a mano: si conferma, si annulla, si registra una gamba sola verso una destinazione dichiarata (sezione 5.3) e si abbinano due gambe a mano. L'abbinamento manuale accetta solo le coppie che il matcher stesso accetterebbe: conti reali diversi, importi uguali e opposti, nessuna split da perdere.
+- Ogni link ha un livello di confidenza e resta rivedibile a mano: si conferma, si annulla, si registra una gamba sola verso una destinazione dichiarata (sezione 5.3) e si abbinano due gambe a mano. L'abbinamento manuale accetta solo le coppie che il matcher stesso accetterebbe: conti reali diversi, importi uguali e opposti, nessuna split da perdere. La distanza è l'eccezione: a mano arriva a 7 giorni (`AMONHEN_MANUAL_PAIR_MAX_GAP_DAYS`), perché un prelievo da un borsellino come PayPal può arrivare in banca giorni dopo, e chi sceglie è la prova.
 - Annullare una coppia **rifiuta** il link invece di cancellarlo, così il matcher non la ripropone al sync successivo; annullare una gamba sola la riporta in coda, senza categoria.
 - **Il denaro che non è né spesa né entrata si dichiara.** Una voce di `passthrough` in `accounts.json` nomina una destinazione — il conto virtuale in cui finisce il lato non reale — e i testi che la banca stampa su quei movimenti, con `incoming_only` per le etichette che nominano una persona o una ditta: lo stesso nome vale nelle due direzioni, e il nome di una ditta porterebbe fuori dalla spesa il premio oltre al rimborso. Serve perché i due casi non si riconoscono altrimenti: un conto proprio non collegato non ha una contro-gamba da appaiare, e un accredito da fuori non ha un addebito che lo compensi. Sulla contabilità viva nessuno degli accrediti di un mese di prova ha un addebito di pari importo: quello che hanno in comune è chi li manda, non cosa pagano. Restano quindi fuori dalle entrate e fuori dalle spese, la loro categoria non viene toccata, e restano sul libro col nome della destinazione.
 - **Un conto chiuso non si ricostruisce.** La storia parte dal 26 agosto 2025, quando Fineco è stato aperto: il periodo prima resta fuori, e con lui il conto ING chiuso. I bonifici arrivati da ING dopo quella data stanno sul conto virtuale *ING*, quelli di origine non ritrovata da un conto proprio su *Altri conti miei*: non sono né entrate né spese.

@@ -7,6 +7,7 @@ served behind Tailscale, and the ledger never leaves the machine.
 """
 import datetime as dt
 import json
+import logging
 import sqlite3
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
@@ -91,6 +92,7 @@ from amonhen.providers.enable_banking import (
     EnableBankingClient,
     refusal_code,
     refusal_detail,
+    session_accounts,
 )
 from amonhen.settings import CONFIG_FILE, CREDITS_REVIEW_FROM, DB_PATH, UNCATEGORIZED, VERSION
 from amonhen.suggestions import propose_for_unseen
@@ -156,6 +158,8 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # ignore and answer with the whole list as if it were the filtered one.
 API_VERSION = 39
 
+log = logging.getLogger("amonhen.api")
+
 # A statement pasted into a JSON body. Far larger than any bank exports, and
 # small enough that the copy the body already is and the file it becomes stay a
 # request's worth of memory.
@@ -167,6 +171,14 @@ PENDING_OAUTH = "pending_oauth"
 # What the last authorization wrote, so the setup screen can report it even
 # though the browser arrives back on a plain GET.
 SETUP_LAST_CONNECT = "setup_last_connect"
+
+
+def _shape(value: object) -> str:
+    """How many entries a list held and of which types, for the log."""
+    if not isinstance(value, list):
+        return type(value).__name__
+    kinds = sorted({type(item).__name__ for item in value})
+    return f"{len(value)}x{'/'.join(kinds) or '-'}"
 
 
 def _suggested_name(client: EnableBankingClient, account_uid: str | None, bank: str | None) -> str:
@@ -552,8 +564,25 @@ def create_app(
                     detail=f"Enable Banking refused the session: {_upstream_refusal(exc)}",
                 ) from exc
             session_id = session.get("session_id")
-            raw_accounts = session.get("accounts_data") or session.get("accounts") or []
-            connected = [account for account in raw_accounts if isinstance(account, dict)]
+            connected = session_accounts(session)
+            if not connected and session_id:
+                # The answer to the login can arrive before the accounts do: the
+                # session itself is asked once more before calling it empty.
+                try:
+                    connected = client.list_accounts(session_id)
+                except requests.RequestException:
+                    connected = []
+            # The shape, never the content: which keys came back and how many
+            # entries each list held, so an empty consent can be told apart from
+            # one the parsing missed.
+            log.info(
+                "Enable Banking session for %s: keys %s, accounts %s, accounts_data %s, kept %d",
+                request.get("bank"),
+                sorted(session),
+                _shape(session.get("accounts")),
+                _shape(session.get("accounts_data")),
+                len(connected),
+            )
             written = []
             for account in connected:
                 entry = {

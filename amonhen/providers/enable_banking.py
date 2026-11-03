@@ -177,9 +177,7 @@ class EnableBankingClient:
         """
         response = self._get(f"{self.api_url}/sessions/{session_id}")
         response.raise_for_status()
-        data = response.json()
-        candidates = data.get("accounts_data") or data.get("accounts") or []
-        return [account for account in candidates if isinstance(account, dict)]
+        return session_accounts(response.json())
 
     def fetch_account_details(self, account_uid: str) -> dict:
         """The account's own identification, which its session listing omits.
@@ -358,3 +356,23 @@ def _window_error(exc: requests.HTTPError) -> str:
     if response is None:
         return str(exc)
     return f"{response.status_code} {refusal_detail(response)}".strip()
+
+
+def session_accounts(session: dict) -> list[dict]:
+    """The accounts a session covers, as objects that carry at least a `uid`.
+
+    Enable Banking answers in more than one shape: Revolut and Fineco send the
+    account objects in `accounts_data` and their uids in `accounts`, PayPal can
+    send the uids alone. Keeping only the objects threw a PayPal consent away
+    without a word, so a bare uid becomes `{"uid": ...}` and the details are
+    asked for later, as for any other account.
+    """
+    objects = [a for a in session.get("accounts_data") or [] if isinstance(a, dict)]
+    if not objects:
+        objects = [a for a in session.get("accounts") or [] if isinstance(a, dict)]
+    known = {a.get("uid") for a in objects}
+    for uid in session.get("accounts") or []:
+        if isinstance(uid, str) and uid and uid not in known:
+            objects.append({"uid": uid})
+            known.add(uid)
+    return objects

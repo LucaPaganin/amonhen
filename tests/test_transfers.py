@@ -674,12 +674,37 @@ def test_candidates_are_the_legs_the_matcher_would_have_accepted(ledger):
     revolut, fineco = setup_accounts(ledger)
     out = ledger.record(make_txn(ledger, revolut, "2026-06-14", "-300.00", "Bonifico"))[0]
     near = ledger.record(make_txn(ledger, fineco, "2026-06-14", "300.00", "Bonifico ricevuto"))[0]
-    ledger.record(make_txn(ledger, fineco, "2026-06-20", "300.00", "Troppo tardi"))
+    ledger.record(make_txn(ledger, fineco, "2026-06-24", "300.00", "Troppo tardi"))
     ledger.record(make_txn(ledger, revolut, "2026-06-14", "300.00", "Stesso conto"))
 
     candidates = pair_candidates(ledger, out)
 
     assert [row["id"] for row in candidates] == [near]
+
+
+def test_a_pair_by_hand_reaches_further_than_the_matcher(ledger, monkeypatch):
+    """A withdrawal from a wallet can reach the bank days later: a person may pair it."""
+    monkeypatch.setattr("amonhen.settings.MANUAL_PAIR_MAX_GAP_DAYS", 7)
+    revolut, fineco = setup_accounts(ledger)
+    out = ledger.record(make_txn(ledger, revolut, "2026-06-14", "-300.00", "Prelievo"))[0]
+    late = ledger.record(make_txn(ledger, fineco, "2026-06-19", "300.00", "Accredito"))[0]
+    ledger.record(make_txn(ledger, fineco, "2026-06-22", "300.00", "Oltre la settimana"))
+
+    assert link_transfers(ledger) == 0
+    assert [row["id"] for row in pair_candidates(ledger, out)] == [late]
+
+
+def test_the_matcher_gap_is_a_setting(ledger, monkeypatch):
+    """Five days apart is no pair by default, and one once the tolerance allows it."""
+    revolut, fineco = setup_accounts(ledger)
+    ledger.record(make_txn(ledger, revolut, "2026-06-14", "-300.00", "Prelievo"))
+    ledger.record(make_txn(ledger, fineco, "2026-06-19", "300.00", "Accredito"))
+
+    assert link_transfers(ledger) == 0
+    monkeypatch.setattr("amonhen.settings.TRANSFER_MAX_GAP_DAYS", 5)
+    # 50 less 10 a day would be 0 at five days: the floor keeps it a pair.
+    assert link_transfers(ledger) == 1
+    ledger.validate()
 
 
 def test_the_panel_offers_the_leg_the_bank_identified_first(ledger):

@@ -82,6 +82,14 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   /application`, whose `redirect_urls` is the whole allowlist — an application
   registered for an earlier deployment holds that earlier address and nothing
   else.
+- **A session can list its accounts as bare uids.** Revolut and Fineco send the
+  objects in `accounts_data`, PayPal sent the uids alone in `accounts`, and keeping
+  only the objects threw the whole consent away: the callback answered 303 and the
+  setup screen showed the same accounts as before. `session_accounts` turns a bare
+  uid into `{"uid": ...}`; an empty session is asked once more
+  (`GET /sessions/{id}`) before it counts as empty, the log line `Enable Banking
+  session for …` records the shape (keys and counts, no content), and the *Conti*
+  step says when the last authorization wrote nothing.
 - **`accounts.json` has two writers, and neither is the only one.** The OAuth
   callback appends and refreshes entries: `save_account` keys on the account
   **uid** — a session id changes at every authorization while the uid does not, so
