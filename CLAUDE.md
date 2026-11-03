@@ -319,7 +319,12 @@ on purpose (sections 3 and 8):
 - AI in the synchronous sync path, or anywhere it produces numbers
 - Natural-language queries over the ledger; hand-written SQL wins
 - Generative anomaly detection where a robust statistic exists
-- Broker API integration, TWR/IRR, forecasting, budget optimization
+- Broker API integration, TWR/IRR, spending forecasts, budget optimization. The
+  long-term plan (section 5.16) is not an exception: its projections are arithmetic on
+  scenarios a person writes, its portfolio is declared by hand, and it shows the
+  consequences of a split without proposing one
+- A model inside the plan: the periodic portfolio review happens outside the app, on a
+  snapshot (section 8), and tax parameters are data a person writes with their source
 - Multi-user, multi-currency, sharing
 - Native app (the UI is a PWA)
 - Balance-only providers (Binance, Coinbase, eToro)

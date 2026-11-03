@@ -224,7 +224,9 @@ abbassa quella categoria. Cade la frase per cui la categoria compensata restava 
 1.26 · esiste il *contributo alle spese*, denaro che copre tutte le spese e non una: abbassa
 il totale e nessuna categoria, quindi spesa tipica, spesa attesa e autonomia ne sono al netto,
 e irrinunciabile e tagliabile scendono in proporzione sul conto su cui arriva. Ogni categoria
-può avere una descrizione.*
+può avere una descrizione.
+1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
+non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.*
 
 ## Fasi concluse
 

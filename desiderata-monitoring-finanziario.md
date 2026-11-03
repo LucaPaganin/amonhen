@@ -1,10 +1,8 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.39 — novembre 2026
+Versione 1.40 — novembre 2026
 
-*1.27 · il saldo che una banca prevede per una data futura non è un saldo: non si verifica e
-non entra nella curva della liquidità; se è negativo, Conti lo dice come avviso.
-1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
+*1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
 1.29 · i saldi della banca che contano sono un elenco chiuso (sezione 5.4): un tipo che non vi
 compare non si verifica, non entra nei saldi e **Conti** lo segnala, invece di valere come
@@ -20,7 +18,11 @@ non consuma il limite, e una regola di giroconto si applica subito e prima dell'
 1.36 · la ciambella delle spese per categoria torna sul cruscotto, anche sul telefono; il periodo ha *Questo mese* e due date a scelta, anche in **Movimenti**.
 1.37 · un conto chiuso non si ricostruisce: la storia parte dall'apertura di Fineco e il denaro arrivato da lì sta su un conto virtuale (sezione 5.3).
 1.38 · l'assistente è tolto (sezione 5.9); **Statistiche** legge ogni categoria sui mesi completi, e il **Budget** dice quanto prende di solito (sezione 5.15).
-1.39 · **Movimenti** si stringe anche per importo.*
+1.39 · **Movimenti** si stringe anche per importo.
+1.40 · il sistema pianifica anche verso dove si vuole andare (sezione 5.16): obiettivi, i fatti
+che il ledger non vede, i parametri fiscali come dati con la loro fonte, il confronto fra fondo
+pensione e PAC, il portafoglio dichiarato a mano e le proiezioni per scenari. Le proiezioni non
+sono previsioni (sezione 3), e l'analisi periodica con un modello si fa fuori dall'app (sezione 8).*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -48,14 +50,17 @@ Il sintomo è "non so quanto spendo davvero". La causa è assenza di riconciliaz
 3. **Riconciliazione automatica dei trasferimenti** tra conti: un movimento interno appare una volta sola e non conta come spesa.
 4. **Ripetibilità**: il dato si aggiorna da solo, senza download manuali. Il sync Enable Banking è **parte del sistema**, non un servizio esterno a cui il sistema si appoggia.
 5. **Interfaccia propria.** Il sistema ha una UI mobile-first da cui rivedere le categorie, correggere gli split e leggere le metriche. Non è un requisito opzionale: è il modo in cui il sistema viene effettivamente usato.
+6. **Sapere dove si va, non solo dove si è stati.** Quanto versare nel fondo pensione e quanto nel PAC dipende da cosa si vuole raggiungere e quando: il sistema tiene gli obiettivi e mostra le conseguenze di una ripartizione, con i parametri fiscali dell'anno e ipotesi scritte (sezione 5.16). Il monitoraggio dice quanto si può mettere da parte; la pianificazione dice dove.
 
 ## 3. Non-obiettivi
 
 Esplicitamente fuori scope, per evitare scope creep:
 
-- Integrazione API con il broker, e tracciamento del portafoglio: il broker è già un cruscotto. Dell'app resta la sua liquidità, scritta a mano (sezione 5.8).
-- Calcolo di rendimenti di portafoglio (TWR, IRR). Il broker è già un cruscotto.
-- Previsioni di spesa, forecasting, ottimizzazione automatica del budget.
+- Integrazione API con il broker, e lettura dei suoi estratti. Le posizioni e il loro valore si dichiarano a mano (sezione 5.16), la liquidità del broker pure (sezione 5.8).
+- Calcolo di rendimenti di portafoglio (TWR, IRR). Il broker è già un cruscotto: il portafoglio si legge come valore contro versato netto.
+- Previsioni di spesa, forecasting, ottimizzazione automatica del budget. Le proiezioni verso un obiettivo (sezione 5.16) non lo sono: sono aritmetica su ipotesi che una persona scrive e che stanno accanto a ogni cifra, e la spesa che usano è quella osservata (sezione 5.6), non stimata.
+- Consulenza. Il sistema calcola le conseguenze di una scelta — quanto versare, dove, per quale obiettivo — e non dice quale fare: non sceglie strumenti, comparti né percentuali.
+- Il calcolo delle imposte dovute o della dichiarazione. I parametri fiscali servono a confrontare scelte; per una cifra da dichiarare fanno fede la busta paga, il CU e i documenti del fondo e del broker.
 - Categorizzazione completamente automatica senza revisione umana.
 - Multi-utente, multi-valuta, condivisione.
 - Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: nessun elenco dice chi deve ancora cosa, e finché non paga la spesa resta alta. **Un rimborso o una quota non sono entrate**, e quello che non si modella è la *coppia* con la singola spesa: un rimborso copre spesso molte spese insieme. La spesa però è al netto: un accredito messo in una categoria abbassa quella categoria, e un contributo alle spese abbassa il totale (sezione 5.6).
@@ -226,7 +231,7 @@ Patrimonio **osservato**, non ricostruito: `account_balances` tiene ciò che la 
 
 **Un conto può valere quello che dicono i suoi movimenti.** Un conto creato a mano con la flag *saldo dai movimenti* — il conto deposito alimentato dai giroconti che una regola gli scrive (sezione 5.5) — non ha una banca che ne dichiari il saldo: il patrimonio lo conta, a ogni data della serie, per il saldo calcolato a quella data (saldo iniziale più i movimenti), dalla sua data iniziale in poi, e i saldi per conto lo mostrano a oggi. Le date della serie restano quelle osservate. Un saldo dichiarato su quel conto non è un punto della serie ma la verifica della sezione 5.4: la differenza che si accumula è quello che i movimenti non vedono, come gli interessi maturati dentro il deposito, e si corregge con un movimento a mano, così l'interesse resta un'entrata invece di sparire nel saldo iniziale. Il saldo iniziale si ricava dal saldo di oggi togliendo i giroconti già nel ledger, quindi la storia del conto parte dal primo giroconto. La liquidità usava già il saldo calcolato per ogni conto.
 
-**Del broker si tiene la liquidità, non il portafoglio.** Il conto del broker è un conto reale creato a mano, segnato come tale, e tiene solo il denaro non investito: i bonifici lo aggiornano da soli come altra metà dei giroconti. Il portafoglio non si traccia: non è liquido e varia, e il broker è già un cruscotto. Quello che i movimenti non vedono — acquisti, vendite, rendimenti — si riallinea dichiarando la liquidità letta dal broker (*Aggiorna la liquidità* in **Conti**): la differenza dal saldo calcolato a quella data è scritta come un movimento verso il conto virtuale *Investimenti*, e la cifra diventa il saldo dichiarato, così la verifica della sezione 5.4 torna. Non è un'entrata né una spesa (ha un posting virtuale), non è candidata a un giroconto e le regole non la toccano; una seconda dichiarazione sulla stessa data sostituisce la prima. I versamenti che comprano subito — il PAC — vanno direttamente su *Investimenti* con una regola di giroconto. Il saldo di *Investimenti* è quindi il netto versato e nient'altro, non un valore di mercato, e si legge fra i conti virtuali. Nessuna cifra fiscale esce dall'app: per il valore di fine anno e la giacenza fanno fede i documenti del broker.
+**Del broker si tiene la liquidità, non il portafoglio.** Il conto del broker è un conto reale creato a mano, segnato come tale, e tiene solo il denaro non investito: i bonifici lo aggiornano da soli come altra metà dei giroconti. Il portafoglio non entra nel ledger né nella liquidità: non è liquido e varia. Le sue posizioni e il loro valore si dichiarano a mano nella pianificazione (sezione 5.16), con la frequenza propria. Quello che i movimenti non vedono — acquisti, vendite, rendimenti — si riallinea dichiarando la liquidità letta dal broker (*Aggiorna la liquidità* in **Conti**): la differenza dal saldo calcolato a quella data è scritta come un movimento verso il conto virtuale *Investimenti*, e la cifra diventa il saldo dichiarato, così la verifica della sezione 5.4 torna. Non è un'entrata né una spesa (ha un posting virtuale), non è candidata a un giroconto e le regole non la toccano; una seconda dichiarazione sulla stessa data sostituisce la prima. I versamenti che comprano subito — il PAC — vanno direttamente su *Investimenti* con una regola di giroconto. Il saldo di *Investimenti* è quindi il netto versato e nient'altro, non un valore di mercato, e si legge fra i conti virtuali. Nessuna cifra fiscale esce dall'app: per il valore di fine anno e la giacenza fanno fede i documenti del broker.
 
 Motivazione della separazione: spese e patrimonio sono processi con frequenza di campionamento e struttura del rumore diverse di ordini di grandezza. Unirli fa entrare la volatilità di mercato nelle metriche di spesa.
 
@@ -306,6 +311,26 @@ Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le
 
 *Fatto quando*: davanti a un tetto da scegliere la cifra è già sulla riga, e la distanza fra mediana e media dice se una categoria va a strappi.
 
+### 5.16 Pianificazione a lungo termine *(da costruire)*
+
+Il resto del sistema dice com'è andata. Questa sezione serve a una decisione che si prende più volte l'anno e cambia quando cambia un obiettivo: quanto mettere da parte, e dove — liquidità, fondo pensione, PAC. Senza un punto d'arrivo la ripartizione non ha un criterio, e la risposta giusta per un acquisto fra tre anni è sbagliata per la pensione fra trenta.
+
+**Gli obiettivi dicono dove si va.** Un obiettivo ha un nome, una cifra in euro di oggi, una data e quanto deve restare raggiungibile: il cuscinetto si misura in mesi di spesa attesa (sezione 5.6) e deve essere liquido; un acquisto ha una data e non può stare in uno strumento bloccato fino a quella data; la pensione, o l'età da cui si vuole poter scegliere se lavorare, è un reddito annuo da un'età. Gli obiettivi si scrivono a mano e si cambiano: ognuno porta la data da cui vale, come un default di budget (sezione 5.12), così un piano riaperto mostra gli obiettivi che aveva allora.
+
+**Il profilo tiene i fatti che il ledger non vede.** Il ledger vede lo stipendio netto, non quello che lo produce: lordo e numero di mensilità, la base su cui si calcola il versamento al fondo, la percentuale propria e quella del datore, dove va il TFR, l'età. Ogni fatto vale da una data in poi. La base del versamento si scrive a parte perché non è il lordo: nelle buste paga del 2025–2026 la percentuale si calcola su una base contrattuale che non è salita quando a luglio 2026 è salito il lordo, quindi un versamento dedotto dal lordo sarebbe stato sbagliato. Quanto si può mettere da parte lo dice invece il ledger: entrate meno spese sui 12 mesi completi, così le mensilità aggiuntive e le rendite trimestrali pesano una volta, con il margine dei mesi ordinari scritto accanto, perché il denaro che arriva tre volte l'anno non si versa ogni mese.
+
+**I parametri fiscali sono dati, non codice.** Una tabella per anno — scaglioni IRPEF, addizionali, tetto di deducibilità della previdenza complementare (5.300 € dal 2026, che comprende il contributo del datore e non il TFR), aliquota sulle prestazioni del fondo (15%, che scende di 0,30 punti per ogni anno oltre il quindicesimo fino al 9%), tassazione dei rendimenti del fondo, 26% sui guadagni degli ETF, bollo — e ogni valore porta la sua fonte. La legge di bilancio li cambia ogni anno, e una regola rimasta indietro dà una cifra sbagliata con l'aria di una giusta: per questo si aggiornano a mano, a gennaio, e un anno senza parametri non si copre in silenzio con quelli dell'anno prima. Il calcolo usa l'ultimo anno disponibile, lo scrive accanto a ogni cifra, e la sezione dice che l'anno in corso manca. I parametri non li scrive un modello (sezione 8).
+
+**Fondo pensione contro PAC.** È la domanda per cui la sezione esiste. Per un euro in più versato nel fondo il calcolo mette in fila: la deduzione all'aliquota marginale dell'anno, il contributo del datore se dipende da quanto si versa, lo spazio che resta sotto il tetto (oltre il tetto la deduzione non c'è più e il confronto cambia), la tassazione all'uscita, e il fatto che quel denaro resta bloccato salvo le anticipazioni. Lo stesso euro in un ETF paga il 26% sul guadagno quando si vende e il bollo ogni anno, ma resta disponibile. Il risultato è per obiettivo e orizzonte: quanto vale a scadenza, netto, in ciascuno scenario, e quanto resta raggiungibile prima. Il sistema mostra due ripartizioni una accanto all'altra; quale scegliere lo decide la persona (sezione 3).
+
+**Il portafoglio si dichiara.** Le posizioni — strumento, ISIN, quote — e il loro valore a una data si scrivono a mano, come la liquidità del broker (sezione 5.8); il valore del fondo pensione si prende dal suo estratto. Il versato netto c'è già: è il saldo del conto virtuale *Investimenti*. Il portafoglio si legge come valore contro versato e come ripartizione fra strumenti e orizzonti, non come rendimento (sezione 3), e non entra in liquidità né in mesi di autonomia. Nessun prezzo si chiede a un servizio esterno.
+
+**Le proiezioni sono per scenari.** Ogni obiettivo si proietta in tre scenari — prudente, centrale, favorevole — con il rendimento reale e l'inflazione di ciascuno scritti accanto al risultato, in euro di oggi. La proiezione dice se l'obiettivo, al ritmo di versamento attuale, si raggiunge e quanto servirebbe al mese per raggiungerlo; quando i tre scenari divergono molto, è quella distanza la cosa da leggere. Le ipotesi le scrive la persona, e il sistema non le stima dal passato.
+
+**La revisione periodica sta fuori dall'app.** Ogni trimestre uno snapshot (sezione 5.11) e una lettura del piano e del portafoglio con un assistente, su cifre che l'app ha già calcolato. L'app non chiama un modello per questo, e piano e portafoglio non lasciano il NAS dall'app (sezioni 4 e 8). Ogni cifra si calcola nel backend (sezione 5.6), e i concetti nuovi — obiettivo, base del versamento, tetto di deducibilità, scenario — hanno la loro scheda nella **Guida** (sezione 5.14).
+
+*Fatto quando*: davanti alla domanda "quanto verso nel fondo e quanto nel PAC l'anno prossimo" l'app mostra, per ogni obiettivo, le conseguenze di due ripartizioni con i parametri fiscali dell'anno e le ipotesi scritte, e dice se i parametri dell'anno mancano.
+
 ## 6. Modello dati minimo
 
 ```
@@ -330,6 +355,17 @@ budget_months        (categoria, mese, importo, aggiornato_il)
 budget_items         (id, categoria, mese, descrizione, importo, data, priorità, nota, creato_il)
 merchant_suggestions (merchant, categoria, origine, decisione: pending | accepted | dismissed)
 settings             (chiave, valore)
+```
+
+Per la sezione 5.16, da costruire:
+
+```
+goals                (id, nome, importo in euro di oggi, data, liquidità richiesta, dal, al?)
+profile_facts        (chiave, valore, dal — lordo, mensilità, base del versamento, percentuali, TFR, età)
+tax_parameters       (anno, chiave, valore, fonte)
+holdings             (id, strumento, isin?, orizzonte)
+holding_values       (holding, data, quote, valore)
+scenarios            (nome, rendimento reale, inflazione)
 ```
 
 Vincolo di integrità: per ogni `transaction_id`, `SUM(postings.importo) = 0`.
@@ -375,6 +411,7 @@ Conseguenze da accettare consapevolmente:
 - Niente query in linguaggio naturale: SQL scritto a mano su uno schema pulito è più veloce e più affidabile.
 - Niente anomaly detection generativa quando esiste una statistica robusta.
 - Mai da sola. Nessun timer, nessun effetto e nessun giro automatico chiede al modello al posto della persona: una chiamata parte da un tocco, e parte solo da lì (sezione 5.5).
+- Mai dentro la pianificazione. L'analisi periodica del piano e del portafoglio si fa fuori dall'app, su uno snapshot, con un assistente che legge cifre già calcolate dal sistema (sezione 5.16). L'app non chiama un modello per questo, quindi piano, portafoglio e importi non partono dall'app verso un fornitore (sezione 4). I parametri fiscali e le ipotesi degli scenari li scrive una persona, con la fonte.
 
 ## 9. Roadmap
 
@@ -397,6 +434,10 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
 - **Fase 9 — il budget si pianifica.** *(fatta)*
 - **Fase 10 — si vede l'essenziale.** *(consegnata, v1.10.0)*
 - **Fase 11 — le statistiche al posto dell'assistente.** *(consegnata, v1.16.0)*
+- **Fase 12 — si pianifica verso un obiettivo.** *(da fare)* La sezione 5.16 a fette, ognuna usabile da sola:
+  1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda;
+  2. il portafoglio dichiarato a mano, contro il versato netto di *Investimenti*;
+  3. le proiezioni per scenari verso ciascun obiettivo.
 
 **Stato (ottobre 2026).** Fasi 0-9 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la sezione 5.4 che spiega la differenza lasciata da una cancellazione a mano. La fase 7 ha aggiunto il setup guidato della sezione 5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (sezione 5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Accettare una proposta decide i movimenti e basta: una regola nasce solo se la casella la chiede, e con il testo che si scrive nel dialogo. La fase 9 ha dato al budget una sezione sua e la pianificazione della sezione 5.12. Un conto collegato si sincronizza anche su un periodo scelto, passato compreso, con l'esito per finestra e i probabili doppioni dell'import tenuti da parte finché una persona decide (sezione 5.1). Le metriche si chiamano con parole che dicono cosa misurano invece che burn e runway. Una regola può cancellare o registrare un giroconto, ristretta a un conto e a un intervallo di importi; un conto si elimina dall'app, e i movimenti si cancellano o si categorizzano in blocco. Una regola di giroconto verso un conto creato a mano gli scrive l'altra gamba, e quel conto può contare nel patrimonio per il saldo calcolato dai movimenti (sezioni 5.5 e 5.8): è come si tiene il conto deposito di Revolut, che Enable Banking non espone. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
 
@@ -417,5 +458,8 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
 | Costo e latenza che scivolano | Domanda limitata, una chiamata solo da un tocco, e il modello fuori dal percorso del sync (sezione 5.5) |
 | Le regole crescono con la coda invece che con le decisioni prese | La casella è spenta di default: accettare assegna la categoria ai movimenti in attesa e non scrive niente in `rules`; la regola nasce solo se la si chiede, con il testo che si edita nel dialogo (sezione 5.5) |
 | Un rimborso gonfia le Entrate (giugno 2026: cinque accrediti che erano denaro altrui contati come le entrate del mese) | Si mette nella categoria della spesa che compensa: esce dalle entrate e abbassa quella categoria. Denaro di altri solo di passaggio si dichiara ancora come il giroconto verso un conto proprio. La coppia con il singolo addebito non si modella, perché la contabilità viva non ne mostra nessuna |
+| I parametri fiscali invecchiano e il confronto fra fondo e PAC dà una cifra sbagliata con aria sicura | Sono dati con anno e fonte, non codice; un anno mancante si dice invece di coprirlo con il precedente, e ogni cifra scrive l'anno che ha usato (sezione 5.16) |
+| Una proiezione viene letta come una previsione | Tre scenari invece di uno, ipotesi scritte accanto al risultato, euro di oggi, e nessuna ipotesi stimata dal passato (sezione 5.16) |
+| La pianificazione scivola verso la consulenza | Il sistema mostra le conseguenze di ripartizioni scritte da una persona e non ne propone una (sezione 3) |
 | La chiave privata Enable Banking passa dall'app: si incolla in un campo e il server la scrive su disco | Il traffico è quello del tailnet e basta (sezione 4: nessuna esposizione pubblica); la chiave non torna mai in una risposta e non finisce nei log, e il campo mostra solo se una chiave c'è e se si carica. Resta possibile metterla a mano dove `pem_path` la indica |
 | Un setup interrotto a metà lascia una configurazione incompleta | Lo stato si rilegge da `/api/setup` e ogni passo è riprendibile; una scrittura rifiutata non tocca il file, quindi una chiave sbagliata non sostituisce una buona, e `/connect` con la configurazione incompleta dice cosa manca invece di fallire |
