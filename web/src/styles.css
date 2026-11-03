@@ -2599,6 +2599,80 @@ button.txn:active {
   background: var(--accent-deep);
 }
 
+/* Il grafico più alto: la composizione del mese, con le sue pile. */
+.chart--tall {
+  height: 260px;
+}
+
+.chart-legend--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.chart-legend--inline .chart-legend__name {
+  flex: none;
+  font-size: var(--text-sm);
+}
+
+.chart-tooltip {
+  padding: 10px 14px;
+}
+
+.chart-tooltip__title {
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+
+.chart-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tooltip__more {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+/* La mappa di calore: il nome a sinistra, poi una casella per mese che si
+   stringe con la finestra; a 24 mesi su un telefono resta di almeno 8px e il
+   riquadro scorre in orizzontale invece della pagina. */
+.heatmap {
+  display: grid;
+  grid-template-columns: minmax(84px, 112px) repeat(var(--heatmap-months), minmax(8px, 36px));
+  gap: 3px;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.heatmap__month {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.heatmap__name {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmap__cell {
+  height: 18px;
+  border-radius: 4px;
+  background: color-mix(
+    in srgb,
+    var(--accent-deep) calc(var(--heat) * 100%),
+    var(--fill-1)
+  );
+}
+
 /* Il "?" di un concetto: abbastanza piccolo da non competere con il nome, con
    l'area di tocco allargata dal margine negativo. */
 .help {

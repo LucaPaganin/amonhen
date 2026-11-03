@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.41 — novembre 2026
+Versione 1.42 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -24,7 +24,8 @@ che il ledger non vede, i parametri fiscali come dati con la loro fonte, il conf
 pensione e PAC, il portafoglio dichiarato a mano e le proiezioni per scenari. Le proiezioni non
 sono previsioni (sezione 3), e l'analisi periodica con un modello si fa fuori dall'app (sezione 8).
 1.41 · la distanza in giorni fra le due gambe di un giroconto si configura: due giorni per
-l'abbinamento automatico, sette per quello a mano, che arriva al prelievo da PayPal accreditato giorni dopo.*
+l'abbinamento automatico, sette per quello a mano, che arriva al prelievo da PayPal accreditato giorni dopo.
+1.42 · **Statistiche** ha i suoi grafici: il totale per mese, la composizione, mediana contro media e la mappa di calore (sezione 5.15).*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -307,7 +308,7 @@ Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il m
 
 ### 5.15 Statistiche *(costruita)*
 
-Una sezione sotto *Gestione* legge ogni categoria sugli ultimi 6, 12 o 24 mesi completi: mediana, media, minimo e massimo, in quanti mesi ha speso, e aprendola i suoi mesi uno per uno. Una riga in cima dice lo stesso del totale, che ha i suoi mesi: le mediane delle categorie non sommano alla sua. Il mese in corso non c'è, e un mese senza spese vale zero: è ciò che separa la mediana dalla media in una categoria che spende ogni tanto, e quella distanza è la cosa da leggere. La mediana dice il mese normale, la media quanto costa la categoria nel lungo periodo.
+Una sezione sotto *Gestione* legge ogni categoria sugli ultimi 6, 12 o 24 mesi completi: mediana, media, minimo e massimo, in quanti mesi ha speso, e aprendola i suoi mesi uno per uno. Una riga in cima dice lo stesso del totale, che ha i suoi mesi: le mediane delle categorie non sommano alla sua. Il mese in corso non c'è, e un mese senza spese vale zero: è ciò che separa la mediana dalla media in una categoria che spende ogni tanto, e quella distanza è la cosa da leggere. La mediana dice il mese normale, la media quanto costa la categoria nel lungo periodo. Quattro grafici disegnano le stesse cifre: il totale mese per mese contro la sua mediana e la sua media, di cosa è fatto ogni mese (le cinque categorie più care a colori, le altre insieme), mediana e media categoria per categoria, e una mappa di calore che dice in quali mesi spende ciascuna rispetto al suo mese più caro. Il client li disegna e basta: nessuna somma nuova.
 
 Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le spese rare dentro, perché la decisione che queste cifre servono è quale tetto mettere. Per la stessa ragione ogni riga del **Budget** dice *di solito*: la mediana dei 6 mesi completi prima del mese che si guarda, così un mese riaperto mostra il solito che aveva allora. Non è una previsione (sezione 3): sono cifre del passato, e il tetto lo decide la persona. Ogni cifra si calcola nel backend (sezione 5.6).
 

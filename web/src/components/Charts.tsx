@@ -1,5 +1,5 @@
 /**
- * The three dashboard charts.
+ * The dashboard charts, and the ones of Statistiche.
  *
  * Every series arrives already summed by the API: these components only turn
  * strings into numbers and pick colours, so a chart can never disagree with the
@@ -13,6 +13,7 @@ import {
   Cell,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,7 +22,13 @@ import {
 
 import { categoryText } from "../category";
 import { formatAmount, formatDate, formatMonth, toAmount } from "../format";
-import type { CategorySpend, MonthlyFlow, NetWorthPoint } from "../types";
+import type {
+  CategorySpend,
+  CategoryStatistics,
+  MonthlyFlow,
+  NetWorthPoint,
+  SeriesStatistics,
+} from "../types";
 
 /* Nessuna griglia e nessuna linea d'asse: restano le etichette, e i numeri
    esatti li porta il tooltip. */
@@ -259,6 +266,233 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
             isAnimationActive={false}
           />
         </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** The gradient of one of the eight slice colours, for a chart's `<defs>`. */
+function sliceGradient(id: string, index: number, vertical = true) {
+  const [light, deep] = SLICES[index % SLICES.length];
+  return (
+    <linearGradient
+      id={id}
+      key={id}
+      x1="0"
+      y1="0"
+      x2={vertical ? "0" : "1"}
+      y2={vertical ? "1" : "0"}
+    >
+      <stop offset="0%" stopColor={light} />
+      <stop offset="100%" stopColor={deep} />
+    </linearGradient>
+  );
+}
+
+/** The month's total, against the median and the mean of the window. */
+export function StatisticsTotalChart({
+  months,
+  total,
+}: {
+  months: string[];
+  total: SeriesStatistics;
+}) {
+  const data = months.map((month, index) => ({
+    month,
+    label: shortMonth(month),
+    Speso: toAmount(total.series[index]),
+  }));
+  const median = toAmount(total.median);
+  const mean = toAmount(total.mean);
+  return (
+    <div className="chart">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
+          <defs>{sliceGradient("stat-total", 0)}</defs>
+          <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" />
+          <YAxis {...AXIS} tickFormatter={compact} width={52} />
+          <Tooltip
+            contentStyle={TOOLTIP}
+            itemStyle={{ color: "var(--text)" }}
+            cursor={CURSOR}
+            formatter={money}
+            labelFormatter={(_label, payload) => labelFrom(payload, "month")}
+          />
+          <Bar dataKey="Speso" radius={[7, 7, 0, 0]} isAnimationActive={false}>
+            {data.map((row) => (
+              // Above the median is a month that took more than usual.
+              <Cell
+                key={row.month}
+                fill="url(#stat-total)"
+                fillOpacity={row.Speso > median ? 1 : 0.55}
+              />
+            ))}
+          </Bar>
+          <ReferenceLine y={median} stroke="var(--text)" strokeDasharray="5 4" strokeWidth={1.5} />
+          <ReferenceLine y={mean} stroke="var(--muted)" strokeDasharray="2 4" strokeWidth={1.5} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** How many categories get a colour of their own; the others share one grey. */
+const COMPOSITION_COLOURED = 5;
+const OTHERS_FILL = "#5b6378";
+
+interface CompositionTooltipProps {
+  active?: boolean;
+  payload?: Array<{ name?: string; value?: number; payload?: { month?: string } }>;
+}
+
+function CompositionTooltip({ active, payload }: CompositionTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  const rows = payload
+    .filter((row) => (row.value ?? 0) !== 0)
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  const month = payload[0]?.payload?.month;
+  return (
+    <div className="chart-tooltip" style={TOOLTIP}>
+      <p className="chart-tooltip__title">{month ? formatMonth(month) : ""}</p>
+      {rows.slice(0, 8).map((row) => (
+        <p className="chart-tooltip__row" key={row.name}>
+          <span>{row.name}</span>
+          <span>{money(row.value)}</span>
+        </p>
+      ))}
+      {rows.length > 8 ? (
+        <p className="chart-tooltip__more">e altre {rows.length - 8}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Each month stacked by category: the largest ones in colour, the rest in grey. */
+export function CompositionChart({
+  months,
+  categories,
+}: {
+  months: string[];
+  categories: CategoryStatistics[];
+}) {
+  const data = months.map((month, index) => {
+    const row: Record<string, string | number> = { month, label: shortMonth(month) };
+    for (const item of categories) row[categoryText(item.category)] = toAmount(item.series[index]);
+    return row;
+  });
+  const coloured = categories.slice(0, COMPOSITION_COLOURED);
+  const others = categories.slice(COMPOSITION_COLOURED);
+  return (
+    <div className="chart chart--tall">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
+          <defs>{coloured.map((_item, index) => sliceGradient(`stat-stack-${index}`, index))}</defs>
+          <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" />
+          <YAxis {...AXIS} tickFormatter={compact} width={52} />
+          <Tooltip cursor={CURSOR} content={<CompositionTooltip />} />
+          {/* The grey ones at the foot of the stack, the coloured ones on top,
+              where the eye reads them. */}
+          {others.map((item) => (
+            <Bar
+              key={item.category}
+              dataKey={categoryText(item.category)}
+              stackId="month"
+              fill={OTHERS_FILL}
+              isAnimationActive={false}
+            />
+          ))}
+          {coloured
+            .map((item, index) => ({ item, index }))
+            .reverse()
+            .map(({ item, index }) => (
+              <Bar
+                key={item.category}
+                dataKey={categoryText(item.category)}
+                stackId="month"
+                fill={`url(#stat-stack-${index})`}
+                isAnimationActive={false}
+              />
+            ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** The legend of the composition: the coloured categories, then the grey. */
+export function CompositionLegend({ categories }: { categories: CategoryStatistics[] }) {
+  const coloured = categories.slice(0, COMPOSITION_COLOURED);
+  const others = categories.length - coloured.length;
+  return (
+    <ul className="chart-legend chart-legend--inline">
+      {coloured.map((item, index) => (
+        <li className="chart-legend__row" key={item.category}>
+          <span
+            className="chart-legend__swatch"
+            style={{ background: `linear-gradient(135deg, ${SLICES[index][0]}, ${SLICES[index][1]})` }}
+            aria-hidden="true"
+          />
+          <span className="chart-legend__name">{categoryText(item.category)}</span>
+        </li>
+      ))}
+      {others > 0 ? (
+        <li className="chart-legend__row">
+          <span className="chart-legend__swatch" style={{ background: OTHERS_FILL }} aria-hidden="true" />
+          <span className="chart-legend__name">
+            {others === 1 ? "Un'altra categoria" : `Altre ${others} categorie`}
+          </span>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
+/** How many categories the median-and-mean comparison draws. */
+const COMPARED_CATEGORIES = 10;
+
+/** A category's median month against its mean: far apart, it spends now and then. */
+export function MedianMeanChart({ categories }: { categories: CategoryStatistics[] }) {
+  const data = categories.slice(0, COMPARED_CATEGORIES).map((item) => ({
+    name: categoryText(item.category),
+    Mediana: toAmount(item.median),
+    Media: toAmount(item.mean),
+  }));
+  return (
+    <div className="chart" style={{ height: `${Math.max(data.length * 46, 120)}px` }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          layout="vertical"
+          barGap={2}
+          margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+        >
+          <defs>
+            {sliceGradient("stat-median", 0, false)}
+            {sliceGradient("stat-mean", 6, false)}
+          </defs>
+          <XAxis type="number" {...AXIS} tickFormatter={compact} />
+          <YAxis type="category" dataKey="name" {...AXIS} width={104} />
+          <Tooltip
+            contentStyle={TOOLTIP}
+            itemStyle={{ color: "var(--text)" }}
+            cursor={CURSOR}
+            formatter={money}
+          />
+          <Bar
+            dataKey="Mediana"
+            fill="url(#stat-median)"
+            radius={[0, 6, 6, 0]}
+            barSize={12}
+            isAnimationActive={false}
+          />
+          <Bar
+            dataKey="Media"
+            fill="url(#stat-mean)"
+            radius={[0, 6, 6, 0]}
+            barSize={12}
+            isAnimationActive={false}
+          />
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );

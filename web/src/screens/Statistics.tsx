@@ -2,6 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, errorMessage, isAbortError } from "../api";
 import { categoryText } from "../category";
+import {
+  CompositionChart,
+  CompositionLegend,
+  MedianMeanChart,
+  StatisticsTotalChart,
+} from "../components/Charts";
 import { Help } from "../components/Help";
 import { formatAmount, formatMonth, toAmount } from "../format";
 import type { CategoryStatistics, SeriesStatistics, Statistics } from "../types";
@@ -35,6 +41,48 @@ function MonthBars({ months, statistics }: { months: string[]; statistics: Serie
         );
       })}
     </ul>
+  );
+}
+
+/** How many categories the heat map lists, the largest mean first. */
+const HEATMAP_CATEGORIES = 12;
+
+/**
+ * A row per category and a cell per month, as dark as that month against the
+ * category's own largest: a category that spends in a season shows where, and
+ * one that never stops shows an even row. The server sent every amount.
+ */
+function Heatmap({ months, categories }: { months: string[]; categories: CategoryStatistics[] }) {
+  const rows = categories.slice(0, HEATMAP_CATEGORIES);
+  return (
+    <div className="heatmap" style={{ ["--heatmap-months" as string]: months.length }}>
+      <span className="heatmap__corner" aria-hidden="true" />
+      {months.map((month, index) => (
+        <span className="heatmap__month" key={month} aria-hidden="true">
+          {index % 3 === 0 ? formatMonth(month).slice(0, 3) : ""}
+        </span>
+      ))}
+      {rows.map((item) => {
+        const largest = Math.max(...item.series.map(toAmount), 0);
+        return [
+          <span className="heatmap__name" key={`${item.category}-name`}>
+            {categoryText(item.category)}
+          </span>,
+          ...months.map((month, index) => {
+            const value = item.series[index];
+            const share = largest > 0 ? Math.max(toAmount(value), 0) / largest : 0;
+            return (
+              <span
+                key={`${item.category}-${month}`}
+                className="heatmap__cell"
+                style={{ ["--heat" as string]: share }}
+                title={`${categoryText(item.category)}, ${formatMonth(month)}: ${formatAmount(value)}`}
+              />
+            );
+          }),
+        ];
+      })}
+    </div>
   );
 }
 
@@ -167,6 +215,43 @@ export function StatisticsScreen({ refreshToken, onOpenCategory }: StatisticsScr
               </p>
             ) : null}
           </section>
+
+          <section className="panel">
+            <h2 className="section-title">Mese per mese</h2>
+            <StatisticsTotalChart months={shown} total={statistics.total} />
+            <p className="chart-note">
+              Più chiari i mesi sotto la mediana. La linea tratteggiata è la mediana, quella a
+              puntini la media.
+            </p>
+          </section>
+
+          {statistics.categories.length > 0 ? (
+            <>
+              <section className="panel">
+                <h2 className="section-title">Di cosa è fatto un mese</h2>
+                <CompositionChart months={shown} categories={statistics.categories} />
+                <CompositionLegend categories={statistics.categories} />
+              </section>
+
+              <section className="panel">
+                <h2 className="section-title">Mediana e media</h2>
+                <MedianMeanChart categories={statistics.categories} />
+                <p className="chart-note">
+                  Quando la media supera di molto la mediana, la categoria spende a colpi: pochi
+                  mesi grandi e molti piccoli.
+                </p>
+              </section>
+
+              <section className="panel">
+                <h2 className="section-title">Quando spende ogni categoria</h2>
+                <Heatmap months={shown} categories={statistics.categories} />
+                <p className="chart-note">
+                  Ogni riga rispetto al suo mese più caro: più accesa la casella, più vicina a
+                  quel mese. Il puntatore su una casella ne mostra l'importo.
+                </p>
+              </section>
+            </>
+          ) : null}
 
           <section className="panel">
             <h2 className="section-title">Per categoria</h2>
