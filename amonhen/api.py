@@ -565,24 +565,37 @@ def create_app(
                 ) from exc
             session_id = session.get("session_id")
             connected = session_accounts(session)
+            described: object = None
             if not connected and session_id:
                 # The answer to the login can arrive before the accounts do: the
                 # session itself is asked once more before calling it empty.
                 try:
-                    connected = client.list_accounts(session_id)
-                except requests.RequestException:
-                    connected = []
-            # The shape, never the content: which keys came back and how many
-            # entries each list held, so an empty consent can be told apart from
-            # one the parsing missed.
-            log.info(
-                "Enable Banking session for %s: keys %s, accounts %s, accounts_data %s, kept %d",
-                request.get("bank"),
-                sorted(session),
-                _shape(session.get("accounts")),
-                _shape(session.get("accounts_data")),
-                len(connected),
-            )
+                    described = client.get_session(session_id)
+                    connected = session_accounts(described) if isinstance(described, dict) else []
+                except requests.RequestException as exc:
+                    described = f"unreadable: {exc}"
+            if connected:
+                log.info(
+                    "Enable Banking session for %s: keys %s, accounts %s, accounts_data %s, kept %d",
+                    request.get("bank"),
+                    sorted(session),
+                    _shape(session.get("accounts")),
+                    _shape(session.get("accounts_data")),
+                    len(connected),
+                )
+            else:
+                # A consent that shared nothing is the case someone has to debug,
+                # and the server logs only warnings: both answers go in whole.
+                # They carry the session's status and access, uids at most — no
+                # token, no movement.
+                log.warning(
+                    "Enable Banking session for %s shared no account. POST /sessions: %s"
+                    " — GET /sessions/%s: %s",
+                    request.get("bank"),
+                    json.dumps(session, default=str),
+                    session_id,
+                    json.dumps(described, default=str),
+                )
             written = []
             for account in connected:
                 entry = {
@@ -611,6 +624,8 @@ def create_app(
                     {
                         "when": dt.datetime.now(dt.UTC).isoformat(),
                         "written": written,
+                        # Kept so an empty consent can be asked about again.
+                        "session_id": session_id,
                     }
                 ),
             )

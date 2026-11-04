@@ -169,15 +169,19 @@ class EnableBankingClient:
             if bank.get("name")
         ]
 
+    def get_session(self, session_id: str) -> dict:
+        """The session as Enable Banking describes it now: status, access, accounts."""
+        response = self._get(f"{self.api_url}/sessions/{session_id}")
+        response.raise_for_status()
+        return response.json()
+
     def list_accounts(self, session_id: str) -> list[dict]:
         """Account objects from a session.
 
         The live payload carries uids in `accounts` and the account objects in
         `accounts_data`; older shapes only have one of the two.
         """
-        response = self._get(f"{self.api_url}/sessions/{session_id}")
-        response.raise_for_status()
-        return session_accounts(response.json())
+        return session_accounts(self.get_session(session_id))
 
     def fetch_account_details(self, account_uid: str) -> dict:
         """The account's own identification, which its session listing omits.

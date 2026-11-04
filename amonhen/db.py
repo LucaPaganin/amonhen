@@ -1,4 +1,6 @@
 """Ledger schema: accounts, transactions, postings, transfer links, balances, budgets."""
+import datetime as dt
+import json
 import os
 import sqlite3
 from contextlib import contextmanager, nullcontext
@@ -342,6 +344,7 @@ def initialize(conn: sqlite3.Connection) -> None:
     _widen_balance_key(conn)
     _date_budgets(conn)
     _drop_obsolete(conn)
+    _describe_bare_codes(conn)
     conn.commit()
     _restrict_to_owner(conn)
 
@@ -544,6 +547,49 @@ def _add_income_flag(conn: sqlite3.Connection) -> None:
                               WHERE p.account_id = accounts.id AND CAST(t.amount AS REAL) < 0)""",
         (UNCATEGORIZED,),
     )
+
+
+def _describe_bare_codes(conn: sqlite3.Connection) -> None:
+    """Re-describe the movements whose description was a bare bank code.
+
+    PayPal's movements arrived described as `PAYMENT`, the code every one of
+    them carries, while the shop or the person was in the counterparty. The
+    normalizer now prefers the counterparty; the rows written before are
+    re-derived from their own payload, and the hash follows the description (a
+    suffixed hash keeps its suffix). Idempotent: a row re-described no longer
+    matches its code.
+    """
+    from amonhen.dedup import content_hash
+    from amonhen.models import parse_decimal
+    from amonhen.providers.eb_normalize import _description
+
+    rows = conn.execute(
+        """SELECT id, account_id, date, amount, description, content_hash, counterparty, raw_payload
+           FROM transactions
+           WHERE source = 'psd2' AND raw_payload IS NOT NULL AND json_valid(raw_payload)
+             AND description = json_extract(raw_payload, '$.bank_transaction_code.code')"""
+    ).fetchall()
+    for row in rows:
+        try:
+            raw = json.loads(row["raw_payload"])
+        except ValueError:
+            continue
+        description = _description(raw, row["counterparty"] or "")
+        if description == row["description"]:
+            continue
+        digest = content_hash(
+            row["account_id"],
+            dt.date.fromisoformat(row["date"]),
+            parse_decimal(row["amount"]),
+            description,
+        )
+        _, colon, suffix = row["content_hash"].partition(":")
+        if colon:
+            digest = f"{digest}:{suffix}"
+        conn.execute(
+            "UPDATE transactions SET description = ?, content_hash = ? WHERE id = ?",
+            (description, digest, row["id"]),
+        )
 
 
 def _drop_obsolete(conn: sqlite3.Connection) -> None:

@@ -131,13 +131,26 @@ def _bank_code(raw: dict[str, Any]) -> str:
     return ""
 
 
+def _bank_code_text(raw: dict[str, Any]) -> str:
+    """The bank code's own words, when it has any — not the bare code."""
+    code = raw.get("bank_transaction_code")
+    return _text(code.get("description")) if isinstance(code, dict) else ""
+
+
 def _description(raw: dict[str, Any], counterparty: str) -> str:
-    """First non-empty source text, never the rendered counterparty label."""
+    """First non-empty source text, and a bare bank code only as a last resort.
+
+    PayPal leaves the remittance empty and codes every movement `PAYMENT`, with
+    the shop or the person only in the party name: a bare code would describe
+    every PayPal movement the same way, so the counterparty comes before it. A
+    code that carries a description of its own still comes first.
+    """
     return (
         _remittance(raw)
         or _text(raw.get("note"))
+        or _bank_code_text(raw)
+        or (counterparty if counterparty != "Unknown" else "")
         or _bank_code(raw)
-        or counterparty
         or "Unknown"
     )
 

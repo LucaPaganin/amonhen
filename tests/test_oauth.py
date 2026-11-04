@@ -279,7 +279,7 @@ def test_a_session_of_bare_uids_writes_its_accounts(tmp_path, rsa_pem, monkeypat
 
 @responses_lib.activate
 def test_an_empty_session_asks_once_more_then_says_nothing_was_written(
-    tmp_path, rsa_pem, monkeypatch
+    tmp_path, rsa_pem, monkeypatch, caplog
 ):
     pem_path, _ = rsa_pem
     monkeypatch.setattr(provider, "EB_API", API)
@@ -287,10 +287,16 @@ def test_an_empty_session_asks_once_more_then_says_nothing_was_written(
     client = make_client(tmp_path, config)
     state = _start(client, tmp_path)
     responses_lib.post(f"{API}/sessions", json={"session_id": "sess-0", "accounts": []})
-    responses_lib.get(f"{API}/sessions/sess-0", json={"accounts": []})
+    responses_lib.get(f"{API}/sessions/sess-0", json={"status": "AUTHORIZED", "accounts": []})
 
-    done = client.get("/callback", params={"code": "c", "state": state}, follow_redirects=False)
+    with caplog.at_level("WARNING", logger="amonhen.api"):
+        done = client.get("/callback", params={"code": "c", "state": state}, follow_redirects=False)
 
     assert done.status_code == 303
-    assert client.get("/api/setup").json()["last_connect"]["written"] == []
+    last = client.get("/api/setup").json()["last_connect"]
+    assert last["written"] == []
+    assert last["session_id"] == "sess-0"
+    # Both answers in the log, whole, at a level the server prints.
+    warning = next(r.getMessage() for r in caplog.records if r.levelname == "WARNING")
+    assert '"session_id": "sess-0"' in warning and '"status": "AUTHORIZED"' in warning
     assert any(call.request.url == f"{API}/sessions/sess-0" for call in responses_lib.calls)

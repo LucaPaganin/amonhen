@@ -138,6 +138,26 @@ def test_description_prefers_remittance_then_note_then_bank_code():
     assert empty.description == "Unknown"
 
 
+def test_a_bare_code_gives_way_to_the_counterparty():
+    # PayPal's shape: no remittance, every movement coded PAYMENT, the shop in
+    # the creditor's name.
+    raw = {
+        "transaction_date": "2026-10-18",
+        "credit_debit_indicator": "DBIT",
+        "transaction_amount": {"amount": "90.00", "currency": "EUR"},
+        "remittance_information": [],
+        "bank_transaction_code": {"code": "PAYMENT", "description": None, "sub_code": "PAYMENT"},
+        "creditor": {"name": "Il Giornale srl"},
+        "entry_reference": "5K4",
+    }
+    kwargs = {"account_id": 1, "balancing_account_id": 2}
+    assert normalize_transaction(raw, **kwargs).description == "Il Giornale srl"
+
+    # A code with words of its own still describes the movement.
+    worded = {**raw, "bank_transaction_code": {"code": "PMNT", "description": "Bonifico"}}
+    assert normalize_transaction(worded, **kwargs).description == "Bonifico"
+
+
 def test_own_name_counterparty_falls_back_to_remittance():
     payload = {
         "booking_date": "2026-01-02",

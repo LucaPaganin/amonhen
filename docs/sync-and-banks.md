@@ -82,14 +82,23 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   /application`, whose `redirect_urls` is the whole allowlist — an application
   registered for an earlier deployment holds that earlier address and nothing
   else.
-- **A session can list its accounts as bare uids.** Revolut and Fineco send the
-  objects in `accounts_data`, PayPal sent the uids alone in `accounts`, and keeping
-  only the objects threw the whole consent away: the callback answered 303 and the
-  setup screen showed the same accounts as before. `session_accounts` turns a bare
-  uid into `{"uid": ...}`; an empty session is asked once more
-  (`GET /sessions/{id}`) before it counts as empty, the log line `Enable Banking
-  session for …` records the shape (keys and counts, no content), and the *Conti*
-  step says when the last authorization wrote nothing.
+- **A session can list its accounts as bare uids, or none.** Revolut and Fineco
+  send the objects in `accounts_data`; a session with the uids alone in `accounts`
+  used to throw the whole consent away, and `session_accounts` now turns a bare uid
+  into `{"uid": ...}`. An empty session is asked once more (`GET /sessions/{id}`)
+  before it counts as empty, and then both answers go in the log whole, as a
+  WARNING (`Enable Banking session for … shared no account`) — the server prints
+  nothing below WARNING, which is why the first PayPal attempt left no trace. The
+  `session_id` stays in `last_connect` so the session can be asked about again,
+  and the *Conti* step says when the last authorization wrote nothing.
+- **A bare bank code is the last thing a description falls back on.** PayPal leaves
+  the remittance empty and codes every movement `PAYMENT`, with the shop or the
+  person only in `creditor` / `debtor`: the description used to read `PAYMENT` on
+  every row. `_description` now takes remittance, note, the code's own
+  `description`, then the counterparty, and the bare `code` only after it. The rows
+  written before are re-derived from their payload by `db._describe_bare_codes`
+  (description and hash, a suffixed hash keeps its suffix); Revolut and Fineco
+  always carry a remittance, and a copy of the live ledger had no row it touched.
 - **`accounts.json` has two writers, and neither is the only one.** The OAuth
   callback appends and refreshes entries: `save_account` keys on the account
   **uid** — a session id changes at every authorization while the uid does not, so

@@ -320,3 +320,34 @@ def test_what_the_assistant_left_behind_goes(tmp_path):
     tables = {row["name"] for row in conn.execute("PRAGMA table_list")}
     assert not tables & {"assistant_readings", "budget_proposals"}
     assert conn.execute("SELECT COUNT(*) FROM settings WHERE key LIKE 'assistant%'").fetchone()[0] == 0
+
+
+def test_a_movement_described_by_a_bare_code_takes_its_counterparty(tmp_path):
+    import json
+
+    from amonhen.dedup import content_hash
+
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+    conn.execute("INSERT INTO accounts (id, name, type) VALUES (7, 'PayPal', 'real')")
+    raw = {"bank_transaction_code": {"code": "PAYMENT", "description": None},
+           "remittance_information": [], "creditor": {"name": "Il Giornale srl"}}
+    for id_, digest in ((1, "old"), (2, "old:5K4")):
+        conn.execute(
+            """INSERT INTO transactions (id, account_id, date, amount, description, status,
+                   external_id, content_hash, source, raw_payload, counterparty, created_at)
+               VALUES (?, 7, '2026-10-18', '-90.00', 'PAYMENT', 'BOOK', ?, ?, 'psd2', ?,
+                   'Il Giornale srl', '2026-10-18')""",
+            (id_, f"e{id_}", digest, json.dumps(raw)),
+        )
+    conn.commit()
+
+    initialize(conn)
+
+    rows = conn.execute("SELECT description, content_hash FROM transactions ORDER BY id").fetchall()
+    expected = content_hash(7, dt.date(2026, 10, 18), Decimal("-90.00"), "Il Giornale srl")
+    assert [tuple(row) for row in rows] == [
+        ("Il Giornale srl", expected),
+        ("Il Giornale srl", f"{expected}:5K4"),
+    ]
+    conn.close()
