@@ -91,6 +91,13 @@ def build_parser() -> argparse.ArgumentParser:
     account_flags.add_argument(
         "--declared-balance", dest="computed_balance", action="store_false"
     )
+    account_flags.add_argument(
+        "--unreported-funding", action="store_true", default=None,
+        help="a connected wallet that never reports its top-ups: transfer rules write them",
+    )
+    account_flags.add_argument(
+        "--reported-funding", dest="unreported_funding", action="store_false"
+    )
 
     split = sub.add_parser("split", help="split a transaction across categories")
     split.add_argument("transaction_id", type=int)
@@ -416,10 +423,13 @@ def cmd_account_flags(ledger: Ledger, args) -> int:
         ledger.set_investment(account["id"], args.investment)
     if args.computed_balance is not None:
         ledger.set_computed_balance(account["id"], args.computed_balance)
+    if args.unreported_funding is not None:
+        ledger.set_unreported_funding(account["id"], args.unreported_funding)
     row = ledger.account(account["id"])
     print(
         f"{row['name']}: investment={bool(row['investment'])}"
         f" computed_balance={bool(row['computed_balance'])}"
+        f" unreported_funding={bool(row['unreported_funding'])}"
     )
     return 0
 

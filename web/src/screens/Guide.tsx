@@ -165,6 +165,8 @@ const CARDS: Card[] = [
       "Il posto dove va a finire un giroconto la cui altra metà non è su un conto reale: Investimenti, per esempio. Non conta nella liquidità.",
     computed:
       "Un conto creato a mano invece è reale: la regola ci scrive il movimento opposto, e con Saldo dai movimenti il suo saldo segue i giroconti. Gli interessi si correggono con un movimento.",
+    changes:
+      "Un conto collegato che riporta l'acquisto ma non la ricarica che lo paga, come PayPal con la carta, segna Non riporta le ricariche in Conti: una regola di giroconto sulla banca, verso quel conto, ci scrive la ricarica, e l'acquisto resta contato una volta sola.",
   },
   {
     id: "rule",

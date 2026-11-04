@@ -155,8 +155,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # `rate_limited` and `last_read`. 38 took the assistant's routes away and added
 # `/api/statistics`; a budget row gained `usual`. 39 is the size of a movement:
 # `amount_min` and `amount_max` on `/api/transactions`, which an older server would
-# ignore and answer with the whole list as if it were the filtered one.
-API_VERSION = 39
+# ignore and answer with the whole list as if it were the filtered one. 40 is the
+# wallet that does not report its top-ups: an account row gained
+# `unreported_funding`, which a transfer rule towards a connected account needs.
+API_VERSION = 40
 
 log = logging.getLogger("amonhen.api")
 
@@ -297,6 +299,7 @@ class AccountFlagsRequest(BaseModel):
     investment: bool | None = None
     reimport_deleted: bool | None = None
     computed_balance: bool | None = None
+    unreported_funding: bool | None = None
 
 
 class SplitItem(BaseModel):
@@ -1531,11 +1534,18 @@ def create_app(
         `reimport_deleted` decides whether a movement deleted here may
         come back at the next sync; `computed_balance` makes the net worth read
         the account's balance from its postings, for an account no bank declares
-        one for. They are decisions about the account, so they are written here
+        one for; `unreported_funding` lets a transfer rule write the other half
+        on a connected wallet that never reports its top-ups (PayPal paid with a
+        card). They are decisions about the account, so they are written here
         rather than on a movement, and the answer is the account as every other
         endpoint reads it.
         """
-        if body.investment is None and body.reimport_deleted is None and body.computed_balance is None:
+        if (
+            body.investment is None
+            and body.reimport_deleted is None
+            and body.computed_balance is None
+            and body.unreported_funding is None
+        ):
             raise HTTPException(status_code=422, detail="nothing to set")
         with ledger_scope() as ledger:
             try:
@@ -1545,6 +1555,8 @@ def create_app(
                     ledger.set_reimport_deleted(account_id, body.reimport_deleted)
                 if body.computed_balance is not None:
                     ledger.set_computed_balance(account_id, body.computed_balance)
+                if body.unreported_funding is not None:
+                    ledger.set_unreported_funding(account_id, body.unreported_funding)
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             except ValueError as exc:
@@ -1693,8 +1705,9 @@ def create_app(
         ``configured`` is what a sync matches against the description and
         ``recorded`` is what earlier marks created: both are offered, because a
         second spelling of the same account is what this list exists to prevent.
-        ``accounts`` are the real accounts added by hand, where a transfer rule
-        writes the other half of the movement instead of a virtual destination.
+        ``accounts`` are the real accounts a transfer rule writes the other half
+        of the movement on instead of a virtual destination: those added by hand,
+        and the connected ones that do not report their top-ups.
         """
         with ledger_scope() as ledger:
             return {
@@ -1704,7 +1717,8 @@ def create_app(
                     row["name"]
                     for row in ledger.conn.execute(
                         """SELECT name FROM accounts WHERE type = 'real'
-                           AND external_uid IS NULL ORDER BY name"""
+                           AND (external_uid IS NULL OR unreported_funding = 1)
+                           ORDER BY name"""
                     )
                 ],
             }
@@ -2319,6 +2333,9 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         # The net worth reads this account's balance from its postings rather
         # than from what a bank declared.
         "computed_balance": bool(row["computed_balance"]),
+        # A connected wallet whose top-ups a transfer rule writes, because the
+        # wallet reports only what they paid for.
+        "unreported_funding": bool(row["unreported_funding"]),
         # Seen by a sync, so Enable Banking knows it: what the panel's period
         # sync needs. An account added by hand has no uid and nothing to ask.
         "connected": row["external_uid"] is not None,

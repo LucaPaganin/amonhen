@@ -764,6 +764,15 @@ export function AccountsScreen({ refreshToken }: AccountsScreenProps) {
                       disabled={pending}
                       onChange={(next) => void toggleFlag(account, { reimport_deleted: next })}
                     />
+                    {account.connected ? (
+                      <Toggle
+                        label="Non riporta le ricariche"
+                        ariaLabel={`${account.name} non riporta le ricariche`}
+                        checked={account.unreported_funding}
+                        disabled={pending}
+                        onChange={(next) => void toggleFlag(account, { unreported_funding: next })}
+                      />
+                    ) : null}
                     {account.connected ? null : (
                       <Toggle
                         label="Saldo dai movimenti"

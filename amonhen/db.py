@@ -257,6 +257,9 @@ _ADDED_COLUMNS = (
     # An account no bank reports a balance for — a deposit only reachable
     # through the movements to and from it — is worth what its postings say.
     ("accounts", "computed_balance", "INTEGER NOT NULL DEFAULT 0"),
+    # A connected wallet that reports a purchase but not the money that paid for
+    # it (PayPal on a card): a transfer rule may write that half on it.
+    ("accounts", "unreported_funding", "INTEGER NOT NULL DEFAULT 0"),
     # The movement this row is the other half of, written by a transfer rule
     # towards an account added by hand: no bank prints this side, so the rule
     # does, and the row goes when the movement it mirrors goes.

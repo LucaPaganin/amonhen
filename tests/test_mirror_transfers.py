@@ -287,3 +287,53 @@ def test_the_api_offers_the_account_and_flips_its_flag(tmp_path):
     assert answer.json()["computed_balance"] is True
     assert answer.json()["balance"] == "150.00"
     client.close()
+
+
+def test_a_wallet_that_does_not_report_its_top_ups_takes_the_other_half(ledger):
+    # PayPal on a card: the purchase arrives on PayPal and on Revolut, and PayPal
+    # never reports the top-up the card made. Without the half, the two debits
+    # are the same spending counted twice.
+    revolut = ledger.ensure_account(Account(name="Revolut", type="real", external_uid="uid-r"))
+    paypal = ledger.ensure_account(Account(name="PayPal", type="real", external_uid="uid-p"))
+    card = record(ledger, revolut, "2026-10-18", "-90.00", "Paypal *il Giornale Srl")
+    record(ledger, paypal, "2026-10-18", "-90.00", "Il Giornale srl")
+    book = RuleBook(ledger.conn)
+    with pytest.raises(ValueError, match="connected"):
+        book.set_rule("paypal *", "PayPal", ledger, action="transfer", account_id=revolut)
+
+    ledger.set_unreported_funding(paypal, True)
+    book.set_rule("paypal *", "PayPal", ledger, action="transfer", account_id=revolut)
+
+    half = ledger.mirror_of(card)
+    assert half["account"] == "PayPal" and half["amount"] == "90.00"
+    assert ledger.balance(paypal, dt.date(2026, 10, 31)) == Decimal("0.00")
+    # The purchase counts once, on PayPal, under the shop's name.
+    assert ledger.spend_between(dt.date(2026, 10, 1), dt.date(2026, 10, 31)) == Decimal("90.00")
+
+
+def test_the_api_flips_the_wallet_flag_and_offers_the_wallet(tmp_path):
+    config = tmp_path / "accounts.json"
+    config.write_text(
+        json.dumps(
+            {
+                "application_id": "app-under-test",
+                "pem_path": "private.pem",
+                "redirect_url": "http://localhost:8000/callback",
+                "account_holder_name": "",
+                "accounts": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    db_path = tmp_path / "ledger.db"
+    client = TestClient(create_app(db_path, web_dist=tmp_path / "missing", config_path=config))
+    conn = connect(db_path)
+    paypal = Ledger(conn).ensure_account(Account(name="PayPal", type="real", external_uid="uid-p"))
+    conn.close()
+
+    assert client.get("/api/transfers/labels").json()["accounts"] == []
+    answer = client.patch(f"/api/accounts/{paypal}", json={"unreported_funding": True})
+    assert answer.status_code == 200
+    assert answer.json()["unreported_funding"] is True
+    assert client.get("/api/transfers/labels").json()["accounts"] == ["PayPal"]
+    client.close()

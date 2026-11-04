@@ -77,6 +77,16 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   `_decidable`, so an equal amount on another account would have taken a transfer the
   person named with a rule. Category rules still run last: on a leg the matcher pairs,
   the pair wins.
+- **A connected wallet that does not report its top-ups takes the other half too.**
+  PayPal paid with a Revolut card reports the purchase and never the top-up, so the
+  purchase arrived on both accounts as two debits nobody pairs — spending counted
+  twice. `accounts.unreported_funding` (*Non riporta le ricariche* in Conti, `PATCH
+  /api/accounts/{id}`, `account-flags --unreported-funding`) lets `mirror_target`
+  accept that connected account, and `/api/transfers/labels` offers it; everything
+  else is the mirror below. On the live ledger the rule is `paypal *` on Revolut
+  personale with a minimum of a cent: plain `paypal` also took two PayPal direct
+  debits from before PayPal's history starts (2026-09-28) and three zero-amount
+  card checks, which would have taken real spending away.
 - **A transfer rule towards an account added by hand writes the other half.** The
   Revolut deposit is reachable only through a consent that does not cover it, so its
   transfers reach the ledger on the personal account alone. When a transfer rule's

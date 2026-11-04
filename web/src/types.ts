@@ -58,6 +58,11 @@ export interface Account extends AccountRef {
    * only by the transfers a rule writes on it.
    */
   computed_balance: boolean;
+  /**
+   * On, for a connected wallet that reports what it paid but never the top-up
+   * that paid for it (PayPal on a card): a transfer rule writes that top-up.
+   */
+  unreported_funding: boolean;
   opening_date: string | null;
   /** The figure the ledger starts from, or null while nothing anchors it. */
   opening_balance: string | null;
@@ -69,7 +74,7 @@ export interface Account extends AccountRef {
 
 /** The flags of an account a person flips in Conti. */
 export type AccountFlags = Partial<
-  Pick<Account, "investment" | "reimport_deleted" | "computed_balance">
+  Pick<Account, "investment" | "reimport_deleted" | "computed_balance" | "unreported_funding">
 >;
 
 /** A real account added by hand: the broker, or a bank that is not connected. */

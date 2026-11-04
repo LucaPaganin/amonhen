@@ -1193,6 +1193,25 @@ class Ledger:
                 (1 if value else 0, account_id),
             )
 
+    def set_unreported_funding(self, account_id: int, value: bool) -> None:
+        """Whether a transfer rule may write the other half on this connected account.
+
+        PayPal reports a purchase paid with a card but never the money the card
+        put in, so the purchase arrives twice — on PayPal and on the card's bank —
+        and nothing pairs two debits. With this on, a transfer rule on the bank's
+        side towards this account writes the missing credit (`mirror_transfer`),
+        exactly as it does for an account added by hand. It is a statement about
+        what the bank sends, so it is a person's to make. Turning it off leaves
+        the halves already written to the rules that wrote them.
+        """
+        if self.account(account_id)["type"] != "real":
+            raise ValueError(f"account {account_id} is not a real account")
+        with self.conn:
+            self.conn.execute(
+                "UPDATE accounts SET unreported_funding = ? WHERE id = ?",
+                (1 if value else 0, account_id),
+            )
+
     def setting(self, key: str, default: str | None = None) -> str | None:
         row = self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else default
@@ -1454,22 +1473,26 @@ class Ledger:
     def mirror_target(self, name: str) -> sqlite3.Row:
         """The account a transfer rule may write the other half of a movement on.
 
-        A real account added by hand: a connected one already has its own half,
-        which the bank reports and the matcher pairs, and writing a second one
-        would count the money twice. Raises ValueError with the reason otherwise.
+        A real account added by hand, or a connected one marked
+        `unreported_funding`. Any other connected account already has its own
+        half, which the bank reports and the matcher pairs, and writing a second
+        one would count the money twice. Raises ValueError with the reason otherwise.
         """
         row = self.find_account(name=name)
         if row is None or row["type"] != "real":
             raise ValueError(f"{name!r} is not a real account")
-        if row["external_uid"] is not None:
+        if row["external_uid"] is not None and not row["unreported_funding"]:
             raise ValueError(
                 f"{name!r} is connected to a bank: its movements arrive by themselves "
-                "and the pairing links them"
+                "and the pairing links them (unless it does not report its top-ups)"
             )
         return row
 
     def mirror_transfer(self, transaction_id: int, name: str) -> int:
-        """Write the other half of a transfer on an account added by hand, and pair them.
+        """Write the other half of a transfer on an account that cannot report it, and pair them.
+
+        An account added by hand, or a connected wallet that reports purchases but
+        not the top-ups paying for them (`unreported_funding`).
 
         A deposit that only Revolut's own app shows has no movements a bank
         reports, so the transfers to and from it have nowhere to land: the rule
