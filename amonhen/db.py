@@ -197,7 +197,8 @@ CREATE TABLE IF NOT EXISTS budget_months (
 
 CREATE TABLE IF NOT EXISTS budget_items (
     id INTEGER PRIMARY KEY,
-    category_id INTEGER NOT NULL REFERENCES accounts(id),
+    -- NULL while the expense waits for a category: it can be written first.
+    category_id INTEGER REFERENCES accounts(id),
     month TEXT NOT NULL,
     description TEXT NOT NULL,
     amount TEXT NOT NULL,
@@ -346,6 +347,7 @@ def initialize(conn: sqlite3.Connection) -> None:
     _allow_tag_rules(conn)
     _widen_balance_key(conn)
     _date_budgets(conn)
+    _unassigned_budget_items(conn)
     _drop_obsolete(conn)
     _describe_bare_codes(conn)
     conn.commit()
@@ -509,6 +511,42 @@ def _date_budgets(conn: sqlite3.Connection) -> None:
         INSERT INTO budgets (category_id, from_month, amount, updated_at)
             SELECT category_id, '0000-00', amount, updated_at FROM budgets_legacy;
         DROP TABLE budgets_legacy;
+        """
+    )
+
+
+def _unassigned_budget_items(conn: sqlite3.Connection) -> None:
+    """Let a planned expense exist before its category does.
+
+    `category_id` was NOT NULL, and SQLite cannot drop a constraint in place:
+    the table is rebuilt with the same rows and ids.
+    """
+    column = next(
+        (row for row in conn.execute("PRAGMA table_info(budget_items)") if row["name"] == "category_id"),
+        None,
+    )
+    if column is None or not column["notnull"]:
+        return
+    conn.executescript(
+        """
+        ALTER TABLE budget_items RENAME TO budget_items_legacy;
+        DROP INDEX IF EXISTS budget_items_month;
+        CREATE TABLE budget_items (
+            id INTEGER PRIMARY KEY,
+            category_id INTEGER REFERENCES accounts(id),
+            month TEXT NOT NULL,
+            description TEXT NOT NULL,
+            amount TEXT NOT NULL,
+            date TEXT,
+            priority TEXT NOT NULL CHECK (priority IN ('essential', 'important', 'deferrable')),
+            note TEXT,
+            created_at TEXT NOT NULL
+        );
+        INSERT INTO budget_items
+            SELECT id, category_id, month, description, amount, date, priority, note, created_at
+            FROM budget_items_legacy;
+        DROP TABLE budget_items_legacy;
+        CREATE INDEX IF NOT EXISTS budget_items_month ON budget_items(month, category_id);
         """
     )
 

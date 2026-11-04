@@ -7,6 +7,12 @@ and one month may override it for itself. Inside the ceiling a person writes the
 expenses they already know about; the priority orders them, and the ceiling says
 which of them still fit. Spending stays per category: an item never learns
 whether it was paid, the category's spending is what the ceiling is held to.
+
+An item may be written before its category is known: a category rule that
+recognises its description assigns it, and otherwise it waits, unassigned, for
+a person. A category with items and no ceiling written by hand is budgeted at
+what its items add up to; a ceiling a person wrote stays theirs, and items above
+it are flagged rather than raising it.
 """
 import calendar
 import datetime as dt
@@ -16,7 +22,8 @@ from decimal import Decimal
 from typing import Iterable
 
 from amonhen.ledger import CONTRIBUTION_SQL, SPENDING_SQL, Ledger
-from amonhen.metrics import usual_spending
+from amonhen.merchants import RuleBook, matching_rule
+from amonhen.metrics import UsualReading, usual_reading
 from amonhen.models import format_decimal, parse_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -31,7 +38,7 @@ _MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 class ItemFields:
     """What a person writes on a planned expense."""
 
-    category_id: int
+    category_id: int | None
     month: str
     description: str
     amount: Decimal
@@ -95,14 +102,21 @@ def set_month_override(ledger: Ledger, category_id: int, month: str, amount: Dec
         )
 
 
-def budget_status(ledger: Ledger, month: str, today: dt.date | None = None) -> list[dict]:
+def budget_status(
+    ledger: Ledger, month: str, today: dt.date | None = None, usual: UsualReading | None = None
+) -> list[dict]:
     """Per category, for one month: the ceiling, the items inside it, what was spent.
 
-    ``usual`` is the category's median month before this one (desiderata 5.15):
-    what a ceiling is decided against. It is None with nothing to read it from.
+    ``budget`` is the ceiling the month holds to: the month's own, else the
+    default, else — with items and no ceiling written — what the items add up to
+    (``source`` says which, None without any). ``usual`` and ``usual_mean`` are
+    the category's median and mean month among the complete ones before this one
+    (desiderata 5.15): what a ceiling is decided against. They are None with
+    nothing to read them from.
     """
     month = parse_month(month)
-    usual = usual_spending(ledger, month, today or dt.date.today())
+    if usual is None:
+        usual = usual_reading(ledger, month, today or dt.date.today())
     defaults = _defaults(ledger, month)
     overrides = _overrides(ledger, month)
     spent = _spent(ledger, month)
@@ -115,39 +129,134 @@ def budget_status(ledger: Ledger, month: str, today: dt.date | None = None) -> l
         category_id = row["id"]
         default = defaults.get(category_id)
         override = overrides.get(category_id)
-        ceiling = override if override is not None else default
         category_spent = spent.get(category_id, Decimal(0))
         planned_items = sorted(items.get(category_id, []), key=_reading_order)
         planned = sum((item["amount"] for item in planned_items), Decimal(0))
+        if override is not None:
+            ceiling, source = override, "override"
+        elif default is not None:
+            ceiling, source = default, "default"
+        elif planned_items:
+            ceiling, source = planned, "items"
+        else:
+            ceiling, source = None, None
         fits = fitting(planned_items, ceiling)
         status.append(
             {
                 "id": category_id,
                 "category": row["name"],
                 "budget": _text(ceiling),
+                "source": source,
                 "default": _text(default),
                 "override": _text(override),
-                "usual": _text(usual.get(row["name"])),
+                "usual": _text(usual.median(row["name"])),
+                "usual_mean": _text(_rounded(usual.mean(row["name"]))),
                 "spent": format_decimal(category_spent),
                 "remaining": _text(None if ceiling is None else ceiling - category_spent),
                 "planned": format_decimal(planned),
                 "free": _text(None if ceiling is None else ceiling - planned),
                 "over_plan": ceiling is not None and planned > ceiling,
-                "items": [
-                    {
-                        "id": item["id"],
-                        "description": item["description"],
-                        "amount": format_decimal(item["amount"]),
-                        "date": item["date"],
-                        "priority": item["priority"],
-                        "note": item["note"],
-                        "fits": fit,
-                    }
-                    for item, fit in zip(planned_items, fits)
-                ],
+                "items": [_item_payload(item, fit) for item, fit in zip(planned_items, fits)],
             }
         )
     return status
+
+
+def budget_month(
+    ledger: Ledger, month: str, today: dt.date | None = None, window_months: int = 6
+) -> dict:
+    """One month of budgets whole: the categories, the items waiting for one, the total.
+
+    The total budget is the ceilings added up; it is read against two usuals,
+    because medians do not add: the whole spending's months, and the months of
+    the categories that have a budget this month read as one series. Every sum
+    is the server's (desiderata 5.6).
+    """
+    month = parse_month(month)
+    usual = usual_reading(ledger, month, today or dt.date.today(), window_months)
+    categories = budget_status(ledger, month, today, usual)
+    budgeted = [row for row in categories if row["budget"] is not None]
+    items = _items(ledger, month)
+    unassigned = sorted(items.get(None, []), key=_reading_order)
+    combined = usual.combined(row["category"] for row in budgeted)
+
+    def added(rows: list[dict], field: str) -> str:
+        return format_decimal(sum((parse_decimal(row[field]) for row in rows), Decimal(0)))
+
+    return {
+        "month": month,
+        "window": {"from": usual.first, "to": usual.last, "months": usual.months},
+        "categories": categories,
+        "unassigned": [_item_payload(item, None) for item in unassigned],
+        "total": {
+            "budget": added(budgeted, "budget"),
+            "spent": added(categories, "spent"),
+            "budgeted_spent": added(budgeted, "spent"),
+            "planned": format_decimal(
+                sum((item["amount"] for group in items.values() for item in group), Decimal(0))
+            ),
+            "unassigned": format_decimal(sum((item["amount"] for item in unassigned), Decimal(0))),
+            "categories": len(budgeted),
+            "usual": _text(_median_of(usual.total)),
+            "usual_mean": _text(_rounded(_mean_of(usual.total))),
+            "budgeted_usual": _text(_median_of(combined)),
+            "budgeted_usual_mean": _text(_rounded(_mean_of(combined))),
+        },
+    }
+
+
+def propose_category(ledger: Ledger, description: str) -> int | None:
+    """The category a category rule gives this description, if one does.
+
+    The same rules that categorize movements: a planned expense is described the
+    way a person remembers it, so only the text is read, and a rule narrowed to
+    an account or a size is not one this text can satisfy.
+    """
+    rules = [
+        rule
+        for rule in RuleBook(ledger.conn).rules()
+        if rule.action == "category"
+        and rule.account_id is None
+        and rule.amount_min is None
+        and rule.amount_max is None
+    ]
+    winner = matching_rule(description, rules)
+    if winner is None or winner.target is None:
+        return None
+    row = ledger.find_account(name=winner.target)
+    if row is None or row["type"] != "category" or row["name"] == UNCATEGORIZED:
+        return None
+    return row["id"]
+
+
+def _item_payload(item: dict, fit: bool | None) -> dict:
+    return {
+        "id": item["id"],
+        "category_id": item["category_id"],
+        "month": item["month"],
+        "description": item["description"],
+        "amount": format_decimal(item["amount"]),
+        "date": item["date"],
+        "priority": item["priority"],
+        "note": item["note"],
+        "fits": fit,
+    }
+
+
+def _median_of(values: tuple[Decimal, ...]) -> Decimal | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def _mean_of(values: tuple[Decimal, ...]) -> Decimal | None:
+    return sum(values, Decimal(0)) / len(values) if values else None
+
+
+def _rounded(value: Decimal | None) -> Decimal | None:
+    return None if value is None else value.quantize(Decimal("0.01"))
 
 
 def fitting(items: Iterable[dict], ceiling: Decimal | None) -> list[bool | None]:
@@ -265,7 +374,8 @@ def _require_ceiling(amount: Decimal | None) -> None:
 
 
 def _item_values(ledger: Ledger, fields: ItemFields) -> tuple:
-    _require_budget_category(ledger, fields.category_id)
+    if fields.category_id is not None:
+        _require_budget_category(ledger, fields.category_id)
     month = parse_month(fields.month)
     description = fields.description.strip()
     if not description:
@@ -277,8 +387,11 @@ def _item_values(ledger: Ledger, fields: ItemFields) -> tuple:
     if fields.date is not None and month_of(fields.date) != month:
         raise ValueError(f"{fields.date.isoformat()} is not in {month}")
     note = (fields.note or "").strip() or None
+    category_id = fields.category_id
+    if category_id is None:
+        category_id = propose_category(ledger, description)
     return (
-        fields.category_id,
+        category_id,
         month,
         description,
         format_decimal(fields.amount),
@@ -326,8 +439,9 @@ def _spent(ledger: Ledger, month: str) -> dict[int, Decimal]:
     return spent
 
 
-def _items(ledger: Ledger, month: str) -> dict[int, list[dict]]:
-    items: dict[int, list[dict]] = {}
+def _items(ledger: Ledger, month: str) -> dict[int | None, list[dict]]:
+    """The month's items by category; None holds the ones waiting for a category."""
+    items: dict[int | None, list[dict]] = {}
     for row in ledger.conn.execute("SELECT * FROM budget_items WHERE month = ?", (month,)):
         entry = dict(row)
         entry["amount"] = parse_decimal(row["amount"])

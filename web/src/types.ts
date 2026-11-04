@@ -490,6 +490,9 @@ export type BudgetPriority = "essential" | "important" | "deferrable";
 /** An expense planned inside a category's budget for one month (desiderata 5.12). */
 export interface BudgetItem {
   id: number;
+  /** null while the item waits for a category. */
+  category_id: number | null;
+  month: string;
   description: string;
   amount: string;
   /** A day inside the item's month, or null when it has none. */
@@ -504,14 +507,21 @@ export interface BudgetItem {
 export interface Budget {
   id: number;
   category: string;
-  /** What holds this month: the override when there is one, else the default. */
+  /**
+   * What holds this month: the override, else the default, else — with items and
+   * no ceiling written — what the items add up to.
+   */
   budget: string | null;
+  /** Where `budget` comes from; null without one. */
+  source: "override" | "default" | "items" | null;
   /** The default the category holds this month, written in this or an earlier one. */
   default: string | null;
   /** This month's own budget, when it has one. */
   override: string | null;
   /** The category's median month before this one; null with nothing to read it from. */
   usual: string | null;
+  /** The mean of the same months. */
+  usual_mean: string | null;
   spent: string;
   /** null when there is no budget; negative when the month is over budget. */
   remaining: string | null;
@@ -523,9 +533,43 @@ export interface Budget {
   items: BudgetItem[];
 }
 
+/** The month's budgets added up, and the months before read the same way. */
+export interface BudgetTotal {
+  /** The ceilings of the categories that have one. */
+  budget: string;
+  /** Every category's spending this month. */
+  spent: string;
+  /** The spending of the categories that have a budget. */
+  budgeted_spent: string;
+  /** Every item of the month, assigned or not. */
+  planned: string;
+  /** The items still waiting for a category. */
+  unassigned: string;
+  /** How many categories have a budget. */
+  categories: number;
+  /** The whole spending's median and mean month. */
+  usual: string | null;
+  usual_mean: string | null;
+  /** The categories with a budget, read as one series. */
+  budgeted_usual: string | null;
+  budgeted_usual_mean: string | null;
+}
+
+/** One month of budgets whole, as every budget endpoint answers it. */
+export interface BudgetMonth {
+  month: string;
+  /** The complete months the usuals are read from; null bounds with none. */
+  window: { from: string | null; to: string | null; months: number };
+  categories: Budget[];
+  /** Items written without a category no rule could give. */
+  unassigned: BudgetItem[];
+  total: BudgetTotal;
+}
+
 /** What a planned expense is written with, new or edited. */
 export interface BudgetItemDraft {
-  category_id: number;
+  /** null: a category rule on the description decides, or it waits. */
+  category_id: number | null;
   month: string;
   description: string;
   amount: string;

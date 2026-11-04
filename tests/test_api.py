@@ -679,7 +679,7 @@ def test_budgets_report_spent_and_remaining(api):
     saved = client.put(f"/api/budgets/{groceries['id']}", params={"month": month}, json={"amount": "100.00"})
     assert saved.status_code == 200
 
-    status = {row["category"]: row for row in client.get("/api/budgets", params={"month": month}).json()}
+    status = {row["category"]: row for row in client.get("/api/budgets", params={"month": month}).json()["categories"]}
     assert status["Groceries"]["budget"] == "100.00"
     assert status["Groceries"]["spent"] == "42.50"
     assert status["Groceries"]["remaining"] == "57.50"
@@ -694,7 +694,7 @@ def test_a_budget_can_be_cleared_and_cannot_be_negative(api):
     client.put(f"/api/budgets/{groceries['id']}", json={"amount": "50.00"})
     client.put(f"/api/budgets/{groceries['id']}", json={"amount": None})
 
-    status = {row["category"]: row for row in client.get("/api/budgets").json()}
+    status = {row["category"]: row for row in client.get("/api/budgets").json()["categories"]}
     assert status["Groceries"]["budget"] is None
 
 
@@ -706,10 +706,10 @@ def test_a_budget_default_holds_from_the_month_it_was_set_in(api):
     client.put(f"/api/budgets/{groceries['id']}", params={"month": "2026-01"}, json={"amount": "400.00"})
     answer = client.put(
         f"/api/budgets/{groceries['id']}", params={"month": "2026-11"}, json={"amount": "300.00"}
-    ).json()
+    ).json()["categories"]
 
     assert next(row for row in answer if row["category"] == "Groceries")["budget"] == "300.00"
-    october = client.get("/api/budgets", params={"month": "2026-10"}).json()
+    october = client.get("/api/budgets", params={"month": "2026-10"}).json()["categories"]
     assert next(row for row in october if row["category"] == "Groceries")["budget"] == "400.00"
 
 
@@ -738,10 +738,10 @@ def test_a_month_override_and_its_items_come_back_with_the_month(api):
               "priority": "deferrable"},
     )
 
-    row = next(row for row in created.json() if row["category"] == "Gifts")
+    row = next(row for row in created.json()["categories"] if row["category"] == "Gifts")
     assert (row["budget"], row["default"], row["override"]) == ("100.00", "50.00", "100.00")
     december = next(
-        row for row in client.get("/api/budgets", params={"month": "2026-12"}).json()
+        row for row in client.get("/api/budgets", params={"month": "2026-12"}).json()["categories"]
         if row["category"] == "Gifts"
     )
     assert [(item["description"], item["fits"]) for item in december["items"]] == [
@@ -756,17 +756,20 @@ def test_a_budget_item_is_edited_moved_and_deleted(api):
     client.post("/api/categories", json={"name": "Gifts"})
     gifts = next(c for c in client.get("/api/categories").json() if c["name"] == "Gifts")
     body = {"category_id": gifts["id"], "month": "2026-11", "description": "Regalo", "amount": "80.00"}
-    row = next(row for row in client.post("/api/budget-items", json=body).json() if row["category"] == "Gifts")
+    row = next(
+        row for row in client.post("/api/budget-items", json=body).json()["categories"]
+        if row["category"] == "Gifts"
+    )
     item_id = row["items"][0]["id"]
 
     moved = client.put(
         f"/api/budget-items/{item_id}",
         params={"month": "2026-11"},
         json={**body, "month": "2026-12", "note": "rimandato"},
-    ).json()
+    ).json()["categories"]
 
     assert next(row for row in moved if row["category"] == "Gifts")["items"] == []
-    december = client.get("/api/budgets", params={"month": "2026-12"}).json()
+    december = client.get("/api/budgets", params={"month": "2026-12"}).json()["categories"]
     assert next(row for row in december if row["category"] == "Gifts")["items"][0]["note"] == "rimandato"
 
     assert client.delete(f"/api/budget-items/{item_id}").status_code == 200
@@ -774,7 +777,7 @@ def test_a_budget_item_is_edited_moved_and_deleted(api):
     assert client.put(f"/api/budget-items/{item_id}", json=body).status_code == 404
 
 
-def test_a_budget_item_out_of_its_month_or_without_a_category_is_refused(api):
+def test_a_budget_item_out_of_its_month_or_on_a_non_category_is_refused(api):
     client, _ = api
     client.post("/api/categories", json={"name": "Gifts"})
     gifts = next(c for c in client.get("/api/categories").json() if c["name"] == "Gifts")
@@ -803,7 +806,7 @@ def test_budget_items_are_copied_from_the_month_before(api):
     ).json()
 
     assert answer["copied"] == 1
-    items = next(row for row in answer["budgets"] if row["category"] == "Gifts")["items"]
+    items = next(row for row in answer["budgets"]["categories"] if row["category"] == "Gifts")["items"]
     assert [(item["description"], item["date"]) for item in items] == [("Regalo", "2026-11-30")]
 
 
@@ -1142,7 +1145,7 @@ def test_a_budget_on_the_uncategorized_bucket_is_refused(api):
     response = client.put(f"/api/budgets/{uncategorized['id']}", json={"amount": "10.00"})
 
     assert response.status_code == 422
-    assert all(row["budget"] is None for row in client.get("/api/budgets").json())
+    assert all(row["budget"] is None for row in client.get("/api/budgets").json()["categories"])
 
 
 def test_a_budget_on_an_unknown_account_is_404(api):

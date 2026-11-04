@@ -4021,3 +4021,181 @@ button.txn:active {
     transition-delay: 0ms !important;
   }
 }
+
+/* Budget (sezione 5.12): il riepilogo del mese, l'aggiunta veloce, le due viste. */
+.budget-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+
+.budget-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.budget-summary__figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .budget-summary__figures {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.budget-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--fill-1);
+}
+
+.budget-figure__label,
+.budget-figure__meta {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.budget-figure__value {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Sopra o sotto il solito non è un giudizio: due tinte neutre, non il rosso e il verde. */
+.budget-compare--over {
+  color: var(--accent);
+}
+
+.budget-compare--under {
+  color: var(--split);
+}
+
+.budget-meter {
+  display: block;
+  overflow: hidden;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--fill-2);
+}
+
+.budget-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-light), var(--accent-deep));
+}
+
+.budget-meter--over .budget-meter__fill {
+  background: linear-gradient(90deg, var(--out-light), var(--out-deep));
+}
+
+.budget-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.budget-quick__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem;
+  gap: 8px;
+}
+
+.budget-quick__description {
+  grid-column: 1 / -1;
+}
+
+.budget-quick__category {
+  min-width: 0;
+}
+
+@media (min-width: 720px) {
+  .budget-quick__fields {
+    grid-template-columns: minmax(0, 2fr) 8rem minmax(0, 1fr);
+  }
+
+  .budget-quick__description {
+    grid-column: auto;
+  }
+}
+
+.budget-quick__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.budget-viewbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.budget-row__toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.budget-row__amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.budget-row__details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.budget-voices {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.budget-voices__group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.budget-voices__title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.budget-assign {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.budget-assign__select {
+  min-height: var(--tap);
+}

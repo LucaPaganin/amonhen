@@ -351,3 +351,39 @@ def test_a_movement_described_by_a_bare_code_takes_its_counterparty(tmp_path):
         ("Il Giornale srl", f"{expected}:5K4"),
     ]
     conn.close()
+
+
+def test_a_ledger_whose_items_needed_a_category_lets_one_wait(tmp_path):
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+    conn.executescript(
+        """
+        DROP TABLE budget_items;
+        CREATE TABLE budget_items (
+            id INTEGER PRIMARY KEY,
+            category_id INTEGER NOT NULL REFERENCES accounts(id),
+            month TEXT NOT NULL,
+            description TEXT NOT NULL,
+            amount TEXT NOT NULL,
+            date TEXT,
+            priority TEXT NOT NULL CHECK (priority IN ('essential', 'important', 'deferrable')),
+            note TEXT,
+            created_at TEXT NOT NULL
+        );
+        INSERT INTO accounts (id, name, type) VALUES (5, 'Regali', 'category');
+        INSERT INTO budget_items VALUES (9, 5, '2026-12', 'Regalo', '80.00', NULL, 'important', NULL, 'x');
+        """
+    )
+
+    initialize(conn)
+
+    column = next(r for r in conn.execute("PRAGMA table_info(budget_items)") if r["name"] == "category_id")
+    assert not column["notnull"]
+    assert tuple(conn.execute("SELECT id, category_id, description FROM budget_items").fetchone()) == (
+        9, 5, "Regalo",
+    )
+    conn.execute(
+        "INSERT INTO budget_items (category_id, month, description, amount, priority, created_at)"
+        " VALUES (NULL, '2026-12', 'Idraulico', '90.00', 'important', 'x')"
+    )
+    conn.close()

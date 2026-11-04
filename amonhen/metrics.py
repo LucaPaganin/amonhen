@@ -48,6 +48,8 @@ __all__ = [
     "spend_by_category",
     "spending_statistics",
     "usual_spending",
+    "usual_reading",
+    "UsualReading",
 ]
 
 
@@ -701,25 +703,74 @@ def spending_statistics(ledger: Ledger, today: dt.date, months: int = 12) -> Spe
     )
 
 
-def usual_spending(
+@dataclass(frozen=True)
+class UsualReading:
+    """The complete months before a month being planned, per category and in total.
+
+    ``series`` holds each category's months (zeros included), so a caller can read
+    a subset of categories as one series — the categories that have a budget —
+    instead of adding medians, which do not add.
+    """
+
+    first: str | None
+    last: str | None
+    months: int
+    series: dict[str, tuple[Decimal, ...]]
+    total: tuple[Decimal, ...]
+
+    def median(self, name: str) -> Decimal | None:
+        values = self.series.get(name)
+        return _median(list(values)) if values else None
+
+    def mean(self, name: str) -> Decimal | None:
+        values = self.series.get(name)
+        return sum(values, Decimal(0)) / len(values) if values else None
+
+    def combined(self, names: Iterable[str]) -> tuple[Decimal, ...]:
+        """Several categories as one series, month by month."""
+        wanted = [self.series[name] for name in names if name in self.series]
+        return tuple(sum(column, Decimal(0)) for column in zip(*wanted)) if wanted else ()
+
+
+def usual_reading(
     ledger: Ledger, month: str, today: dt.date, window_months: int = 6
-) -> dict[str, Decimal]:
-    """Each category's median month among the complete ones before ``month``.
+) -> UsualReading:
+    """Each category's complete months before ``month``, and the total's.
 
     A month being planned is read against what came before it, so a past month
     reopened shows the usual it had then, and one still to come stops at the last
     month that has finished. A category with no spending in the window is absent.
+    The total is its own series, the same one the statistics read.
     """
     year, number = (int(part) for part in month.split("-"))
     last_complete = min(year * 12 + number - 1, _month_index(today)) - 1
     window = _window(_first_month_with_data(ledger), last_complete, window_months)
     if window is None:
-        return {}
+        return UsualReading(first=None, last=None, months=0, series={}, total=())
     indexes = range(window[0], window[1] + 1)
-    return {
-        name: _median([totals.get(index, Decimal(0)) for index in indexes])
+    series = {
+        name: tuple(totals.get(index, Decimal(0)) for index in indexes)
         for name, totals in _category_months(ledger, window[0], window[1]).items()
     }
+    total = tuple(
+        sum((values[position] for values in series.values()), Decimal(0))
+        for position in range(len(indexes))
+    )
+    return UsualReading(
+        first=_month_key(window[0]),
+        last=_month_key(window[1]),
+        months=len(indexes),
+        series=series,
+        total=total,
+    )
+
+
+def usual_spending(
+    ledger: Ledger, month: str, today: dt.date, window_months: int = 6
+) -> dict[str, Decimal]:
+    """Each category's median month among the complete ones before ``month``."""
+    reading = usual_reading(ledger, month, today, window_months)
+    return {name: _median(list(values)) for name, values in reading.series.items()}
 
 
 def monthly_flows(

@@ -8,6 +8,7 @@ import type { Metrics } from "../types";
 export type GuideTopic =
   | "month"
   | "statistics"
+  | "budget"
   | "liquidity"
   | "typical"
   | "rare"
@@ -59,9 +60,19 @@ const CARDS: Card[] = [
     means:
       "La mediana è il mese normale: metà dei mesi sta sotto e metà sopra, e una spesa eccezionale non la sposta. La media dice quanto costa una categoria nel lungo periodo: è la cifra da mettere da parte se spende solo ogni tanto.",
     computed:
-      "Sui mesi completi scelti, 6, 12 o 24, senza quello in corso. Un mese senza spese vale zero. Le spese sono al netto dei rimborsi e non dei contributi, e le spese rare ci sono: è lo stesso conto del Budget, così le cifre si confrontano con un tetto. Il Di solito del Budget è la mediana dei 6 mesi completi prima del mese che guardi. Le mediane delle categorie non sommano a quella del totale.",
+      "Sui mesi completi scelti, 6, 12 o 24, senza quello in corso. Un mese senza spese vale zero. Le spese sono al netto dei rimborsi e non dei contributi, e le spese rare ci sono: è lo stesso conto del Budget, così le cifre si confrontano con un tetto. Il Di solito del Budget è la mediana o la media dei 3, 6 o 12 mesi completi prima del mese che guardi. Le mediane delle categorie non sommano a quella del totale.",
     changes:
       "Se mediana e media sono lontane la categoria va a strappi: un tetto sulla mediana salta nei mesi forti, e per quelli serve un tetto del solo mese.",
+  },
+  {
+    id: "budget",
+    title: "Budget e voci",
+    means:
+      "Il budget di una categoria è quanto vuoi spendere lì in un mese. Una voce è una spesa che sai già di dover fare: si scrive con descrizione e importo, e la categoria può aspettare.",
+    computed:
+      "Il tetto del mese è quello solo di quel mese, se c'è, altrimenti il default scritto da un mese in poi; se non hai scritto nessun tetto ma la categoria ha delle voci, il budget è la loro somma. Una voce senza categoria prende quella di una regola di categoria che riconosce la sua descrizione, e altrimenti resta Da assegnare e non conta finché non ne ha una. Il confronto è con la mediana o la media dei mesi completi prima, 3, 6 o 12: per ogni categoria, e per il totale contro le stesse categorie lette come un'unica spesa, accanto a tutta la spesa del mese.",
+    changes:
+      "Un tetto scritto a mano resta tuo: le voci che lo superano si segnalano, e non lo alzano. Per categoria mostra i tetti, Per voce tutte le spese del mese con le Da assegnare in cima; le categorie senza budget si nascondono finché non chiedi di vederle.",
   },
   {
     id: "liquidity",

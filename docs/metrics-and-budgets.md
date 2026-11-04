@@ -86,6 +86,24 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   already holds with the same description and amount, so a second press copies
   nothing. Prefilling from a past movement is the client's: it fills the form,
   and nothing is written until the person saves.
+- **An item can wait for its category, and items without a ceiling are the
+  budget.** `budget_items.category_id` is nullable (`db._unassigned_budget_items`
+  rebuilt the table). An item written without one gets what `propose_category`
+  finds — the category rules with no account and no size condition, matched on
+  the description alone — or stays in the month's `unassigned`, outside every
+  total but its own. `budget_status` takes the override, else the default, else
+  the sum of the items, and says which in `source` (`override` / `default` /
+  `items`); with `items` everything fits by construction, and a ceiling a person
+  writes is never moved by the items.
+- **A month answers whole, and its total has its own usual.** `budget_month` is
+  what `/api/budgets` and every budget write return: `categories`, `unassigned`,
+  `window` and `total`. `metrics.usual_reading` keeps each category's months
+  (zeros included) so `total.budgeted_usual` reads the budgeted categories as one
+  series — medians do not add — beside `total.usual`, the whole spending. A row's
+  `usual` is the median and `usual_mean` the mean; `?months=` picks 3 to 24
+  complete months (the screen offers 3, 6 and 12, 6 by default). The screen's two
+  views, the median/mean choice and the hidden empty categories are per-viewer
+  preferences in `localStorage`.
 - **The statistics read as the budgets do.** `spending_statistics` (`/api/statistics`,
   desiderata section 5.15) takes the last complete months and `_category_months` counts them
   net of refunds, gross of contributions, rare spending inside: the figures exist to be

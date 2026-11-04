@@ -26,7 +26,7 @@ from amonhen.anomalies import MIN_AMOUNT, detect_anomalies
 from amonhen.budgets import (
     ItemFields,
     add_item,
-    budget_status,
+    budget_month,
     copy_items,
     delete_item,
     get_item,
@@ -158,7 +158,10 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # ignore and answer with the whole list as if it were the filtered one. 40 is the
 # wallet that does not report its top-ups: an account row gained
 # `unreported_funding`, which a transfer rule towards a connected account needs.
-API_VERSION = 40
+# 41 is the budget month whole: `/api/budgets` and every budget write answer with
+# `categories`, `unassigned` items and a `total` instead of a list, a row gained
+# `source` and `usual_mean`, and an item may come without `category_id`.
+API_VERSION = 41
 
 log = logging.getLogger("amonhen.api")
 
@@ -339,9 +342,13 @@ class BudgetRequest(BaseModel):
 
 
 class BudgetItemRequest(BaseModel):
-    """A planned expense, whole: an edit may move it to another month or category."""
+    """A planned expense, whole: an edit may move it to another month or category.
 
-    category_id: int
+    Without `category_id` a category rule matching the description assigns one,
+    or the item waits in the month's `unassigned`.
+    """
+
+    category_id: int | None = None
     month: str
     description: str
     amount: str
@@ -987,12 +994,18 @@ def create_app(
             }
 
     @app.get("/api/budgets")
-    def budgets(month: str | None = None) -> list[dict]:
+    def budgets(month: str | None = None, months: int = Query(6, ge=3, le=24)) -> dict:
+        """One month of budgets, read against the ``months`` complete months before it."""
         with ledger_scope() as ledger:
-            return budget_status(ledger, _budget_month(month))
+            return budget_month(ledger, _budget_month(month), window_months=months)
 
     @app.put("/api/budgets/{category_id}")
-    def put_budget(category_id: int, body: BudgetRequest, month: str | None = None) -> list[dict]:
+    def put_budget(
+        category_id: int,
+        body: BudgetRequest,
+        month: str | None = None,
+        months: int = Query(6, ge=3, le=24),
+    ) -> dict:
         """Set or clear a category's default budget from ``month`` on.
 
         The months before it keep the budget they had, which is what makes a
@@ -1002,51 +1015,68 @@ def create_app(
         with ledger_scope() as ledger:
             _require_category(ledger, category_id)
             set_default(ledger, category_id, month, _budget_amount(body.amount))
-            return budget_status(ledger, month)
+            return budget_month(ledger, month, window_months=months)
 
     @app.put("/api/budgets/{category_id}/override")
     def put_budget_override(
-        category_id: int, body: BudgetRequest, month: str | None = None
-    ) -> list[dict]:
+        category_id: int,
+        body: BudgetRequest,
+        month: str | None = None,
+        months: int = Query(6, ge=3, le=24),
+    ) -> dict:
         """Give one month its own budget for a category; an empty amount hands it back."""
         month = _budget_month(month)
         with ledger_scope() as ledger:
             _require_category(ledger, category_id)
             set_month_override(ledger, category_id, month, _budget_amount(body.amount))
-            return budget_status(ledger, month)
+            return budget_month(ledger, month, window_months=months)
 
     @app.post("/api/budgets/{category_id}/copy")
-    def copy_budget_items(category_id: int, body: BudgetCopyRequest) -> dict:
+    def copy_budget_items(
+        category_id: int, body: BudgetCopyRequest, months: int = Query(6, ge=3, le=24)
+    ) -> dict:
         """Copy a category's planned expenses from one month into another."""
         with ledger_scope() as ledger:
             _require_category(ledger, category_id)
             copied = copy_items(ledger, category_id, body.from_month, body.to_month)
-            return {"copied": copied, "budgets": budget_status(ledger, body.to_month)}
+            return {
+                "copied": copied,
+                "budgets": budget_month(ledger, body.to_month, window_months=months),
+            }
 
     @app.post("/api/budget-items", status_code=201)
-    def create_budget_item(body: BudgetItemRequest) -> list[dict]:
-        """Plan an expense inside a category's budget; answers with its month."""
+    def create_budget_item(
+        body: BudgetItemRequest, months: int = Query(6, ge=3, le=24)
+    ) -> dict:
+        """Plan an expense, with or without its category; answers with its month."""
         with ledger_scope() as ledger:
-            _require_category(ledger, body.category_id)
+            if body.category_id is not None:
+                _require_category(ledger, body.category_id)
             add_item(ledger, _item_fields(body))
-            return budget_status(ledger, body.month)
+            return budget_month(ledger, body.month, window_months=months)
 
     @app.put("/api/budget-items/{item_id}")
-    def update_budget_item(item_id: int, body: BudgetItemRequest, month: str | None = None) -> list[dict]:
+    def update_budget_item(
+        item_id: int,
+        body: BudgetItemRequest,
+        month: str | None = None,
+        months: int = Query(6, ge=3, le=24),
+    ) -> dict:
         """Rewrite a planned expense, answering for ``month`` (by default the one it moved to)."""
         with ledger_scope() as ledger:
             _require_budget_item(ledger, item_id)
-            _require_category(ledger, body.category_id)
+            if body.category_id is not None:
+                _require_category(ledger, body.category_id)
             update_item(ledger, item_id, _item_fields(body))
-            return budget_status(ledger, _budget_month(month or body.month))
+            return budget_month(ledger, _budget_month(month or body.month), window_months=months)
 
     @app.delete("/api/budget-items/{item_id}")
-    def delete_budget_item(item_id: int) -> list[dict]:
+    def delete_budget_item(item_id: int, months: int = Query(6, ge=3, le=24)) -> dict:
         """Drop a planned expense, answering with the month it was in."""
         with ledger_scope() as ledger:
             month = _require_budget_item(ledger, item_id)["month"]
             delete_item(ledger, item_id)
-            return budget_status(ledger, month)
+            return budget_month(ledger, month, window_months=months)
 
     @app.post("/api/accounts", status_code=201)
     def create_account(body: AccountRequest) -> dict:

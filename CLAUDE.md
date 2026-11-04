@@ -110,8 +110,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
-|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
-|`budgets`|`budget_status`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
+|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `usual_reading`, `UsualReading`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
+|`budgets`|`budget_status`, `budget_month`, `propose_category`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
@@ -263,7 +263,7 @@ by construction.
 |`account_balances`|4|What a bank declared, one row per `(account, date, source)`: the available and booked figures coexist so the 5.4 assertion can check each|
 |`budgets`|4|A category's default ceiling from `from_month` (YYYY-MM) on; a NULL `amount` removes it from that month|
 |`budget_months`|4|One month's own ceiling for a category, over the default|
-|`budget_items`|9|An expense planned inside a category's ceiling for one month: description, amount, optional date, priority, note|
+|`budget_items`|9|An expense planned inside a category's ceiling for one month: description, amount, optional date, priority, note; `category_id` is NULL while it waits for one|
 |`merchant_suggestions`|5|A merchant → category proposal with its `source` and `decision` (`pending` / `accepted` / `dismissed`)|
 |`held_transactions`|11|A movement a period sync did not write because it looks like one the other ingest path wrote under a different description: the movement as it arrived, its occurrence, the row it resembles (`twin_id`), and the `decision` (`pending` / `written` / `discarded`). One row per `(account_id, key)`|
 |`settings`|2|Key/value odds and ends|
@@ -298,7 +298,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Check duplicates or gaps|`uv run amonhen validate`, `uv run amonhen balance-check`|
 |Inspect the ledger|`sqlite3 amonhen.db` — accounts, transactions, postings, transfer_links (see *Ledger schema* above)|
 |See the balances behind the net worth|`sqlite3 amonhen.db "select * from account_balances"` — written by `sync`, `balances` and `anchor`|
-|Plan a month|The **Budget** section: a category's ceiling (*Da questo mese in poi* or *Solo questo mese*), then *Aggiungi voce* — from scratch or from a past movement — or *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
+|Plan a month|The **Budget** section: *Aggiungi una spesa* with a description and an amount (the category can wait: a rule gives one, or it waits under *Da assegnare* in the *Per voce* view), a category's ceiling under *Per categoria* (*Da questo mese in poi* or *Solo questo mese*; without one, the items are the budget), *Più dettagli* for the full form or a past movement, *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
 |See what a category usually takes|**Statistiche**: the median and the mean over 6, 12 or 24 complete months; the **Budget** row says *di solito*, the median of the six before that month|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|

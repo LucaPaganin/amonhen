@@ -7,6 +7,7 @@ import pytest
 from amonhen.budgets import (
     ItemFields,
     add_item,
+    budget_month,
     budget_status,
     copy_items,
     delete_item,
@@ -156,14 +157,26 @@ def test_items_read_by_priority_and_date_and_fit_while_the_running_total_does(le
     assert status["free"] == "-70.00"
 
 
-def test_without_a_ceiling_an_item_neither_fits_nor_overflows(ledger):
+def test_without_a_ceiling_the_items_are_the_budget(ledger):
     groceries = ledger.category("Groceries")
 
     add_item(ledger, fields(groceries))
+    add_item(ledger, fields(groceries, description="Cena", amount="20.00"))
 
     status = status_of(ledger, "2026-11")
-    assert status["items"][0]["fits"] is None
-    assert (status["planned"], status["free"], status["over_plan"]) == ("80.00", None, False)
+    assert (status["budget"], status["source"]) == ("100.00", "items")
+    assert [item["fits"] for item in status["items"]] == [True, True]
+    assert (status["planned"], status["free"], status["over_plan"]) == ("100.00", "0.00", False)
+    # A ceiling a person writes is theirs: the items no longer move it.
+    set_default(ledger, groceries, "2026-11", Decimal("90"))
+    status = status_of(ledger, "2026-11")
+    assert (status["budget"], status["source"], status["over_plan"]) == ("90.00", "default", True)
+
+
+def test_a_category_without_items_or_ceiling_has_no_budget(ledger):
+    ledger.category("Groceries")
+    status = status_of(ledger, "2026-11")
+    assert (status["budget"], status["source"]) == (None, None)
 
 
 def test_an_item_is_refused_when_it_does_not_describe_an_expense_of_its_month(ledger):
@@ -267,3 +280,57 @@ def test_a_row_says_what_the_category_usually_takes(ledger):
 
     assert usual["Groceries"] == "200.00"
     assert budget_status(ledger, "2026-08", dt.date(2026, 11, 2))[0]["usual"] is None
+
+
+def test_an_item_without_a_category_takes_the_one_a_rule_gives_or_waits(ledger):
+    from amonhen.merchants import RuleBook
+
+    groceries = ledger.category("Groceries")
+    RuleBook(ledger.conn).set_rule("esselunga", "Groceries", ledger)
+
+    add_item(ledger, fields(None, description="Spesa Esselunga grande", amount="120.00"))
+    add_item(ledger, fields(None, description="Idraulico", amount="90.00"))
+
+    month = budget_month(ledger, "2026-11", dt.date(2026, 11, 2))
+    row = next(row for row in month["categories"] if row["id"] == groceries)
+    assert [item["description"] for item in row["items"]] == ["Spesa Esselunga grande"]
+    assert (row["budget"], row["source"]) == ("120.00", "items")
+    assert [(item["description"], item["category_id"]) for item in month["unassigned"]] == [
+        ("Idraulico", None)
+    ]
+    assert (month["total"]["budget"], month["total"]["unassigned"]) == ("120.00", "90.00")
+
+
+def test_the_month_reads_its_budgets_against_the_months_before(ledger):
+    account = ledger.ensure_account(Account(name="Revolut", type="real"))
+    groceries = ledger.category("Groceries")
+    trips = ledger.category("Trips")
+    for date, amount, category in (
+        ("2026-08-10", "-100", groceries),
+        ("2026-09-10", "-300", groceries),
+        ("2026-10-10", "-200", groceries),
+        ("2026-09-20", "-900", trips),
+    ):
+        ledger.record(
+            IncomingTransaction(
+                account_id=account,
+                date=dt.date.fromisoformat(date),
+                amount=Decimal(amount),
+                description="spesa",
+                status="BOOK",
+                source="import",
+                balancing_account_id=category,
+            )
+        )
+    set_default(ledger, groceries, "2026-11", Decimal("250"))
+
+    month = budget_month(ledger, "2026-11", dt.date(2026, 11, 2))
+
+    assert month["window"] == {"from": "2026-08", "to": "2026-10", "months": 3}
+    row = next(row for row in month["categories"] if row["id"] == groceries)
+    assert (row["usual"], row["usual_mean"]) == ("200.00", "200.00")
+    total = month["total"]
+    assert (total["budget"], total["categories"]) == ("250.00", 1)
+    # The whole spending: 100, 1200, 200. The budgeted categories alone: 100, 300, 200.
+    assert (total["usual"], total["usual_mean"]) == ("200.00", "500.00")
+    assert (total["budgeted_usual"], total["budgeted_usual_mean"]) == ("200.00", "200.00")

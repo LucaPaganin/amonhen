@@ -3,7 +3,7 @@ import type {
   Account,
   AccountFlags,
   Anomaly,
-  Budget,
+  BudgetMonth,
   BudgetItemDraft,
   Category,
   CsvImportOutcome,
@@ -198,6 +198,10 @@ function filterSearch(filters: DashboardFilters): string {
   return params.toString();
 }
 
+function budgetQuery(month: string, months: number): string {
+  return `month=${encodeURIComponent(month)}&months=${months}`;
+}
+
 export const api = {
   health: (signal?: AbortSignal) => get<Health>("/health", signal),
   // Synchronous on purpose: the button asked for this run, and the answer is
@@ -306,26 +310,29 @@ export const api = {
   // Every budget write answers with the whole month it was made for: a default
   // changed from a month, or an item moved to another category, changes more
   // than the row that was touched.
-  budgets: (month: string, signal?: AbortSignal) =>
-    get<Budget[]>(`/budgets?month=${encodeURIComponent(month)}`, signal),
+  budgets: (month: string, months: number, signal?: AbortSignal) =>
+    get<BudgetMonth>(`/budgets?${budgetQuery(month, months)}`, signal),
   /** The default from `month` on; the months before keep theirs. */
-  setBudget: (categoryId: number, amount: string | null, month: string) =>
-    send<Budget[]>("PUT", `/budgets/${categoryId}?month=${encodeURIComponent(month)}`, { amount }),
+  setBudget: (categoryId: number, amount: string | null, month: string, months: number) =>
+    send<BudgetMonth>("PUT", `/budgets/${categoryId}?${budgetQuery(month, months)}`, { amount }),
   /** This month only; null hands the month back to the default. */
-  setBudgetOverride: (categoryId: number, amount: string | null, month: string) =>
-    send<Budget[]>("PUT", `/budgets/${categoryId}/override?month=${encodeURIComponent(month)}`, {
+  setBudgetOverride: (categoryId: number, amount: string | null, month: string, months: number) =>
+    send<BudgetMonth>("PUT", `/budgets/${categoryId}/override?${budgetQuery(month, months)}`, {
       amount,
     }),
-  copyBudgetItems: (categoryId: number, fromMonth: string, toMonth: string) =>
-    send<{ copied: number; budgets: Budget[] }>("POST", `/budgets/${categoryId}/copy`, {
-      from_month: fromMonth,
-      to_month: toMonth,
-    }),
-  createBudgetItem: (draft: BudgetItemDraft) => send<Budget[]>("POST", "/budget-items", draft),
+  copyBudgetItems: (categoryId: number, fromMonth: string, toMonth: string, months: number) =>
+    send<{ copied: number; budgets: BudgetMonth }>(
+      "POST",
+      `/budgets/${categoryId}/copy?months=${months}`,
+      { from_month: fromMonth, to_month: toMonth },
+    ),
+  createBudgetItem: (draft: BudgetItemDraft, months: number) =>
+    send<BudgetMonth>("POST", `/budget-items?months=${months}`, draft),
   /** Answers for `month`, the one on screen, even when the item moved out of it. */
-  updateBudgetItem: (id: number, draft: BudgetItemDraft, month: string) =>
-    send<Budget[]>("PUT", `/budget-items/${id}?month=${encodeURIComponent(month)}`, draft),
-  deleteBudgetItem: (id: number) => drop<Budget[]>(`/budget-items/${id}`),
+  updateBudgetItem: (id: number, draft: BudgetItemDraft, month: string, months: number) =>
+    send<BudgetMonth>("PUT", `/budget-items/${id}?${budgetQuery(month, months)}`, draft),
+  deleteBudgetItem: (id: number, months: number) =>
+    drop<BudgetMonth>(`/budget-items/${id}?months=${months}`),
   anomalies: (days = 31, signal?: AbortSignal) => get<Anomaly[]>(`/anomalies?days=${days}`, signal),
   suggestions: (signal?: AbortSignal) => get<Suggestion[]>("/suggestions", signal),
   decideSuggestion: (

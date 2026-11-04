@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.43 — novembre 2026
+Versione 1.44 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -26,7 +26,8 @@ sono previsioni (sezione 3), e l'analisi periodica con un modello si fa fuori da
 1.41 · la distanza in giorni fra le due gambe di un giroconto si configura: due giorni per
 l'abbinamento automatico, sette per quello a mano, che arriva al prelievo da PayPal accreditato giorni dopo.
 1.42 · **Statistiche** ha i suoi grafici: il totale per mese, la composizione, mediana contro media e la mappa di calore (sezione 5.15).
-1.43 · un conto collegato che non riporta le ricariche (PayPal pagato con la carta) prende l'altra gamba da una regola di giroconto, e l'acquisto non è più contato due volte (sezione 5.5).*
+1.43 · un conto collegato che non riporta le ricariche (PayPal pagato con la carta) prende l'altra gamba da una regola di giroconto, e l'acquisto non è più contato due volte (sezione 5.5).
+1.44 · il **Budget** si guarda per categoria o per voce, una voce si scrive senza categoria e la prende da una regola, una categoria con voci e senza tetto ha come budget la loro somma, e ogni budget — anche il totale — si confronta con la mediana o la media dei mesi prima (sezione 5.12).*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -286,15 +287,17 @@ Il ledger vive in un volume del container e la configurazione in una cartella mo
 
 Un budget per categoria dice quanto si vuole spendere in un mese, non in cosa. La pianificazione è lo stesso budget visto più da vicino: dentro il tetto di una categoria si scrivono le spese che si sa già di dover fare, e la sezione dice quanta parte del tetto hanno già preso e se ci stanno. Non è una previsione (sezione 3): il sistema non stima entrate né spese, mostra ciò che una persona ha scritto accanto a ciò che è già uscito.
 
-**Il tetto è per mese, con un default.** Ogni categoria ha un importo di default che vale da un mese in avanti: cambiarlo guardando novembre lo cambia da novembre in poi e lascia ottobre con quello che aveva, perché un budget riscritto all'indietro cancella la storia che si voleva tenere. Togliere il default è la stessa scrittura, con importo vuoto. Un mese può sovrascrivere il default per sé solo — dicembre con più regali — e togliere la sovrascrittura lo riporta al default. I budget scritti prima di questa versione diventano default validi da sempre.
+**Il tetto è per mese, con un default.** Ogni categoria ha un importo di default che vale da un mese in avanti: cambiarlo guardando novembre lo cambia da novembre in poi e lascia ottobre con quello che aveva, perché un budget riscritto all'indietro cancella la storia che si voleva tenere. Togliere il default è la stessa scrittura, con importo vuoto. Un mese può sovrascrivere il default per sé solo — dicembre con più regali — e togliere la sovrascrittura lo riporta al default. I budget scritti prima di questa versione diventano default validi da sempre. Una categoria senza un tetto scritto ma con delle voci ha come budget la loro somma: pianificare le spese di un mese è già dire quanto si vuole spendere. Un tetto scritto invece resta della persona, e le voci che lo superano si segnalano senza alzarlo.
 
 **Le voci stanno dentro il tetto.** Una voce appartiene a una categoria e a un mese, e porta descrizione, importo, una data facoltativa dentro quel mese, una priorità e una nota. Una categoria senza voci è il budget di prima, senza niente in più; con le voci il tetto si legge in tre parti: quanto è pianificato, quanto resta libero, quanto è già stato speso. Se le voci superano il tetto la categoria lo segnala, e il tetto non si alza da solo: è una decisione, e la prende la persona.
 
 **La priorità ordina, non taglia.** Tre livelli — essenziale, importante, rimandabile. Dentro una categoria le voci si leggono in quell'ordine, a parità per data (le voci senza data in fondo) e poi per ordine di inserimento; scorrendole così, una voce *ci sta* finché la somma di quelle prima più lei non supera il tetto. Il calcolo è del backend, come ogni somma (sezione 5.6). Il sistema non propone cosa togliere né cosa spostare: è l'ottimizzazione che la sezione 3 esclude.
 
-**Una voce nasce in tre modi, e resta modificabile.** Scritta da zero; copiata da un movimento passato — descrizione, importo senza segno, categoria, e il giorno riportato nel mese che si sta pianificando —, con il modulo aperto sui campi copiati prima che qualcosa venga salvato; oppure copiando le voci di una categoria dal mese precedente, con le date spostate nello stesso modo. La copia è una copia: modificare la voce non tocca il movimento né il mese da cui viene, e copiare due volte non duplica una voce con la stessa descrizione e lo stesso importo. Una voce si sposta di mese o di categoria dal suo modulo.
+**Una voce nasce in tre modi, e resta modificabile.** Scritta da zero, anche solo con descrizione e importo: la categoria può aspettare. Una regola di categoria che riconosce la descrizione — sul solo testo, perché una voce non ha conto né segno — gliela dà; altrimenti la voce resta *da assegnare*, fuori da ogni budget finché una persona non sceglie la categoria; copiata da un movimento passato — descrizione, importo senza segno, categoria, e il giorno riportato nel mese che si sta pianificando —, con il modulo aperto sui campi copiati prima che qualcosa venga salvato; oppure copiando le voci di una categoria dal mese precedente, con le date spostate nello stesso modo. La copia è una copia: modificare la voce non tocca il movimento né il mese da cui viene, e copiare due volte non duplica una voce con la stessa descrizione e lo stesso importo. Una voce si sposta di mese o di categoria dal suo modulo.
 
 **Lo speso resta per categoria.** Una voce non sa se è stata spesa: lo speso è quello di sempre, la spesa contabilizzata della categoria nel mese, al netto dei rimborsi, ed è il confronto con il tetto che conta. Collegare una voce al movimento che la realizza è un lavoro che si fa solo se lo storico lo chiede.
+
+**Si guarda per categoria o per voce, e contro i mesi prima.** La sezione ha due viste: per categoria, dove si vedono le categorie con un budget e quelle senza si mostrano a richiesta, perché con tante categorie l'elenco intero non si gestisce; e per voce, tutte le spese pianificate del mese con quelle da assegnare in cima. Ogni budget si legge accanto alla mediana o alla media della spesa effettiva della categoria nei 3, 6 o 12 mesi completi prima, con la distanza in percentuale, e lo stesso vale per il totale: la somma dei budget del mese contro le stesse categorie lette come un'unica spesa, accanto a tutta la spesa dei mesi prima. Le mediane non si sommano, quindi il totale ha la sua. Sopra o sotto il solito non è un giudizio, e lo schermo non lo colora come tale.
 
 **Lo storico è il mese.** Ogni mese si riapre con il suo tetto, le sue voci e il suo speso; niente si blocca, perché un mese passato si corregge come uno presente.
 
