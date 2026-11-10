@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.44 — novembre 2026
+Versione 1.45 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -28,6 +28,7 @@ l'abbinamento automatico, sette per quello a mano, che arriva al prelievo da Pay
 1.42 · **Statistiche** ha i suoi grafici: il totale per mese, la composizione, mediana contro media e la mappa di calore (sezione 5.15).
 1.43 · un conto collegato che non riporta le ricariche (PayPal pagato con la carta) prende l'altra gamba da una regola di giroconto, e l'acquisto non è più contato due volte (sezione 5.5).
 1.44 · il **Budget** si guarda per categoria o per voce, una voce si scrive senza categoria e la prende da una regola, una categoria con voci e senza tetto ha come budget la loro somma, e ogni budget — anche il totale — si confronta con la mediana o la media dei mesi prima (sezione 5.12).*
+1.45 · **Statistiche** si legge anche per un conto solo, e ha il grafico delle entrate accanto alle uscite degli stessi mesi (sezione 5.15).
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -313,7 +314,7 @@ Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il m
 
 ### 5.15 Statistiche *(costruita)*
 
-Una sezione sotto *Gestione* legge ogni categoria sugli ultimi 6, 12 o 24 mesi completi: mediana, media, minimo e massimo, in quanti mesi ha speso, e aprendola i suoi mesi uno per uno. Una riga in cima dice lo stesso del totale, che ha i suoi mesi: le mediane delle categorie non sommano alla sua. Il mese in corso non c'è, e un mese senza spese vale zero: è ciò che separa la mediana dalla media in una categoria che spende ogni tanto, e quella distanza è la cosa da leggere. La mediana dice il mese normale, la media quanto costa la categoria nel lungo periodo. Quattro grafici disegnano le stesse cifre: il totale mese per mese contro la sua mediana e la sua media, di cosa è fatto ogni mese (le cinque categorie più care a colori, le altre insieme), mediana e media categoria per categoria, e una mappa di calore che dice in quali mesi spende ciascuna rispetto al suo mese più caro. Il client li disegna e basta: nessuna somma nuova.
+Una sezione sotto *Gestione* legge ogni categoria sugli ultimi 6, 12 o 24 mesi completi: mediana, media, minimo e massimo, in quanti mesi ha speso, e aprendola i suoi mesi uno per uno. Una riga in cima dice lo stesso del totale, che ha i suoi mesi: le mediane delle categorie non sommano alla sua. Si può restringere a uno o più conti: le cifre diventano quelle di ciò che hanno pagato, e il grafico delle entrate e uscite quello dei loro soldi. Il mese in corso non c'è, e un mese senza spese vale zero: è ciò che separa la mediana dalla media in una categoria che spende ogni tanto, e quella distanza è la cosa da leggere. La mediana dice il mese normale, la media quanto costa la categoria nel lungo periodo. Cinque grafici disegnano le stesse cifre: le entrate e le uscite dei mesi letti, le une accanto alle altre (le stesse del cruscotto), il totale mese per mese contro la sua mediana e la sua media, di cosa è fatto ogni mese (le cinque categorie più care a colori, le altre insieme), mediana e media categoria per categoria, e una mappa di calore che dice in quali mesi spende ciascuna rispetto al suo mese più caro. Il client li disegna e basta: nessuna somma nuova.
 
 Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le spese rare dentro, perché la decisione che queste cifre servono è quale tetto mettere. Per la stessa ragione ogni riga del **Budget** dice *di solito*: la mediana dei 6 mesi completi prima del mese che si guarda, così un mese riaperto mostra il solito che aveva allora. Non è una previsione (sezione 3): sono cifre del passato, e il tetto lo decide la persona. Ogni cifra si calcola nel backend (sezione 5.6).
 

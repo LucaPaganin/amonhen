@@ -4,13 +4,14 @@ import { api, errorMessage, isAbortError } from "../api";
 import { categoryText } from "../category";
 import {
   CompositionChart,
+  FlowsChart,
   CompositionLegend,
   MedianMeanChart,
   StatisticsTotalChart,
 } from "../components/Charts";
 import { Help } from "../components/Help";
 import { formatAmount, formatMonth, toAmount } from "../format";
-import type { CategoryStatistics, SeriesStatistics, Statistics } from "../types";
+import type { AccountRef, CategoryStatistics, SeriesStatistics, Statistics } from "../types";
 
 /** The windows on offer, in complete months. */
 const WINDOWS = [6, 12, 24];
@@ -137,11 +138,27 @@ export function StatisticsScreen({ refreshToken, onOpenCategory }: StatisticsScr
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<AccountRef[]>([]);
+  const [scoped, setScoped] = useState<string[]>([]);
 
-  const load = useCallback(async (window: number, signal?: AbortSignal) => {
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .accounts(controller.signal)
+      .then(setAccounts)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [refreshToken]);
+
+  const toggleAccount = (name: string) =>
+    setScoped((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+    );
+
+  const load = useCallback(async (window: number, names: string[], signal?: AbortSignal) => {
     setError(null);
     try {
-      setStatistics(await api.statistics(window, signal));
+      setStatistics(await api.statistics(window, names, signal));
     } catch (caught) {
       if (!isAbortError(caught)) setError(errorMessage(caught));
     }
@@ -149,9 +166,9 @@ export function StatisticsScreen({ refreshToken, onOpenCategory }: StatisticsScr
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(months, controller.signal);
+    void load(months, scoped, controller.signal);
     return () => controller.abort();
-  }, [load, months, refreshToken]);
+  }, [load, months, scoped, refreshToken]);
 
   const shown = statistics?.months ?? [];
 
@@ -178,10 +195,37 @@ export function StatisticsScreen({ refreshToken, onOpenCategory }: StatisticsScr
         ))}
       </div>
 
+      {accounts.length > 1 ? (
+        <div className="filters__chips" role="group" aria-label="Filtra per conto">
+          <button
+            type="button"
+            className={scoped.length === 0 ? "chip chip--toggle chip--on" : "chip chip--toggle"}
+            aria-pressed={scoped.length === 0}
+            onClick={() => setScoped([])}
+          >
+            Tutti i conti
+          </button>
+          {accounts.map((account) => {
+            const on = scoped.includes(account.name);
+            return (
+              <button
+                key={account.id}
+                type="button"
+                className={on ? "chip chip--toggle chip--on" : "chip chip--toggle"}
+                aria-pressed={on}
+                onClick={() => toggleAccount(account.name)}
+              >
+                {account.name}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {error !== null ? (
         <div className="state state--error" role="alert">
           <p>Impossibile caricare le statistiche: {error}</p>
-          <button type="button" className="button" onClick={() => void load(months)}>
+          <button type="button" className="button" onClick={() => void load(months, scoped)}>
             Riprova
           </button>
         </div>
@@ -222,6 +266,14 @@ export function StatisticsScreen({ refreshToken, onOpenCategory }: StatisticsScr
             <p className="chart-note">
               Più chiari i mesi sotto la mediana. La linea tratteggiata è la mediana, quella a
               puntini la media.
+            </p>
+          </section>
+
+          <section className="panel">
+            <h2 className="section-title">Entrate e uscite</h2>
+            <FlowsChart months={statistics.flows} />
+            <p className="chart-note">
+              Gli stessi mesi, le entrate accanto alle uscite: la differenza è quanto è rimasto.
             </p>
           </section>
 

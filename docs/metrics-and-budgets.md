@@ -109,7 +109,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   net of refunds, gross of contributions, rare spending inside: the figures exist to be
   read beside a ceiling. A month with no spending is a zero, the total has its own series, and
   `usual_spending` is the same reading as a median of the six months before the one on
-  screen, which is the `usual` of a budget row. The period chips are windows of complete
+  screen, which is the `usual` of a budget row. `?accounts=` narrows the categories to what those accounts paid (a `LedgerScope` with accounts only), and `flows` is `monthly_flows` over the same months, scoped the same way, for the income-and-spending chart. The period chips are windows of complete
   months and not dates: a statistic of half a month would be a different number.
 - **The dashboard answers two questions, and the client never sums.** `month_reading`
   (`/api/month`) is what was spent so far this month against the same day of the

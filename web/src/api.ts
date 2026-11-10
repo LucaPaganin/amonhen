@@ -289,8 +289,11 @@ export const api = {
   unlinkTransfer: (transactionId: number) =>
     send<TransferUnlink>("POST", "/transfers/unlink", { transaction_id: transactionId }),
   rules: (signal?: AbortSignal) => get<Rule[]>("/rules", signal),
-  statistics: (months: number, signal?: AbortSignal) =>
-    get<Statistics>(`/statistics?months=${months}`, signal),
+  statistics: (months: number, accounts: string[], signal?: AbortSignal) =>
+    get<Statistics>(
+      `/statistics?months=${months}${accounts.length > 0 ? `&accounts=${encodeURIComponent(accounts.join(","))}` : ""}`,
+      signal,
+    ),
   // Writing a rule applies it at once — a deleting one empties what it matches —
   // so the editor asks for the preview first.
   createRule: (draft: RuleDraft) => send<Rule>("POST", "/rules", draft),

@@ -60,7 +60,7 @@ const CARDS: Card[] = [
     means:
       "La mediana è il mese normale: metà dei mesi sta sotto e metà sopra, e una spesa eccezionale non la sposta. La media dice quanto costa una categoria nel lungo periodo: è la cifra da mettere da parte se spende solo ogni tanto.",
     computed:
-      "Sui mesi completi scelti, 6, 12 o 24, senza quello in corso. Un mese senza spese vale zero. Le spese sono al netto dei rimborsi e non dei contributi, e le spese rare ci sono: è lo stesso conto del Budget, così le cifre si confrontano con un tetto. Il Di solito del Budget è la mediana o la media dei 3, 6 o 12 mesi completi prima del mese che guardi. Le mediane delle categorie non sommano a quella del totale.",
+      "Sui mesi completi scelti, 6, 12 o 24, senza quello in corso. Un mese senza spese vale zero. Le spese sono al netto dei rimborsi e non dei contributi, e le spese rare ci sono: è lo stesso conto del Budget, così le cifre si confrontano con un tetto. Il Di solito del Budget è la mediana o la media dei 3, 6 o 12 mesi completi prima del mese che guardi. Le mediane delle categorie non sommano a quella del totale. I chip dei conti restringono tutto a ciò che quei conti hanno pagato, e il grafico delle entrate e uscite ai loro soldi.",
     changes:
       "Se mediana e media sono lontane la categoria va a strappi: un tetto sulla mediana salta nei mesi forti, e per quelli serve un tetto del solo mese.",
   },

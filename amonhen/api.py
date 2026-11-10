@@ -160,8 +160,9 @@ WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 # `unreported_funding`, which a transfer rule towards a connected account needs.
 # 41 is the budget month whole: `/api/budgets` and every budget write answer with
 # `categories`, `unassigned` items and a `total` instead of a list, a row gained
-# `source` and `usual_mean`, and an item may come without `category_id`.
-API_VERSION = 41
+# `source` and `usual_mean`, and an item may come without `category_id`. 42 is the
+# statistics of one account: `/api/statistics` takes `accounts` and answers `flows`.
+API_VERSION = 42
 
 log = logging.getLogger("amonhen.api")
 
@@ -896,14 +897,33 @@ def create_app(
             return _metrics_payload(compute_metrics(ledger, dt.date.today(), scope=scope), scope)
 
     @app.get("/api/statistics")
-    def statistics(months: int = Query(12, ge=1, le=60)) -> dict:
-        """Each category's last complete months: the median, the mean, the range."""
+    def statistics(
+        months: int = Query(12, ge=1, le=60), accounts: str | None = None
+    ) -> dict:
+        """Each category's last complete months: the median, the mean, the range.
+
+        ``accounts`` narrows it to what those accounts paid (and, in ``flows``, took in).
+        """
+        scope = LedgerScope(accounts=_names(accounts))
         with ledger_scope() as ledger:
-            reading = spending_statistics(ledger, dt.date.today(), months)
+            reading = spending_statistics(ledger, dt.date.today(), months, scope)
             return {
                 "currency": "EUR",
-                "applied": {"months": months, "available": len(reading.months)},
+                "applied": {
+                    "months": months,
+                    "available": len(reading.months),
+                    "accounts": list(scope.accounts),
+                },
                 "months": list(reading.months),
+                "flows": [
+                    {
+                        "month": flow.month,
+                        "income": _money(flow.income),
+                        "expenses": _money(flow.expenses),
+                        "partial": flow.partial,
+                    }
+                    for flow in reading.flows
+                ],
                 "total": None if reading.total is None else _statistics_payload(reading.total),
                 "categories": [
                     {"category": item.category, **_statistics_payload(item.statistics)}

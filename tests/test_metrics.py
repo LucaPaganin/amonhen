@@ -533,6 +533,20 @@ def test_statistics_read_complete_months_and_count_an_empty_one_as_zero(ledger):
     assert (food.median, food.mean) == (Decimal(200), Decimal(200))
 
 
+def test_statistics_of_one_account_leave_the_others_out(ledger):
+    revolut, groceries = spending_history(ledger)
+    fineco = ledger.ensure_account(Account(name="Fineco", type="real"))
+    spend(ledger, fineco, groceries, "2026-08-12", "-50")
+
+    both = spending_statistics(ledger, TODAY, 12)
+    only = spending_statistics(ledger, TODAY, 12, LedgerScope(accounts=("Fineco",)))
+
+    assert both.total.series == (Decimal(100), Decimal(300), Decimal(1150))
+    assert only.total.series == (Decimal(0), Decimal(0), Decimal(50))
+    assert [month.month for month in only.flows] == list(only.months)
+    assert only.flows[-1].expenses == Decimal(50)
+
+
 def test_the_total_is_its_own_series_not_the_sum_of_the_medians(ledger):
     spending_history(ledger)
 

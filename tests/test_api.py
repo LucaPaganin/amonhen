@@ -2141,4 +2141,8 @@ def test_statistics_answer_with_the_months_they_read(api):
 
     assert body["applied"]["months"] == 6
     assert body["applied"]["available"] == len(body["months"]) <= 6
+    assert body["applied"]["accounts"] == []
+    assert len(body["flows"]) == len(body["months"])
+    one = client.get("/api/statistics", params={"accounts": "Nowhere"}).json()
+    assert one["applied"]["accounts"] == ["Nowhere"]
     assert client.get("/api/statistics", params={"months": 0}).status_code == 422

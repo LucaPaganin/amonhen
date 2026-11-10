@@ -33,8 +33,10 @@ export interface CategoryStatistics extends SeriesStatistics {
 
 /** Desiderata 5.15: spending per category over the last complete months. */
 export interface Statistics {
-  applied: { months: number; available: number };
+  applied: { months: number; available: number; accounts: string[] };
   months: string[];
+  /** Income and spending of the same months, for one chart. */
+  flows: MonthlyFlow[];
   /** Null while no month has finished. */
   total: SeriesStatistics | null;
   categories: CategoryStatistics[];

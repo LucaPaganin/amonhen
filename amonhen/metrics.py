@@ -472,6 +472,7 @@ class SpendingStatistics:
     requested: int
     total: SeriesStatistics | None
     categories: tuple[CategoryStatistics, ...]
+    flows: "tuple[MonthlyFlow, ...]" = ()
 
 
 @dataclass(frozen=True)
@@ -633,12 +634,16 @@ def spend_by_category(
     ]
 
 
-def _category_months(ledger: Ledger, first: int, last: int) -> dict[str, dict[int, Decimal]]:
+def _category_months(
+    ledger: Ledger, first: int, last: int, scope: LedgerScope = LedgerScope()
+) -> dict[str, dict[int, Decimal]]:
     """What each category took per month, as the budgets count it.
 
     Net of refunds and not of contributions: a statistic is read beside a ceiling,
-    and rare spending stays in because the ceiling is held to it too.
+    and rare spending stays in because the ceiling is held to it too. A scope
+    narrows it to what those accounts paid.
     """
+    scoped, extra = _spending_scope(scope)
     months: dict[str, dict[int, Decimal]] = {}
     for row in ledger.conn.execute(
         f"""SELECT a.name AS category, t.date AS date, p.amount AS amount
@@ -648,8 +653,9 @@ def _category_months(ledger: Ledger, first: int, last: int) -> dict[str, dict[in
            WHERE a.type = 'category' AND t.status = 'BOOK'
              AND {SPENDING_SQL}
              AND NOT {CONTRIBUTION_SQL}
-             AND t.date >= ? AND t.date <= ?""",
-        (_month_bounds(first)[0].isoformat(), _month_bounds(last)[1].isoformat()),
+             AND t.date >= ? AND t.date <= ?"""
+        + scoped,
+        (_month_bounds(first)[0].isoformat(), _month_bounds(last)[1].isoformat(), *extra),
     ):
         index = _month_index(dt.date.fromisoformat(row["date"]))
         totals = months.setdefault(row["category"], {})
@@ -668,19 +674,24 @@ def _statistics(values: list[Decimal]) -> SeriesStatistics:
     )
 
 
-def spending_statistics(ledger: Ledger, today: dt.date, months: int = 12) -> SpendingStatistics:
+def spending_statistics(
+    ledger: Ledger, today: dt.date, months: int = 12, scope: LedgerScope = LedgerScope()
+) -> SpendingStatistics:
     """Each category's last ``months`` complete months, the largest mean first.
 
     A month without spending in a category counts as a zero: that is what makes
     the median and the mean of a category that spends now and then differ, and the
     difference is the point. The total is read from its own months, so it is not
-    the sum of the medians below it.
+    the sum of the medians below it. Only the accounts of a scope narrow it: the
+    categories are what the statistics are about. ``flows`` is the dashboard's
+    income and spending for the same months, so one chart can set them together.
     """
+    scope = LedgerScope(accounts=scope.accounts)
     window = _window(_first_month_with_data(ledger), _month_index(today) - 1, months)
     if window is None:
         return SpendingStatistics(months=(), requested=months, total=None, categories=())
     indexes = range(window[0], window[1] + 1)
-    by_category = _category_months(ledger, window[0], window[1])
+    by_category = _category_months(ledger, window[0], window[1], scope)
     categories = [
         CategoryStatistics(
             category=name,
@@ -700,6 +711,9 @@ def spending_statistics(ledger: Ledger, today: dt.date, months: int = 12) -> Spe
             ]
         ),
         categories=tuple(categories),
+        flows=tuple(
+            monthly_flows(ledger, _month_bounds(window[0])[0], _month_bounds(window[1])[1], scope)
+        ),
     )
 
 
