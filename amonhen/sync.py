@@ -13,7 +13,7 @@ import requests
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
 from amonhen.ledger import Ledger, bank_balance_source
-from amonhen.merchants import RuleBook, apply_transfer_rules, categorize
+from amonhen.merchants import RuleBook, apply_transfer_rules
 from amonhen.models import Account, IncomingTransaction, RecordAction, format_decimal, parse_decimal
 from amonhen.providers.eb_normalize import iban_of, normalize_account, normalize_transaction
 from amonhen.providers.enable_banking import (
@@ -21,7 +21,7 @@ from amonhen.providers.enable_banking import (
     EnableBankingClient,
     RateLimitedError,
 )
-from amonhen.transfers import link_passthrough_legs, link_transfers
+from amonhen.services.ingest import Settled, settle_after_ingest
 
 log = logging.getLogger("amonhen.sync")
 
@@ -182,8 +182,7 @@ class SyncService:
         if not _SYNC_LOCK.acquire(blocking=False):
             raise SyncBusy("a sync is already running in this process")
         try:
-            apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
-            self._link_and_categorize()
+            self._settle()
         finally:
             _SYNC_LOCK.release()
 
@@ -280,11 +279,10 @@ class SyncService:
         result.held = len(self.ledger.held_transactions(account_id))
         # The same steps as the incremental pass, from the start of the period:
         # a leg older than any `start_sync_date` must still find its pair.
-        apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
-        result.transfers_linked = link_transfers(self.ledger, since=date_from)
-        result.passthrough_legs = link_passthrough_legs(self.ledger, self.config.passthrough)
-        self.ledger.validate()
-        result.rules_applied = categorize(self.ledger, RuleBook(self.ledger.conn))
+        settled = settle_after_ingest(self.ledger, self.config.passthrough, since=date_from)
+        result.transfers_linked = settled.linked
+        result.passthrough_legs = settled.passthrough
+        result.rules_applied = settled.categorized
         result.balance_mismatch = self._declared_balance_mismatch(entry)
         log.info("account %s %s..%s: %s", entry.name, date_from, date_to, result.actions)
         return result
@@ -312,21 +310,23 @@ class SyncService:
             results.append(result)
             if result.fetched:
                 apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
-        linked, legs, applied = self._link_and_categorize()
+        settled = self._settle()
         for entry, result in zip(self.config.accounts, results):
             result.balance_mismatch = self._declared_balance_mismatch(entry)
         self.ledger.set_setting(_LAST_RUN_KEY, _now())
-        return SyncResult(results, linked, rules_applied=applied, passthrough_legs=legs)
+        return SyncResult(
+            results,
+            settled.linked,
+            rules_applied=settled.categorized,
+            passthrough_legs=settled.passthrough,
+        )
 
-    def _link_and_categorize(self) -> tuple[int, int, int]:
-        linked = link_transfers(self.ledger, since=self._earliest_start())
-        # Declared own accounts come after the pairing, so a real pair between
-        # two tracked accounts always wins over a label match.
-        legs = link_passthrough_legs(self.ledger, self.config.passthrough)
-        self.ledger.validate()
+    def _settle(self) -> Settled:
         # The deterministic rules belong to ingest: every sync path, including
         # the one inside the server, must leave categorized rows behind.
-        return linked, legs, categorize(self.ledger, RuleBook(self.ledger.conn))
+        return settle_after_ingest(
+            self.ledger, self.config.passthrough, since=self._earliest_start()
+        )
 
     def _declared_balance_mismatch(self, entry: ConfiguredAccount) -> str | None:
         """Desiderata 5.4: the ledger must agree with the bank's own balance.

@@ -136,7 +136,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   browser sends the statement as text — JSON, capped at 8 MB, because the repo has no multipart — plus
   the columns a person picked; `amonhen/csv_import.py` turns that mapping into a `CsvProfile`, so a
   bank layout is data rather than a constant, and the rows go through the same `read_csv` →
-  `record_batch` → `link_transfers` → `categorize` path as `amonhen import`. Idempotency is the
+  `record_batch` → `settle_after_ingest` path as `amonhen import` and the sync. Idempotency is the
   content hash, so importing the same file twice writes nothing. One deliberate difference from
   `parse_csv`: a row that does not read is reported with its line (and the parser's own English
   sentence) instead of refusing the whole file. A description is passed through

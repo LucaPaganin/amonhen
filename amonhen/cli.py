@@ -15,6 +15,7 @@ from amonhen.config import load_config
 from amonhen.ledger import Ledger, balance_kind, bank_balance_source
 from amonhen.merchants import RuleBook, categorize, rule_usage
 from amonhen.models import Account, format_decimal, parse_decimal
+from amonhen.services.ingest import settle_after_ingest
 from amonhen.settings import (
     CONFIG_FILE,
     DB_PATH,
@@ -23,7 +24,6 @@ from amonhen.settings import (
     SYNC_INTERVAL_HOURS,
 )
 from amonhen.sync import PeriodInvalid, SyncBusy, SyncService
-from amonhen.transfers import link_passthrough_legs, link_transfers
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -617,13 +617,10 @@ def cmd_import(ledger: Ledger, args) -> int:
         source_file=Path(args.file).name,
     )
     counts = ledger.record_batch(transactions)
-    link_transfers(ledger)
-    legs = link_passthrough_legs(ledger, load_config(args.config).passthrough)
-    ledger.validate()
-    applied = categorize(ledger, RuleBook(ledger.conn))
+    settled = settle_after_ingest(ledger, load_config(args.config).passthrough)
     print(f"{args.account}: parsed={len(transactions)} " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
-    print(f"passthrough legs: {legs}")
-    print(f"rules applied: {applied}")
+    print(f"passthrough legs: {settled.passthrough}")
+    print(f"rules applied: {settled.categorized}")
     return 0
 
 

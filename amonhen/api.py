@@ -94,6 +94,7 @@ from amonhen.providers.enable_banking import (
     refusal_detail,
     session_accounts,
 )
+from amonhen.services.ingest import settle_after_ingest
 from amonhen.settings import CONFIG_FILE, CREDITS_REVIEW_FROM, DB_PATH, UNCATEGORIZED, VERSION
 from amonhen.suggestions import propose_for_unseen
 from amonhen.sync import (
@@ -104,7 +105,7 @@ from amonhen.sync import (
     SyncService,
     sync_limit,
 )
-from amonhen.transfers import link_passthrough_legs, link_transfers, pair_candidates
+from amonhen.transfers import pair_candidates
 
 WEB_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 
@@ -1962,9 +1963,9 @@ def create_app(
             except ValueError as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
             if transaction_id:
-                link_transfers(ledger, since=dt.date.fromisoformat(row["date"]))
-                link_passthrough_legs(ledger, _passthrough(config_path))
-                categorize(ledger, RuleBook(ledger.conn))
+                settle_after_ingest(
+                    ledger, _passthrough(config_path), since=dt.date.fromisoformat(row["date"])
+                )
             return {
                 "transaction_id": transaction_id or None,
                 "action": action,
@@ -1994,11 +1995,10 @@ def create_app(
 
     @app.post("/api/import/csv")
     def csv_import(body: CsvImportRequest) -> dict:
-        """Write the mapped rows, then link and categorize them as `import` does.
+        """Write the mapped rows, then settle them as `import` and the sync do.
 
-        The pipeline is the CLI's, in the same order: the rows land, the matcher
-        pairs what it can, the configured passthrough labels take their legs out
-        of spending and income, and the rules classify what is left.
+        The rows land, then `settle_after_ingest`: the transfer rules, the
+        matcher, the configured passthrough labels, the rules on what is left.
         """
         _refuse_oversized(body.content)
         mapping = body.mapping.model_dump()
@@ -2017,19 +2017,16 @@ def create_app(
                     source_file=body.filename or None,
                 )
             counts = ledger.record_batch(transactions)
-            links = link_transfers(ledger)
-            legs = link_passthrough_legs(ledger, _passthrough(config_path))
-            ledger.validate()
-            applied = categorize(ledger, RuleBook(ledger.conn))
+            settled = settle_after_ingest(ledger, _passthrough(config_path))
             return {
                 "account": account["name"],
                 "filename": body.filename,
                 "parsed": len(transactions),
                 "actions": counts,
                 "rejected": [{"line": error.line, "reason": error.reason} for error in errors],
-                "links": links,
-                "passthrough": legs,
-                "rules": applied,
+                "links": settled.linked,
+                "passthrough": settled.passthrough,
+                "rules": settled.categorized,
             }
 
     _mount_pwa(app, web_dist if web_dist is not None else WEB_DIST)

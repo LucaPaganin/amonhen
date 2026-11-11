@@ -1,7 +1,9 @@
 # Architettura del backend — valutazione e forma di arrivo
 
 Novembre 2026, sul `main` a `d2f7aa6`. È una valutazione, non una regola: nessun
-requisito della specifica cambia, e niente di quello che descrive è ancora nel codice.
+requisito della specifica cambia. Del lavoro descritto nella sezione 3.4 è fatto il
+passo 1 (`amonhen/services/ingest.py`); il resto non è ancora nel codice, e le sezioni 2
+e 2.3 descrivono il codice com'era prima di quel passo.
 
 ## 1. Quale pattern
 
@@ -274,7 +276,21 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
 
 1. **`settle_after_ingest`** e i cinque chiamanti che la usano, con un test che importa un
    file con una regola di giroconto e un importo uguale su un altro conto. È il passo con
-   più valore: chiude una divergenza reale. *Piccolo.*
+   più valore: chiude una divergenza reale. *Piccolo.* **Fatto:** `amonhen/services/ingest.py`
+   e `tests/test_settle_after_ingest.py`, che falliscono sul codice di prima per l'import
+   dall'app, l'import da CLI e il trattenuto scritto a mano. Due differenze dallo schizzo
+   della sezione 3.2: i passi non sono avvolti in una sola transazione, perché ognuno
+   tiene il confine che aveva e cambiarlo è una decisione a parte; e `SyncService.run`
+   continua ad applicare le regole di giroconto anche dopo ogni conto, perché l'altra
+   metà non deve aspettare la banca più lenta.
+
+   **Resta aperto, trovato scrivendo il test:** una regola di giroconto verso un conto
+   *virtuale* (non creato a mano come conto reale) perde contro l'abbinamento in tutti i
+   percorsi, sync compreso. La regola sposta la gamba sul conto virtuale ma non la lega a
+   niente, e `transfers._candidates` scarta solo le gambe già legate: un importo uguale su
+   un altro conto la abbina e la toglie dal conto della regola. Escludere le gambe con un
+   lato virtuale non basta, perché anche il passthrough le mette lì e un abbinamento vero
+   deve poterlo battere: va deciso cosa distingue la gamba di una regola.
 2. **`Clock` e `BankProvider`** come `Protocol`, le eccezioni tradotte nell'adapter. *Piccolo.*
 3. **`api.py` in router per sezione**, con `Deps` come composition root; le 22 query
    degli handler scendono in `ledger/queries.py`. Meccanico, coperto dai test dell'API.
