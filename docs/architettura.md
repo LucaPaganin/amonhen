@@ -303,3 +303,336 @@ nessuno è necessario per il refactoring sopra.
 I punti 1-3 si possono fare subito e sono indipendenti dal resto; 4-6 e 8 vanno fatti
 solo quando una fetta ricostruisce quelle tabelle per un motivo suo, con la migrazione
 provata su una copia di uno snapshot come dice il README (*Updating safely*). Il 7 no.
+
+## 5. I protagonisti del pattern, uno per uno
+
+Ogni protagonista con un esempio preso da AmonHen: prima quelli che si applicano, poi
+quelli che qui non servono, in fondo un import seguito attraverso tutti gli strati.
+
+### L'idea di fondo
+
+Il pattern ha una sola legge, la **regola delle dipendenze**: le dipendenze puntano
+verso l'interno. Il centro non sa che esistono FastAPI, SQLite, Enable Banking o il disco.
+Tutto il resto serve a rispettare questa legge.
+
+```
+      [ FastAPI ]   [ CLI ]                ← adapter primari (chi chiama)
+            \         /
+        [ casi d'uso / servizi ]           ← orchestrazione
+            /        |        \
+      [ core puro ] [ ledger ]  [ porte ]  ← dominio + persistenza + contratti
+                                   |
+               [ Enable Banking ] [ LLM ] [ accounts.json ] [ orologio ]   ← adapter secondari (chi viene chiamato)
+```
+
+### 5.1 Cosa si applica
+
+#### 1. Il core di dominio: le regole, senza I/O
+
+**Cos'è:** il codice che risponde a "come funziona il mondo della finanza personale",
+senza leggere o scrivere niente. Prende dati e restituisce dati.
+
+**Responsabilità:** calcolo, decisioni, invarianti espresse come funzioni.
+
+**Non può:** importare `sqlite3`, `requests`, `fastapi`, né chiamare `dt.date.today()`.
+La data di oggi gli arriva come parametro.
+
+**In AmonHen c'è già, ed è la parte migliore del codice:**
+
+- **`dedup.content_hash(account_id, date, amount, description)`.** È una funzione pura:
+  stessi input, stesso hash. Si testa senza database.
+- **`matching.max_weight_matching(weights)`.** L'algoritmo ungherese sui giroconti riceve
+  un dizionario di pesi e restituisce le coppie. Non sa che esistono le transazioni.
+- **`merchants.matching_rule(...)`, `rule_key`, `merchant_name`.** Dicono quale regola
+  spiega una descrizione, senza sapere da dove vengono le regole.
+
+**Dove è sporcato:** `metrics.py` e `budgets.py` mescolano la query e la mediana nella
+stessa funzione, quindi per testare "la mediana di sei mesi" serve un database. La
+versione pulita separa le due cose: una funzione legge le serie dal ledger, un'altra
+(pura) ci fa l'aritmetica.
+
+**Perché conta:** la parte che si sbaglia più facilmente, cioè i numeri, diventa la più
+facile da testare. Un test di una funzione pura gira in microsecondi.
+
+#### 2. Le entità e i value object del dominio
+
+**Cosa sono:** i "nomi" del dominio. Un value object è definito dal suo valore (due
+importi da 10 € sono lo stesso importo). Un'entità ha un'identità che sopravvive ai
+cambiamenti (un conto resta quel conto anche se lo rinomini).
+
+**In AmonHen:**
+
+- **`IncomingTransaction` (`models.py`)** è il contratto fra il mondo esterno e il ledger.
+  Ogni sorgente (PSD2, CSV, OFX) deve produrre esattamente questo, ed è ciò che permette
+  di aggiungere un formato di import senza toccare il ledger.
+- **`Decimal`** fa da value object del denaro. `parse_decimal` / `format_decimal` sono il
+  confine che impedisce ai `float` di entrare.
+- **`Account`, `Posting`, `Rule`** sono dataclass, quindi entità "anemiche": dati senza
+  comportamento.
+
+**Verdetto:** si applica in forma leggera. Le dataclass vanno bene; non servono entità
+con metodi (vedi più sotto, *Il rich domain model*).
+
+#### 3. La persistenza: il ledger come *table data gateway*
+
+**Cos'è:** lo strato che parla con SQLite. Nell'esagonale da manuale sarebbe un adapter
+secondario dietro un'interfaccia `Repository`; qui quell'interfaccia non c'è (il motivo
+è più sotto). Il ledger resta un modulo concreto, ma con confini netti.
+
+**Responsabilità:**
+
+- **Scrivere rispettando le invarianti** della partita doppia: ogni transazione ha le sue
+  posting e la somma è zero.
+- **Possedere le definizioni SQL del dominio**: `SPENDING_SQL`, `RARE_SQL`, `CREDITS_WHERE`.
+- **Fornire le letture** di cui hanno bisogno i casi d'uso.
+
+**Non può:** sapere di HTTP (nessun `HTTPException`), leggere `accounts.json`, chiamare
+una banca.
+
+**In AmonHen:**
+
+- **Bene:** `Ledger.record()` contiene tutta la logica pending → booked e la doppia
+  dedup. Nessun altro scrive in `transactions`.
+- **Bene:** `SPENDING_SQL` è una regola di business scritta in SQL, ed è proprio questo il
+  punto: "cos'è una spesa" si decide in un posto solo, e metriche, budget e grafici lo
+  usano tutti.
+- **Male:** `api.py:1340` e altre 21 query vivono negli handler HTTP. Sono letture del
+  ledger finite nel posto sbagliato.
+- **Male:** `Ledger` ha circa 130 metodi. Lo strato è giusto, la granularità no: va
+  spezzato in `ingest`, `deletions`, `transfers`, `balances`, `catalog`.
+
+#### 4. I casi d'uso (application services)
+
+**Cosa sono:** le "frasi" del sistema, come *importa un file*, *sincronizza un periodo*,
+*decidi un doppione trattenuto*, *rinomina una categoria*. Ognuno coordina core, ledger e
+porte nell'ordine giusto, dentro una transazione.
+
+**Responsabilità:**
+
+- **L'ordine dei passi.**
+- **Il confine della transazione** (tutto o niente).
+- **Le eccezioni di dominio:** `NotFound`, `Conflict`, `PeriodInvalid`.
+
+**Non può:**
+
+- importare `fastapi`: un caso d'uso non sa di essere chiamato via HTTP;
+- contenere calcoli, che stanno nel core;
+- contenere SQL, che sta nel ledger.
+
+**In AmonHen è lo strato che manca**, e la prova è quella della sezione 2.2 a: la
+sequenza dopo l'ingest è ricostruita a mano in cinque posti, e i percorsi sono già
+diversi. L'import fa:
+
+```python
+counts = ledger.record_batch(transactions)
+links = link_transfers(ledger)            # ← l'abbinamento prima…
+legs = link_passthrough_legs(ledger, ...)
+ledger.validate()
+applied = categorize(ledger, ...)         # ← …e le regole di giroconto solo qui dentro, dopo
+```
+
+Il sync invece chiama `apply_transfer_rules` **prima** di `link_transfers`, come chiede la
+sezione 5.3 della specifica. Con un caso d'uso `settle_after_ingest()` questa differenza
+non può nemmeno esistere, perché la sequenza è scritta una volta sola.
+
+**`SyncService` è già un caso d'uso**, ed è fatto bene: riceve il client, la
+configurazione e `today`, e coordina. È il modello da seguire per gli altri.
+
+#### 5. Le porte (ports)
+
+**Cosa sono:** interfacce che dicono "mi serve qualcuno che sappia fare X", scritte dal
+punto di vista di chi le usa. In Python sono un `typing.Protocol`.
+
+**Responsabilità:** definire il contratto minimo, con tipi ed eccezioni **del dominio** e
+non del fornitore.
+
+**Dove servono in AmonHen:** solo nei quattro punti in cui c'è davvero un "fuori" che può
+cambiare o che in un test va sostituito.
+
+|Porta|Perché esiste|Chi la implementa oggi / domani|
+|---|---|---|
+|`BankProvider`|la banca è esterna, lenta, a quote; potrebbe arrivare un secondo provider PSD2|`EnableBankingClient`, `tools/eb_stub.py`, un fake nei test|
+|`LlmClient`|un fornitore terzo, spegnibile (sezione 5.5)|il client HTTP di `llm.py`, un fake|
+|`ConfigStore`|`accounts.json` è letto e scritto da route, CLI e sync|il file JSON; un dizionario in memoria nei test|
+|`Clock`|`today()` compare in 8 moduli: i test sul "mese corrente" dipendono dal giorno in cui girano|l'orologio di sistema, uno fisso nei test|
+
+**L'esempio più istruttivo di cosa va storto senza porta:**
+
+```python
+# providers/enable_banking.py
+class RateLimitedError(requests.HTTPError): ...
+```
+
+`sync.py` cattura `RateLimitedError`, che **è** un `requests.HTTPError`: il caso d'uso sa
+quale libreria HTTP usa il fornitore. Con una porta, il dominio definisce
+`RateLimited(Exception)` e l'adapter traduce:
+
+```python
+# adapters/enable_banking/client.py
+try:
+    response.raise_for_status()
+except requests.HTTPError as exc:
+    if exc.response.status_code == 429:
+        raise RateLimited(...) from exc   # il dominio vede solo questo
+```
+
+#### 6. Gli adapter secondari (driven: quelli che il sistema chiama)
+
+**Cosa sono:** le implementazioni concrete delle porte. Traducono il mondo esterno nei
+tipi del dominio e viceversa.
+
+**Responsabilità:** HTTP, autenticazione JWT, paginazione, retry, parsing dei formati,
+conversione delle eccezioni.
+
+**Non può:** prendere decisioni di dominio. Un adapter non decide se un movimento è un
+giroconto.
+
+**In AmonHen sono già quasi esemplari:**
+
+- **`eb_normalize.normalize_transaction`** trasforma il payload grezzo di Enable Banking
+  in `IncomingTransaction`. Le stranezze di Fineco (`_fineco_counterparty`) restano chiuse
+  lì dentro: il ledger non sa che Fineco esiste.
+- **`csv_adapter` con `CsvProfile`, e `ofx_adapter`:** ogni formato è un adapter e tutti
+  producono lo stesso tipo. Per questo "un nuovo formato di import" è *robusto* nella
+  sezione 2.3.
+- **Da sistemare:** `EnableBankingClient` va dichiarato come implementazione di
+  `BankProvider`, con le eccezioni tradotte.
+
+#### 7. Gli adapter primari (driving: quelli che chiamano il sistema)
+
+**Cosa sono:** i punti di ingresso, cioè FastAPI e la CLI. Traducono una richiesta
+esterna in una chiamata a un caso d'uso.
+
+**Responsabilità:**
+
+- validare la forma dell'input (Pydantic, argparse);
+- chiamare **un** caso d'uso;
+- tradurre il risultato in JSON o testo, e le eccezioni di dominio in codici HTTP o exit
+  code.
+
+**Non può:** scrivere SQL, orchestrare più passi, contenere regole.
+
+**Il test pratico:** una route sana è lunga 5-10 righe, e il comando CLI equivalente
+chiama la **stessa** funzione. Oggi l'import da app (`api.py:2019`) e quello da CLI
+(`cli.py:619`) sono due copie della stessa sequenza. Domani:
+
+```python
+# API
+result = imports.import_file(ledger, parsed, deps.config.passthrough)
+# CLI
+result = imports.import_file(ledger, parsed, load_config(args.config).passthrough)
+```
+
+#### 8. La composition root
+
+**Cos'è:** l'unico punto in cui si decide "per questa esecuzione, la porta X la
+implementa Y". Costruisce gli oggetti concreti e li passa giù.
+
+**In AmonHen:** `create_app()` per il server e `main()` per la CLI. Oggi `create_app` è
+anche il contenitore di 74 route. Domani crea un oggetto `Deps` (factory del ledger,
+`ConfigStore`, factory del `BankProvider`, `Clock`) e monta i router. Un test passa un
+`Deps` diverso, e così si sostituisce la banca senza `responses`.
+
+**Nota:** questa **è** la dependency injection, fatta a mano. Per un'app di queste
+dimensioni non serve altro.
+
+#### 9. L'unità di lavoro (unit of work)
+
+**Cos'è:** il confine "questa operazione o riesce tutta o non lascia niente".
+
+**In AmonHen c'è già:** `deferred_commits()` in `db.py`. È corretto, ma implicito: 34
+`with self.conn` annidati gestiti con un contatore. Nella forma di arrivo lo apre il
+**caso d'uso** (`with ledger.unit_of_work():`), non i metodi del ledger, così chi legge il
+caso d'uso vede dove inizia e dove finisce la transazione.
+
+### 5.2 Cosa non si applica, e perché
+
+#### ✗ Il repository astratto davanti al database
+
+**Cos'è nel pattern pieno:** `class TransactionRepository(Protocol)` più
+`SqliteTransactionRepository`, così il dominio non sa che c'è SQLite.
+
+**Perché no qui:** SQLite è una scelta di prodotto (un file, uno snapshot, il NAS), non
+un dettaglio sostituibile. Un'interfaccia che avrà per sempre una sola implementazione è
+solo burocrazia: ogni metodo si scrive due volte e ogni modifica si fa in due file. I test
+usano già un SQLite in memoria vero, veloce e più fedele di un fake.
+
+**Quando cambiare idea:** se si dovesse supportare anche Postgres, oppure se i test sul
+ledger diventassero lenti.
+
+#### ✗ Le regole di dominio portate fuori dall'SQL
+
+**Cos'è nel pattern pieno:** il dominio non conosce SQL, quindi "cos'è una spesa" sarebbe
+un metodo Python, `Transaction.is_spending()`.
+
+**Perché no qui:** bisognerebbe caricare in memoria tutte le posting per filtrarle, o
+tenere due definizioni (una in SQL per le query, una in Python per il dominio) che prima o
+poi si separano. `SPENDING_SQL` come definizione unica vale più della purezza. **È il
+compromesso centrale di questa architettura:** il core comprende anche dei frammenti SQL.
+
+#### ✗ Il rich domain model / gli aggregati DDD
+
+**Cos'è:** entità con comportamento e invarianti dentro, per esempio `account.record(txn)`
+o `transaction.split(...)`, caricate e salvate intere come "aggregati".
+
+**Perché no qui:** le invarianti di AmonHen sono **insiemistiche e trasversali**:
+
+- un giroconto lega due transazioni di due conti;
+- la dedup confronta con tutto lo storico;
+- il saldo è la somma di tutte le posting.
+
+Sono domande da database, non da oggetto in memoria. Un aggregato `Account` con dentro
+migliaia di movimenti sarebbe lento e innaturale.
+
+#### ✗ Gli eventi di dominio / il message bus
+
+**Cos'è:** `TransactionRecorded` viene pubblicato, e qualcuno in ascolto abbina e
+categorizza.
+
+**Perché no qui:** la sequenza dopo l'ingest ha un **ordine preciso** (sezione 5.3: le
+regole di giroconto prima dell'abbinamento). Con gli eventi l'ordine diventa implicito:
+è lo stesso problema delle cinque copie, solo meno visibile. Una funzione che chiama
+cinque passi in fila è più chiara.
+
+#### ✗ CQRS
+
+**Cos'è:** modelli, e magari database, separati per le letture e per le scritture.
+
+**Perché no qui:** un utente, un file, WAL che lascia leggere mentre si scrive. Di CQRS
+resta solo l'idea minima: le letture complesse stanno in `ledger/queries.py`, separate
+dai metodi che scrivono.
+
+#### ✗ Container di DI, ORM, DTO a ogni strato
+
+- **Container di DI** (`dependency-injector` e simili): la composition root a mano è
+  lunga dieci righe.
+- **ORM:** escluso dalla specifica, e l'SQL scritto a mano è un pregio qui.
+- **Un DTO per ogni passaggio fra strati:** `IncomingTransaction` attraversa core, servizi
+  e ledger così com'è, e va bene. Servono solo i modelli Pydantic al confine HTTP, che ci
+  sono già.
+
+### 5.3 Un import attraverso gli strati
+
+Un CSV di Fineco caricato dalla schermata **Importa**, nella forma di arrivo:
+
+|#|Strato|Chi|Cosa fa|Cosa NON fa|
+|---|---|---|---|---|
+|1|Adapter primario|`entrypoints/api/imports.py`|valida il body (Pydantic), prende `Deps`, chiama `imports.import_file`|non scrive SQL, non sa dei giroconti|
+|2|Composition root|`create_app` → `Deps`|ha già deciso quale `ConfigStore` e quale ledger usare|—|
+|3|Adapter secondario|`adapters/files/csv_adapter`|righe CSV → `list[IncomingTransaction]`|non sa che esiste un database|
+|4|Caso d'uso|`services/imports.import_file`|apre la transazione, `record_batch`, poi `settle_after_ingest`|non fa calcoli, non scrive SQL|
+|5|Persistenza|`ledger/ingest.record_batch`|dedup a due livelli, pending → booked, posting|non decide l'ordine dei passi successivi|
+|6|Core|`dedup.content_hash`, `matching.max_weight_matching`|calcola l'hash e l'abbinamento ottimo|non legge e non scrive niente|
+|7|Caso d'uso|`settle_after_ingest`|regole di giroconto → abbinamento → passthrough → `validate` → categorie, **sempre in quest'ordine**|—|
+|8|Adapter primario|di nuovo la route|`ImportResult` → JSON; `Conflict` → 409|—|
+
+La CLI rifà i passi 3-7 **identici** e cambia solo l'1 e l'8: è il segno che gli strati
+sono al posto giusto.
+
+### 5.4 Le domande per orientarsi nel codice
+
+- "Questa riga sa che c'è HTTP?" Allora sta nella route.
+- "Sa che c'è SQLite?" Allora sta nel ledger.
+- "Sa che c'è Enable Banking?" Allora sta in un adapter.
+- "Decide l'ordine di più cose?" Allora sta in un caso d'uso.
+- "Nessuna delle quattro?" Allora è core.
