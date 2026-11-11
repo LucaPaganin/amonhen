@@ -636,3 +636,255 @@ sono al posto giusto.
 - "Sa che c'è Enable Banking?" Allora sta in un adapter.
 - "Decide l'ordine di più cose?" Allora sta in un caso d'uso.
 - "Nessuna delle quattro?" Allora è core.
+
+## 6. Gli strati costruiti da zero
+
+La sezione 5 descrive gli strati partendo dal codice che c'è. Questa li fa comparire
+uno alla volta, come se si costruisse un AmonHen piccolissimo su un foglio vuoto,
+nell'ordine in cui ne nasce il bisogno, ognuno con il motivo per cui esiste.
+
+L'esempio è una sola funzione dell'app: **"importo un CSV della banca e vedo quanto ho
+speso questo mese"**.
+
+### 6.1 Il dominio: i nomi delle cose
+
+**Cos'è:** le parole del problema, scritte come tipi di dato. Prima di pensare a database
+o pagine web ci si chiede: di cosa parla questo software? Di movimenti, conti, categorie,
+importi.
+
+```python
+@dataclass(frozen=True)
+class Movement:
+    account: str
+    date: dt.date
+    amount: Decimal      # negativo = uscita
+    description: str
+```
+
+**Il motivo:** questi concetti esistevano prima del software e esisteranno dopo. Un
+movimento bancario è un movimento bancario sia che arrivi da un CSV sia da un'API, sia che
+stia in SQLite sia su carta. Se si definiscono per primi e senza dipendenze, tutto il
+programma ha un vocabolario comune: quando un pezzo di codice riceve un `Movement`, sa
+esattamente cosa ha in mano.
+
+**In AmonHen:** `models.py`, con `IncomingTransaction`, `Account` e `Posting`.
+
+### 6.2 Il core: le regole, come funzioni pure
+
+**Cos'è:** il codice che *ragiona* sui nomi del dominio. Prende dati e restituisce dati:
+non legge file, non chiama la rete, non apre il database.
+
+```python
+def is_spending(m: Movement) -> bool:
+    return m.amount < 0
+
+def spent_in_month(movements: list[Movement], month: str) -> Decimal:
+    return -sum((m.amount for m in movements
+                 if is_spending(m) and m.date.isoformat().startswith(month)),
+                Decimal(0))
+```
+
+**Il motivo:** è la parte che non deve sbagliare, perché produce i numeri su cui si
+prendono decisioni. Se è pura, si testa con tre righe e nessuna preparazione: le si dà una
+lista e si controlla il risultato. Non serve un database finto, non dipende dal giorno in
+cui gira il test, non si rompe se cambia la libreria HTTP. Per la stessa ragione non
+chiede mai "che giorno è oggi?": quella data gliela passa qualcun altro.
+
+**In AmonHen:** `dedup.content_hash`, `matching.max_weight_matching`,
+`merchants.matching_rule`. Qui sta anche il compromesso della sezione 5.2: alcune regole,
+come `SPENDING_SQL`, sono scritte in SQL perché devono girare su migliaia di righe dentro
+il database. Restano "core" nel senso che contano: sono definite una volta sola.
+
+### 6.3 La persistenza: dove i dati sopravvivono
+
+**Cos'è:** il codice che salva e rilegge i nomi del dominio. È l'unico che sa che esiste
+SQLite.
+
+```python
+class Ledger:
+    def __init__(self, conn): self.conn = conn
+
+    def record(self, m: Movement) -> None:
+        if self._already_there(m):      # niente doppioni
+            return
+        self.conn.execute("INSERT INTO transactions ...", (...))
+
+    def movements(self, month: str) -> list[Movement]:
+        rows = self.conn.execute("SELECT ... WHERE date LIKE ?", (month + "%",))
+        return [Movement(...) for r in rows]
+```
+
+**Il motivo:** due ragioni.
+
+- **Le invarianti vivono qui.** "Mai lo stesso movimento due volte", "le posting sommano a
+  zero": se tutte le scritture passano da un punto solo, quel punto può garantirle. Se
+  dieci parti del programma scrivono `INSERT` per conto loro, ognuna deve ricordarsene, e
+  prima o poi una se ne dimentica.
+- **Il resto del programma non deve sapere com'è fatto lo schema.** Chi chiama
+  `ledger.movements("2026-11")` riceve dei `Movement`, non delle righe SQL. Se si aggiunge
+  una colonna, cambia questo file e basta.
+
+**In AmonHen:** `ledger.py` e `db.py`. Il difetto di oggi non è lo strato, è la
+dimensione: un solo `Ledger` fa dieci mestieri diversi.
+
+### 6.4 Le porte: cosa serve dal mondo esterno
+
+**Cos'è:** una descrizione, solo la firma, di un servizio che serve e che sta *fuori* dal
+programma. Non dice chi lo fa, dice cosa deve saper fare.
+
+```python
+class BankProvider(Protocol):
+    def fetch(self, account: str, since: dt.date) -> list[Movement]: ...
+
+class Clock(Protocol):
+    def today(self) -> dt.date: ...
+```
+
+**Il motivo:** il mondo esterno è la parte che non si controlla. La banca cambia API, va
+in limite di richieste, il consenso scade; l'orologio fa sì che un test passi a novembre e
+fallisca a dicembre. Una porta dice "a me basta questo". In produzione ci va la banca vera,
+nei test un finto che restituisce sempre gli stessi tre movimenti, e il codice che la usa
+non se ne accorge.
+
+La porta la scrive chi la *usa*, non chi la implementa. Per questo parla con i tipi del
+dominio (`Movement`, `RateLimited`) e non con quelli del fornitore (`requests.HTTPError`).
+
+**In AmonHen:** non esistono ancora come file. Ne servono quattro: la banca, l'LLM, la
+configurazione e l'orologio. Solo quattro, perché sono gli unici "fuori" veri.
+
+### 6.5 Gli adapter verso l'esterno: chi implementa le porte
+
+**Cos'è:** il codice concreto che parla con il servizio esterno e traduce le sue risposte
+nei nomi del dominio.
+
+```python
+class EnableBanking:                 # implementa BankProvider
+    def fetch(self, account, since):
+        raw = requests.get(...).json()         # JWT, paginazione, retry: affari suoi
+        return [normalize(r) for r in raw]     # payload della banca → Movement
+
+def parse_csv(path) -> list[Movement]:         # anche un formato di file è un adapter
+    ...
+```
+
+**Il motivo:** le stranezze del mondo esterno restano chiuse qui dentro. Fineco scrive la
+controparte dentro la causale, Revolut usa campi diversi: il resto del programma vede solo
+`Movement` puliti. Aggiungere una banca o un formato vuol dire scrivere un adapter nuovo,
+senza toccare niente al centro.
+
+**In AmonHen:** `providers/eb_normalize.py`, `adapters/csv_adapter.py` e
+`adapters/ofx_adapter.py`. Sono già la parte più pulita del codice.
+
+### 6.6 I casi d'uso: le frasi del sistema
+
+**Cos'è:** una funzione per ogni cosa che l'utente può *chiedere* al sistema. Mette
+insieme i pezzi precedenti nell'ordine giusto.
+
+```python
+def import_file(ledger: Ledger, movements: list[Movement]) -> ImportResult:
+    with ledger.unit_of_work():              # tutto o niente
+        for m in movements:
+            ledger.record(m)
+        apply_transfer_rules(ledger)         # sempre prima…
+        link_transfers(ledger)               # …dell'abbinamento
+        categorize(ledger)
+    return ImportResult(...)
+
+def month_spending(ledger: Ledger, clock: Clock) -> Decimal:
+    month = clock.today().strftime("%Y-%m")
+    return spent_in_month(ledger.movements(month), month)
+```
+
+**Il motivo:** ogni azione dell'utente è una *sequenza* di passi, e la sequenza è essa
+stessa una regola: in AmonHen le regole di giroconto vanno applicate prima
+dell'abbinamento. Se la sequenza è scritta in un posto solo, è giusta ovunque. Se ogni
+punto d'ingresso la ricostruisce a mano, le copie divergono, ed è quello che è successo:
+cinque copie e tre comportamenti diversi (sezione 2.2 a).
+
+Il caso d'uso non calcola (lo fa il core), non scrive SQL (lo fa il ledger) e non sa di
+essere chiamato da una pagina web. Coordina e basta.
+
+**In AmonHen:** `SyncService` è già fatto così. Il resto oggi è sparso dentro le route di
+`api.py` e i comandi di `cli.py`.
+
+### 6.7 Gli adapter d'ingresso: da dove arrivano le richieste
+
+**Cos'è:** il codice che riceve una richiesta dal mondo, cioè un click nell'app o un
+comando nel terminale, e la trasforma in una chiamata a un caso d'uso.
+
+```python
+# FastAPI
+@router.post("/api/import")
+def import_route(body: ImportRequest):
+    movements = parse_csv(body.path)
+    result = import_file(ledger, movements)
+    return {"written": result.written}
+
+# CLI
+def cmd_import(args):
+    result = import_file(ledger, parse_csv(args.file))
+    print(f"scritti {result.written}")
+```
+
+**Il motivo:** HTTP e terminale sono due modi diversi di chiedere *la stessa cosa*. Questo
+strato si occupa solo della forma: leggere il JSON, controllare che i campi ci siano,
+rispondere 409 invece di sollevare un'eccezione. Il "cosa fare" lo delega. Il segnale che
+funziona è che la route e il comando chiamano la stessa funzione e sono lunghi poche righe.
+
+**In AmonHen:** `api.py` e `cli.py`. Oggi sono lo strato più gonfio, perché fanno anche il
+lavoro della persistenza e dei casi d'uso.
+
+### 6.8 La composition root: dove si monta tutto
+
+**Cos'è:** l'unico punto del programma in cui si decide "stavolta la banca è quella vera,
+il database è questo file, l'orologio è quello di sistema". Crea gli oggetti concreti e li
+passa a chi ne ha bisogno.
+
+```python
+def create_app():
+    deps = Deps(
+        ledger=lambda: Ledger(sqlite3.connect("amonhen.db")),
+        bank=EnableBanking(config),
+        clock=SystemClock(),
+    )
+    app = FastAPI()
+    app.include_router(imports_router(deps))
+    return app
+```
+
+**Il motivo:** se ogni pezzo creasse da sé le cose che gli servono, non si potrebbero mai
+sostituire. Raccogliendo le scelte in un punto, un test chiama `create_app` con un `Deps`
+diverso (una banca finta, un database in memoria, un orologio fermo al 15 marzo) e prova
+il programma intero senza toccare la rete.
+
+**In AmonHen:** `create_app()` e `main()` della CLI. Ci sono già, ma oggi contengono anche
+tutte le route.
+
+### 6.9 Come si legge il tutto
+
+Gli strati in fila, dal centro verso il bordo:
+
+1. **Dominio:** di cosa parliamo.
+2. **Core:** come si ragiona su quelle cose.
+3. **Persistenza:** come le ricordiamo, e quali regole non si rompono mai.
+4. **Porte:** cosa ci serve dal mondo, detto con le nostre parole.
+5. **Adapter verso l'esterno:** chi ci dà quelle cose, tradotte.
+6. **Casi d'uso:** cosa può chiedere l'utente, passo per passo.
+7. **Adapter d'ingresso:** come l'utente lo chiede, dall'app o dal terminale.
+8. **Composition root:** chi monta i pezzi.
+
+Ogni strato conosce solo quelli più vicini al centro, mai quelli verso il bordo. Il
+dominio non sa niente di nessuno. Il core conosce il dominio. Il caso d'uso conosce core,
+persistenza e porte, ma non sa che esiste FastAPI. La route conosce il caso d'uso, ma non
+sa che esiste SQLite.
+
+**Partendo da zero, l'ordine in cui scrivere è lo stesso**, dal centro verso il bordo:
+
+1. prima le dataclass del dominio;
+2. poi le funzioni del core, ognuna con il suo test;
+3. poi il ledger;
+4. poi un caso d'uso, provato con una banca finta;
+5. solo alla fine la route e la pagina.
+
+Così ogni pezzo nuovo poggia su qualcosa di già testato, e la parte più fragile, il mondo
+esterno, è l'ultima ad arrivare.
