@@ -45,8 +45,11 @@ Tre idee, ognuna presa per quello che risolve qui:
 
 Il ledger resta quello che è: un **table data gateway con le invarianti dentro** — non un
 repository astratto — e va solo spezzato per sotto-dominio. In gergo è un "esagonale
-leggero" o *pragmatic clean architecture*: le dipendenze puntano verso l'interno, ma
-l'interno include SQL.
+leggero" o *pragmatic clean architecture*. Il ledger è comunque un adapter: parla con un
+sistema esterno, il database, e sta sul bordo come quello di Enable Banking. Le dipendenze
+puntano verso l'interno con **una sola eccezione voluta**: i casi d'uso usano il ledger
+concreto, senza una porta in mezzo (il motivo è nella sezione 5.2, la versione canonica
+nella sezione 6.3).
 
 ## 2. Il codice di oggi
 
@@ -179,9 +182,11 @@ amonhen/
     cli.py
 ```
 
-La regola delle dipendenze: `entrypoints → services → (ledger, core, ports)`,
+La regola delle dipendenze: `entrypoints → services → (core, ports)`,
 `adapters → ports, core`. `core` non importa niente del progetto tranne sé stesso; un
-`services/*` non importa mai `fastapi`; una route non scrive SQL.
+`services/*` non importa mai `fastapi`; una route non scrive SQL. L'eccezione è
+`services → ledger`: il ledger è un adapter verso il database, e i servizi lo usano
+direttamente invece che attraverso una porta.
 
 ### 3.2 I tre pezzi che contano
 
@@ -316,14 +321,19 @@ verso l'interno. Il centro non sa che esistono FastAPI, SQLite, Enable Banking o
 Tutto il resto serve a rispettare questa legge.
 
 ```
-      [ FastAPI ]   [ CLI ]                ← adapter primari (chi chiama)
+      [ FastAPI ]   [ CLI ]                       ← adapter primari (chi chiama)
             \         /
-        [ casi d'uso / servizi ]           ← orchestrazione
-            /        |        \
-      [ core puro ] [ ledger ]  [ porte ]  ← dominio + persistenza + contratti
-                                   |
-               [ Enable Banking ] [ LLM ] [ accounts.json ] [ orologio ]   ← adapter secondari (chi viene chiamato)
+        [ casi d'uso / servizi ]                  ← orchestrazione
+            /                \
+      [ core puro ]       [ porte ]               ← dominio + contratti
+                              |
+   [ ledger SQLite ] [ Enable Banking ] [ LLM ] [ accounts.json ] [ orologio ]
+                                                  ← adapter secondari (chi viene chiamato)
 ```
+
+Il ledger sta fra gli adapter secondari: è il codice che parla con un sistema esterno, il
+database. In AmonHen i casi d'uso lo raggiungono senza passare da una porta: è l'unica
+freccia che salta l'anello delle porte, ed è voluta (sezione 5.2).
 
 ### 5.1 Cosa si applica
 
@@ -375,9 +385,11 @@ con metodi (vedi più sotto, *Il rich domain model*).
 
 #### 3. La persistenza: il ledger come *table data gateway*
 
-**Cos'è:** lo strato che parla con SQLite. Nell'esagonale da manuale sarebbe un adapter
-secondario dietro un'interfaccia `Repository`; qui quell'interfaccia non c'è (il motivo
-è più sotto). Il ledger resta un modulo concreto, ma con confini netti.
+**Cos'è:** il codice che parla con SQLite. È un adapter secondario, sul bordo come quello
+della banca: il database è un sistema esterno. Nell'esagonale da manuale starebbe dietro
+un'interfaccia `Repository`; qui quell'interfaccia non c'è (il motivo è più sotto), quindi
+i casi d'uso lo usano direttamente. Il ledger resta un modulo concreto, ma con confini
+netti.
 
 **Responsabilità:**
 
@@ -697,35 +709,87 @@ il database. Restano "core" nel senso che contano: sono definite una volta sola.
 
 ### 6.3 La persistenza: dove i dati sopravvivono
 
-**Cos'è:** il codice che salva e rilegge i nomi del dominio. È l'unico che sa che esiste
-SQLite.
+Qui bisogna distinguere due cose:
+
+- **il database** (il motore SQLite, il file `amonhen.db`) è infrastruttura: non sta in
+  nessuno strato del codice, sta fuori, come i server di Enable Banking;
+- **il codice di persistenza** (le query, la traduzione da righe a `Movement`) è un
+  **adapter**: sta sul bordo, accanto a quello della banca.
+
+#### La versione canonica: una porta e un adapter
+
+Nell'esagonale da manuale il centro dichiara cosa gli serve, con le sue parole, e un
+adapter sul bordo lo implementa con SQLite:
 
 ```python
-class Ledger:
+# core/ports.py: lo scrive il centro
+class MovementRepository(Protocol):
+    def add(self, m: Movement) -> None: ...
+    def exists(self, m: Movement) -> bool: ...
+    def in_month(self, month: str) -> list[Movement]: ...
+
+# adapters/sqlite_repository.py: sta sul bordo
+class SqliteMovementRepository:              # implementa MovementRepository
+    def __init__(self, conn): self.conn = conn
+    def add(self, m): self.conn.execute("INSERT INTO transactions ...", (...))
+    def exists(self, m): ...
+    def in_month(self, month):
+        rows = self.conn.execute("SELECT ... WHERE date LIKE ?", (month + "%",))
+        return [Movement(...) for r in rows]
+
+# il caso d'uso conosce la porta, non SQLite
+def import_file(repo: MovementRepository, movements: list[Movement]) -> ImportResult:
+    for m in movements:
+        if not repo.exists(m):               # l'invariante la decide il centro
+            repo.add(m)
+    ...
+```
+
+**Il motivo:**
+
+- **Il centro non dipende dal database.** Il caso d'uso si testa con un repository finto
+  fatto di una lista in memoria, e cambiare database vuol dire scrivere un adapter nuovo
+  senza toccare il centro.
+- **Le invarianti le possiede il dominio.** "Mai lo stesso movimento due volte" è una
+  regola del centro; il database al massimo la ribadisce con `UNIQUE` e `CHECK`, come
+  seconda rete.
+- **Il resto del programma non sa com'è fatto lo schema.** Riceve dei `Movement`, non
+  delle righe SQL: se si aggiunge una colonna, cambia l'adapter e basta.
+
+#### La scelta di AmonHen: l'adapter senza la porta
+
+In AmonHen la porta `MovementRepository` non c'è (sezione 5.2): i casi d'uso usano
+direttamente il `Ledger`, che è l'adapter SQLite.
+
+```python
+class Ledger:                                # adapter verso SQLite, usato senza porta
     def __init__(self, conn): self.conn = conn
 
     def record(self, m: Movement) -> None:
-        if self._already_there(m):      # niente doppioni
+        if self._already_there(m):           # l'invariante sta qui, in SQL
             return
         self.conn.execute("INSERT INTO transactions ...", (...))
-
-    def movements(self, month: str) -> list[Movement]:
-        rows = self.conn.execute("SELECT ... WHERE date LIKE ?", (month + "%",))
-        return [Movement(...) for r in rows]
 ```
 
-**Il motivo:** due ragioni.
+È una **violazione consapevole della regola delle dipendenze**: un caso d'uso dipende da
+un adapter. La si accetta perché:
 
-- **Le invarianti vivono qui.** "Mai lo stesso movimento due volte", "le posting sommano a
-  zero": se tutte le scritture passano da un punto solo, quel punto può garantirle. Se
-  dieci parti del programma scrivono `INSERT` per conto loro, ognuna deve ricordarsene, e
-  prima o poi una se ne dimentica.
-- **Il resto del programma non deve sapere com'è fatto lo schema.** Chi chiama
-  `ledger.movements("2026-11")` riceve dei `Movement`, non delle righe SQL. Se si aggiunge
-  una colonna, cambia questo file e basta.
+- **SQLite non verrà sostituito**: è una scelta di prodotto (un file, uno snapshot, il
+  NAS), e la porta avrebbe un'implementazione sola per sempre;
+- **le invarianti di AmonHen sono insiemistiche**: "esiste già nello storico?", "questa
+  gamba è già in una coppia?", "le posting sommano a zero?" si risolvono bene solo dentro
+  il database, e la porta dovrebbe esporre un metodo per ogni domanda;
+- **alcune regole sono scritte in SQL** (`SPENDING_SQL`): con la porta dovrebbero vivere
+  nell'adapter, cioè una regola di business sul bordo, oppure essere riscritte in Python,
+  cioè due definizioni.
 
-**In AmonHen:** `ledger.py` e `db.py`. Il difetto di oggi non è lo strato, è la
-dimensione: un solo `Ledger` fa dieci mestieri diversi.
+Costa due cose: i casi d'uso si testano con un SQLite in memoria vero invece che con un
+finto, e cambiare database vorrebbe dire toccare anche i casi d'uso. Si passa alla versione
+canonica se arriva un secondo motore (Postgres) o se i test dei casi d'uso diventano lenti
+per colpa del database.
+
+**In AmonHen:** `ledger.py` e `db.py`. Il difetto di oggi non è la mancanza della porta,
+è la dimensione: un solo `Ledger` fa dieci mestieri diversi.
 
 ### 6.4 Le porte: cosa serve dal mondo esterno
 
@@ -862,29 +926,39 @@ tutte le route.
 
 ### 6.9 Come si legge il tutto
 
-Gli strati in fila, dal centro verso il bordo:
+Le sezioni 6.1-6.8 seguono l'ordine in cui nasce il bisogno di ogni pezzo. Disposti per
+anelli, dal centro verso il bordo, gli strati sono:
 
-1. **Dominio:** di cosa parliamo.
-2. **Core:** come si ragiona su quelle cose.
-3. **Persistenza:** come le ricordiamo, e quali regole non si rompono mai.
-4. **Porte:** cosa ci serve dal mondo, detto con le nostre parole.
-5. **Adapter verso l'esterno:** chi ci dà quelle cose, tradotte.
-6. **Casi d'uso:** cosa può chiedere l'utente, passo per passo.
-7. **Adapter d'ingresso:** come l'utente lo chiede, dall'app o dal terminale.
-8. **Composition root:** chi monta i pezzi.
+1. **Il centro.**
+   - **Dominio:** di cosa parliamo.
+   - **Core:** come si ragiona su quelle cose, e quali regole non si rompono mai.
+2. **L'anello intermedio.**
+   - **Casi d'uso:** cosa può chiedere l'utente, passo per passo.
+   - **Porte:** cosa ci serve dal mondo, detto con le nostre parole.
+3. **Il bordo, gli adapter.**
+   - **Adapter d'ingresso:** come l'utente lo chiede, dall'app o dal terminale.
+   - **Adapter verso l'esterno:** chi ci dà quello che serve, tradotto: la persistenza su
+     SQLite, Enable Banking, l'LLM, il file di configurazione, l'orologio.
+4. **Fuori da tutto, la composition root:** chi monta i pezzi. È l'unica che conosce ogni
+   strato, perché è lei a scegliere quale adapter va dietro quale porta.
 
 Ogni strato conosce solo quelli più vicini al centro, mai quelli verso il bordo. Il
-dominio non sa niente di nessuno. Il core conosce il dominio. Il caso d'uso conosce core,
-persistenza e porte, ma non sa che esiste FastAPI. La route conosce il caso d'uso, ma non
-sa che esiste SQLite.
+dominio non sa niente di nessuno. Il core conosce il dominio. Il caso d'uso conosce core e
+porte, ma non sa che esiste FastAPI. La route conosce il caso d'uso, ma non sa che esiste
+SQLite. Un adapter verso l'esterno conosce la porta che implementa e i tipi del dominio.
 
-**Partendo da zero, l'ordine in cui scrivere è lo stesso**, dal centro verso il bordo:
+**L'eccezione di AmonHen** è una sola freccia: i casi d'uso conoscono il `Ledger`, un
+adapter, senza passare da una porta (sezione 6.3).
+
+**Partendo da zero, l'ordine in cui scrivere va dal centro verso il bordo:**
 
 1. prima le dataclass del dominio;
 2. poi le funzioni del core, ognuna con il suo test;
-3. poi il ledger;
-4. poi un caso d'uso, provato con una banca finta;
-5. solo alla fine la route e la pagina.
+3. poi le porte e un caso d'uso, provato con un repository e una banca finti;
+4. poi gli adapter verso l'esterno: il repository SQLite, il client della banca;
+5. solo alla fine la route e la pagina, e la composition root che le monta.
 
-Così ogni pezzo nuovo poggia su qualcosa di già testato, e la parte più fragile, il mondo
-esterno, è l'ultima ad arrivare.
+Così ogni pezzo nuovo poggia su qualcosa di già testato, e il mondo esterno, la parte più
+fragile, è l'ultimo ad arrivare. Nella variante di AmonHen, senza la porta verso il
+database, il ledger si scrive prima del caso d'uso, e il caso d'uso si prova con un SQLite
+in memoria.
