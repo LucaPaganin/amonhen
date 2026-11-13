@@ -46,6 +46,10 @@ def _env_str(name: str, default: str) -> str:
 DB_PATH = _env_path("DB_PATH", ROOT / "amonhen.db")
 CONFIG_FILE = _env_path("CONFIG_FILE", ROOT / "accounts.json")
 EB_API = _env_str("EB_API", "https://api.enablebanking.com")
+# Which bank the sync speaks to: `enable_banking`, or `csv` — a stub that reads one
+# CSV file per account from CSV_BANK_DIR (amonhen/adapters/csv_bank.py).
+BANK_PROVIDER = _env_str("BANK_PROVIDER", "enable_banking")
+CSV_BANK_DIR = _env_path("CSV_BANK_DIR", ROOT / "dumps" / "csv-bank")
 SYNC_INTERVAL_HOURS = int(_env_str("SYNC_INTERVAL_HOURS", "6"))
 
 # HTTP API and PWA host (phase 2). The API has no authentication, so it binds

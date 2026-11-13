@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from amonhen import settings
+from amonhen.adapters.csv_bank import CsvBankProvider
 from amonhen.adapters.enable_banking import EnableBankingClient, EnableBankingProvider
 from amonhen.config import MonitorConfig
 from amonhen.ports.bank import BankProvider
@@ -36,8 +38,17 @@ def enable_banking_client(config: MonitorConfig) -> EnableBankingClient:
 
 
 def bank_provider(config: MonitorConfig) -> BankProvider:
-    """The bank the sync and the `balances` command speak to."""
-    return EnableBankingProvider(enable_banking_client(config), own_names=config.own_names)
+    """The bank the sync and the `balances` command speak to.
+
+    `AMONHEN_BANK_PROVIDER` chooses it, read once at start like every setting.
+    An unknown name is a `ValueError`, which the callers report as "cannot sync".
+    """
+    kind = settings.BANK_PROVIDER
+    if kind == "enable_banking":
+        return EnableBankingProvider(enable_banking_client(config), own_names=config.own_names)
+    if kind == "csv":
+        return CsvBankProvider(settings.CSV_BANK_DIR)
+    raise ValueError(f"unknown bank provider {kind!r}: enable_banking or csv")
 
 
 def bank_factory() -> BankFactory:

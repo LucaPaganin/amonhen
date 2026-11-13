@@ -20,6 +20,12 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   use the client from the composition root and still read its `requests` errors. Tests
   replace the bank at the same seams: `app.dependency_overrides[bank_factory]`,
   `cli.bank_provider`, or `tests/memory_bank.py`, which implements the port in memory.
+  A second bank is one adapter and one branch in `composition.bank_provider`:
+  `amonhen/adapters/csv_bank.py` is a stub that reads one CSV file per account uid from
+  `AMONHEN_CSV_BANK_DIR` when `AMONHEN_BANK_PROVIDER=csv`, and the sync, the routes and the
+  commands take it unchanged. What the port does not hide is the ledger's vocabulary for
+  balances: `ledger.bank_balance_source` writes `eb:<TYPE>` and section 5.4 of the spec
+  lists Enable Banking's types, so any provider has to speak those types to be checked.
 
 - **A period is a sync of one account, and it moves no cursor.** `SyncService.run_period`
   (`amonhen sync --account --from --to [--preview]`, `POST /api/sync/period`, the
