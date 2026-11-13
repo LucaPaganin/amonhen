@@ -10,7 +10,7 @@ from pathlib import Path
 import responses as responses_lib
 from fastapi.testclient import TestClient
 
-import amonhen.providers.enable_banking as provider
+import amonhen.adapters.enable_banking.client as provider
 from amonhen.api import create_app
 from amonhen.db import open_ledger_db
 from amonhen.ledger import Ledger

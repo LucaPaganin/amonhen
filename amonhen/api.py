@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Iterator, Literal
 
 import requests
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -87,13 +87,14 @@ from amonhen.metrics import (
     spending_statistics,
 )
 from amonhen.models import Account, format_decimal, parse_decimal
-from amonhen.providers.enable_banking import (
+from amonhen.adapters.enable_banking.client import (
     ConsentExpiredError,
     EnableBankingClient,
     refusal_code,
     refusal_detail,
     session_accounts,
 )
+from amonhen.composition import BankFactory, bank_factory, enable_banking_client
 from amonhen.services.ingest import settle_after_ingest
 from amonhen.settings import CONFIG_FILE, CREDITS_REVIEW_FROM, DB_PATH, UNCATEGORIZED, VERSION
 from amonhen.suggestions import propose_for_unseen
@@ -206,14 +207,6 @@ def _suggested_name(client: EnableBankingClient, account_uid: str | None, bank: 
     if details.get("currency"):
         parts.append(str(details["currency"]))
     return " ".join(parts)
-
-
-def _client(config) -> EnableBankingClient:
-    return EnableBankingClient(
-        application_id=config.application_id,
-        pem_path=config.pem_path,
-        redirect_url=config.redirect_url,
-    )
 
 
 class CategoryRequest(BaseModel):
@@ -527,7 +520,7 @@ def create_app(
         same tab, because the return has to land inside the app.
         """
         config = credentials_or_409()
-        client = _client(config)
+        client = enable_banking_client(config)
         try:
             state, valid_until, url = client.start_auth(bank, country, psu_type)
         except requests.HTTPError as exc:
@@ -566,7 +559,7 @@ def create_app(
             if request.get("state") != state:
                 raise HTTPException(status_code=400, detail="the authorization state does not match")
             config = credentials_or_409()
-            client = _client(config)
+            client = enable_banking_client(config)
             try:
                 session = client.complete_auth(code, state)
             except requests.HTTPError as exc:
@@ -681,7 +674,7 @@ def create_app(
         """
         config = credentials_or_409()
         try:
-            banks = _client(config).list_banks()
+            banks = enable_banking_client(config).list_banks()
         except (requests.HTTPError, ConsentExpiredError) as exc:
             # The client reports a refused credential two ways — an HTTPError
             # from a status code, a ConsentExpiredError from 401/403 — and both
@@ -1881,7 +1874,7 @@ def create_app(
             return {"applied": categorize(ledger, RuleBook(ledger.conn))}
 
     @app.post("/api/sync")
-    def run_sync() -> dict:
+    def run_sync(make_bank: BankFactory = Depends(bank_factory)) -> dict:
         """Fetch every configured account now, and answer with what it wrote.
 
         Synchronous on purpose: the caller asked for this run, and the answer is
@@ -1891,18 +1884,20 @@ def create_app(
         """
         try:
             config = load_config(config_path)
-            client = _client(config)
+            bank = make_bank(config)
         except (OSError, KeyError, ValueError) as exc:
             raise HTTPException(status_code=503, detail=f"cannot sync: {exc}")
         with ledger_scope() as ledger:
             try:
-                result = SyncService(ledger, client, config).run()
+                result = SyncService(ledger, bank, config).run()
             except SyncBusy as exc:
                 raise HTTPException(status_code=409, detail=str(exc))
             return _sync_payload(ledger, result)
 
     @app.post("/api/sync/period")
-    def run_period_sync(body: PeriodSyncRequest) -> dict:
+    def run_period_sync(
+        body: PeriodSyncRequest, make_bank: BankFactory = Depends(bank_factory)
+    ) -> dict:
         """One account over the period asked, window by window, or its preview.
 
         The period is refused with 422 before the bank is asked, and a run
@@ -1922,10 +1917,10 @@ def create_app(
                 )
             try:
                 config = load_config(config_path)
-                client = _client(config)
+                bank = make_bank(config)
             except (OSError, KeyError, ValueError) as exc:
                 raise HTTPException(status_code=503, detail=f"cannot sync: {exc}")
-            service = SyncService(ledger, client, config)
+            service = SyncService(ledger, bank, config)
             try:
                 result = service.run_period(
                     account["name"], date_from, date_to, preview=body.preview

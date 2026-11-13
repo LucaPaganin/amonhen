@@ -1,8 +1,8 @@
 # Architettura del backend — valutazione e forma di arrivo
 
 Novembre 2026, sul `main` a `d2f7aa6`. È una valutazione, non una regola: nessun
-requisito della specifica cambia. Del lavoro descritto nella sezione 3.4 è fatto il
-passo 1 (`amonhen/services/ingest.py`); il resto non è ancora nel codice, e le sezioni 2
+requisito della specifica cambia. Del lavoro descritto nella sezione 3.4 sono fatti il
+passo 1 (`amonhen/services/ingest.py`) e la porta della banca del passo 2; il resto non è ancora nel codice, e le sezioni 2
 e 2.3 descrivono il codice com'era prima di quel passo.
 
 ## 1. Quale pattern
@@ -291,7 +291,11 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
    un altro conto la abbina e la toglie dal conto della regola. Escludere le gambe con un
    lato virtuale non basta, perché anche il passthrough le mette lì e un abbinamento vero
    deve poterlo battere: va deciso cosa distingue la gamba di una regola.
-2. **`Clock` e `BankProvider`** come `Protocol`, le eccezioni tradotte nell'adapter. *Piccolo.*
+2. **`Clock` e `BankProvider`** come `Protocol`, le eccezioni tradotte nell'adapter. *Piccolo.* **`BankProvider` fatto:**
+   `amonhen/ports/bank.py`, l'adapter in `amonhen/adapters/enable_banking/provider.py`, la
+   composition root in `amonhen/composition.py` (con `Depends` per FastAPI), il banco in
+   memoria in `tests/memory_bank.py`. Il flusso di consenso è rimasto fuori dalla porta,
+   di proposito (`docs/sync-and-banks.md`). `Clock` resta da fare.
 3. **`api.py` in router per sezione**, con `Deps` come composition root; le 22 query
    degli handler scendono in `ledger/queries.py`. Meccanico, coperto dai test dell'API.
    *Medio.*

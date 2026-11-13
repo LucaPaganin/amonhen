@@ -48,7 +48,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 ## Architecture in one line
 
-`sync`/`import` → normalizers (`providers/`, `adapters/`) → `IncomingTransaction`
+`sync`/`import` → normalizers (`adapters/enable_banking/` behind `ports.bank.BankProvider`, `adapters/`) → `IncomingTransaction`
 → `Ledger.record` (dedup + pending→booked) → postings in SQLite →
 `services.ingest.settle_after_ingest` (`merchants.apply_transfer_rules` → `transfers.link_transfers` → passthrough → `validate` → `categorize`) → `spend_between` / `balance` / `check_balance`.
 
@@ -75,8 +75,12 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
 |`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, statistics, dashboard series, first setup) and PWA host; `/callback` answers 303 to `/?setup=1`|
 |`amonhen/backup.py`|`make_snapshot`: a dated snapshot of the living ledger (SQLite's backup API, not a file copy) plus the configuration it needs, a manifest, and the retention that keeps it bounded|
-|`amonhen/providers/enable_banking.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances)|
-|`amonhen/providers/eb_normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` (pure)|
+|`amonhen/ports/bank.py`|`BankProvider`, the port the sync speaks to a bank through: its operations, its data types and its three errors, none of them Enable Banking's|
+|`amonhen/composition.py`|The composition root: the only place a bank client or provider is built (`bank_provider`, `enable_banking_client`, and `bank_factory` for FastAPI's `Depends`)|
+|`amonhen/adapters/enable_banking/client.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances, the consent flow)|
+|`amonhen/adapters/enable_banking/normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` / `BankAccount` / `DeclaredBalance` (pure)|
+|`amonhen/adapters/enable_banking/provider.py`|`EnableBankingProvider`: the port implemented over the client, translating data and errors|
+|`tests/memory_bank.py`|`MemoryBank`: the port implemented in memory, for tests of the sync alone|
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
@@ -119,7 +123,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
 |`api`|`create_app`|
 |`backup`|`Snapshot`, `make_snapshot`|
-|`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `session_accounts`, `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`|
+|`ports.bank`|`BankProvider`, `BankAccount`, `DeclaredBalance`, `FetchedWindow`, `BankError`, `ConsentExpired`, `RateLimited`, `BankUnavailable`|
+|`composition`|`bank_provider`, `enable_banking_client`, `bank_factory`, `BankFactory`|
+|`adapters.enable_banking`|`EnableBankingClient` (`fetch_transaction_windows` → its own `FetchedWindow` of raw payloads), `EnableBankingProvider`, `session_accounts`, `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`; `normalize.describe`, `bank_account`, `declared_balances`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
 |`cli`|`main`, `build_parser`|
 
