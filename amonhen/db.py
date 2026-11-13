@@ -602,7 +602,7 @@ def _describe_bare_codes(conn: sqlite3.Connection) -> None:
     """
     from amonhen.dedup import content_hash
     from amonhen.models import parse_decimal
-    from amonhen.providers.eb_normalize import _description
+    from amonhen.adapters.enable_banking.normalize import describe
 
     rows = conn.execute(
         """SELECT id, account_id, date, amount, description, content_hash, counterparty, raw_payload
@@ -615,7 +615,7 @@ def _describe_bare_codes(conn: sqlite3.Connection) -> None:
             raw = json.loads(row["raw_payload"])
         except ValueError:
             continue
-        description = _description(raw, row["counterparty"] or "")
+        description = describe(raw, row["counterparty"] or "")
         if description == row["description"]:
             continue
         digest = content_hash(

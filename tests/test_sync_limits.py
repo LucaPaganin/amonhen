@@ -9,10 +9,11 @@ from amonhen.config import ConfiguredAccount, MonitorConfig
 from amonhen.db import open_ledger_db
 from amonhen.ledger import Ledger
 from amonhen.merchants import RuleBook
+from amonhen.adapters.enable_banking.client import RateLimitedError
 from amonhen.models import Account
-from amonhen.providers.enable_banking import RateLimitedError
-from amonhen.sync import SyncService, sync_limit
+from amonhen.sync import sync_limit
 from amonhen.transfers import link_transfers
+from test_sync_service import sync_service
 
 TODAY = dt.date(2026, 9, 12)
 TEXT = "From Conto di prova"
@@ -85,7 +86,7 @@ def ledger(tmp_path):
 
 
 def service(ledger, bank, *names):
-    return SyncService(ledger, bank, config(*names), today=TODAY)
+    return sync_service(ledger, bank, config(*names), today=TODAY)
 
 
 def mirrors(ledger):

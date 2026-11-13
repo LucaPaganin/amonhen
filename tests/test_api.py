@@ -1879,7 +1879,8 @@ def app_with_a_fake_bank(tmp_path, monkeypatch, transactions=()):
     """
     from test_sync_service import FakeClient
 
-    from amonhen import api as api_module
+    from amonhen.adapters.enable_banking import EnableBankingProvider
+    from amonhen.composition import bank_factory
 
     config = tmp_path / "accounts.json"
     config.write_text(
@@ -1904,10 +1905,13 @@ def app_with_a_fake_bank(tmp_path, monkeypatch, transactions=()):
         encoding="utf-8",
     )
     fake = FakeClient(list(transactions))
-    monkeypatch.setattr(api_module, "_client", lambda _config: fake)
-    client = TestClient(
-        create_app(tmp_path / "ledger.db", web_dist=tmp_path / "missing", config_path=config)
+    app = create_app(tmp_path / "ledger.db", web_dist=tmp_path / "missing", config_path=config)
+    # The composition root's own seam: the route asks for a bank factory, and the
+    # test answers with the real adapter over a client that never leaves memory.
+    app.dependency_overrides[bank_factory] = lambda: (
+        lambda cfg: EnableBankingProvider(fake, own_names=cfg.own_names)
     )
+    client = TestClient(app)
     return client, fake
 
 

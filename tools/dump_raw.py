@@ -18,17 +18,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from amonhen.adapters.enable_banking.client import ConsentExpiredError, EnableBankingClient
+from amonhen.composition import enable_banking_client
 from amonhen.config import load_config
-from amonhen.providers.enable_banking import ConsentExpiredError, EnableBankingClient
 from amonhen.settings import CONFIG_FILE
-
-
-def build_client(config) -> EnableBankingClient:
-    return EnableBankingClient(
-        application_id=config.application_id,
-        pem_path=config.pem_path,
-        redirect_url=config.redirect_url,
-    )
 
 
 def slug(text: str) -> str:
@@ -112,7 +105,8 @@ def main() -> None:
             if not accounts:
                 sys.exit(f"account {args.account} not found")
 
-    client = build_client(config)
+    # The raw payloads are the point here, so the client itself, not the port.
+    client = enable_banking_client(config)
     out_dir = Path(args.out)
     date_to = dt.date.fromisoformat(args.date_to) if args.date_to else dt.date.today()
 

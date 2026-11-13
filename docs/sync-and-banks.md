@@ -2,11 +2,37 @@
 
 Part of what `CLAUDE.md` says before changing code. A rule that changes changes here, in the same change as the code.
 
+- **The sync speaks to a bank through a port, and only the composition root picks
+  which.** `amonhen/ports/bank.py` is `BankProvider`: connected accounts, an account's
+  details, movements (all or nothing, or window by window), declared balances, and three
+  errors — `ConsentExpired`, `RateLimited`, `BankUnavailable` — all in the application's
+  types: `IncomingTransaction`, `BankAccount`, `DeclaredBalance`, `FetchedWindow`.
+  `SyncService` and the `balances` command import nothing from Enable Banking and nothing
+  from `requests`. `amonhen/adapters/enable_banking/` is the one implementation: `client.py`
+  speaks the HTTP API, `normalize.py` reads its JSON, and `provider.py`
+  (`EnableBankingProvider`) implements the port and translates, errors included, keeping
+  the provider's words because the app shows them. `amonhen/composition.py` is the only
+  place a client or a provider is built: the API asks for `bank_factory` with `Depends`,
+  the CLI calls `bank_provider`, and a provider lives for one run because `accounts.json`
+  can change under a running server. The consent flow (`/connect`, `/callback`, the
+  wizard's *Banca* step) is outside the port on purpose — it is the most provider-specific
+  part, and a port drawn from one provider's redirects would be a guess — so those routes
+  use the client from the composition root and still read its `requests` errors. Tests
+  replace the bank at the same seams: `app.dependency_overrides[bank_factory]`,
+  `cli.bank_provider`, or `tests/memory_bank.py`, which implements the port in memory.
+  A second bank is one adapter and one branch in `composition.bank_provider`:
+  `amonhen/adapters/csv_bank.py` is a stub that reads one CSV file per account uid from
+  `AMONHEN_CSV_BANK_DIR` when `AMONHEN_BANK_PROVIDER=csv`, and the sync, the routes and the
+  commands take it unchanged. What the port does not hide is the ledger's vocabulary for
+  balances: `ledger.bank_balance_source` writes `eb:<TYPE>` and section 5.4 of the spec
+  lists Enable Banking's types, so any provider has to speak those types to be checked.
+
 - **A period is a sync of one account, and it moves no cursor.** `SyncService.run_period`
   (`amonhen sync --account --from --to [--preview]`, `POST /api/sync/period`, the
   *Sincronizza un periodo* action in an account's panel) checks the period before the
   lock and the bank — `PeriodInvalid`, a 422 — and then takes the same lock as `run`.
-  `EnableBankingClient.fetch_transaction_windows` answers one `FetchedWindow` per window
+  `EnableBankingClient.fetch_transaction_windows` (through the port's `transaction_windows`)
+  answers one `FetchedWindow` per window
   with its movements or its error: a 400/422 is read as the bank refusing the range and
   halves the width (down to one day, and the narrower width holds for the rest of the
   period), anything else fails that window alone, and a dead consent raises because
@@ -46,7 +72,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
 - **A 429 ends the account, not the sync.** `EnableBankingClient._get` tries three
   times (5 and 10 seconds), obeys a `Retry-After` up to 60 and gives up at once on a
   longer one, then raises `RateLimitedError`, an `HTTPError` carrying the bank's words,
-  which are also logged. It used to wait 75 seconds per call and sit through a third
+  which are also logged; the adapter hands it on as the port's `RateLimited`. It used to wait 75 seconds per call and sit through a third
   useless pause on a daily quota: two calls held the whole run for 2.5 minutes, with the
   rules unapplied behind them. `_sync_account` asks nothing else of that account, the
   period stops at the window it hit, and `sync_limit` (settings `sync:limited:<id>`,
@@ -136,7 +162,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   browser sends the statement as text — JSON, capped at 8 MB, because the repo has no multipart — plus
   the columns a person picked; `amonhen/csv_import.py` turns that mapping into a `CsvProfile`, so a
   bank layout is data rather than a constant, and the rows go through the same `read_csv` →
-  `record_batch` → `link_transfers` → `categorize` path as `amonhen import`. Idempotency is the
+  `record_batch` → `settle_after_ingest` path as `amonhen import` and the sync. Idempotency is the
   content hash, so importing the same file twice writes nothing. One deliberate difference from
   `parse_csv`: a row that does not read is reported with its line (and the parser's own English
   sentence) instead of refusing the whole file. A description is passed through

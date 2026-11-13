@@ -48,9 +48,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 ## Architecture in one line
 
-`sync`/`import` → normalizers (`providers/`, `adapters/`) → `IncomingTransaction`
+`sync`/`import` → normalizers (`adapters/enable_banking/` behind `ports.bank.BankProvider`, `adapters/`) → `IncomingTransaction`
 → `Ledger.record` (dedup + pending→booked) → postings in SQLite →
-`merchants.apply_transfer_rules` → `transfers.link_transfers` → `spend_between` / `balance` / `check_balance`.
+`services.ingest.settle_after_ingest` (`merchants.apply_transfer_rules` → `transfers.link_transfers` → passthrough → `validate` → `categorize`) → `spend_between` / `balance` / `check_balance`.
 
 ## File map
 
@@ -62,6 +62,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
+|`amonhen/services/ingest.py`|`settle_after_ingest`: what follows every write of movements — transfer rules, pairing, passthrough, the double-entry check, the rules — in that order, called by the sync, the import and a held movement written by hand|
 |`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `run_period` is one account over a chosen period, window by window; `SyncBusy` is the process-wide guard on one run at a time|
 |`amonhen/transfers.py`|Transfer candidate graph, weights, link review state|
 |`amonhen/matching.py`|Exact maximum-weight bipartite matching (Hungarian)|
@@ -74,8 +75,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
 |`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, statistics, dashboard series, first setup) and PWA host; `/callback` answers 303 to `/?setup=1`|
 |`amonhen/backup.py`|`make_snapshot`: a dated snapshot of the living ledger (SQLite's backup API, not a file copy) plus the configuration it needs, a manifest, and the retention that keeps it bounded|
-|`amonhen/providers/enable_banking.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances)|
-|`amonhen/providers/eb_normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` (pure)|
+|`amonhen/ports/bank.py`|`BankProvider`, the port the sync speaks to a bank through: its operations, its data types and its three errors, none of them Enable Banking's|
+|`amonhen/composition.py`|The composition root: the only place a bank client or provider is built (`bank_provider`, `enable_banking_client`, and `bank_factory` for FastAPI's `Depends`)|
+|`amonhen/adapters/enable_banking/client.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances, the consent flow)|
+|`amonhen/adapters/enable_banking/normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` / `BankAccount` / `DeclaredBalance` (pure)|
+|`amonhen/adapters/enable_banking/provider.py`|`EnableBankingProvider`: the port implemented over the client, translating data and errors|
+|`amonhen/adapters/csv_bank.py`|`CsvBankProvider`: a stub second bank behind the same port, one CSV file per account (`AMONHEN_BANK_PROVIDER=csv`, `AMONHEN_CSV_BANK_DIR`), written to measure what a second provider costs|
+|`tests/memory_bank.py`|`MemoryBank`: the port implemented in memory, for tests of the sync alone|
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
 |`amonhen/adapters/ofx_adapter.py`|OFX 1.x SGML and 2.x XML import|
@@ -100,12 +106,13 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 
 |Module|Public surface|
 |---|---|
-|`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`, `CREDITS_REVIEW_FROM`, `TRANSFER_MAX_GAP_DAYS`, `MANUAL_PAIR_MAX_GAP_DAYS`|
+|`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `BANK_PROVIDER`, `CSV_BANK_DIR`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`, `CREDITS_REVIEW_FROM`, `TRANSFER_MAX_GAP_DAYS`, `MANUAL_PAIR_MAX_GAP_DAYS`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
 |`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
 |`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `set_unreported_funding`, `unrecognized_balances`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `COUNTED_SOURCES_SQL`, `UNRECOGNIZED_SOURCES_SQL`, `bank_balance_source`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
+|`services.ingest`|`settle_after_ingest`, `Settled`|
 |`sync`|`SyncService` (with `settle`, `due_in`), `sync_limit`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
@@ -117,7 +124,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
 |`api`|`create_app`|
 |`backup`|`Snapshot`, `make_snapshot`|
-|`providers`|`EnableBankingClient` (`fetch_transaction_windows` → `FetchedWindow`), `session_accounts`, `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`|
+|`ports.bank`|`BankProvider`, `BankAccount`, `DeclaredBalance`, `FetchedWindow`, `BankError`, `ConsentExpired`, `RateLimited`, `BankUnavailable`|
+|`composition`|`bank_provider`, `enable_banking_client`, `bank_factory`, `BankFactory`|
+|`adapters.enable_banking`|`EnableBankingClient` (`fetch_transaction_windows` → its own `FetchedWindow` of raw payloads), `EnableBankingProvider`, `session_accounts`, `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`; `normalize.describe`, `bank_account`, `declared_balances`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
 |`cli`|`main`, `build_parser`|
 

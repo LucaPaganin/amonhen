@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from amonhen.models import Account, IncomingTransaction, SourceKind
+from amonhen.ports.bank import BankAccount, DeclaredBalance
 
 # Fineco encodes an incoming SEPA transfer as
 # "Ord: <sender> Ben: <beneficiary> Dt-ord: ...".
@@ -32,7 +33,7 @@ def normalize_transaction(
         account_id=account_id,
         date=_date(raw),
         amount=_amount(raw),
-        description=_description(raw, counterparty),
+        description=describe(raw, counterparty),
         status=raw.get("status") or "BOOK",
         source=source,
         balancing_account_id=balancing_account_id,
@@ -57,6 +58,38 @@ def normalize_account(
         external_uid=_text(raw.get("uid")) or None,
         currency=_text(raw.get("currency")) or currency,
     )
+
+
+def bank_account(raw: dict[str, Any]) -> BankAccount:
+    """What a session listing or a details payload says about one account."""
+    return BankAccount(
+        uid=_text(raw.get("uid")) or None,
+        iban=iban_of(raw.get("account_id")),
+        currency=_text(raw.get("currency")) or None,
+    )
+
+
+def declared_balances(payload: dict[str, Any]) -> list[DeclaredBalance]:
+    """The figures of a balances payload that carry an amount.
+
+    The reference date is kept only when the bank gives one: which day a figure
+    without one stands for is the caller's to decide.
+    """
+    balances = []
+    for balance in payload.get("balances", []):
+        amount = balance.get("balance_amount") or {}
+        if not amount.get("amount"):
+            continue
+        reference = balance.get("reference_date")
+        balances.append(
+            DeclaredBalance(
+                date=dt.date.fromisoformat(reference[:10]) if reference else None,
+                amount=decimal.Decimal(str(amount["amount"])),
+                balance_type=balance.get("balance_type"),
+                currency=amount.get("currency"),
+            )
+        )
+    return balances
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +170,7 @@ def _bank_code_text(raw: dict[str, Any]) -> str:
     return _text(code.get("description")) if isinstance(code, dict) else ""
 
 
-def _description(raw: dict[str, Any], counterparty: str) -> str:
+def describe(raw: dict[str, Any], counterparty: str) -> str:
     """First non-empty source text, and a bare bank code only as a last resort.
 
     PayPal leaves the remittance empty and codes every movement `PAYMENT`, with
