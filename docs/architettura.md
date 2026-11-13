@@ -982,3 +982,79 @@ Così ogni pezzo nuovo poggia su qualcosa di già testato, e il mondo esterno, l
 fragile, è l'ultimo ad arrivare. Nella variante di AmonHen, senza la porta verso il
 database, il ledger si scrive prima del caso d'uso, e il caso d'uso si prova con un SQLite
 in memoria.
+
+## 7. L'esperimento della porta della banca
+
+Novembre 2026. Domanda: isolare Enable Banking dietro una porta (ports & adapters, con
+dependency injection e una composition root) ripaga? Il refactor è
+`amonhen/ports/bank.py`, `amonhen/adapters/enable_banking/provider.py` e
+`amonhen/composition.py`; lo stub del secondo provider è `amonhen/adapters/csv_bank.py`.
+
+### 7.1 Prima
+
+- `sync.py`, il caso d'uso, importava il client concreto, le sue due eccezioni e
+  `requests`, normalizzava da sé il JSON e leggeva il payload dei saldi campo per campo.
+  `RateLimitedError` eredita da `requests.HTTPError`: la libreria HTTP arrivava fino
+  alla logica del sync.
+- Tre factory del client (`api._client`, `cli.build_client`, `tools/dump_raw.py`) e
+  dieci punti che le chiamavano. `api._client` serviva sia il consenso sia il sync.
+- I test giravano già senza rete: il sync con un `FakeClient` scritto a mano, che era
+  una porta implicita (*duck typing*), e l'API e la CLI sostituendo le factory con
+  `monkeypatch` sul loro nome.
+
+### 7.2 Il costo del refactor
+
+27 file: 12 di produzione (+472 −134), 10 di test (+464 −61), 4 di documentazione, uno
+in `tools/`. I file nuovi di produzione sono tre: la porta (140 righe), l'adapter (136),
+la composition root (61). Nessuna asserzione dei test esistenti è cambiata, solo import
+e cablaggio dei finti; la suite è passata da 603 a 615 test.
+
+### 7.3 La perturbazione: un secondo provider
+
+Uno stub che legge un CSV per conto, da usare per il sync. Lo stesso test end-to-end (il
+pulsante *Sincronizza* e il comando `sync`, senza override e senza chiave) passa su
+entrambe le strutture.
+
+- **Con la porta:** tre file di produzione (lo stub, `composition.py`, `settings.py`) e un
+  test. `sync.py`, `api.py` e `cli.py` non cambiano.
+- **Sulla struttura di prima** (provato su `f030761` in un worktree, non committato):
+  quattro file di produzione (lo stub, `api.py`, `cli.py`, `settings.py`). `sync.py` non
+  cambia nemmeno lì, perché il `FakeClient` aveva già dimostrato che il sync accetta
+  chiunque imiti il client. Ma lo stub deve **fingersi Enable Banking**: fabbricare il suo
+  JSON perché `eb_normalize` lo rilegga, e trasformare un errore di file in un
+  `requests.RequestException` perché il sync lo riconosca. In `api.py` servono una
+  seconda factory, perché `_client` serve anche il consenso, e due route toccate.
+
+Il numero di file è quasi lo stesso. La differenza è *dove* cade la modifica e *cosa*
+deve sapere chi la scrive: con la porta solo il bordo e la composition root, e lo stub
+parla i tipi dell'applicazione; senza, i punti d'ingresso e una doppia traduzione.
+
+**Cosa la porta non ha nascosto:** il ledger registra un saldo dichiarato come
+`eb:<TIPO>` (`ledger.bank_balance_source`) e la sezione 5.4 della specifica elenca i tipi
+di Enable Banking. Anche lo stub CSV scrive `eb:ITBD`. Un secondo provider deve parlare
+quei tipi per essere verificato: il vocabolario dei saldi è di Enable Banking, e sta nel
+ledger, non nell'adapter. Anche `ConfiguredAccount` porta `session_id` e `account_uid`,
+che sono parole di Enable Banking, dentro la firma della porta.
+
+### 7.4 Contro, e verdetto
+
+- **Indirezione.** Una chiamata del sync attraversa un salto in più: `SyncService` →
+  `BankProvider` → `EnableBankingProvider` → `translated` → client. Per leggere cosa
+  succede su un 429 si aprono tre file invece di due.
+- **Concetti duplicati.** Due `FetchedWindow`, quella del client (JSON) e quella della
+  porta (`IncomingTransaction`), con lo stesso nome.
+- **Il beneficio più citato c'era già.** I test senza rete esistevano; la porta li ha resi
+  espliciti (un contratto controllabile con `isinstance`, gli override di FastAPI al posto
+  del monkeypatch) più che possibili.
+- **Un secondo provider è improbabile.** Enable Banking copre le banche usate; il secondo
+  canale reale, l'import di file, esiste già e non passa dal sync; la specifica esclude i
+  provider di soli saldi (sezione 8). Lo stub CSV non risponde a nessuna decisione del
+  prodotto (sezione 10, *Deriva verso l'over-engineering*).
+
+**Verdetto: semplificarlo.** Tenere la porta, l'adapter con la traduzione degli errori, la
+composition root e `MemoryBank`: costano tre file piccoli e tolgono `requests` e il JSON
+dal caso d'uso, chiudono la trappola della factory condivisa fra consenso e sync, e
+sostituiscono il monkeypatch con un punto di iniezione dichiarato. Togliere lo stub CSV e
+`AMONHEN_BANK_PROVIDER`: sono stati la misura, non una funzione del prodotto, e un'opzione
+di configurazione che nessuno usa è codice da mantenere. Il commit dello stub è separato
+apposta, e si annulla da solo.
