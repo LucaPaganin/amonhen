@@ -9,11 +9,25 @@ import requests
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
 from amonhen.models import parse_decimal
-from amonhen.providers.enable_banking import ConsentExpiredError, FetchedWindow
+from amonhen.adapters.enable_banking.client import ConsentExpiredError, FetchedWindow
+from amonhen.adapters.enable_banking import EnableBankingProvider
 from amonhen.sync import SyncBusy, SyncService, _SYNC_LOCK
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "enable_banking" / "revolut_personale.json"
 TODAY = dt.date(2026, 9, 12)
+
+
+
+def sync_service(ledger, client, config, today=TODAY):
+    """The sync over a fake Enable Banking client, through the real adapter.
+
+    `FakeClient` stands in for the HTTP client: it answers in Enable Banking's own
+    JSON, so these tests cover the adapter's translation as well as the service.
+    The service alone, with a bank in memory, is `test_bank_port.py`.
+    """
+    return SyncService(
+        ledger, EnableBankingProvider(client, own_names=config.own_names), config, today=today
+    )
 
 
 class FakeClient:
@@ -128,7 +142,7 @@ def fixture_transactions(limit=5):
 
 def test_first_sync_inserts_every_transaction(ledger):
     transactions = fixture_transactions()
-    service = SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY)
+    service = sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY)
 
     result = service.run()
 
@@ -139,9 +153,9 @@ def test_first_sync_inserts_every_transaction(ledger):
 
 def test_second_sync_over_the_same_window_duplicates_nothing(ledger):
     transactions = fixture_transactions()
-    SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
 
-    result = SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    result = sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
 
     assert result.accounts[0].actions.get("duplicate") == len(transactions)
     assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"] == len(transactions)
@@ -149,10 +163,10 @@ def test_second_sync_over_the_same_window_duplicates_nothing(ledger):
 
 def test_sync_refetches_a_short_overlap_after_the_last_transaction(ledger):
     transactions = fixture_transactions()
-    SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
     client = FakeClient(transactions)
 
-    SyncService(ledger, client, build_config(), today=TODAY).run()
+    sync_service(ledger, client, build_config(), today=TODAY).run()
 
     _, date_from, _ = client.fetch_calls[0]
     last_date = max(t["booking_date"] for t in transactions)
@@ -162,13 +176,13 @@ def test_sync_refetches_a_short_overlap_after_the_last_transaction(ledger):
 def test_first_sync_uses_the_configured_start_date(ledger):
     client = FakeClient(fixture_transactions())
 
-    SyncService(ledger, client, build_config(start="2026-03-01"), today=TODAY).run()
+    sync_service(ledger, client, build_config(start="2026-03-01"), today=TODAY).run()
 
     assert client.fetch_calls[0][1] == dt.date(2026, 3, 1)
 
 
 def test_expired_consent_is_reported_and_does_not_raise(ledger):
-    service = SyncService(ledger, FakeClient([], expires=True), build_config(), today=TODAY)
+    service = sync_service(ledger, FakeClient([], expires=True), build_config(), today=TODAY)
 
     result = service.run()
 
@@ -179,11 +193,11 @@ def test_expired_consent_is_reported_and_does_not_raise(ledger):
 def test_sync_reports_a_declared_balance_mismatch(ledger):
     """Desiderata 5.4: the invariant is asserted in the sync process itself."""
     transactions = fixture_transactions()
-    SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
     account = ledger.find_account(name="Revolut personale")
     ledger.record_declared_balance(account["id"], TODAY, Decimal("999999.00"), "manual")
 
-    result = SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    result = sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
 
     assert result.errors
     assert "disagrees with the declared balance" in result.errors[0]
@@ -201,7 +215,7 @@ def test_the_first_sync_anchors_a_new_account_to_the_booked_figure(ledger):
         reported_balance("493.40", "ITAV", TODAY.isoformat()),
     ]
 
-    result = SyncService(
+    result = sync_service(
         ledger, FakeClient(transactions, balances=balances), build_config(), today=TODAY
     ).run()
 
@@ -215,7 +229,7 @@ def test_the_sync_records_an_unknown_balance_type_warns_and_does_not_anchor_on_i
     balances = [reported_balance("99999.00", "INFO", TODAY.isoformat())]
 
     with caplog.at_level("WARNING"):
-        result = SyncService(
+        result = sync_service(
             ledger, FakeClient(fixture_transactions(), balances=balances), build_config(), today=TODAY
         ).run()
 
@@ -230,7 +244,7 @@ def test_the_sync_records_an_unknown_balance_type_warns_and_does_not_anchor_on_i
 def test_the_sync_never_anchors_an_account_that_has_an_opening(ledger):
     """After the first time the opening is the fixed point a difference is measured from."""
     transactions = fixture_transactions()
-    SyncService(
+    sync_service(
         ledger,
         FakeClient(transactions, balances=[reported_balance("500.00", "ITBD", TODAY.isoformat())]),
         build_config(),
@@ -239,7 +253,7 @@ def test_the_sync_never_anchors_an_account_that_has_an_opening(ledger):
     account = ledger.find_account(name="Revolut personale")
     opening = account["opening_balance"]
 
-    result = SyncService(
+    result = sync_service(
         ledger,
         FakeClient(transactions, balances=[reported_balance("493.40", "ITBD", TODAY.isoformat())]),
         build_config(),
@@ -253,7 +267,7 @@ def test_the_sync_never_anchors_an_account_that_has_an_opening(ledger):
 
 def test_sync_records_the_raw_payload_and_its_provenance(ledger):
     transactions = fixture_transactions(1)
-    SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
 
     row = ledger.conn.execute("SELECT * FROM transactions").fetchone()
 
@@ -265,7 +279,7 @@ def test_sync_records_the_raw_payload_and_its_provenance(ledger):
 def test_sync_applies_the_deterministic_rules(ledger):
     """Every sync path, including the one inside the server, categorizes."""
     from amonhen.merchants import RuleBook, merchant_name
-    from amonhen.providers.eb_normalize import normalize_transaction
+    from amonhen.adapters.enable_banking.normalize import normalize_transaction
 
     # The rule is in place before the sync fetches, so the movements have to come
     # out of the sync itself categorized, not out of writing the rule.
@@ -274,7 +288,7 @@ def test_sync_applies_the_deterministic_rules(ledger):
     )
     RuleBook(ledger.conn).set_rule(merchant_name(incoming.description), "Trasporti", ledger)
 
-    result = SyncService(ledger, FakeClient(fixture_transactions()), build_config(), today=TODAY).run()
+    result = sync_service(ledger, FakeClient(fixture_transactions()), build_config(), today=TODAY).run()
 
     assert result.rules_applied > 0
     categorized = ledger.conn.execute(
@@ -286,7 +300,7 @@ def test_sync_applies_the_deterministic_rules(ledger):
 
 def test_sync_stores_the_balance_the_bank_reports(ledger):
     """The net worth chart is fed by observations, so the sync takes them."""
-    service = SyncService(
+    service = sync_service(
         ledger,
         FakeClient(fixture_transactions(), balances=[reported_balance("304.60", "ITAV")]),
         build_config(),
@@ -306,7 +320,7 @@ def test_sync_stores_the_balance_the_bank_reports(ledger):
 
 def test_sync_keeps_the_transactions_when_the_balance_call_fails(ledger):
     transactions = fixture_transactions()
-    service = SyncService(
+    service = sync_service(
         ledger,
         FakeClient(transactions, balance_error=True),
         build_config(),
@@ -323,14 +337,14 @@ def test_sync_keeps_the_transactions_when_the_balance_call_fails(ledger):
 def test_a_reported_balance_is_what_the_5_4_assertion_compares_against(ledger):
     """The bank's own balance lands in the ledger, so the check needs no help."""
     transactions = fixture_transactions()
-    SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
     account = ledger.find_account(name="Revolut personale")
     expected = ledger.balance(account["id"], TODAY)
     client = FakeClient(
         transactions, balances=[reported_balance(str(expected), "ITAV", TODAY.isoformat())]
     )
 
-    result = SyncService(ledger, client, build_config(), today=TODAY).run()
+    result = sync_service(ledger, client, build_config(), today=TODAY).run()
 
     assert result.errors == []
 
@@ -339,7 +353,7 @@ def test_the_account_details_fill_the_iban_the_transfer_matcher_compares(ledger)
     """A session names an account without identifying it; the IBAN comes from details."""
     client = FakeClient(fixture_transactions(1), session_accounts=[{"uid": "uid-1"}])
 
-    SyncService(ledger, client, build_config(), today=TODAY).run()
+    sync_service(ledger, client, build_config(), today=TODAY).run()
 
     account = ledger.find_account(name="Revolut personale")
     assert account["iban"] == FakeClient.DETAILS["account_id"]["iban"]
@@ -355,7 +369,7 @@ def test_an_unreachable_details_call_leaves_the_sync_alone(ledger):
         transactions, session_accounts=[{"uid": "uid-1"}], details_error=True
     )
 
-    result = SyncService(ledger, client, build_config(), today=TODAY).run()
+    result = sync_service(ledger, client, build_config(), today=TODAY).run()
 
     assert result.errors == []
     assert result.accounts[0].actions.get("inserted") == len(transactions)
@@ -370,7 +384,7 @@ def test_the_sync_does_not_call_an_explained_difference_a_mismatch(ledger):
     ignore the one line that matters.
     """
     transactions = fixture_transactions()
-    SyncService(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
+    sync_service(ledger, FakeClient(transactions), build_config(), today=TODAY).run()
     account = ledger.find_account(name="Revolut personale")
     expected = ledger.balance(account["id"], TODAY)
     victim = ledger.conn.execute(
@@ -378,7 +392,7 @@ def test_the_sync_does_not_call_an_explained_difference_a_mismatch(ledger):
     ).fetchone()
     ledger.delete_transaction(victim["id"])
 
-    result = SyncService(
+    result = sync_service(
         ledger,
         FakeClient(transactions, balances=[reported_balance(str(expected), "ITAV", TODAY.isoformat())]),
         build_config(),
@@ -392,7 +406,7 @@ def test_the_sync_does_not_call_an_explained_difference_a_mismatch(ledger):
     assert result.accounts[0].actions.get("suppressed") == 1
 
     # But a difference the deletion does not explain is still reported.
-    wrong = SyncService(
+    wrong = sync_service(
         ledger,
         FakeClient(
             transactions,
@@ -411,7 +425,7 @@ def test_only_one_sync_runs_at_a_time_in_a_process(ledger):
     Two runs writing the same SQLite file is not a state worth having, so the
     second caller is turned away instead of being queued behind the first.
     """
-    service = SyncService(ledger, FakeClient([]), build_config(), today=TODAY)
+    service = sync_service(ledger, FakeClient([]), build_config(), today=TODAY)
 
     with _SYNC_LOCK:  # a run already in progress, wherever it was asked from
         with pytest.raises(SyncBusy):

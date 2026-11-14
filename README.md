@@ -749,7 +749,9 @@ rm -rf $HOME/amonhen-rehearsal
 |---|---|
 |`amonhen/db.py`|SQLite schema: accounts, transactions, postings, transfer links, reported balances|
 |`amonhen/ledger.py`|The single write path; dedup, pending→booked, spend and balance queries|
-|`amonhen/providers/`|Enable Banking client and payload normalization|
+|`amonhen/ports/bank.py`|The port the sync speaks to a bank through|
+|`amonhen/adapters/enable_banking/`|Enable Banking client, payload normalization, and the adapter that implements the port|
+|`amonhen/composition.py`|The one place the bank client and provider are built|
 |`amonhen/adapters/`|CSV/OFX import, one profile per bank layout|
 |`amonhen/sync.py`|Per-account fetch → normalize → ledger; `run_period` is one account over a chosen period|
 |`amonhen/transfers.py`|Internal-transfer candidate graph, linking, and the candidates a manual pairing may choose|

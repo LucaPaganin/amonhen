@@ -14,7 +14,7 @@ import responses
 
 from amonhen.dedup import content_hash
 from amonhen.models import Account, IncomingTransaction
-from amonhen.providers import (
+from amonhen.adapters.enable_banking import (
     ConsentExpiredError,
     RateLimitedError,
     EnableBankingClient,
@@ -348,7 +348,7 @@ def test_consent_error_raised_on_rejected_credentials(client, status_code):
 
 @responses.activate
 def test_fetch_transactions_raises_consent_error(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _s: None)
     responses.get(f"{API}/accounts/acc-9/transactions", status=403)
 
     with pytest.raises(ConsentExpiredError):
@@ -357,7 +357,7 @@ def test_fetch_transactions_raises_consent_error(client, monkeypatch):
 
 @responses.activate
 def test_fetch_transactions_paginates_repeating_the_window(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _s: None)
     url = f"{API}/accounts/acc-1/transactions"
     responses.get(url, json={"transactions": [{"id": 1}], "continuation_key": "next"})
     responses.get(url, json={"transactions": [{"id": 2}]})
@@ -377,7 +377,7 @@ def test_fetch_transactions_paginates_repeating_the_window(client, monkeypatch):
 
 @responses.activate
 def test_fetch_transactions_splits_ranges_into_30_day_windows(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _s: None)
     url = f"{API}/accounts/acc-1/transactions"
     responses.get(url, json={"transactions": []})
     responses.get(url, json={"transactions": []})
@@ -394,7 +394,7 @@ def test_fetch_transactions_splits_ranges_into_30_day_windows(client, monkeypatc
 @responses.activate
 def test_rate_limit_is_retried(client, monkeypatch):
     slept: list[float] = []
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", slept.append)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", slept.append)
     responses.get(f"{API}/accounts/acc-9/balances", status=429)
     responses.get(f"{API}/accounts/acc-9/balances", json={"balances": []})
 
@@ -405,7 +405,7 @@ def test_rate_limit_is_retried(client, monkeypatch):
 @responses.activate
 def test_a_rate_limit_gives_up_with_the_banks_words_and_no_pause_after_the_last_try(client, monkeypatch):
     slept: list[float] = []
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", slept.append)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", slept.append)
     responses.get(f"{API}/accounts/acc-9/balances", status=429, json={"message": "quota exceeded"})
 
     with pytest.raises(RateLimitedError, match="quota exceeded"):
@@ -418,7 +418,7 @@ def test_a_rate_limit_gives_up_with_the_banks_words_and_no_pause_after_the_last_
 @responses.activate
 def test_a_long_retry_after_ends_the_attempts_at_once(client, monkeypatch):
     slept: list[float] = []
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", slept.append)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", slept.append)
     responses.get(f"{API}/accounts/acc-9/balances", status=429, headers={"Retry-After": "3600"})
 
     with pytest.raises(RateLimitedError):
@@ -431,7 +431,7 @@ def test_a_long_retry_after_ends_the_attempts_at_once(client, monkeypatch):
 @responses.activate
 def test_a_short_retry_after_is_obeyed(client, monkeypatch):
     slept: list[float] = []
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", slept.append)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", slept.append)
     responses.get(f"{API}/accounts/acc-9/balances", status=429, headers={"Retry-After": "7"})
     responses.get(f"{API}/accounts/acc-9/balances", json={"balances": []})
 
@@ -441,7 +441,7 @@ def test_a_short_retry_after_is_obeyed(client, monkeypatch):
 
 @responses.activate
 def test_a_rate_limit_stops_a_period_at_the_window_it_hit(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _: None)
     responses.get(f"{API}/accounts/acc-9/transactions", status=429)
 
     windows = client.fetch_transaction_windows(
@@ -472,7 +472,7 @@ def _window(call) -> tuple[str, str]:
 
 @responses.activate
 def test_a_refused_window_is_halved_and_the_narrower_width_holds(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _s: None)
     url = f"{API}/accounts/acc-1/transactions"
     responses.get(url, status=400, json={"message": "Wrong transactions period requested"})
     responses.get(url, status=400, json={"message": "Wrong transactions period requested"})
@@ -499,7 +499,7 @@ def test_a_refused_window_is_halved_and_the_narrower_width_holds(client, monkeyp
 
 @responses.activate
 def test_a_window_refused_down_to_one_day_fails_alone(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _s: None)
     url = f"{API}/accounts/acc-1/transactions"
     for _ in range(3):  # 4 days, then 2, then 1: refused each time
         responses.get(url, status=422, json={"message": "Too far in the past"})
@@ -524,7 +524,7 @@ def test_a_window_refused_down_to_one_day_fails_alone(client, monkeypatch):
 
 @responses.activate
 def test_a_server_error_fails_its_window_without_halving(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _s: None)
     url = f"{API}/accounts/acc-1/transactions"
     responses.get(url, status=500)
     responses.get(url, json={"transactions": [{"id": 3}]})
@@ -540,7 +540,7 @@ def test_a_server_error_fails_its_window_without_halving(client, monkeypatch):
 
 @responses.activate
 def test_a_dead_consent_stops_the_period(client, monkeypatch):
-    monkeypatch.setattr("amonhen.providers.enable_banking.time.sleep", lambda _s: None)
+    monkeypatch.setattr("amonhen.adapters.enable_banking.client.time.sleep", lambda _s: None)
     responses.get(f"{API}/accounts/acc-1/transactions", status=401)
 
     with pytest.raises(ConsentExpiredError):
@@ -549,7 +549,7 @@ def test_a_dead_consent_stops_the_period(client, monkeypatch):
 
 def test_a_session_of_bare_uids_still_lists_its_accounts():
     """PayPal can answer with the uids alone: they are accounts, not noise."""
-    from amonhen.providers.enable_banking import session_accounts
+    from amonhen.adapters.enable_banking.client import session_accounts
 
     assert session_accounts({"accounts": ["pp-1"]}) == [{"uid": "pp-1"}]
     assert session_accounts(

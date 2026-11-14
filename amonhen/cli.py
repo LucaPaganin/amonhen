@@ -11,10 +11,13 @@ from pathlib import Path
 
 from amonhen.backup import make_snapshot
 from amonhen.budgets import budget_status, month_of, set_default
+from amonhen.composition import bank_provider
 from amonhen.config import load_config
 from amonhen.ledger import Ledger, balance_kind, bank_balance_source
 from amonhen.merchants import RuleBook, categorize, rule_usage
 from amonhen.models import Account, format_decimal, parse_decimal
+from amonhen.ports.bank import ConsentExpired
+from amonhen.services.ingest import settle_after_ingest
 from amonhen.settings import (
     CONFIG_FILE,
     DB_PATH,
@@ -23,7 +26,6 @@ from amonhen.settings import (
     SYNC_INTERVAL_HOURS,
 )
 from amonhen.sync import PeriodInvalid, SyncBusy, SyncService
-from amonhen.transfers import link_passthrough_legs, link_transfers
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -202,7 +204,7 @@ def cmd_sync(ledger: Ledger, args) -> int:
             return 2
         return _sync_period(ledger, args)
     config = load_config(args.config)
-    service = SyncService(ledger, build_client(config), config)
+    service = SyncService(ledger, bank_provider(config), config)
     result = service.run()
     for account in result.accounts:
         summary = ", ".join(f"{action}={count}" for action, count in sorted(account.actions.items()))
@@ -223,7 +225,7 @@ def _sync_period(ledger: Ledger, args) -> int:
     Conti panel is where a person writes or discards each one.
     """
     config = load_config(args.config)
-    service = SyncService(ledger, build_client(config), config)
+    service = SyncService(ledger, bank_provider(config), config)
     try:
         result = service.run_period(args.account, args.date_from, args.date_to, preview=args.preview)
     except PeriodInvalid as exc:
@@ -318,7 +320,7 @@ def cmd_serve(ledger: Ledger, args) -> int:
         # screen that fixes it. Say it now and let the loop repeat it at every
         # interval until the setup writes a configuration.
         try:
-            build_client(load_config(args.config))
+            bank_provider(load_config(args.config))
         except (OSError, KeyError, ValueError) as exc:
             print(f"cannot sync yet: {exc}", file=sys.stderr)
         threading.Thread(
@@ -346,7 +348,7 @@ def _sync_loop(db_path: str, config_path: str, interval_hours: float) -> None:
             conn = open_ledger_db(db_path)
             try:
                 config = load_config(config_path)
-                service = SyncService(Ledger(conn), build_client(config), config)
+                service = SyncService(Ledger(conn), bank_provider(config), config)
                 due = service.due_in(interval_hours)
                 if due > 0:
                     service.settle()
@@ -617,13 +619,10 @@ def cmd_import(ledger: Ledger, args) -> int:
         source_file=Path(args.file).name,
     )
     counts = ledger.record_batch(transactions)
-    link_transfers(ledger)
-    legs = link_passthrough_legs(ledger, load_config(args.config).passthrough)
-    ledger.validate()
-    applied = categorize(ledger, RuleBook(ledger.conn))
+    settled = settle_after_ingest(ledger, load_config(args.config).passthrough)
     print(f"{args.account}: parsed={len(transactions)} " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
-    print(f"passthrough legs: {legs}")
-    print(f"rules applied: {applied}")
+    print(f"passthrough legs: {settled.passthrough}")
+    print(f"rules applied: {settled.categorized}")
     return 0
 
 
@@ -635,10 +634,8 @@ def cmd_spend(ledger: Ledger, args) -> int:
 
 
 def cmd_balances(ledger: Ledger, args) -> int:
-    from amonhen.providers.enable_banking import ConsentExpiredError
-
     config = load_config(args.config)
-    client = build_client(config)
+    bank = bank_provider(config)
     accounts = config.accounts if not args.account else [
         entry for entry in config.accounts if entry.name == args.account
     ]
@@ -649,21 +646,17 @@ def cmd_balances(ledger: Ledger, args) -> int:
     for entry in accounts:
         account = require_account(ledger, entry.name)
         try:
-            payload = client.fetch_balances(entry.account_uid)
-        except ConsentExpiredError as exc:
+            balances = bank.balances(entry)
+        except ConsentExpired as exc:
             print(f"{entry.name}: consent expired: {exc}", file=sys.stderr)
             failures += 1
             continue
-        for balance in payload.get("balances", []):
-            amount = balance.get("balance_amount") or {}
-            if not amount.get("amount"):
-                continue
-            reference = (balance.get("reference_date") or dt.date.today().isoformat())[:10]
+        for balance in balances:
+            reference = balance.date or dt.date.today()
             ledger.record_declared_balance(
-                account["id"], dt.date.fromisoformat(reference), parse_decimal(amount["amount"]),
-                bank_balance_source(balance.get("balance_type")),
+                account["id"], reference, balance.amount, bank_balance_source(balance.balance_type),
             )
-            print(f"{entry.name}: {reference} {balance.get('balance_type')} {amount['amount']} {amount.get('currency')}")
+            print(f"{entry.name}: {reference} {balance.balance_type} {balance.amount} {balance.currency}")
         for row in ledger.unrecognized_balances(account["id"]):
             print(f"{entry.name}: {row['source']} is recorded but not read", file=sys.stderr)
     return 1 if failures else 0
@@ -726,16 +719,6 @@ def cmd_balance_check(ledger: Ledger, args) -> int:
 
 
 # -- helpers --------------------------------------------------------------
-
-
-def build_client(config):
-    from amonhen.providers.enable_banking import EnableBankingClient
-
-    return EnableBankingClient(
-        application_id=config.application_id,
-        pem_path=config.pem_path,
-        redirect_url=config.redirect_url,
-    )
 
 
 def require_account(ledger: Ledger, name: str):

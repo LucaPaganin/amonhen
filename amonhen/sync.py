@@ -9,19 +9,19 @@ import threading
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
-import requests
-
 from amonhen.config import ConfiguredAccount, MonitorConfig
 from amonhen.ledger import Ledger, bank_balance_source
-from amonhen.merchants import RuleBook, apply_transfer_rules, categorize
-from amonhen.models import Account, IncomingTransaction, RecordAction, format_decimal, parse_decimal
-from amonhen.providers.eb_normalize import iban_of, normalize_account, normalize_transaction
-from amonhen.providers.enable_banking import (
-    ConsentExpiredError,
-    EnableBankingClient,
-    RateLimitedError,
+from amonhen.merchants import RuleBook, apply_transfer_rules
+from amonhen.models import Account, RecordAction, format_decimal
+from amonhen.ports.bank import (
+    BankAccount,
+    BankError,
+    BankProvider,
+    BankUnavailable,
+    ConsentExpired,
+    RateLimited,
 )
-from amonhen.transfers import link_passthrough_legs, link_transfers
+from amonhen.services.ingest import Settled, settle_after_ingest
 
 log = logging.getLogger("amonhen.sync")
 
@@ -152,16 +152,16 @@ class SyncService:
     def __init__(
         self,
         ledger: Ledger,
-        client: EnableBankingClient,
+        bank: BankProvider,
         config: MonitorConfig,
         today: dt.date | None = None,
     ) -> None:
         self.ledger = ledger
-        self.client = client
+        self.bank = bank
         self.config = config
         self.today = today or dt.date.today()
-        self._sessions: dict[str, dict[str, dict]] = {}
-        self._details: dict[str, dict] = {}
+        self._sessions: dict[str, dict[str, BankAccount]] = {}
+        self._details: dict[str, BankAccount] = {}
         self._limited: dict[str, str] = {}
 
     def run(self) -> SyncResult:
@@ -182,8 +182,7 @@ class SyncService:
         if not _SYNC_LOCK.acquire(blocking=False):
             raise SyncBusy("a sync is already running in this process")
         try:
-            apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
-            self._link_and_categorize()
+            self._settle()
         finally:
             _SYNC_LOCK.release()
 
@@ -241,10 +240,11 @@ class SyncService:
         result = PeriodSyncResult(entry.name, date_from, date_to, preview)
         account_id = self.ledger.ensure_account(self._account_record(entry))
         try:
-            windows = self.client.fetch_transaction_windows(
-                entry.account_uid, date_from, date_to, entry.max_window_days
+            windows = self.bank.transaction_windows(
+                entry, date_from, date_to,
+                account_id=account_id, balancing_account_id=self.ledger.uncategorized(),
             )
-        except ConsentExpiredError as exc:
+        except ConsentExpired as exc:
             result.error = f"consent expired: {exc}"
             log.warning("account %s: %s", entry.name, result.error)
             return result
@@ -252,11 +252,7 @@ class SyncService:
             result.windows.append(
                 WindowReport(window.date_from, window.date_to, len(window.transactions), window.error)
             )
-        batches = [
-            self._normalized(entry, account_id, window.transactions)
-            for window in windows
-            if window.error is None
-        ]
+        batches = [window.transactions for window in windows if window.error is None]
         if preview:
             for batch in batches:
                 for txn, action, twin in self.ledger.preview_batch(batch):
@@ -280,30 +276,13 @@ class SyncService:
         result.held = len(self.ledger.held_transactions(account_id))
         # The same steps as the incremental pass, from the start of the period:
         # a leg older than any `start_sync_date` must still find its pair.
-        apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
-        result.transfers_linked = link_transfers(self.ledger, since=date_from)
-        result.passthrough_legs = link_passthrough_legs(self.ledger, self.config.passthrough)
-        self.ledger.validate()
-        result.rules_applied = categorize(self.ledger, RuleBook(self.ledger.conn))
+        settled = settle_after_ingest(self.ledger, self.config.passthrough, since=date_from)
+        result.transfers_linked = settled.linked
+        result.passthrough_legs = settled.passthrough
+        result.rules_applied = settled.categorized
         result.balance_mismatch = self._declared_balance_mismatch(entry)
         log.info("account %s %s..%s: %s", entry.name, date_from, date_to, result.actions)
         return result
-
-    def _normalized(
-        self, entry: ConfiguredAccount, account_id: int, transactions: list[dict]
-    ) -> list[IncomingTransaction]:
-        balancing = self.ledger.uncategorized()
-        return [
-            normalize_transaction(
-                raw,
-                account_id=account_id,
-                balancing_account_id=balancing,
-                own_names=self.config.own_names,
-                bank_name=entry.institution,
-                source="psd2",
-            )
-            for raw in transactions
-        ]
 
     def _run(self) -> SyncResult:
         results = []
@@ -312,21 +291,23 @@ class SyncService:
             results.append(result)
             if result.fetched:
                 apply_transfer_rules(self.ledger, RuleBook(self.ledger.conn))
-        linked, legs, applied = self._link_and_categorize()
+        settled = self._settle()
         for entry, result in zip(self.config.accounts, results):
             result.balance_mismatch = self._declared_balance_mismatch(entry)
         self.ledger.set_setting(_LAST_RUN_KEY, _now())
-        return SyncResult(results, linked, rules_applied=applied, passthrough_legs=legs)
+        return SyncResult(
+            results,
+            settled.linked,
+            rules_applied=settled.categorized,
+            passthrough_legs=settled.passthrough,
+        )
 
-    def _link_and_categorize(self) -> tuple[int, int, int]:
-        linked = link_transfers(self.ledger, since=self._earliest_start())
-        # Declared own accounts come after the pairing, so a real pair between
-        # two tracked accounts always wins over a label match.
-        legs = link_passthrough_legs(self.ledger, self.config.passthrough)
-        self.ledger.validate()
+    def _settle(self) -> Settled:
         # The deterministic rules belong to ingest: every sync path, including
         # the one inside the server, must leave categorized rows behind.
-        return linked, legs, categorize(self.ledger, RuleBook(self.ledger.conn))
+        return settle_after_ingest(
+            self.ledger, self.config.passthrough, since=self._earliest_start()
+        )
 
     def _declared_balance_mismatch(self, entry: ConfiguredAccount) -> str | None:
         """Desiderata 5.4: the ledger must agree with the bank's own balance.
@@ -368,25 +349,24 @@ class SyncService:
         if entry.account_uid in self._limited:
             return self._rate_limited(result, account_id, self._limited[entry.account_uid])
         try:
-            transactions = self.client.fetch_transactions(
-                entry.account_uid, date_from, self.today, entry.max_window_days
+            transactions = self.bank.transactions(
+                entry, date_from, self.today,
+                account_id=account_id, balancing_account_id=self.ledger.uncategorized(),
             )
-        except ConsentExpiredError as exc:
+        except ConsentExpired as exc:
             result.error = f"consent expired: {exc}"
             log.warning("account %s: %s", entry.name, result.error)
             return result
-        except RateLimitedError as exc:
+        except RateLimited as exc:
             return self._rate_limited(result, account_id, str(exc))
-        except requests.RequestException as exc:
+        except BankUnavailable as exc:
             # One unreachable bank must not abort the rest of the run.
             result.error = f"fetch failed: {exc}"
             log.warning("account %s: %s", entry.name, result.error)
             return result
 
         result.fetched = len(transactions)
-        result.actions = self.ledger.record_batch(
-            self._normalized(entry, account_id, transactions)
-        )
+        result.actions = self.ledger.record_batch(transactions)
         result.balances = self._record_balances(entry, account_id)
         result.anchored = self._anchor_first_opening(entry, account_id)
         self.ledger.set_setting(_last_read_key(account_id), _now())
@@ -442,21 +422,17 @@ class SyncService:
         5.4 assertion below compares the ledger against.
         """
         try:
-            payload = self.client.fetch_balances(entry.account_uid)
-        except (ConsentExpiredError, requests.RequestException) as exc:
+            balances = self.bank.balances(entry)
+        except BankError as exc:
             log.warning("account %s: balance unavailable: %s", entry.name, exc)
             return 0
         recorded = 0
-        for balance in payload.get("balances", []):
-            amount = balance.get("balance_amount") or {}
-            if not amount.get("amount"):
-                continue
-            reference = (balance.get("reference_date") or self.today.isoformat())[:10]
+        for balance in balances:
             self.ledger.record_declared_balance(
                 account_id,
-                dt.date.fromisoformat(reference),
-                parse_decimal(amount["amount"]),
-                bank_balance_source(balance.get("balance_type")),
+                balance.date or self.today,
+                balance.amount,
+                bank_balance_source(balance.balance_type),
             )
             recorded += 1
         for row in self.ledger.unrecognized_balances(account_id):
@@ -468,12 +444,16 @@ class SyncService:
         return recorded
 
     def _account_record(self, entry: ConfiguredAccount) -> Account:
-        raw = self._session_accounts(entry).get(entry.account_uid)
-        if not raw:
-            raw = self._account_details(entry)
-        record = normalize_account(
-            raw, institution=entry.institution, name=entry.name,
-            currency=raw.get("currency") or "EUR",
+        known = self._session_accounts(entry).get(entry.account_uid)
+        if known is None:
+            known = self._account_details(entry)
+        record = Account(
+            name=entry.name,
+            type="real",
+            institution=entry.institution,
+            iban=known.iban,
+            external_uid=known.uid,
+            currency=known.currency or "EUR",
         )
         if record.iban is None:
             # A session names an account but does not identify it: its own IBAN
@@ -483,13 +463,13 @@ class SyncService:
             known = self.ledger.find_account(name=entry.name)
             iban = known["iban"] if known is not None else None
             record = replace(
-                record, iban=iban or iban_of(self._account_details(entry).get("account_id"))
+                record, iban=iban or self._account_details(entry).iban
             )
         if record.external_uid is None:
             return replace(record, external_uid=entry.account_uid)
         return record
 
-    def _account_details(self, entry: ConfiguredAccount) -> dict:
+    def _account_details(self, entry: ConfiguredAccount) -> BankAccount:
         """The account details payload, fetched once per run. Best-effort.
 
         An unreachable bank must not stop the sync: it only leaves the transfer
@@ -497,27 +477,27 @@ class SyncService:
         """
         if entry.account_uid not in self._details:
             try:
-                payload = self.client.fetch_account_details(entry.account_uid)
-            except RateLimitedError as exc:
+                payload = self.bank.account_details(entry)
+            except RateLimited as exc:
                 self._limited[entry.account_uid] = str(exc)
-                payload = {}
+                payload = BankAccount()
             except Exception as exc:  # session metadata is optional enrichment
                 log.warning(
                     "could not read account details for %s: %s", entry.name, type(exc).__name__
                 )
-                payload = {}
+                payload = BankAccount()
             self._details[entry.account_uid] = payload
         return self._details[entry.account_uid]
 
-    def _session_accounts(self, entry: ConfiguredAccount) -> dict[str, dict]:
+    def _session_accounts(self, entry: ConfiguredAccount) -> dict[str, BankAccount]:
         if entry.session_id not in self._sessions:
             try:
-                accounts = self.client.list_accounts(entry.session_id)
+                accounts = self.bank.connected_accounts(entry)
             except Exception as exc:  # session metadata is optional enrichment
                 log.warning("could not read session metadata for %s: %s", entry.name, type(exc).__name__)
                 accounts = []
             self._sessions[entry.session_id] = {
-                account["uid"]: account for account in accounts if account.get("uid")
+                account.uid: account for account in accounts if account.uid
             }
         return self._sessions[entry.session_id]
 

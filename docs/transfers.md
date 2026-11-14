@@ -58,7 +58,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   of the review queue, still on the books (`Ledger.transfer_target` returns that
   name, which the API reports as the leg's `transfer.target`; the same thing can
   be recorded for one movement by hand, see above). It runs after
-  `link_transfers` in both the sync and the import, so a real pair between two
+  `link_transfers` on every path that writes movements, so a real pair between two
   tracked accounts always wins, and it drops any pending proposal for those
   merchants because nothing would ever categorize them. Income excludes any
   transaction with a virtual posting for the same reason.
@@ -71,8 +71,13 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   (no such pair exists) and a refund category of its own (a category posting on a credit
   leaves it in income).
 - **A transfer rule runs first.** `apply_transfer_rules` follows every account that
-  fetched something, and comes before `link_transfers` in a pass, a period and
-  `settle`. After each account, because the other half used to appear only when the
+  fetched something, and comes before `link_transfers` on every path that writes
+  movements: a pass, a period, `settle`, a file import from the app or the command line,
+  and a held movement written by hand. The order is written once, in
+  `services.ingest.settle_after_ingest` (transfer rules, pairing, passthrough, the
+  double-entry check, the rules), and every one of those paths calls it; the import and
+  the held movement used to pair first, so on them the matcher could take a transfer a
+  rule named (`tests/test_settle_after_ingest.py`). After each account, because the other half used to appear only when the
   slowest bank of the run had finished; before the pairing, because a paired leg is not
   `_decidable`, so an equal amount on another account would have taken a transfer the
   person named with a rule. Category rules still run last: on a leg the matcher pairs,

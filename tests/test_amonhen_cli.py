@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from amonhen.adapters.enable_banking import EnableBankingProvider
 from amonhen.cli import main
 
 # A configuration of its own: the default is the operator's `accounts.json`,
@@ -158,7 +159,7 @@ def test_anchoring_from_the_contabile_figure_leaves_the_pending_movements_out(tm
 def test_balances_reports_expired_consent_and_continues(tmp_path, capsys, monkeypatch):
     from amonhen import cli
     from amonhen.config import ConfiguredAccount, MonitorConfig
-    from amonhen.providers.enable_banking import ConsentExpiredError
+    from amonhen.adapters.enable_banking.client import ConsentExpiredError
 
     class FakeClient:
         def fetch_balances(self, uid):
@@ -176,7 +177,9 @@ def test_balances_reports_expired_consent_and_continues(tmp_path, capsys, monkey
         ),
     )
     monkeypatch.setattr(cli, "load_config", lambda path: config)
-    monkeypatch.setattr(cli, "build_client", lambda cfg: FakeClient())
+    monkeypatch.setattr(
+        cli, "bank_provider", lambda cfg: EnableBankingProvider(FakeClient(), own_names=cfg.own_names)
+    )
     db = tmp_path / "ledger.db"
     run(db, "account-add", "Dead")
     run(db, "account-add", "Alive")
@@ -383,7 +386,9 @@ def test_sync_of_one_account_over_a_period(tmp_path, capsys, monkeypatch):
     transactions = fixture_transactions(60)
     fake = FakeClient(transactions)
     monkeypatch.setattr(cli, "load_config", lambda path: build_config())
-    monkeypatch.setattr(cli, "build_client", lambda cfg: fake)
+    monkeypatch.setattr(
+        cli, "bank_provider", lambda cfg: EnableBankingProvider(fake, own_names=cfg.own_names)
+    )
     db = tmp_path / "ledger.db"
     args = ("sync", "--account", "Revolut personale", "--from", "2025-09-01", "--to", "2025-09-30")
 
@@ -404,7 +409,9 @@ def test_sync_period_is_validated_before_the_bank(tmp_path, capsys, monkeypatch)
 
     fake = FakeClient([])
     monkeypatch.setattr(cli, "load_config", lambda path: build_config())
-    monkeypatch.setattr(cli, "build_client", lambda cfg: fake)
+    monkeypatch.setattr(
+        cli, "bank_provider", lambda cfg: EnableBankingProvider(fake, own_names=cfg.own_names)
+    )
     db = tmp_path / "ledger.db"
 
     assert run(db, "sync", "--account", "Revolut personale", "--from", "2025-09-01") == 2

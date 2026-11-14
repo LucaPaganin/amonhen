@@ -7,9 +7,9 @@ from decimal import Decimal
 import pytest
 
 from amonhen.models import Account, IncomingTransaction
-from amonhen.sync import PeriodInvalid, SyncBusy, SyncService, _SYNC_LOCK
+from amonhen.sync import PeriodInvalid, SyncBusy, _SYNC_LOCK
 
-from test_sync_service import TODAY, FakeClient, build_config, fixture_transactions
+from test_sync_service import TODAY, FakeClient, build_config, fixture_transactions, sync_service
 
 ACCOUNT = "Revolut personale"
 SEPTEMBER = (dt.date(2025, 9, 1), dt.date(2025, 9, 30))
@@ -20,7 +20,7 @@ def count(ledger, sql="SELECT COUNT(*) FROM transactions", params=()):
 
 
 def period(ledger, client, start=None, *, preview=False, config=None, dates=SEPTEMBER):
-    service = SyncService(ledger, client, config or build_config(start), today=TODAY)
+    service = sync_service(ledger, client, config or build_config(start), today=TODAY)
     return service.run_period(ACCOUNT, *dates, preview=preview)
 
 
@@ -98,7 +98,7 @@ def test_a_settled_movement_promotes_its_pending_twin(ledger):
 def test_the_incremental_cursor_and_start_sync_date_stay_where_they_were(ledger):
     transactions = fixture_transactions(60)
     recent = [raw for raw in transactions if raw["booking_date"] >= "2025-09-15"]
-    SyncService(ledger, FakeClient(recent), build_config("2025-09-15"), today=TODAY).run()
+    sync_service(ledger, FakeClient(recent), build_config("2025-09-15"), today=TODAY).run()
     config = build_config("2025-09-15")
 
     # Older than start_sync_date, and still fetched: a period is not limited by it.
@@ -108,7 +108,7 @@ def test_the_incremental_cursor_and_start_sync_date_stay_where_they_were(ledger)
     assert config.accounts[0].start_sync_date == dt.date(2025, 9, 15)
 
     after = FakeClient(recent)
-    SyncService(ledger, after, config, today=TODAY).run()
+    sync_service(ledger, after, config, today=TODAY).run()
     newest = max(raw["booking_date"] for raw in recent)
     assert after.fetch_calls[0][1] == dt.date.fromisoformat(newest) - dt.timedelta(days=7)
 
@@ -205,7 +205,7 @@ def test_transfers_inside_the_period_are_paired_before_start_sync_date(ledger):
 
 def test_the_period_is_checked_before_the_bank_is_asked(ledger):
     client = FakeClient(fixture_transactions(5))
-    service = SyncService(ledger, client, build_config(), today=TODAY)
+    service = sync_service(ledger, client, build_config(), today=TODAY)
 
     with pytest.raises(PeriodInvalid, match="after it ends"):
         service.run_period(ACCOUNT, dt.date(2025, 9, 2), dt.date(2025, 9, 1))
@@ -235,7 +235,7 @@ def test_an_expired_consent_is_reported_not_raised(ledger):
 def test_a_period_before_the_opening_leaves_the_verification_alone(ledger):
     transactions = fixture_transactions(60)
     recent = [raw for raw in transactions if raw["booking_date"] >= "2025-09-15"]
-    SyncService(ledger, FakeClient(recent), build_config(), today=TODAY).run()
+    sync_service(ledger, FakeClient(recent), build_config(), today=TODAY).run()
     account_id = ledger.find_account(name=ACCOUNT)["id"]
     as_of = dt.date(2025, 9, 30)
     ledger.anchor_opening(account_id, as_of, Decimal("1000.00"), "booked")
