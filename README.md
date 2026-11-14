@@ -762,7 +762,7 @@ rm -rf $HOME/amonhen-rehearsal
 |`amonhen/classifier.py`|Char n-gram logistic classifier proposing categories|
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
 |`amonhen/suggestions.py`|Optional LLM proposals for unseen merchants|
-|`amonhen/api.py`|FastAPI surface and PWA host|
+|`amonhen/api/`|FastAPI surface (one router per section in `routes/`) and PWA host|
 |`amonhen/backup.py`|Dated, consistent snapshots of the ledger and its configuration|
 |`amonhen/cli.py`|`python -m amonhen`|
 |`web/`|React PWA source (built to `web/dist`, served by the API)|

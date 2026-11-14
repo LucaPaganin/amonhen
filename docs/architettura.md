@@ -301,7 +301,13 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
    di proposito (`docs/sync-and-banks.md`). `Clock` resta da fare.
 3. **`api.py` in router per sezione**, con `Deps` come composition root; le 22 query
    degli handler scendono in `ledger/queries.py`. Meccanico, coperto dai test dell'API.
-   *Medio.*
+   *Medio.* **Router fatti:** `amonhen/api/` è un package, con un `APIRouter` per sezione in
+   `routes/`, costruito da un `AppContext` (il `Deps` di questo documento, con il nome che
+   dice cosa porta) che sostituisce la closure di `create_app`. Lo spostamento è stato
+   meccanico: i corpi delle route sono copiati riga per riga, gli import calcolati
+   dall'albero sintattico; lo schema OpenAPI è identico, e su 3635 combinazioni di metodo
+   e URL ogni richiesta arriva alla stessa route di prima. **Restano da fare** le 22 query
+   SQL scritte negli handler, che ora stanno nei router ma non ancora nel ledger.
 4. **`Ledger` in moduli per sotto-dominio**, con `Ledger` che resta come facciata così
    nessun chiamante cambia. *Medio.*
 5. **Separare calcolo e lettura** in `metrics.py` e `budgets.py`, solo dove un test lo

@@ -73,7 +73,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/classifier.py`|Char n-gram logistic proposals for uncovered merchants|
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
-|`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, statistics, dashboard series, first setup) and PWA host; `/callback` answers 303 to `/?setup=1`|
+|`amonhen/api/app.py`|`create_app`: the exception handlers, one `AppContext`, every router built from it in the order the routes were declared, then the PWA host as the catch-all|
+|`amonhen/api/routes/`|One `APIRouter` per section, each a `build(ctx)`: `setup` (consent flow and first setup; `/callback` answers 303 to `/?setup=1`), `dashboard`, `accounts`, `categories` (with tags and rules), `budgets`, `review`, `transactions`, `transfers`, `sync`, `imports`|
+|`amonhen/api/context.py`|`AppContext`: where the ledger and `accounts.json` live, `ledger_scope` (one connection per request, on the request's thread) and `credentials_or_409`|
+|`amonhen/api/schemas.py`, `amonhen/api/payloads.py`|The request bodies, and what the routers share: the payloads they answer with, query parsing, the 404 checks (`_`-named: the package's own, not the API's surface)|
+|`amonhen/api/version.py`|`API_VERSION`, and the history of what each version changed|
 |`amonhen/backup.py`|`make_snapshot`: a dated snapshot of the living ledger (SQLite's backup API, not a file copy) plus the configuration it needs, a manifest, and the retention that keeps it bounded|
 |`amonhen/ports/bank.py`|`BankProvider`, the port the sync speaks to a bank through: its operations, its data types and its three errors, none of them Enable Banking's|
 |`amonhen/composition.py`|The composition root: the only place a bank client or provider is built (`bank_provider`, `enable_banking_client`, and `bank_factory` for FastAPI's `Depends`)|
@@ -121,7 +125,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
-|`api`|`create_app`|
+|`api`|`create_app`, `API_VERSION`; `api.context.AppContext`; `api.routes.<section>.build`|
 |`backup`|`Snapshot`, `make_snapshot`|
 |`ports.bank`|`BankProvider`, `BankAccount`, `DeclaredBalance`, `FetchedWindow`, `BankError`, `ConsentExpired`, `RateLimited`, `BankUnavailable`|
 |`composition`|`bank_provider`, `enable_banking_client`, `bank_factory`, `BankFactory`|
@@ -188,7 +192,7 @@ change, like the spec.
   mortgage payment is a movement like any other, so if it should count it
   belongs in a category. Do not reintroduce a fixed monthly cost that is not a
   movement.
-- **`API_VERSION` in `api.py` and `REQUIRED_API_VERSION` in `web/src/App.tsx`
+- **`API_VERSION` in `amonhen/api/version.py` and `REQUIRED_API_VERSION` in `web/src/App.tsx`
   move together.** The API serves `web/dist` from disk on every request while the
   Python process keeps running its old code, so a new bundle against an old
   server is a normal state; without the handshake the app rendered nothing at all
