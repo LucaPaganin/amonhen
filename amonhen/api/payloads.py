@@ -15,6 +15,7 @@ from pathlib import Path
 import requests
 from fastapi import HTTPException
 
+from amonhen import queries
 from amonhen.adapters.enable_banking.client import (
     EnableBankingClient,
     refusal_code,
@@ -27,7 +28,6 @@ from amonhen.ledger import BalanceCheck, Ledger
 from amonhen.merchants import Rule, Stake, merchant_name
 from amonhen.metrics import LedgerScope, SeriesStatistics
 from amonhen.models import format_decimal, parse_decimal
-from amonhen.settings import UNCATEGORIZED
 from amonhen.sync import PeriodSyncResult, SyncResult, sync_limit
 
 
@@ -45,12 +45,14 @@ PENDING_OAUTH = "pending_oauth"
 # though the browser arrives back on a plain GET.
 SETUP_LAST_CONNECT = "setup_last_connect"
 
+
 def _shape(value: object) -> str:
     """How many entries a list held and of which types, for the log."""
     if not isinstance(value, list):
         return type(value).__name__
     kinds = sorted({type(item).__name__ for item in value})
     return f"{len(value)}x{'/'.join(kinds) or '-'}"
+
 
 def _suggested_name(client: EnableBankingClient, account_uid: str | None, bank: str | None) -> str:
     """A name for a new connected account: the bank, then what tells its accounts apart.
@@ -72,6 +74,7 @@ def _suggested_name(client: EnableBankingClient, account_uid: str | None, bank: 
         parts.append(str(details["currency"]))
     return " ".join(parts)
 
+
 def _refuse_oversized(content: str) -> None:
     if len(content) > MAX_CSV_BYTES:
         raise HTTPException(
@@ -81,6 +84,7 @@ def _refuse_oversized(content: str) -> None:
                 "(uv run amonhen import <file> --account <name>)"
             ),
         )
+
 
 def _import_account(ledger: Ledger, name: str) -> sqlite3.Row:
     """The account the rows belong to. A missing one is the caller's to add.
@@ -96,6 +100,7 @@ def _import_account(ledger: Ledger, name: str) -> sqlite3.Row:
         )
     return account
 
+
 def _passthrough(config_path: str | Path) -> tuple[Passthrough, ...]:
     """The configured passthrough labels, or none when the file cannot be read.
 
@@ -106,6 +111,7 @@ def _passthrough(config_path: str | Path) -> tuple[Passthrough, ...]:
         return load_config(config_path).passthrough
     except (OSError, KeyError, ValueError):
         return ()
+
 
 def _sync_payload(ledger: Ledger, result: SyncResult) -> dict:
     """What a sync did, per account, with the 5.4 verdict the panel shows.
@@ -139,6 +145,7 @@ def _sync_payload(ledger: Ledger, result: SyncResult) -> dict:
         "passthrough_legs": result.passthrough_legs,
         "errors": result.errors,
     }
+
 
 def _period_payload(ledger: Ledger, account_id: int, result: PeriodSyncResult) -> dict:
     """A period sync as the account's panel shows it.
@@ -183,6 +190,7 @@ def _period_payload(ledger: Ledger, account_id: int, result: PeriodSyncResult) -
         "verification": _verification(ledger, account_id),
     }
 
+
 def _held_payload(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],
@@ -196,6 +204,7 @@ def _held_payload(row: sqlite3.Row) -> dict:
         "twin_source": row["twin_source"],
         "twin_source_file": row["twin_source_file"],
     }
+
 
 def _verification(ledger: Ledger, account_id: int) -> dict:
     """The 5.4 invariant as the app shows it: what was declared, and whether we agree.
@@ -231,9 +240,11 @@ def _verification(ledger: Ledger, account_id: int) -> dict:
         ],
     }
 
+
 def _forecast(ledger: Ledger, account_id: int) -> dict | None:
     row = ledger.overdraft_forecast(account_id, dt.date.today())
     return None if row is None else {"date": row["date"], "balance": row["balance"]}
+
 
 def _unrecognized_balances(ledger: Ledger, account_id: int) -> list[dict]:
     return [
@@ -244,6 +255,7 @@ def _unrecognized_balances(ledger: Ledger, account_id: int) -> list[dict]:
         }
         for row in ledger.unrecognized_balances(account_id)
     ]
+
 
 def _verification_state(checks: list[BalanceCheck]) -> str:
     """Which of the four outcomes the account is in.
@@ -258,6 +270,7 @@ def _verification_state(checks: list[BalanceCheck]) -> str:
         return "suppressed"
     return "mismatch"
 
+
 def _names(raw: str | None) -> tuple[str, ...]:
     """A comma-separated list of names, trimmed, in order and without repeats."""
     found: dict[str, None] = {}
@@ -267,6 +280,7 @@ def _names(raw: str | None) -> tuple[str, ...]:
             found[name] = None
     return tuple(found)
 
+
 def _scope(
     accounts: str | None, categories: str | None, tags: str | None = None
 ) -> LedgerScope:
@@ -274,12 +288,14 @@ def _scope(
         accounts=_names(accounts), categories=_names(categories), tags=_names(tags)
     )
 
+
 def _day(value: str) -> dt.date:
     """An ISO date a person typed, refused with a message instead of a traceback."""
     try:
         return dt.date.fromisoformat(value)
     except ValueError:
         raise HTTPException(status_code=422, detail=f"{value!r} is not an ISO date") from None
+
 
 def _amount(value: str | None) -> Decimal | None:
     """An amount a person typed, refused the same way."""
@@ -290,6 +306,7 @@ def _amount(value: str | None) -> Decimal | None:
     except InvalidOperation:
         raise HTTPException(status_code=422, detail=f"{value!r} is not an amount") from None
 
+
 def _size(value: str | None) -> str | None:
     """An amount to compare a movement with, as the ledger stores one, sign left out."""
     if value is None or not value.strip():
@@ -298,6 +315,7 @@ def _size(value: str | None) -> str | None:
         return format_decimal(abs(parse_decimal(value.strip())))
     except InvalidOperation:
         raise HTTPException(status_code=422, detail=f"{value!r} is not an amount") from None
+
 
 def _period(from_date: str | None, to_date: str | None) -> tuple[dt.date, dt.date]:
     """The period a chart covers: the last twelve months unless asked otherwise.
@@ -319,6 +337,7 @@ def _period(from_date: str | None, to_date: str | None) -> tuple[dt.date, dt.dat
         raise HTTPException(status_code=422, detail="`from` is after `to`")
     return start, end
 
+
 def _applied(scope: LedgerScope, period: tuple[dt.date, dt.date] | None = None) -> dict:
     """What the server actually applied, so the client never has to guess."""
     applied: dict = {
@@ -330,16 +349,15 @@ def _applied(scope: LedgerScope, period: tuple[dt.date, dt.date] | None = None) 
         applied["from"], applied["to"] = period[0].isoformat(), period[1].isoformat()
     return applied
 
-def _real_accounts(ledger: Ledger) -> list[sqlite3.Row]:
-    return ledger.conn.execute("SELECT id FROM accounts WHERE type = 'real' ORDER BY name").fetchall()
 
 def _require_real_account(ledger: Ledger, account_id: int) -> sqlite3.Row:
-    row = ledger.conn.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
+    row = queries.account(ledger, account_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"account {account_id} not found")
     if row["type"] != "real":
         raise HTTPException(status_code=422, detail=f"account {account_id} is not a real account")
     return row
+
 
 def _deleted_payload(row: sqlite3.Row) -> dict:
     """A deleted movement as the trash list reads it.
@@ -360,6 +378,7 @@ def _deleted_payload(row: sqlite3.Row) -> dict:
         "notes": row["notes"],
         "deleted_at": row["deleted_at"],
     }
+
 
 def _account_payload(ledger: Ledger, account_id: int) -> dict:
     """One account as every account endpoint answers it."""
@@ -391,104 +410,25 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         "sync_limit": sync_limit(ledger, row["id"]),
     }
 
-def _transaction_filters(
-    from_date: str | None,
-    to_date: str | None,
-    account_id: int | None,
-    category: str | None,
-    status: str | None,
-    search: str | None,
-    transfer: bool | None,
-    virtual_account_id: int | None = None,
-    tag: str | None = None,
-    amount_min: str | None = None,
-    amount_max: str | None = None,
-    *,
-    everyday: bool = False,
-) -> tuple[str, list]:
-    clauses: list[str] = []
-    params: list = []
-    if from_date:
-        clauses.append("t.date >= ?")
-        params.append(from_date)
-    if to_date:
-        clauses.append("t.date <= ?")
-        params.append(to_date)
-    if account_id is not None:
-        clauses.append("t.account_id = ?")
-        params.append(account_id)
-    if status:
-        clauses.append("t.status = ?")
-        params.append(status)
-    if category:
-        clauses.append(
-            """EXISTS (SELECT 1 FROM postings p JOIN accounts c ON c.id = p.account_id
-                       WHERE p.transaction_id = t.id AND c.type = 'category' AND c.name = ?)"""
-        )
-        params.append(category)
-    if search:
-        # A note is the one word a person wrote on a movement, so a search that
-        # could not find it would make marking a movement pointless.
-        clauses.append("(t.description LIKE ? OR t.counterparty LIKE ? OR t.notes LIKE ?)")
-        params += [f"%{search}%", f"%{search}%", f"%{search}%"]
-    if transfer is not None:
-        # A leg's balancing side sits on a virtual account, so this is the same
-        # test `Ledger.is_transfer` makes.
-        leg = """EXISTS (SELECT 1 FROM postings p JOIN accounts v ON v.id = p.account_id
-                         WHERE p.transaction_id = t.id AND v.type = 'virtual')"""
-        clauses.append(leg if transfer else f"NOT {leg}")
-    if virtual_account_id is not None:
-        # The movements a virtual account holds are the ones posted to it.
-        clauses.append(
-            "EXISTS (SELECT 1 FROM postings p WHERE p.transaction_id = t.id AND p.account_id = ?)"
-        )
-        params.append(virtual_account_id)
-    if tag:
-        clauses.append(
-            """EXISTS (SELECT 1 FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id
-                       WHERE tt.transaction_id = t.id AND g.name = ?)"""
-        )
-        params.append(tag)
-    # A size, like a rule's conditions: both ends count, and the sign does not. The
-    # bound is cast by SQLite too, so an amount typed exactly is an amount found.
-    if amount_min is not None:
-        clauses.append("ABS(CAST(t.amount AS REAL)) >= CAST(? AS REAL)")
-        params.append(amount_min)
-    if amount_max is not None:
-        clauses.append("ABS(CAST(t.amount AS REAL)) <= CAST(? AS REAL)")
-        params.append(amount_max)
-    if everyday:
-        clauses.append(
-            """a.computed_balance = 0 AND NOT EXISTS (
-                   SELECT 1 FROM postings p JOIN accounts v ON v.id = p.account_id
-                   WHERE p.transaction_id = t.id AND v.type = 'virtual')"""
-        )
-    return ("WHERE " + " AND ".join(clauses) if clauses else ""), params
-
-def _posted_on(ledger: Ledger, account_id: int) -> Decimal:
-    """What the postings on an account add up to, cents-exact."""
-    total = Decimal(0)
-    for row in ledger.conn.execute("SELECT amount FROM postings WHERE account_id = ?", (account_id,)):
-        total += parse_decimal(row["amount"])
-    return total
 
 def _require_transaction(ledger: Ledger, transaction_id: int) -> sqlite3.Row:
-    row = ledger.conn.execute(
-        "SELECT * FROM transactions WHERE id = ?", (transaction_id,)
-    ).fetchone()
+    row = queries.transaction(ledger, transaction_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"transaction {transaction_id} not found")
     return row
 
+
 def _budget_month(month: str | None) -> str:
     """The month a budget answer is for; the current one by default."""
     return parse_month(month) if month else month_of(dt.date.today())
+
 
 def _rule_target(body: RuleRequest) -> str | None:
     """The target the request names: `category` is how the old form said it."""
     if body.target is not None:
         return body.target
     return body.category if body.action == "category" else None
+
 
 def _rule_fields(body: RuleRequest) -> dict:
     """The keyword arguments `RuleBook.set_rule` and `checked` take from a request."""
@@ -504,6 +444,7 @@ def _rule_fields(body: RuleRequest) -> dict:
         "amount_max": amount(body.amount_max),
         "rule_id": body.id,
     }
+
 
 def _rule_payload(ledger: Ledger, rule: Rule, count: int) -> dict:
     """A rule as the app reads it. `category` stays for the category rules."""
@@ -523,9 +464,11 @@ def _rule_payload(ledger: Ledger, rule: Rule, count: int) -> dict:
         "count": count,
     }
 
+
 def _budget_amount(value: str | None) -> Decimal | None:
     """None clears; anything else must read as an amount (an empty string does not)."""
     return None if value is None else parse_decimal(value)
+
 
 def _require_category(ledger: Ledger, category_id: int) -> None:
     """404 for an account that does not exist; the budget module refuses the rest."""
@@ -534,11 +477,13 @@ def _require_category(ledger: Ledger, category_id: int) -> None:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc).strip("'")) from None
 
+
 def _require_budget_item(ledger: Ledger, item_id: int) -> dict:
     try:
         return get_item(ledger, item_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc).strip("'")) from None
+
 
 def _item_fields(body: BudgetItemRequest) -> ItemFields:
     return ItemFields(
@@ -551,11 +496,13 @@ def _item_fields(body: BudgetItemRequest) -> ItemFields:
         note=body.note,
     )
 
+
 def _upstream_refusal(exc: Exception) -> str:
     """The bank's own reason, whichever way its client reports it."""
     if not isinstance(exc, requests.HTTPError) or exc.response is None:
         return str(exc)
     return f"{exc.response.status_code} {refusal_detail(exc.response)}"
+
 
 def _auth_refusal(exc: Exception, redirect_url: str) -> str:
     """Why `/auth` was refused, naming the redirect URL when that is the reason.
@@ -575,6 +522,7 @@ def _auth_refusal(exc: Exception, redirect_url: str) -> str:
         "for the application, character for character"
     )
 
+
 def _last_connect(ledger: Ledger) -> dict | None:
     """What the last authorization wrote, for the screen the browser came back to."""
     raw = ledger.setting(SETUP_LAST_CONNECT)
@@ -584,6 +532,7 @@ def _last_connect(ledger: Ledger) -> dict | None:
         return json.loads(raw)
     except ValueError:
         return None
+
 
 def _statistics_payload(statistics: SeriesStatistics) -> dict:
     return {
@@ -595,8 +544,10 @@ def _statistics_payload(statistics: SeriesStatistics) -> dict:
         "series": [_money(value) for value in statistics.series],
     }
 
+
 def _money(value) -> str | None:
     return format_decimal(value) if value is not None else None
+
 
 def _category_payload(row) -> dict:
     return {
@@ -608,6 +559,7 @@ def _category_payload(row) -> dict:
         "contribution": bool(row["contribution"]),
         "description": row["description"],
     }
+
 
 def _metrics_payload(metrics, scope: LedgerScope) -> dict:
     return {
@@ -630,23 +582,6 @@ def _metrics_payload(metrics, scope: LedgerScope) -> dict:
         "contributions_monthly": _money(metrics.contributions_monthly),
     }
 
-def _review_page(ledger: Ledger, ids: list[int], uncategorized_where: str) -> list[sqlite3.Row]:
-    """The full rows for the selected ids, most recent first.
-
-    The ids were already ordered, so this is one bounded query rather than a
-    scan of the whole backlog with every raw payload attached.
-    """
-    if not ids:
-        return []
-    placeholders = ", ".join("?" * len(ids))
-    return list(
-        ledger.conn.execute(
-            f"""SELECT t.* FROM transactions t {uncategorized_where}
-                AND t.id IN ({placeholders})
-                ORDER BY t.date DESC, t.id DESC""",
-            (UNCATEGORIZED, *ids),
-        )
-    )
 
 def _review_transaction(row: sqlite3.Row, ledger: Ledger, pending: dict[str, str]) -> dict:
     """A queue row plus what the automatic passes already made of it."""
@@ -655,6 +590,7 @@ def _review_transaction(row: sqlite3.Row, ledger: Ledger, pending: dict[str, str
     payload["proposed_category"] = proposed
     payload["review_state"] = "proposed" if proposed else "unhandled"
     return payload
+
 
 def _stake(stake: Stake | None) -> dict:
     """A proposal's stake as the queue reads it. Nothing waiting is a zero."""
@@ -680,6 +616,7 @@ def _stake(stake: Stake | None) -> dict:
             for item in stake.items
         ],
     }
+
 
 def _transaction(row: sqlite3.Row, ledger: Ledger) -> dict:
     account = ledger.account(row["account_id"])

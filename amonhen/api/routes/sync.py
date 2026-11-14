@@ -5,6 +5,7 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from amonhen import queries
 from amonhen.api.context import AppContext
 from amonhen.api.payloads import _day, _held_payload, _passthrough, _period_payload, _sync_payload
 from amonhen.api.schemas import PeriodSyncRequest
@@ -39,6 +40,7 @@ def build(ctx: AppContext) -> APIRouter:
             except SyncBusy as exc:
                 raise HTTPException(status_code=409, detail=str(exc))
             return _sync_payload(ledger, result)
+
     @router.post("/api/sync/period")
     def run_period_sync(
         body: PeriodSyncRequest, make_bank: BankFactory = Depends(bank_factory)
@@ -53,9 +55,7 @@ def build(ctx: AppContext) -> APIRouter:
         """
         date_from, date_to = _day(body.date_from), _day(body.date_to)
         with ledger_scope() as ledger:
-            account = ledger.conn.execute(
-                "SELECT * FROM accounts WHERE id = ? AND type = 'real'", (body.account_id,)
-            ).fetchone()
+            account = queries.real_account(ledger, body.account_id)
             if account is None:
                 raise HTTPException(
                     status_code=422, detail=f"account {body.account_id} is not a real account"
@@ -75,11 +75,13 @@ def build(ctx: AppContext) -> APIRouter:
             except SyncBusy as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
             return _period_payload(ledger, account["id"], result)
+
     @router.get("/api/sync/held")
     def held_movements(account_id: int | None = None) -> list[dict]:
         """The probable duplicates a period sync did not write, still undecided."""
         with ledger_scope() as ledger:
             return [_held_payload(row) for row in ledger.held_transactions(account_id)]
+
     @router.post("/api/sync/held/{held_id}/{decision}")
     def decide_held(held_id: int, decision: str) -> dict:
         """Write one held movement or keep it out, and answer with what is left.
@@ -91,9 +93,7 @@ def build(ctx: AppContext) -> APIRouter:
         if decision not in ("write", "discard"):
             raise HTTPException(status_code=404, detail=f"no decision {decision!r}")
         with ledger_scope() as ledger:
-            row = ledger.conn.execute(
-                "SELECT account_id, date FROM held_transactions WHERE id = ?", (held_id,)
-            ).fetchone()
+            row = queries.held_movement(ledger, held_id)
             if row is None:
                 raise HTTPException(status_code=404, detail=f"held movement {held_id} not found")
             try:

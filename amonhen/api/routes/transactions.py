@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
+from amonhen import queries
 from amonhen import db
 from amonhen.api.context import AppContext
-from amonhen.api.payloads import _require_transaction, _size, _transaction, _transaction_filters
+from amonhen.api.payloads import _require_transaction, _size, _transaction
 from amonhen.api.schemas import (
     BatchCategoryRequest,
     BatchTagRequest,
@@ -44,38 +45,29 @@ def build(ctx: AppContext) -> APIRouter:
         movements, the daily interest included. `hidden` says how many that was,
         so the list can never look shorter than the ledger without saying so.
         """
-        filters = (from_date, to_date, account_id, category, status, search, transfer,
-                   virtual_account_id, tag, _size(amount_min), _size(amount_max))
-        where, params = _transaction_filters(*filters, everyday=everyday)
+        filters = queries.TransactionFilter(
+            from_date=from_date, to_date=to_date, account_id=account_id, category=category,
+            status=status, search=search, transfer=transfer,
+            virtual_account_id=virtual_account_id, tag=tag,
+            amount_min=_size(amount_min), amount_max=_size(amount_max),
+        )
         with ledger_scope() as ledger:
-            count = (
-                "SELECT COUNT(*) AS c FROM transactions t"
-                " JOIN accounts a ON a.id = t.account_id "
+            page = queries.transaction_page(
+                ledger, filters, everyday=everyday, limit=limit, offset=offset
             )
-            total = ledger.conn.execute(count + where, params).fetchone()["c"]
-            hidden = 0
-            if everyday:
-                unfiltered, unfiltered_params = _transaction_filters(*filters)
-                hidden = (
-                    ledger.conn.execute(count + unfiltered, unfiltered_params).fetchone()["c"]
-                    - total
-                )
-            rows = ledger.conn.execute(
-                f"""SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id
-                    {where} ORDER BY t.date DESC, t.id DESC LIMIT ? OFFSET ?""",
-                params + [limit, offset],
-            ).fetchall()
             return {
-                "total": total,
-                "hidden": hidden,
+                "total": page.total,
+                "hidden": page.hidden,
                 "limit": limit,
                 "offset": offset,
-                "items": [_transaction(row, ledger) for row in rows],
+                "items": [_transaction(row, ledger) for row in page.rows],
             }
+
     @router.get("/api/transactions/{transaction_id}")
     def transaction(transaction_id: int) -> dict:
         with ledger_scope() as ledger:
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
     @router.put("/api/transactions/{transaction_id}/splits")
     def put_splits(transaction_id: int, body: SplitsRequest) -> dict:
         with ledger_scope() as ledger:
@@ -93,6 +85,7 @@ def build(ctx: AppContext) -> APIRouter:
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
     @router.delete("/api/transactions/{transaction_id}")
     def delete_transaction(transaction_id: int) -> dict:
         """Take a movement out of the ledger, remembered as a tombstone.
@@ -106,6 +99,7 @@ def build(ctx: AppContext) -> APIRouter:
             _require_transaction(ledger, transaction_id)
             deletion = ledger.delete_transaction(transaction_id)
             return {"id": deletion.transaction_id, "unlinked_pair": deletion.unlinked_pair}
+
     @router.post("/api/transactions/delete")
     def delete_transactions(body: TransactionIdsRequest) -> dict:
         """Delete several movements at once — a page selected in Movimenti.
@@ -124,6 +118,7 @@ def build(ctx: AppContext) -> APIRouter:
                 "deleted": len(deletions),
                 "unlinked_pairs": sum(deletion.unlinked_pair for deletion in deletions),
             }
+
     @router.post("/api/transactions/category")
     def categorize_transactions(body: BatchCategoryRequest) -> dict:
         """Give several movements one category, as a person's own decision.
@@ -146,6 +141,7 @@ def build(ctx: AppContext) -> APIRouter:
                     ledger.set_category(transaction_id, account)
                     categorized += 1
             return {"categorized": categorized, "skipped": len(set(body.ids)) - categorized}
+
     @router.post("/api/transactions/tag")
     def tag_transactions(body: BatchTagRequest) -> dict:
         """Put one tag on several movements, as a person's own decision."""
@@ -161,6 +157,7 @@ def build(ctx: AppContext) -> APIRouter:
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
             return {"tagged": len(set(body.ids))}
+
     @router.put("/api/transactions/{transaction_id}/tags")
     def put_tags(transaction_id: int, body: TagsRequest) -> dict:
         """Make a movement carry exactly these tags."""
@@ -168,6 +165,7 @@ def build(ctx: AppContext) -> APIRouter:
             row = _require_transaction(ledger, transaction_id)
             ledger.set_tags(row["id"], body.tags)
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
     @router.put("/api/transactions/{transaction_id}/notes")
     def put_notes(transaction_id: int, body: NotesRequest) -> dict:
         """Write the local note of a movement, or clear it.
@@ -181,6 +179,7 @@ def build(ctx: AppContext) -> APIRouter:
             _require_transaction(ledger, transaction_id)
             ledger.set_notes(transaction_id, body.notes)
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
     @router.post("/api/transactions/{transaction_id}/category")
     def set_category(transaction_id: int, body: CategoryRequest) -> dict:
         with ledger_scope() as ledger:
@@ -191,8 +190,6 @@ def build(ctx: AppContext) -> APIRouter:
                     detail="the transaction is a leg of a transfer: review the link first",
                 )
             ledger.set_category(transaction_id, ledger.category(body.category))
-            return _transaction(ledger.conn.execute(
-                "SELECT * FROM transactions WHERE id = ?", (transaction_id,)
-            ).fetchone(), ledger)
+            return _transaction(queries.transaction(ledger, transaction_id), ledger)
 
     return router

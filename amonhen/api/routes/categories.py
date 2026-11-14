@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from amonhen import queries
 from amonhen.api.context import AppContext
 from amonhen.api.payloads import _category_payload, _rule_fields, _rule_payload, _rule_target
 from amonhen.api.schemas import (
@@ -21,11 +22,9 @@ def build(ctx: AppContext) -> APIRouter:
     @router.get("/api/categories")
     def categories() -> list[dict]:
         with ledger_scope() as ledger:
-            rows = ledger.conn.execute(
-                "SELECT id, name, episodic, essential, income, contribution, description"
-                " FROM accounts WHERE type = 'category' ORDER BY name"
-            ).fetchall()
+            rows = queries.category_rows(ledger)
             return [_category_payload(row) for row in rows]
+
     @router.get("/api/tags")
     def tags() -> list[dict]:
         with ledger_scope() as ledger:
@@ -39,6 +38,7 @@ def build(ctx: AppContext) -> APIRouter:
                 }
                 for row in ledger.tags()
             ]
+
     @router.post("/api/tags", status_code=201)
     def add_tag(body: CategoryNameRequest) -> dict:
         with ledger_scope() as ledger:
@@ -46,6 +46,7 @@ def build(ctx: AppContext) -> APIRouter:
                 return {"id": ledger.tag(body.name), "name": " ".join(body.name.split())}
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @router.patch("/api/tags/{tag_id}")
     def patch_tag(tag_id: int, body: CategoryFlagsRequest) -> dict:
         """The two flags of a tag: the same request as a category's."""
@@ -60,6 +61,7 @@ def build(ctx: AppContext) -> APIRouter:
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             return {"id": tag_id}
+
     @router.delete("/api/tags/{tag_id}")
     def delete_tag(tag_id: int) -> dict:
         with ledger_scope() as ledger:
@@ -68,6 +70,7 @@ def build(ctx: AppContext) -> APIRouter:
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             return {"id": tag_id}
+
     @router.get("/api/rules")
     def rules() -> list[dict]:
         with ledger_scope() as ledger:
@@ -84,6 +87,7 @@ def build(ctx: AppContext) -> APIRouter:
         with ledger_scope() as ledger:
             account_id = ledger.category(name)
             return {"id": account_id, "name": name}
+
     @router.patch("/api/categories/{account_id}")
     def patch_category(account_id: int, body: CategoryFlagsRequest) -> dict:
         if all(
@@ -114,6 +118,7 @@ def build(ctx: AppContext) -> APIRouter:
                 raise HTTPException(status_code=404 if isinstance(exc, KeyError) else 422,
                                     detail=str(exc)) from exc
             return _category_payload(ledger.account(account_id))
+
     @router.post("/api/rules", status_code=201)
     def save_rule(body: RuleRequest) -> dict:
         """Write a rule and apply it now — a deleting one moves its movements to
@@ -135,6 +140,7 @@ def build(ctx: AppContext) -> APIRouter:
                 == (saved.key, saved.account_id, saved.amount_min, saved.amount_max)
             )
             return _rule_payload(ledger, stored, count)
+
     @router.post("/api/rules/preview")
     def preview_rule(body: RuleRequest) -> dict:
         """What a rule would take if it were written now, writing nothing."""
@@ -162,6 +168,7 @@ def build(ctx: AppContext) -> APIRouter:
                     for row in found["items"]
                 ],
             }
+
     @router.post("/api/rules/remove")
     def remove_rule(body: RuleRemoveRequest) -> dict:
         with ledger_scope() as ledger:
@@ -178,6 +185,7 @@ def build(ctx: AppContext) -> APIRouter:
         if held is None:
             raise HTTPException(status_code=404, detail=f"no rule for {pattern!r}")
         return {"id": None, "pattern": pattern, "held": held}
+
     @router.post("/api/categorize")
     def run_categorize() -> dict:
         with ledger_scope() as ledger:

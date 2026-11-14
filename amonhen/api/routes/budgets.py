@@ -32,6 +32,7 @@ def build(ctx: AppContext) -> APIRouter:
         """One month of budgets, read against the ``months`` complete months before it."""
         with ledger_scope() as ledger:
             return budget_month(ledger, _budget_month(month), window_months=months)
+
     @router.put("/api/budgets/{category_id}")
     def put_budget(
         category_id: int,
@@ -49,6 +50,7 @@ def build(ctx: AppContext) -> APIRouter:
             _require_category(ledger, category_id)
             set_default(ledger, category_id, month, _budget_amount(body.amount))
             return budget_month(ledger, month, window_months=months)
+
     @router.put("/api/budgets/{category_id}/override")
     def put_budget_override(
         category_id: int,
@@ -62,6 +64,7 @@ def build(ctx: AppContext) -> APIRouter:
             _require_category(ledger, category_id)
             set_month_override(ledger, category_id, month, _budget_amount(body.amount))
             return budget_month(ledger, month, window_months=months)
+
     @router.post("/api/budgets/{category_id}/copy")
     def copy_budget_items(
         category_id: int, body: BudgetCopyRequest, months: int = Query(6, ge=3, le=24)
@@ -74,6 +77,7 @@ def build(ctx: AppContext) -> APIRouter:
                 "copied": copied,
                 "budgets": budget_month(ledger, body.to_month, window_months=months),
             }
+
     @router.post("/api/budget-items", status_code=201)
     def create_budget_item(
         body: BudgetItemRequest, months: int = Query(6, ge=3, le=24)
@@ -84,6 +88,7 @@ def build(ctx: AppContext) -> APIRouter:
                 _require_category(ledger, body.category_id)
             add_item(ledger, _item_fields(body))
             return budget_month(ledger, body.month, window_months=months)
+
     @router.put("/api/budget-items/{item_id}")
     def update_budget_item(
         item_id: int,
@@ -98,6 +103,7 @@ def build(ctx: AppContext) -> APIRouter:
                 _require_category(ledger, body.category_id)
             update_item(ledger, item_id, _item_fields(body))
             return budget_month(ledger, _budget_month(month or body.month), window_months=months)
+
     @router.delete("/api/budget-items/{item_id}")
     def delete_budget_item(item_id: int, months: int = Query(6, ge=3, le=24)) -> dict:
         """Drop a planned expense, answering with the month it was in."""

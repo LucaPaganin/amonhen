@@ -49,9 +49,11 @@ def create_app(
         # problem, not a server error. ArithmeticError covers a malformed
         # decimal string from parse_decimal.
         return JSONResponse(status_code=422, content={"detail": str(exc)})
+
     @app.exception_handler(ArithmeticError)
     async def invalid_number(_request, exc: ArithmeticError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": f"invalid number: {exc}"})
+
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_request, exc: RequestValidationError) -> JSONResponse:
         """A malformed request, described without repeating what it carried.

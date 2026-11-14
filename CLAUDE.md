@@ -73,6 +73,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/classifier.py`|Char n-gram logistic proposals for uncovered merchants|
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
+|`amonhen/queries.py`|The reads the screens need, in SQL beside the ledger: a page of movements (`TransactionFilter`, `transaction_page`), the review queue, the virtual accounts, one row by id. Routes call these and write no SQL; what a missing row means (404, 422) stays the route's|
 |`amonhen/api/app.py`|`create_app`: the exception handlers, one `AppContext`, every router built from it in the order the routes were declared, then the PWA host as the catch-all|
 |`amonhen/api/routes/`|One `APIRouter` per section, each a `build(ctx)`: `setup` (consent flow and first setup; `/callback` answers 303 to `/?setup=1`), `dashboard`, `accounts`, `categories` (with tags and rules), `budgets`, `review`, `transactions`, `transfers`, `sync`, `imports`|
 |`amonhen/api/context.py`|`AppContext`: where the ledger and `accounts.json` live, `ledger_scope` (one connection per request, on the request's thread) and `credentials_or_409`|
@@ -125,6 +126,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
+|`queries`|`TransactionFilter`, `TransactionPage`, `transaction_page`, `uncategorized_backlog`, `queue_rows`, `backlog_accounts`, `proposed_transfers`, `waiting_credits`, `virtual_account_usage`, `category_rows`, `mirror_destinations`, `real_account_ids`, `posted_on`, `account`, `real_account`, `transaction`, `deleted_movement`, `held_movement`, `suggestion`|
 |`api`|`create_app`, `API_VERSION`; `api.context.AppContext`; `api.routes.<section>.build`|
 |`backup`|`Snapshot`, `make_snapshot`|
 |`ports.bank`|`BankProvider`, `BankAccount`, `DeclaredBalance`, `FetchedWindow`, `BankError`, `ConsentExpired`, `RateLimited`, `BankUnavailable`|

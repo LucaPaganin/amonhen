@@ -46,6 +46,7 @@ def build(ctx: AppContext) -> APIRouter:
             "version": VERSION,
             "uncategorized": UNCATEGORIZED,
         }
+
     @router.get("/api/month")
     def month(
         accounts: str | None = None, categories: str | None = None, tags: str | None = None
@@ -74,6 +75,7 @@ def build(ctx: AppContext) -> APIRouter:
                     for item in reading.categories
                 ],
             }
+
     @router.get("/api/metrics")
     def metrics(
         accounts: str | None = None, categories: str | None = None, tags: str | None = None
@@ -86,6 +88,7 @@ def build(ctx: AppContext) -> APIRouter:
         scope = _scope(accounts, categories, tags)
         with ledger_scope() as ledger:
             return _metrics_payload(compute_metrics(ledger, dt.date.today(), scope=scope), scope)
+
     @router.get("/api/statistics")
     def statistics(months: int = Query(12, ge=1, le=60)) -> dict:
         """Each category's last complete months: the median, the mean, the range."""
@@ -101,6 +104,7 @@ def build(ctx: AppContext) -> APIRouter:
                     for item in reading.categories
                 ],
             }
+
     @router.get("/api/spending")
     def spending(
         from_date: str | None = Query(None, alias="from"),
@@ -123,6 +127,7 @@ def build(ctx: AppContext) -> APIRouter:
                     {"category": item.category, "amount": _money(item.amount)} for item in slices
                 ],
             }
+
     @router.get("/api/flows")
     def flows(
         from_date: str | None = Query(None, alias="from"),
@@ -148,6 +153,7 @@ def build(ctx: AppContext) -> APIRouter:
                     for flow in monthly_flows(ledger, period[0], period[1], scope)
                 ],
             }
+
     @router.get("/api/networth")
     def networth(
         from_date: str | None = Query(None, alias="from"),
@@ -180,6 +186,7 @@ def build(ctx: AppContext) -> APIRouter:
                     for balance in latest_balances(ledger, scope)
                 ],
             }
+
     @router.get("/api/anomalies")
     def anomalies(days: int = Query(31, ge=1, le=366)) -> list[dict]:
         with ledger_scope() as ledger:

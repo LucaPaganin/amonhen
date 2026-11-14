@@ -9,24 +9,30 @@ from pydantic import BaseModel, ConfigDict, Field
 class CategoryRequest(BaseModel):
     category: str
 
+
 class NotesRequest(BaseModel):
     """The local note of a movement: the only field the app may write on it."""
 
     notes: str | None = None
 
+
 class ReviewRequest(BaseModel):
     decision: Literal["confirm", "reject"]
+
 
 class TransferPassthroughRequest(BaseModel):
     transaction_id: int
     destination: str
 
+
 class TransferPairRequest(BaseModel):
     leg_a: int
     leg_b: int
 
+
 class TransferUnlinkRequest(BaseModel):
     transaction_id: int
+
 
 class RuleRequest(BaseModel):
     """A rule to write. `category` is the old form of `target` for a category rule.
@@ -44,28 +50,35 @@ class RuleRequest(BaseModel):
     amount_max: str | None = None
     id: int | None = None
 
+
 class RuleRemoveRequest(BaseModel):
     """The rule to drop: by id, or by the text of a rule without conditions."""
 
     pattern: str | None = None
     id: int | None = None
 
+
 class TransactionIdsRequest(BaseModel):
     ids: list[int]
+
 
 class BatchCategoryRequest(BaseModel):
     ids: list[int]
     category: str
 
+
 class BatchTagRequest(BaseModel):
     ids: list[int]
     tag: str
 
+
 class TagsRequest(BaseModel):
     tags: list[str]
 
+
 class CategoryNameRequest(BaseModel):
     name: str
+
 
 class CategoryFlagsRequest(BaseModel):
     name: str | None = None
@@ -75,18 +88,22 @@ class CategoryFlagsRequest(BaseModel):
     contribution: bool | None = None
     description: str | None = None
 
+
 class AccountFlagsRequest(BaseModel):
     investment: bool | None = None
     reimport_deleted: bool | None = None
     computed_balance: bool | None = None
     unreported_funding: bool | None = None
 
+
 class SplitItem(BaseModel):
     category: str
     amount: str
 
+
 class SplitsRequest(BaseModel):
     splits: list[SplitItem]
+
 
 class AccountRequest(BaseModel):
     name: str
@@ -95,6 +112,7 @@ class AccountRequest(BaseModel):
     opening_balance: str | None = None
     opening_date: str | None = None
 
+
 class DeclarationRequest(BaseModel):
     """A balance read off the bank, and which of its two figures it is."""
 
@@ -102,14 +120,17 @@ class DeclarationRequest(BaseModel):
     balance: str
     kind: Literal["available", "booked"] = "available"
 
+
 class ValuationRequest(BaseModel):
     """What an investment account is worth on a day: cash and securities together."""
 
     date: str
     value: str
 
+
 class BudgetRequest(BaseModel):
     amount: str | None = None
+
 
 class BudgetItemRequest(BaseModel):
     """A planned expense, whole: an edit may move it to another month or category.
@@ -126,9 +147,11 @@ class BudgetItemRequest(BaseModel):
     priority: Literal["essential", "important", "deferrable"] = "important"
     note: str | None = None
 
+
 class BudgetCopyRequest(BaseModel):
     from_month: str
     to_month: str
+
 
 class SuggestionDecisionRequest(BaseModel):
     merchant: str
@@ -140,6 +163,7 @@ class SuggestionDecisionRequest(BaseModel):
     # Absent means the decision is about the movements alone: `rules` is not
     # touched, and the next movements of that merchant come back to the queue.
     rule: str | None = None
+
 
 class SetupCredentialsRequest(BaseModel):
     """The Enable Banking credentials the first-setup screen collected.
@@ -155,13 +179,16 @@ class SetupCredentialsRequest(BaseModel):
     account_holder_name: str | None = None
     private_key: str | None = None
 
+
 class SetupConnectRequest(BaseModel):
     bank: str
     country: str = "IT"
 
+
 class SetupAccountRequest(BaseModel):
     name: str
     start_sync_date: str | None = None
+
 
 class CsvMapping(BaseModel):
     """The column map the import screen built, one field per choice it offered.
@@ -183,6 +210,7 @@ class CsvMapping(BaseModel):
     external_id_column: str = ""
     invert_sign: bool = False
 
+
 class PeriodSyncRequest(BaseModel):
     """One connected account over a period a person chose, both days included."""
 
@@ -192,6 +220,7 @@ class PeriodSyncRequest(BaseModel):
     date_from: str = Field(alias="from")
     date_to: str = Field(alias="to")
     preview: bool = False
+
 
 class CsvImportRequest(BaseModel):
     """A statement pasted as text, the account it belongs to, and its map."""

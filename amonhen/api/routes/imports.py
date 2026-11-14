@@ -41,6 +41,7 @@ def build(ctx: AppContext) -> APIRouter:
                     balancing_account_id=ledger.uncategorized(),
                 )
         return {"ready": problem is None, "problem": problem, **payload}
+
     @router.post("/api/import/csv")
     def csv_import(body: CsvImportRequest) -> dict:
         """Write the mapped rows, then settle them as `import` and the sync do.

@@ -70,9 +70,11 @@ def build(ctx: AppContext) -> APIRouter:
                 ),
             )
         return url
+
     @router.get("/connect")
     def connect(bank: str, country: str, psu_type: str = "personal") -> RedirectResponse:
         return RedirectResponse(start_authorization(bank, country, psu_type), status_code=302)
+
     @router.get("/callback")
     def callback(code: str, state: str) -> RedirectResponse:
         with ledger_scope() as ledger:
@@ -165,9 +167,11 @@ def build(ctx: AppContext) -> APIRouter:
             payload = setup_state(config_path)
             payload["last_connect"] = _last_connect(ledger)
         return payload
+
     @router.get("/api/setup")
     def setup() -> dict:
         return setup_payload()
+
     @router.put("/api/setup/credentials")
     def write_credentials(request: SetupCredentialsRequest) -> dict:
         try:
@@ -185,6 +189,7 @@ def build(ctx: AppContext) -> APIRouter:
                 status_code=503, detail=f"the configuration could not be written: {exc}"
             ) from exc
         return setup_payload()
+
     @router.get("/api/setup/banks")
     def setup_banks(country: str = "IT") -> dict:
         """The banks Enable Banking knows in one country, by exact name.
@@ -215,9 +220,11 @@ def build(ctx: AppContext) -> APIRouter:
                 key=lambda bank: bank["name"],
             ),
         }
+
     @router.post("/api/setup/connect")
     def setup_connect(request: SetupConnectRequest) -> dict:
         return {"url": start_authorization(request.bank, request.country, "personal")}
+
     @router.patch("/api/setup/accounts/{account_uid}")
     def rename_configured_account(account_uid: str, request: SetupAccountRequest) -> dict:
         """Rename a connected account in `accounts.json` and in the ledger at once.
@@ -247,6 +254,7 @@ def build(ctx: AppContext) -> APIRouter:
             with ledger_scope() as ledger:
                 ledger.rename_account(existing["id"], request.name)
         return setup_payload()
+
     @router.delete("/api/setup/accounts/{account_uid}")
     def remove_configured_account(account_uid: str) -> dict:
         try:

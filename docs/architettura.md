@@ -306,8 +306,11 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
    dice cosa porta) che sostituisce la closure di `create_app`. Lo spostamento è stato
    meccanico: i corpi delle route sono copiati riga per riga, gli import calcolati
    dall'albero sintattico; lo schema OpenAPI è identico, e su 3635 combinazioni di metodo
-   e URL ogni richiesta arriva alla stessa route di prima. **Restano da fare** le 22 query
-   SQL scritte negli handler, che ora stanno nei router ma non ancora nel ledger.
+   e URL ogni richiesta arriva alla stessa route di prima. **Query fatte:** le 22 chiamate
+   SQL che stavano nelle route e in `payloads.py` sono funzioni di `amonhen/queries.py`,
+   con le stesse stringhe SQL; le route non scrivono più SQL, e quello che una riga mancante
+   significa (404, 422) resta loro. Non stanno sulla classe `Ledger`, che ha già circa 130
+   metodi: sono letture, in un modulo di letture, come diceva la sezione 3.1.
 4. **`Ledger` in moduli per sotto-dominio**, con `Ledger` che resta come facciata così
    nessun chiamante cambia. *Medio.*
 5. **Separare calcolo e lettura** in `metrics.py` e `budgets.py`, solo dove un test lo

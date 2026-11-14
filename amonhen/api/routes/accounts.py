@@ -5,14 +5,13 @@ from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException
 
+from amonhen import queries
 from amonhen.api.context import AppContext
 from amonhen.api.payloads import (
     _account_payload,
     _amount,
     _day,
     _deleted_payload,
-    _posted_on,
-    _real_accounts,
     _require_real_account,
     _require_transaction,
     _transaction,
@@ -24,7 +23,6 @@ from amonhen.api.schemas import (
     ValuationRequest,
 )
 from amonhen.config import load_config, remove_account
-from amonhen.ledger import TRANSFER_CLEARING
 from amonhen.merchants import deleting_rule
 from amonhen.models import Account, format_decimal, parse_decimal
 
@@ -37,7 +35,8 @@ def build(ctx: AppContext) -> APIRouter:
     @router.get("/api/accounts")
     def accounts() -> list[dict]:
         with ledger_scope() as ledger:
-            return [_account_payload(ledger, row["id"]) for row in _real_accounts(ledger)]
+            return [_account_payload(ledger, row["id"]) for row in queries.real_account_ids(ledger)]
+
     @router.get("/api/virtual-accounts")
     def virtual_accounts() -> list[dict]:
         """Where the money that is neither spending nor income went.
@@ -52,27 +51,19 @@ def build(ctx: AppContext) -> APIRouter:
         nets to zero, and it is not a place money went.
         """
         with ledger_scope() as ledger:
-            rows = ledger.conn.execute(
-                """SELECT a.id, a.name, COUNT(p.id) AS movements,
-                          MIN(t.date) AS first_date, MAX(t.date) AS last_date
-                   FROM accounts a
-                   LEFT JOIN postings p ON p.account_id = a.id
-                   LEFT JOIN transactions t ON t.id = p.transaction_id
-                   WHERE a.type = 'virtual' AND a.name <> ?
-                   GROUP BY a.id ORDER BY a.name""",
-                (TRANSFER_CLEARING,),
-            ).fetchall()
+            rows = queries.virtual_account_usage(ledger)
             return [
                 {
                     "id": row["id"],
                     "name": row["name"],
-                    "balance": format_decimal(_posted_on(ledger, row["id"])),
+                    "balance": format_decimal(queries.posted_on(ledger, row["id"])),
                     "movements": row["movements"],
                     "first_date": row["first_date"],
                     "last_date": row["last_date"],
                 }
                 for row in rows
             ]
+
     @router.post("/api/accounts", status_code=201)
     def create_account(body: AccountRequest) -> dict:
         """Add a real account by hand: the broker, or a bank that is not connected.
@@ -104,6 +95,7 @@ def build(ctx: AppContext) -> APIRouter:
                 )
             )
             return _account_payload(ledger, account_id)
+
     @router.delete("/api/accounts/{account_id}")
     def delete_account(account_id: int) -> dict:
         """Delete a real account with its movements, and stop syncing it.
@@ -128,6 +120,7 @@ def build(ctx: AppContext) -> APIRouter:
                 remove_account(config_path, entry.account_uid)
                 disconnected = True
         return {"name": name, "movements": movements, "disconnected": disconnected}
+
     @router.put("/api/accounts/{account_id}/declaration")
     def declare_balance(account_id: int, body: DeclarationRequest) -> dict:
         """Record a balance a person read off the bank, and answer with the check.
@@ -146,6 +139,7 @@ def build(ctx: AppContext) -> APIRouter:
                 account_id, _day(body.date), declared, f"manual:{body.kind}"
             )
             return _account_payload(ledger, account_id)
+
     @router.post("/api/accounts/{account_id}/valuation")
     def record_valuation(account_id: int, body: ValuationRequest) -> dict:
         """Say what an investment account added by hand is worth, and book the return.
@@ -164,6 +158,7 @@ def build(ctx: AppContext) -> APIRouter:
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
             return {"difference": format_decimal(difference), "account": _account_payload(ledger, account_id)}
+
     @router.post("/api/accounts/{account_id}/opening/preview")
     def preview_opening(account_id: int, body: DeclarationRequest) -> dict:
         """What anchoring to this figure would move, and nothing written.
@@ -191,6 +186,7 @@ def build(ctx: AppContext) -> APIRouter:
                 "opening_date": opening_date.isoformat(),
                 "change": format_decimal(opening - (current or Decimal(0))),
             }
+
     @router.put("/api/accounts/{account_id}/opening")
     def set_opening(account_id: int, body: DeclarationRequest) -> dict:
         """Derive the opening balance from a declared figure: the `anchor` path.
@@ -208,6 +204,7 @@ def build(ctx: AppContext) -> APIRouter:
             ledger.anchor_opening(account_id, as_of, declared, body.kind)
             ledger.record_declared_balance(account_id, as_of, declared, f"anchor:{body.kind}")
             return _account_payload(ledger, account_id)
+
     @router.get("/api/deleted")
     def deleted() -> list[dict]:
         """The movements a person deleted and has not brought back.
@@ -218,6 +215,7 @@ def build(ctx: AppContext) -> APIRouter:
         """
         with ledger_scope() as ledger:
             return [_deleted_payload(row) for row in ledger.deleted_transactions()]
+
     @router.post("/api/deleted/{deleted_id}/restore")
     def restore_deleted(deleted_id: int) -> dict:
         """Put one deleted movement back, with the note it had when it went.
@@ -227,9 +225,7 @@ def build(ctx: AppContext) -> APIRouter:
         not one. The rule is named, so the person knows what to change.
         """
         with ledger_scope() as ledger:
-            row = ledger.conn.execute(
-                "SELECT * FROM deleted_transactions WHERE id = ?", (deleted_id,)
-            ).fetchone()
+            row = queries.deleted_movement(ledger, deleted_id)
             if row is not None:
                 rule = deleting_rule(
                     ledger, row["description"], row["account_id"], parse_decimal(row["amount"])
@@ -247,6 +243,7 @@ def build(ctx: AppContext) -> APIRouter:
             except ValueError as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
     @router.patch("/api/accounts/{account_id}")
     def patch_account(account_id: int, body: AccountFlagsRequest) -> dict:
         """Flip an account's own flags, and answer with the account.

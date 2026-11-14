@@ -6,20 +6,19 @@ from typing import Literal
 import requests
 from fastapi import APIRouter, HTTPException, Query
 
+from amonhen import queries
 from amonhen.api.context import AppContext
 from amonhen.api.payloads import (
     _require_transaction,
-    _review_page,
     _review_transaction,
     _stake,
     _transaction,
 )
 from amonhen.api.schemas import SuggestionDecisionRequest
 from amonhen.classifier import apply_proposals, propose_categories
-from amonhen.ledger import CREDITS_WHERE, UNCATEGORIZED_WHERE
 from amonhen.llm import llm_config
 from amonhen.merchants import accept_merchant, merchant_name, uncovered_spending
-from amonhen.settings import CREDITS_REVIEW_FROM, UNCATEGORIZED
+from amonhen.settings import CREDITS_REVIEW_FROM
 from amonhen.suggestions import propose_for_unseen
 
 
@@ -44,6 +43,7 @@ def build(ctx: AppContext) -> APIRouter:
                 }
                 for row in ledger.suggestions()
             ]
+
     @router.post("/api/suggestions/decision")
     def decide_suggestion(body: SuggestionDecisionRequest) -> dict:
         # The merchant travels in the body: names routinely contain a slash
@@ -52,9 +52,7 @@ def build(ctx: AppContext) -> APIRouter:
         with ledger_scope() as ledger:
             try:
                 if body.decision == "accept":
-                    suggestion = ledger.conn.execute(
-                        "SELECT category FROM merchant_suggestions WHERE merchant = ?", (merchant,)
-                    ).fetchone()
+                    suggestion = queries.suggestion(ledger, merchant)
                     if suggestion is None:
                         raise KeyError(f"no suggestion for {merchant!r}")
                     # A proposal is a starting point: the decision carries the
@@ -70,11 +68,13 @@ def build(ctx: AppContext) -> APIRouter:
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             return {"merchant": merchant, "decision": body.decision, **outcome}
+
     @router.post("/api/propose")
     def propose() -> dict:
         with ledger_scope() as ledger:
             proposals = propose_categories(ledger)
             return {"considered": len(proposals), "recorded": apply_proposals(ledger, proposals)}
+
     @router.post("/api/llm-suggest")
     def llm_suggest() -> dict:
         with ledger_scope() as ledger:
@@ -89,6 +89,7 @@ def build(ctx: AppContext) -> APIRouter:
                 raise HTTPException(
                     status_code=502, detail=f"the model answered unusably: {exc}"
                 ) from exc
+
     @router.get("/api/review")
     def review(
         limit: int = Query(50, ge=1, le=200),
@@ -112,13 +113,7 @@ def build(ctx: AppContext) -> APIRouter:
             pending = {
                 row["merchant"]: row["category"] for row in ledger.suggestions("pending")
             }
-            # Three columns only: a long uncategorized history must not drag
-            # every raw payload into memory just to be counted.
-            backlog = ledger.conn.execute(
-                f"SELECT t.id, t.description, t.account_id FROM transactions t {UNCATEGORIZED_WHERE}"
-                " ORDER BY t.date DESC, t.id DESC",
-                (UNCATEGORIZED,),
-            ).fetchall()
+            backlog = queries.uncategorized_backlog(ledger)
             by_id = {row["id"]: row for row in backlog}
             proposed = [row["id"] for row in backlog if pending.get(merchant_name(row["description"]))]
             unhandled = [row["id"] for row in backlog if not pending.get(merchant_name(row["description"]))]
@@ -134,15 +129,8 @@ def build(ctx: AppContext) -> APIRouter:
                     if needle in (by_id[row_id]["description"] or "").casefold()
                 ]
 
-            uncategorized = _review_page(ledger, selected[:limit], UNCATEGORIZED_WHERE)
-            transfers_total = ledger.conn.execute(
-                "SELECT COUNT(*) AS c FROM transfer_links WHERE confirmed_by_human = 0"
-            ).fetchone()["c"]
-            links = ledger.conn.execute(
-                """SELECT * FROM transfer_links WHERE confirmed_by_human = 0
-                   ORDER BY leg_a DESC LIMIT ?""",
-                (limit,),
-            ).fetchall()
+            uncategorized = queries.queue_rows(ledger, selected[:limit])
+            transfers_total, links = queries.proposed_transfers(ledger, limit)
             transfers = []
             for link in links:
                 leg_a = _require_transaction(ledger, link["leg_a"])
@@ -155,25 +143,9 @@ def build(ctx: AppContext) -> APIRouter:
                         "leg_b": _transaction(leg_b, ledger),
                     }
                 )
-            waiting = (CREDITS_REVIEW_FROM, UNCATEGORIZED)
-            credits_total = ledger.conn.execute(
-                f"SELECT COUNT(*) AS c FROM transactions t {CREDITS_WHERE}", waiting
-            ).fetchone()["c"]
-            credits = ledger.conn.execute(
-                f"""SELECT t.* FROM transactions t {CREDITS_WHERE}
-                    ORDER BY t.date DESC, t.id DESC LIMIT ?""",
-                (*waiting, limit),
-            ).fetchall()
-            # The accounts that actually have rows in the backlog, so the filter
-            # offers only choices that can return something.
+            credits_total, credits = queries.waiting_credits(ledger, CREDITS_REVIEW_FROM, limit)
             accounts = [
-                {"id": row["id"], "name": row["name"]}
-                for row in ledger.conn.execute(
-                    f"""SELECT DISTINCT a.id, a.name FROM transactions t
-                        JOIN accounts a ON a.id = t.account_id {UNCATEGORIZED_WHERE}
-                        ORDER BY a.name""",
-                    (UNCATEGORIZED,),
-                )
+                {"id": row["id"], "name": row["name"]} for row in queries.backlog_accounts(ledger)
             ]
             return {
                 "uncategorized": [_review_transaction(row, ledger, pending) for row in uncategorized],
