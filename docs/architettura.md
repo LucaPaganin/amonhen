@@ -1039,7 +1039,7 @@ che sono parole di Enable Banking, dentro la firma della porta.
 ### 7.4 Contro, e verdetto
 
 - **Indirezione.** Una chiamata del sync attraversa un salto in più: `SyncService` →
-  `BankProvider` → `EnableBankingProvider` → `translated` → client. Per leggere cosa
+  `BankProvider` → `EnableBankingProvider` → `enable_banking_errors` → client. Per leggere cosa
   succede su un 429 si aprono tre file invece di due.
 - **Concetti duplicati.** Due `FetchedWindow`, quella del client (JSON) e quella della
   porta (`IncomingTransaction`), con lo stesso nome.

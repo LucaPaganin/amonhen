@@ -9,8 +9,8 @@ application's. Nothing above it sees a payload or a `requests` exception.
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable
-from typing import TypeVar
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import requests
 
@@ -35,18 +35,19 @@ from amonhen.ports.bank import (
     RateLimited,
 )
 
-T = TypeVar("T")
+@contextmanager
+def enable_banking_errors() -> Iterator[None]:
+    """Inside this block, Enable Banking's errors leave as the port's.
 
-
-def translated(call: Callable[[], T]) -> T:
-    """Run one call to the client, with its errors in the port's words.
-
-    The order matters: a rate limit is also a `requests.HTTPError`, so it is
-    recognized before the general case. The message is kept as the client wrote
-    it, because the app and the logs show it to a person.
+    Only the call to the client goes inside: reading its JSON comes after the
+    block, because a malformed payload is a bug here, not a bank that could not
+    be reached. The order of the cases matters: a rate limit is also a
+    `requests.HTTPError`, so it is recognized before the general case. The
+    message is kept as the client wrote it, because the app and the logs show it
+    to a person, and `from exc` keeps the original for a traceback.
     """
     try:
-        return call()
+        yield
     except ConsentExpiredError as exc:
         raise ConsentExpired(str(exc)) from exc
     except RateLimitedError as exc:
@@ -67,11 +68,14 @@ class EnableBankingProvider:
         self.own_names = own_names
 
     def connected_accounts(self, account: ConfiguredAccount) -> list[BankAccount]:
-        listed = translated(lambda: self.client.list_accounts(account.session_id))
+        with enable_banking_errors():
+            listed = self.client.list_accounts(account.session_id)
         return [bank_account(raw) for raw in listed]
 
     def account_details(self, account: ConfiguredAccount) -> BankAccount:
-        return bank_account(translated(lambda: self.client.fetch_account_details(account.account_uid)))
+        with enable_banking_errors():
+            payload = self.client.fetch_account_details(account.account_uid)
+        return bank_account(payload)
 
     def transactions(
         self,
@@ -82,11 +86,10 @@ class EnableBankingProvider:
         account_id: int,
         balancing_account_id: int,
     ) -> list[IncomingTransaction]:
-        raw = translated(
-            lambda: self.client.fetch_transactions(
+        with enable_banking_errors():
+            raw = self.client.fetch_transactions(
                 account.account_uid, date_from, date_to, account.max_window_days
             )
-        )
         return self._normalized(account, raw, account_id, balancing_account_id)
 
     def transaction_windows(
@@ -98,11 +101,10 @@ class EnableBankingProvider:
         account_id: int,
         balancing_account_id: int,
     ) -> list[FetchedWindow]:
-        windows = translated(
-            lambda: self.client.fetch_transaction_windows(
+        with enable_banking_errors():
+            windows = self.client.fetch_transaction_windows(
                 account.account_uid, date_from, date_to, account.max_window_days
             )
-        )
         return [
             FetchedWindow(
                 window.date_from,
@@ -114,7 +116,9 @@ class EnableBankingProvider:
         ]
 
     def balances(self, account: ConfiguredAccount) -> list[DeclaredBalance]:
-        return declared_balances(translated(lambda: self.client.fetch_balances(account.account_uid)))
+        with enable_banking_errors():
+            payload = self.client.fetch_balances(account.account_uid)
+        return declared_balances(payload)
 
     def _normalized(
         self,
