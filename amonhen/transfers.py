@@ -25,6 +25,7 @@ from amonhen.ledger import Ledger
 if TYPE_CHECKING:
     from amonhen.config import Passthrough
 from amonhen.matching import max_weight_matching
+from amonhen.merchants import RuleBook, held_by_transfer_rules
 from amonhen.models import format_decimal, parse_decimal
 
 CORROBORATED = "high"
@@ -44,8 +45,14 @@ IBAN_SHAPE = re.compile(r"^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$")
 
 
 def link_transfers(ledger: Ledger, since: dt.date | None = None) -> int:
-    """Link the maximum-weight set of candidate pairs and return the count."""
-    rows = _candidates(ledger.conn, since)
+    """Link the maximum-weight set of candidate pairs and return the count.
+
+    A leg a transfer rule holds on a virtual destination is no candidate: the
+    rule runs before the pairing because a person named that transfer, and an
+    equal amount on another account must not take it (`docs/transfers.md`).
+    """
+    held = held_by_transfer_rules(ledger, RuleBook(ledger.conn))
+    rows = [row for row in _candidates(ledger.conn, since) if row["id"] not in held]
     pairs = _best_pairs(rows)
     for leg_a, leg_b in pairs:
         _, confidence, method = _score(leg_a, leg_b)

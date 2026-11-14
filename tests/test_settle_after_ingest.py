@@ -193,3 +193,76 @@ def test_a_transfer_imported_from_the_command_line_goes_where_the_rule_says(tmp_
     assert other_leg_account(ledger, leg) == ("Deposito", "rule")
     assert ledger.transfer_link(leg_id(ledger, "Bonifico da Mario")) is None
     conn.close()
+
+
+# -- a transfer rule towards a virtual destination ------------------------------
+#
+# A rule towards an account added by hand writes the other half and links the two,
+# so the matcher already leaves that leg alone. A rule towards a virtual
+# destination only moves the leg's other side there and links nothing, and the
+# matcher used to take it: an equal amount on another account paired with it and
+# pulled it off the destination the rule named.
+
+
+def virtual_rule(ledger) -> tuple[int, int]:
+    fineco = ledger.ensure_account(Account(name="Fineco", type="real"))
+    revolut = ledger.ensure_account(Account(name="Revolut", type="real"))
+    RuleBook(ledger.conn).set_rule(RULE_TEXT, "Deposito", ledger, action="transfer")
+    assert ledger.find_account(name="Deposito") is None  # no real account by that name
+    return fineco, revolut
+
+
+def test_a_rule_towards_a_virtual_destination_wins_over_an_equal_amount(ledger):
+    fineco, revolut = virtual_rule(ledger)
+    ledger.record_batch([
+        incoming(ledger, fineco, "-250.00", "Giroconto conto deposito", source="import"),
+        incoming(ledger, revolut, "250.00", "Bonifico da Mario", external_id="r-1"),
+    ])
+
+    settled = settle_after_ingest(ledger, ())
+
+    leg = leg_id(ledger, "Giroconto conto deposito")
+    assert ledger.transfer_target(leg) == "Deposito"
+    assert ledger.transfer_link(leg) is None
+    credit = leg_id(ledger, "Bonifico da Mario")
+    assert ledger.transfer_link(credit) is None
+    assert ledger.category_of(credit) == "Uncategorized"
+    assert settled.linked == 0
+
+
+def test_removing_the_rule_frees_the_leg_for_the_matcher(ledger):
+    fineco, revolut = virtual_rule(ledger)
+    ledger.record_batch([
+        incoming(ledger, fineco, "-250.00", "Giroconto conto deposito", source="import"),
+        incoming(ledger, revolut, "250.00", "Bonifico da Mario", external_id="r-1"),
+    ])
+    settle_after_ingest(ledger, ())
+    book = RuleBook(ledger.conn)
+
+    book.remove(book.rules()[0].id, ledger)
+    settle_after_ingest(ledger, ())
+
+    # The claim was the rule's, not stored on the leg: with the rule gone the
+    # two equal amounts are an ordinary candidate pair again.
+    assert other_leg_account(ledger, leg_id(ledger, "Giroconto conto deposito")) == (
+        "Revolut", "amount-date"
+    )
+
+
+def test_a_leg_a_passthrough_label_moved_can_still_be_paired(ledger):
+    """The passthrough is a label, not a decision: a real pair still beats it."""
+    from amonhen.config import Passthrough
+
+    fineco = ledger.ensure_account(Account(name="Fineco", type="real"))
+    revolut = ledger.ensure_account(Account(name="Revolut", type="real"))
+    labels = (Passthrough(destination="Deposito", labels=("conto deposito",)),)
+    ledger.record(incoming(ledger, fineco, "-250.00", "Giroconto conto deposito", source="import"))
+    settle_after_ingest(ledger, labels)
+    leg = leg_id(ledger, "Giroconto conto deposito")
+    assert ledger.transfer_target(leg) == "Deposito"
+
+    # The other half arrives a run later, on a tracked account.
+    ledger.record(incoming(ledger, revolut, "250.00", "Bonifico da Fineco", external_id="r-1"))
+    settle_after_ingest(ledger, labels)
+
+    assert other_leg_account(ledger, leg) == ("Revolut", "amount-date")

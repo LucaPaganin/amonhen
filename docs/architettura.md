@@ -284,13 +284,16 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
    continua ad applicare le regole di giroconto anche dopo ogni conto, perché l'altra
    metà non deve aspettare la banca più lenta.
 
-   **Resta aperto, trovato scrivendo il test:** una regola di giroconto verso un conto
+   **Trovato scrivendo il test, poi corretto:** una regola di giroconto verso un conto
    *virtuale* (non creato a mano come conto reale) perde contro l'abbinamento in tutti i
    percorsi, sync compreso. La regola sposta la gamba sul conto virtuale ma non la lega a
    niente, e `transfers._candidates` scarta solo le gambe già legate: un importo uguale su
    un altro conto la abbina e la toglie dal conto della regola. Escludere le gambe con un
    lato virtuale non basta, perché anche il passthrough le mette lì e un abbinamento vero
-   deve poterlo battere: va deciso cosa distingue la gamba di una regola.
+   deve poterlo battere: va deciso cosa distingue la gamba di una regola. **Corretto:** la
+   distingue che una regola di giroconto la rivendica *adesso* verso quel conto
+   (`merchants.held_by_transfer_rules`), lo stesso criterio con cui `_apply_transfers`
+   decide cosa liberare; `link_transfers` esclude quelle gambe (`docs/transfers.md`).
 2. **`Clock` e `BankProvider`** come `Protocol`, le eccezioni tradotte nell'adapter. *Piccolo.* **`BankProvider` fatto:**
    `amonhen/ports/bank.py`, l'adapter in `amonhen/adapters/enable_banking/provider.py`, la
    composition root in `amonhen/composition.py` (con `Depends` per FastAPI), il banco in
