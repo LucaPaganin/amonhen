@@ -988,7 +988,8 @@ in memoria.
 Novembre 2026. Domanda: isolare Enable Banking dietro una porta (ports & adapters, con
 dependency injection e una composition root) ripaga? Il refactor è
 `amonhen/ports/bank.py`, `amonhen/adapters/enable_banking/provider.py` e
-`amonhen/composition.py`; lo stub del secondo provider è `amonhen/adapters/csv_bank.py`.
+`amonhen/composition.py`; lo stub del secondo provider era `amonhen/adapters/csv_bank.py`,
+tolto dopo la misura (commit `86f79dc`, annullato dal suo revert).
 
 ### 7.1 Prima
 
@@ -1057,4 +1058,5 @@ dal caso d'uso, chiudono la trappola della factory condivisa fra consenso e sync
 sostituiscono il monkeypatch con un punto di iniezione dichiarato. Togliere lo stub CSV e
 `AMONHEN_BANK_PROVIDER`: sono stati la misura, non una funzione del prodotto, e un'opzione
 di configurazione che nessuno usa è codice da mantenere. Il commit dello stub è separato
-apposta, e si annulla da solo.
+apposta, e si annulla da solo. **Applicato:** lo stub e l'opzione sono stati tolti con il revert di
+`86f79dc`; la misura resta qui sopra e nella storia del branch.
