@@ -126,6 +126,8 @@ def test_an_older_ledger_marks_as_income_what_only_ever_took_money_in(tmp_path):
     conn.execute("ALTER TABLE accounts DROP COLUMN income")
     conn.commit()
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     flags = {

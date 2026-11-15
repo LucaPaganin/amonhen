@@ -344,17 +344,24 @@ def connect(path: str | Path) -> sqlite3.Connection:
 
 
 def initialize(conn: sqlite3.Connection) -> None:
+    """Bring the file to the schema this code reads.
+
+    Two kinds of work. At every start, the checks that cost nothing: the tables
+    and indexes (`IF NOT EXISTS`), the columns added over time, and the file's
+    permissions. Once per ledger, the migrations that rebuild a table or rewrite
+    data, in `MIGRATIONS`: `PRAGMA user_version` counts how many of them this file
+    has had, so a restart runs none of them, and a ledger written by an older
+    release (version 0) runs each once, in the order they were written. Every
+    migration still checks what it finds, so a file that already had one is left
+    as it is; and a file newer than this code (a rollback) is left alone.
+    """
     conn.executescript(SCHEMA)
     _add_missing_columns(conn)
-    _add_income_flag(conn)
-    _migrate_rules(conn)
-    _generalize_rules(conn)
-    _allow_tag_rules(conn)
-    _widen_balance_key(conn)
-    _date_budgets(conn)
-    _unassigned_budget_items(conn)
-    _drop_obsolete(conn)
-    _describe_bare_codes(conn)
+    applied = conn.execute("PRAGMA user_version").fetchone()[0]
+    for migration in MIGRATIONS[applied:]:
+        migration(conn)
+    if applied < len(MIGRATIONS):
+        conn.execute(f"PRAGMA user_version = {len(MIGRATIONS)}")
     conn.commit()
     _restrict_to_owner(conn)
 
@@ -661,6 +668,22 @@ def _restrict_to_owner(conn: sqlite3.Connection) -> None:
                 os.chmod(file, 0o600)
             except OSError:
                 pass
+
+
+# The migrations, in the order they were written; a new one goes at the end, and
+# none is ever removed or moved, because its position is the version it brings a
+# ledger to.
+MIGRATIONS = (
+    _add_income_flag,
+    _migrate_rules,
+    _generalize_rules,
+    _allow_tag_rules,
+    _widen_balance_key,
+    _date_budgets,
+    _unassigned_budget_items,
+    _drop_obsolete,
+    _describe_bare_codes,
+)
 
 
 def open_ledger_db(path: str | Path) -> sqlite3.Connection:
