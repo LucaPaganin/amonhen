@@ -1,7 +1,6 @@
 """The figures: health, the month, the metrics, the statistics, the dashboard series, the anomalies."""
 from __future__ import annotations
 
-import datetime as dt
 from decimal import Decimal
 
 from fastapi import APIRouter, Query
@@ -32,6 +31,7 @@ from amonhen.settings import UNCATEGORIZED, VERSION
 
 def build(ctx: AppContext) -> APIRouter:
     router = APIRouter()
+    clock = ctx.clock
     ledger_scope = ctx.ledger_scope
 
     # -- reads -------------------------------------------------------------
@@ -54,7 +54,7 @@ def build(ctx: AppContext) -> APIRouter:
         """The month in progress against the same point of the months before it."""
         scope = _scope(accounts, categories, tags)
         with ledger_scope() as ledger:
-            reading = month_reading(ledger, dt.date.today(), scope)
+            reading = month_reading(ledger, clock.today(), scope)
             return {
                 "currency": "EUR",
                 "applied": _applied(scope),
@@ -87,13 +87,13 @@ def build(ctx: AppContext) -> APIRouter:
         """
         scope = _scope(accounts, categories, tags)
         with ledger_scope() as ledger:
-            return _metrics_payload(compute_metrics(ledger, dt.date.today(), scope=scope), scope)
+            return _metrics_payload(compute_metrics(ledger, clock.today(), scope=scope), scope)
 
     @router.get("/api/statistics")
     def statistics(months: int = Query(12, ge=1, le=60)) -> dict:
         """Each category's last complete months: the median, the mean, the range."""
         with ledger_scope() as ledger:
-            reading = spending_statistics(ledger, dt.date.today(), months)
+            reading = spending_statistics(ledger, clock.today(), months)
             return {
                 "currency": "EUR",
                 "applied": {"months": months, "available": len(reading.months)},
@@ -115,7 +115,7 @@ def build(ctx: AppContext) -> APIRouter:
     ) -> dict:
         """What each category took in the period: the slices of the pie."""
         scope = _scope(accounts, categories, tags)
-        period = _period(from_date, to_date)
+        period = _period(from_date, to_date, clock.today())
         with ledger_scope() as ledger:
             slices = spend_by_category(ledger, period[0], period[1], scope)
             return {
@@ -138,7 +138,7 @@ def build(ctx: AppContext) -> APIRouter:
     ) -> dict:
         """Money in and out per month in the period, empty months included."""
         scope = _scope(accounts, categories, tags)
-        period = _period(from_date, to_date)
+        period = _period(from_date, to_date, clock.today())
         with ledger_scope() as ledger:
             return {
                 "currency": "EUR",
@@ -150,7 +150,7 @@ def build(ctx: AppContext) -> APIRouter:
                         "expenses": _money(flow.expenses),
                         "partial": flow.partial,
                     }
-                    for flow in monthly_flows(ledger, period[0], period[1], scope)
+                    for flow in monthly_flows(ledger, period[0], period[1], scope, today=clock.today())
                 ],
             }
 
@@ -168,7 +168,7 @@ def build(ctx: AppContext) -> APIRouter:
         is always the latest balance each account reported.
         """
         scope = _scope(accounts, None)
-        period = _period(from_date, to_date)
+        period = _period(from_date, to_date, clock.today())
         with ledger_scope() as ledger:
             return {
                 "currency": "EUR",
@@ -183,14 +183,14 @@ def build(ctx: AppContext) -> APIRouter:
                         "date": balance.date.isoformat(),
                         "balance": _money(balance.balance),
                     }
-                    for balance in latest_balances(ledger, scope)
+                    for balance in latest_balances(ledger, scope, today=clock.today())
                 ],
             }
 
     @router.get("/api/anomalies")
     def anomalies(days: int = Query(31, ge=1, le=366)) -> list[dict]:
         with ledger_scope() as ledger:
-            today = dt.date.today()
+            today = clock.today()
             return [
                 {
                     "transaction_id": anomaly.transaction_id,

@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from amonhen import db
 from amonhen.api.context import AppContext
+from amonhen.ports.clock import Clock, SystemClock
 from amonhen.api.routes import (
     accounts,
     budgets,
@@ -37,6 +38,7 @@ def create_app(
     db_path: str | Path = DB_PATH,
     web_dist: Path | None = None,
     config_path: str | Path = CONFIG_FILE,
+    clock: Clock | None = None,
 ) -> FastAPI:
     startup = db.connect(db_path)
     db.initialize(startup)
@@ -72,7 +74,7 @@ def create_app(
 
     # The composition of the API: one context, every router built from it, in the
     # order the routes used to be declared, then the PWA as the catch-all.
-    ctx = AppContext(db_path=db_path, config_path=config_path)
+    ctx = AppContext(db_path=db_path, config_path=config_path, clock=clock or SystemClock())
     app.include_router(setup.build(ctx))
     app.include_router(dashboard.build(ctx))
     app.include_router(accounts.build(ctx))

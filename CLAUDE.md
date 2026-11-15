@@ -81,10 +81,12 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/api/version.py`|`API_VERSION`, and the history of what each version changed|
 |`amonhen/backup.py`|`make_snapshot`: a dated snapshot of the living ledger (SQLite's backup API, not a file copy) plus the configuration it needs, a manifest, and the retention that keeps it bounded|
 |`amonhen/ports/bank.py`|`BankProvider`, the port the sync speaks to a bank through: its operations, its data types and its three errors, none of them Enable Banking's|
+|`amonhen/ports/clock.py`|`Clock` (`today`, `now`) and `SystemClock`: what day it is, handed to the API (`create_app(clock=)`, `AppContext.clock`) and the command line (`main(clock=)`) for every figure that depends on it. The ledger's own timestamps and the client's JWT read the real time on purpose|
 |`amonhen/composition.py`|The composition root: the only place a bank client or provider is built (`bank_provider`, `enable_banking_client`, and `bank_factory` for FastAPI's `Depends`)|
 |`amonhen/adapters/enable_banking/client.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances, the consent flow)|
 |`amonhen/adapters/enable_banking/normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` / `BankAccount` / `DeclaredBalance` (pure)|
 |`amonhen/adapters/enable_banking/provider.py`|`EnableBankingProvider`: the port implemented over the client, translating data and errors|
+|`tests/fixed_clock.py`|`FixedClock`: a clock stopped on a date, for tests about today|
 |`tests/memory_bank.py`|`MemoryBank`: the port implemented in memory, for tests of the sync alone|
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
@@ -130,6 +132,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`api`|`create_app`, `API_VERSION`; `api.context.AppContext`; `api.routes.<section>.build`|
 |`backup`|`Snapshot`, `make_snapshot`|
 |`ports.bank`|`BankProvider`, `BankAccount`, `DeclaredBalance`, `FetchedWindow`, `BankError`, `ConsentExpired`, `RateLimited`, `BankUnavailable`|
+|`ports.clock`|`Clock`, `SystemClock`|
 |`composition`|`bank_provider`, `enable_banking_client`, `bank_factory`, `BankFactory`|
 |`adapters.enable_banking`|`EnableBankingClient` (`fetch_transaction_windows` → its own `FetchedWindow` of raw payloads), `EnableBankingProvider`, `session_accounts`, `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`; `normalize.describe`, `bank_account`, `declared_balances`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|

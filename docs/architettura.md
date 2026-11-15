@@ -298,7 +298,13 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
    `amonhen/ports/bank.py`, l'adapter in `amonhen/adapters/enable_banking/provider.py`, la
    composition root in `amonhen/composition.py` (con `Depends` per FastAPI), il banco in
    memoria in `tests/memory_bank.py`. Il flusso di consenso è rimasto fuori dalla porta,
-   di proposito (`docs/sync-and-banks.md`). `Clock` resta da fare.
+   di proposito (`docs/sync-and-banks.md`). **`Clock` fatto:** `amonhen/ports/clock.py`;
+   l'API lo riceve in `create_app(clock=)` e lo porta in `AppContext`, la CLI in
+   `main(clock=)`, e ogni cifra che dipende da oggi lo legge da lì (`tests/test_clock.py`
+   ferma l'orologio). Le funzioni di calcolo prendono `today` come parametro opzionale,
+   come `budgets.py` e `SyncService` facevano già. Restano fuori di proposito i timestamp
+   del ledger (`created_at`, `deleted_at`), che non decidono nessuna cifra, e il JWT del
+   client, che la banca controlla sull'ora vera.
 3. **`api.py` in router per sezione**, con `Deps` come composition root; le 22 query
    degli handler scendono in `ledger/queries.py`. Meccanico, coperto dai test dell'API.
    *Medio.* **Router fatti:** `amonhen/api/` è un package, con un `APIRouter` per sezione in

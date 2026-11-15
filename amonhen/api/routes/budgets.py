@@ -25,13 +25,14 @@ from amonhen.budgets import (
 
 def build(ctx: AppContext) -> APIRouter:
     router = APIRouter()
+    clock = ctx.clock
     ledger_scope = ctx.ledger_scope
 
     @router.get("/api/budgets")
     def budgets(month: str | None = None, months: int = Query(6, ge=3, le=24)) -> dict:
         """One month of budgets, read against the ``months`` complete months before it."""
         with ledger_scope() as ledger:
-            return budget_month(ledger, _budget_month(month), window_months=months)
+            return budget_month(ledger, _budget_month(month, clock.today()), today=clock.today(), window_months=months)
 
     @router.put("/api/budgets/{category_id}")
     def put_budget(
@@ -45,11 +46,11 @@ def build(ctx: AppContext) -> APIRouter:
         The months before it keep the budget they had, which is what makes a
         past month readable as it was. The answer is that whole month again.
         """
-        month = _budget_month(month)
+        month = _budget_month(month, clock.today())
         with ledger_scope() as ledger:
             _require_category(ledger, category_id)
             set_default(ledger, category_id, month, _budget_amount(body.amount))
-            return budget_month(ledger, month, window_months=months)
+            return budget_month(ledger, month, today=clock.today(), window_months=months)
 
     @router.put("/api/budgets/{category_id}/override")
     def put_budget_override(
@@ -59,11 +60,11 @@ def build(ctx: AppContext) -> APIRouter:
         months: int = Query(6, ge=3, le=24),
     ) -> dict:
         """Give one month its own budget for a category; an empty amount hands it back."""
-        month = _budget_month(month)
+        month = _budget_month(month, clock.today())
         with ledger_scope() as ledger:
             _require_category(ledger, category_id)
             set_month_override(ledger, category_id, month, _budget_amount(body.amount))
-            return budget_month(ledger, month, window_months=months)
+            return budget_month(ledger, month, today=clock.today(), window_months=months)
 
     @router.post("/api/budgets/{category_id}/copy")
     def copy_budget_items(
@@ -75,7 +76,7 @@ def build(ctx: AppContext) -> APIRouter:
             copied = copy_items(ledger, category_id, body.from_month, body.to_month)
             return {
                 "copied": copied,
-                "budgets": budget_month(ledger, body.to_month, window_months=months),
+                "budgets": budget_month(ledger, body.to_month, today=clock.today(), window_months=months),
             }
 
     @router.post("/api/budget-items", status_code=201)
@@ -87,7 +88,7 @@ def build(ctx: AppContext) -> APIRouter:
             if body.category_id is not None:
                 _require_category(ledger, body.category_id)
             add_item(ledger, _item_fields(body))
-            return budget_month(ledger, body.month, window_months=months)
+            return budget_month(ledger, body.month, today=clock.today(), window_months=months)
 
     @router.put("/api/budget-items/{item_id}")
     def update_budget_item(
@@ -102,7 +103,7 @@ def build(ctx: AppContext) -> APIRouter:
             if body.category_id is not None:
                 _require_category(ledger, body.category_id)
             update_item(ledger, item_id, _item_fields(body))
-            return budget_month(ledger, _budget_month(month or body.month), window_months=months)
+            return budget_month(ledger, _budget_month(month or body.month, clock.today()), today=clock.today(), window_months=months)
 
     @router.delete("/api/budget-items/{item_id}")
     def delete_budget_item(item_id: int, months: int = Query(6, ge=3, le=24)) -> dict:
@@ -110,6 +111,6 @@ def build(ctx: AppContext) -> APIRouter:
         with ledger_scope() as ledger:
             month = _require_budget_item(ledger, item_id)["month"]
             delete_item(ledger, item_id)
-            return budget_month(ledger, month, window_months=months)
+            return budget_month(ledger, month, today=clock.today(), window_months=months)
 
     return router

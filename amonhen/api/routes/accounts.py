@@ -29,13 +29,14 @@ from amonhen.models import Account, format_decimal, parse_decimal
 
 def build(ctx: AppContext) -> APIRouter:
     router = APIRouter()
+    clock = ctx.clock
     config_path = ctx.config_path
     ledger_scope = ctx.ledger_scope
 
     @router.get("/api/accounts")
     def accounts() -> list[dict]:
         with ledger_scope() as ledger:
-            return [_account_payload(ledger, row["id"]) for row in queries.real_account_ids(ledger)]
+            return [_account_payload(ledger, row["id"], clock.today()) for row in queries.real_account_ids(ledger)]
 
     @router.get("/api/virtual-accounts")
     def virtual_accounts() -> list[dict]:
@@ -94,7 +95,7 @@ def build(ctx: AppContext) -> APIRouter:
                     opening_date=opening_date,
                 )
             )
-            return _account_payload(ledger, account_id)
+            return _account_payload(ledger, account_id, clock.today())
 
     @router.delete("/api/accounts/{account_id}")
     def delete_account(account_id: int) -> dict:
@@ -138,7 +139,7 @@ def build(ctx: AppContext) -> APIRouter:
             ledger.record_declared_balance(
                 account_id, _day(body.date), declared, f"manual:{body.kind}"
             )
-            return _account_payload(ledger, account_id)
+            return _account_payload(ledger, account_id, clock.today())
 
     @router.post("/api/accounts/{account_id}/valuation")
     def record_valuation(account_id: int, body: ValuationRequest) -> dict:
@@ -157,7 +158,7 @@ def build(ctx: AppContext) -> APIRouter:
                 difference, _ = ledger.record_valuation(account_id, _day(body.date), value)
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
-            return {"difference": format_decimal(difference), "account": _account_payload(ledger, account_id)}
+            return {"difference": format_decimal(difference), "account": _account_payload(ledger, account_id, clock.today())}
 
     @router.post("/api/accounts/{account_id}/opening/preview")
     def preview_opening(account_id: int, body: DeclarationRequest) -> dict:
@@ -203,7 +204,7 @@ def build(ctx: AppContext) -> APIRouter:
             as_of = _day(body.date)
             ledger.anchor_opening(account_id, as_of, declared, body.kind)
             ledger.record_declared_balance(account_id, as_of, declared, f"anchor:{body.kind}")
-            return _account_payload(ledger, account_id)
+            return _account_payload(ledger, account_id, clock.today())
 
     @router.get("/api/deleted")
     def deleted() -> list[dict]:
@@ -279,6 +280,6 @@ def build(ctx: AppContext) -> APIRouter:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
-            return _account_payload(ledger, account_id)
+            return _account_payload(ledger, account_id, clock.today())
 
     return router

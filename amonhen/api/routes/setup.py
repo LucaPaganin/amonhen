@@ -1,7 +1,6 @@
 """The consent flow and the first setup (desiderata 7 and 5.10)."""
 from __future__ import annotations
 
-import datetime as dt
 import json
 
 import requests
@@ -34,6 +33,7 @@ from amonhen.config import (
 
 def build(ctx: AppContext) -> APIRouter:
     router = APIRouter()
+    clock = ctx.clock
     config_path = ctx.config_path
     ledger_scope = ctx.ledger_scope
     credentials_or_409 = ctx.credentials_or_409
@@ -65,7 +65,7 @@ def build(ctx: AppContext) -> APIRouter:
                         "bank": bank,
                         "country": country,
                         "valid_until": valid_until,
-                        "created_at": dt.datetime.now(dt.UTC).isoformat(),
+                        "created_at": clock.now().isoformat(),
                     }
                 ),
             )
@@ -135,7 +135,7 @@ def build(ctx: AppContext) -> APIRouter:
                     "country": request.get("country"),
                     "notes": account.get("name")
                     or _suggested_name(client, account.get("uid"), request.get("bank")),
-                    "start_sync_date": dt.date.today().isoformat(),
+                    "start_sync_date": clock.today().isoformat(),
                     # Enable Banking reports when this consent stops working, and
                     # the file is where a person looks before re-authorizing.
                     "session_expiry": request.get("valid_until"),
@@ -152,7 +152,7 @@ def build(ctx: AppContext) -> APIRouter:
                 SETUP_LAST_CONNECT,
                 json.dumps(
                     {
-                        "when": dt.datetime.now(dt.UTC).isoformat(),
+                        "when": clock.now().isoformat(),
                         "written": written,
                         # Kept so an empty consent can be asked about again.
                         "session_id": session_id,

@@ -241,8 +241,8 @@ def _verification(ledger: Ledger, account_id: int) -> dict:
     }
 
 
-def _forecast(ledger: Ledger, account_id: int) -> dict | None:
-    row = ledger.overdraft_forecast(account_id, dt.date.today())
+def _forecast(ledger: Ledger, account_id: int, today: dt.date) -> dict | None:
+    row = ledger.overdraft_forecast(account_id, today)
     return None if row is None else {"date": row["date"], "balance": row["balance"]}
 
 
@@ -317,14 +317,14 @@ def _size(value: str | None) -> str | None:
         raise HTTPException(status_code=422, detail=f"{value!r} is not an amount") from None
 
 
-def _period(from_date: str | None, to_date: str | None) -> tuple[dt.date, dt.date]:
+def _period(from_date: str | None, to_date: str | None, today: dt.date) -> tuple[dt.date, dt.date]:
     """The period a chart covers: the last twelve months unless asked otherwise.
 
     The end defaults to today, the start to the first day of the month eleven
     months earlier, which is the year the flows chart has always shown. A period
     that ends before it starts is a caller's mistake, not an empty chart.
     """
-    end = _day(to_date) if to_date else dt.date.today()
+    end = _day(to_date) if to_date else today
     if from_date:
         start = _day(from_date)
     else:
@@ -380,7 +380,7 @@ def _deleted_payload(row: sqlite3.Row) -> dict:
     }
 
 
-def _account_payload(ledger: Ledger, account_id: int) -> dict:
+def _account_payload(ledger: Ledger, account_id: int, today: dt.date) -> dict:
     """One account as every account endpoint answers it."""
     row = ledger.account(account_id)
     return {
@@ -388,7 +388,7 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         "name": row["name"],
         "type": row["type"],
         "institution": row["institution"],
-        "balance": format_decimal(ledger.balance(row["id"], dt.date.today())),
+        "balance": format_decimal(ledger.balance(row["id"], today)),
         "opening_date": row["opening_date"],
         "opening_balance": row["opening_balance"],
         "investment": bool(row["investment"]),
@@ -405,7 +405,7 @@ def _account_payload(ledger: Ledger, account_id: int) -> dict:
         # sync needs. An account added by hand has no uid and nothing to ask.
         "connected": row["external_uid"] is not None,
         "verification": _verification(ledger, row["id"]),
-        "forecast": _forecast(ledger, row["id"]),
+        "forecast": _forecast(ledger, row["id"], today),
         "unrecognized_balances": _unrecognized_balances(ledger, row["id"]),
         "sync_limit": sync_limit(ledger, row["id"]),
     }
@@ -418,9 +418,9 @@ def _require_transaction(ledger: Ledger, transaction_id: int) -> sqlite3.Row:
     return row
 
 
-def _budget_month(month: str | None) -> str:
+def _budget_month(month: str | None, today: dt.date) -> str:
     """The month a budget answer is for; the current one by default."""
-    return parse_month(month) if month else month_of(dt.date.today())
+    return parse_month(month) if month else month_of(today)
 
 
 def _rule_target(body: RuleRequest) -> str | None:

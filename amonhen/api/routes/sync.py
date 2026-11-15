@@ -17,6 +17,7 @@ from amonhen.sync import PeriodInvalid, SyncBusy, SyncService
 
 def build(ctx: AppContext) -> APIRouter:
     router = APIRouter()
+    clock = ctx.clock
     config_path = ctx.config_path
     ledger_scope = ctx.ledger_scope
 
@@ -36,7 +37,7 @@ def build(ctx: AppContext) -> APIRouter:
             raise HTTPException(status_code=503, detail=f"cannot sync: {exc}")
         with ledger_scope() as ledger:
             try:
-                result = SyncService(ledger, bank, config).run()
+                result = SyncService(ledger, bank, config, today=clock.today()).run()
             except SyncBusy as exc:
                 raise HTTPException(status_code=409, detail=str(exc))
             return _sync_payload(ledger, result)
@@ -65,7 +66,7 @@ def build(ctx: AppContext) -> APIRouter:
                 bank = make_bank(config)
             except (OSError, KeyError, ValueError) as exc:
                 raise HTTPException(status_code=503, detail=f"cannot sync: {exc}")
-            service = SyncService(ledger, bank, config)
+            service = SyncService(ledger, bank, config, today=clock.today())
             try:
                 result = service.run_period(
                     account["name"], date_from, date_to, preview=body.preview

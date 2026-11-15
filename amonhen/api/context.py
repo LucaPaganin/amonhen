@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from amonhen import db
 from amonhen.config import MonitorConfig, load_config, setup_state
 from amonhen.ledger import Ledger
+from amonhen.ports.clock import Clock, SystemClock
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,8 @@ class AppContext:
 
     db_path: str | Path
     config_path: str | Path
+    # What day it is, for every figure that depends on it (`amonhen.ports.clock`).
+    clock: Clock = field(default_factory=SystemClock)
 
     @contextmanager
     def ledger_scope(self) -> Iterator[Ledger]:
