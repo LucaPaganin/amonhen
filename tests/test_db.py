@@ -253,6 +253,20 @@ def test_the_legs_of_a_movement_are_found_without_reading_them_all(tmp_path):
     conn.close()
 
 
+def test_one_account_over_some_days_is_read_through_its_index(tmp_path):
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+
+    for query in (
+        "SELECT MAX(date) FROM transactions WHERE account_id = 1",
+        "SELECT * FROM transactions WHERE account_id = 1 AND date = '2026-01-01' AND amount = '-1.00'",
+        "SELECT * FROM transactions WHERE account_id = 1 AND date >= '2026-01-01' AND date <= '2026-01-31'",
+    ):
+        plan = " ".join(row[3] for row in conn.execute(f"EXPLAIN QUERY PLAN {query}"))
+        assert "transactions_account_date" in plan, plan
+    conn.close()
+
+
 def test_a_ledger_written_before_tags_takes_a_tag_rule(tmp_path):
     path = tmp_path / "legacy.db"
     conn = connect(path)

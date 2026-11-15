@@ -64,6 +64,11 @@ CREATE INDEX IF NOT EXISTS transactions_content_hash ON transactions(content_has
 CREATE UNIQUE INDEX IF NOT EXISTS transactions_external_id
     ON transactions(account_id, external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS transactions_date ON transactions(date);
+-- What a sync, a probable duplicate and the movements filtered by account read:
+-- one account's rows over some days. With the date index alone SQLite walked every
+-- account's rows of those days; this one also answers the newest day of an account
+-- without reading a row.
+CREATE INDEX IF NOT EXISTS transactions_account_date ON transactions(account_id, date);
 
 -- A movement a person deleted. The row is copied here whole — payload, note and
 -- the identity the ledger deduplicates by — and this is what keeps the next sync
