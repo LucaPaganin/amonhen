@@ -102,6 +102,11 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   personale with a minimum of a cent: plain `paypal` also took two PayPal direct
   debits from before PayPal's history starts (2026-09-28) and three zero-amount
   card checks, which would have taken real spending away.
+- **A rule names its destination, so a rename carries the rules with it.** `rules.target`
+  is a name, not an id: `Ledger.rename_account` rewrites the transfer rules that name the
+  account in the same transaction, as `rename_category` does for a category. Before it
+  did, the next pass found no real account by the old name, took the halves off the
+  renamed deposit and recorded its legs on a new virtual account under the old name.
 - **A transfer rule towards an account added by hand writes the other half.** The
   Revolut deposit is reachable only through a consent that does not cover it, so its
   transfers reach the ledger on the personal account alone. When a transfer rule's

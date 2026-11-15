@@ -344,17 +344,29 @@ class Ledger:
         return int(cursor.lastrowid)
 
     def rename_account(self, account_id: int, name: str) -> None:
-        """Give a real account another name; a name any other account holds is refused."""
+        """Give a real account another name, and the transfer rules that name it with it.
+
+        A name any other account holds is refused. A transfer rule names its
+        destination, not its id: left behind, the next pass would find no real
+        account by the old name, take the halves off this account and record the
+        legs on a new virtual account under the old name — what `rename_category`
+        already prevents for a category.
+        """
         wanted = name.strip()
         if not wanted:
             raise ValueError("the account name is empty")
-        if self.account(account_id)["type"] != "real":
+        row = self.account(account_id)
+        if row["type"] != "real":
             raise ValueError("only a real account is renamed here")
         other = self.find_account(name=wanted)
         if other is not None and other["id"] != account_id:
             raise ValueError(f"another account is already called {wanted!r}")
         with self.conn:
             self.conn.execute("UPDATE accounts SET name = ? WHERE id = ?", (wanted, account_id))
+            self.conn.execute(
+                "UPDATE rules SET target = ? WHERE action = 'transfer' AND target = ?",
+                (wanted, row["name"]),
+            )
 
     def _fill_missing_fields(self, account_id: int, account: Account) -> None:
         updates = {
