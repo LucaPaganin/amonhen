@@ -612,6 +612,33 @@ def apply_transfer_rules(ledger: Ledger, book: RuleBook) -> int:
         return _apply_transfers(ledger, rules, rules)
 
 
+def held_by_transfer_rules(ledger: Ledger, book: RuleBook) -> frozenset[int]:
+    """The legs a transfer rule has recorded on a virtual destination, and still claims.
+
+    A rule towards an account added by hand writes the other half and links the
+    two, so the matcher never sees that leg. A rule towards a virtual destination
+    links nothing: it only moves the leg's other side there, and without this the
+    matcher would pair the leg with an equal amount elsewhere and pull it off the
+    destination the person named. The claim is live, not stored: a leg is held
+    while the rule that wins it names the account it sits on, so removing or
+    changing the rule frees it, exactly as `_apply_transfers` lets it go. A leg a
+    person or a passthrough label put on a virtual account is not held here.
+    """
+    transfer_rules = _by_action(book.rules())["transfer"]
+    if not transfer_rules:
+        return frozenset()
+    held = set()
+    for row in _movement_rows(ledger):
+        if row["sides"] != 1 or row["linked"] or row["side_type"] != "virtual":
+            continue
+        if row["side_name"] == TRANSFER_CLEARING:
+            continue
+        winner = matching_rule(row["description"], transfer_rules, _movement_of(row))
+        if winner is not None and winner.target == row["side_name"]:
+            held.add(row["id"])
+    return frozenset(held)
+
+
 def apply_rule_changes(ledger: Ledger, before: Sequence[Rule], after: Sequence[Rule]) -> int:
     """Make the movements say what the rules say, in the order the actions win.
 

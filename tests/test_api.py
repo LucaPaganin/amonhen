@@ -1167,7 +1167,8 @@ def test_a_malformed_budget_amount_is_422(api):
 def test_a_malformed_model_reply_is_reported_as_an_upstream_failure(api, monkeypatch):
     import requests
 
-    from amonhen import api as api_module
+    # Patched where the route reads it: the router module, not the package.
+    from amonhen.api.routes import review as api_module
 
     class BadResponse:
         def raise_for_status(self):

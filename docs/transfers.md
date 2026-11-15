@@ -82,6 +82,16 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   `_decidable`, so an equal amount on another account would have taken a transfer the
   person named with a rule. Category rules still run last: on a leg the matcher pairs,
   the pair wins.
+- **A transfer rule keeps its leg from the matcher, also towards a virtual destination.**
+  A rule towards an account added by hand links the two halves, so the matcher never
+  saw that leg; a rule towards a virtual destination links nothing, and the matcher
+  used to pair the leg with an equal amount elsewhere at the next pass and pull it off
+  the destination. `link_transfers` now leaves out every leg in
+  `merchants.held_by_transfer_rules`: one balancing side, on a virtual account that is
+  not `Transfer clearing`, which the transfer rule that wins the leg names. The claim
+  is computed, not stored, so removing or changing the rule frees the leg. A leg a
+  passthrough label or a person put on a virtual account is not held: a real pair still
+  beats a label, as the passthrough bullet above says.
 - **A connected wallet that does not report its top-ups takes the other half too.**
   PayPal paid with a Revolut card reports the purchase and never the top-up, so the
   purchase arrived on both accounts as two debits nobody pairs — spending counted
@@ -92,6 +102,11 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   personale with a minimum of a cent: plain `paypal` also took two PayPal direct
   debits from before PayPal's history starts (2026-09-28) and three zero-amount
   card checks, which would have taken real spending away.
+- **A rule names its destination, so a rename carries the rules with it.** `rules.target`
+  is a name, not an id: `Ledger.rename_account` rewrites the transfer rules that name the
+  account in the same transaction, as `rename_category` does for a category. Before it
+  did, the next pass found no real account by the old name, took the halves off the
+  renamed deposit and recorded its legs on a new virtual account under the old name.
 - **A transfer rule towards an account added by hand writes the other half.** The
   Revolut deposit is reachable only through a consent that does not cover it, so its
   transfers reach the ledger on the personal account alone. When a transfer rule's

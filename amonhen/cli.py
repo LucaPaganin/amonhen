@@ -16,6 +16,7 @@ from amonhen.config import load_config
 from amonhen.ledger import Ledger, balance_kind, bank_balance_source
 from amonhen.merchants import RuleBook, categorize, rule_usage
 from amonhen.models import Account, format_decimal, parse_decimal
+from amonhen.ports.clock import Clock, SystemClock
 from amonhen.ports.bank import ConsentExpired
 from amonhen.services.ingest import settle_after_ingest
 from amonhen.settings import (
@@ -180,8 +181,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, clock: Clock | None = None) -> int:
+    """Run one command. `clock` is what day it is for every figure that depends on
+    it; a test stops it on a date, the command line uses the machine's."""
     args = build_parser().parse_args(argv)
+    args.clock = clock or SystemClock()
     logging.basicConfig(
         level=logging.INFO if args.verbose else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -204,7 +208,7 @@ def cmd_sync(ledger: Ledger, args) -> int:
             return 2
         return _sync_period(ledger, args)
     config = load_config(args.config)
-    service = SyncService(ledger, bank_provider(config), config)
+    service = SyncService(ledger, bank_provider(config), config, today=args.clock.today())
     result = service.run()
     for account in result.accounts:
         summary = ", ".join(f"{action}={count}" for action, count in sorted(account.actions.items()))
@@ -225,7 +229,7 @@ def _sync_period(ledger: Ledger, args) -> int:
     Conti panel is where a person writes or discards each one.
     """
     config = load_config(args.config)
-    service = SyncService(ledger, bank_provider(config), config)
+    service = SyncService(ledger, bank_provider(config), config, today=args.clock.today())
     try:
         result = service.run_period(args.account, args.date_from, args.date_to, preview=args.preview)
     except PeriodInvalid as exc:
@@ -380,7 +384,7 @@ def cmd_rules(ledger: Ledger, args) -> int:
 def cmd_metrics(ledger: Ledger, args) -> int:
     from amonhen.metrics import compute_metrics
 
-    metrics = compute_metrics(ledger, dt.date.today())
+    metrics = compute_metrics(ledger, args.clock.today())
     history = f"{metrics.months_of_history} month(s) of history"
     if metrics.partial:
         history += " — recurring burn is partial"
@@ -458,7 +462,7 @@ def cmd_set(ledger: Ledger, args) -> int:
 
 def cmd_budget(ledger: Ledger, args) -> int:
     """Set a default from a month on: the months before it keep what they had."""
-    month = args.from_month or month_of(dt.date.today())
+    month = args.from_month or month_of(args.clock.today())
     try:
         account_id = ledger.category(args.category)
         amount = None if args.amount is None else parse_decimal(args.amount)
@@ -474,7 +478,7 @@ def cmd_budget(ledger: Ledger, args) -> int:
 
 
 def cmd_budgets(ledger: Ledger, args) -> int:
-    month = args.month or month_of(dt.date.today())
+    month = args.month or month_of(args.clock.today())
     try:
         rows = budget_status(ledger, month)
     except ValueError as exc:
@@ -494,7 +498,7 @@ def cmd_budgets(ledger: Ledger, args) -> int:
 def cmd_anomalies(ledger: Ledger, args) -> int:
     from amonhen.anomalies import MIN_AMOUNT, detect_anomalies
 
-    today = dt.date.today()
+    today = args.clock.today()
     cutoff = today - dt.timedelta(days=args.days)
     found = [
         anomaly
@@ -581,7 +585,7 @@ def cmd_rule_remove(ledger: Ledger, args) -> int:
 
 
 def cmd_accounts(ledger: Ledger, args) -> int:
-    as_of = dt.date.fromisoformat(args.as_of) if args.as_of else dt.date.today()
+    as_of = dt.date.fromisoformat(args.as_of) if args.as_of else args.clock.today()
     rows = ledger.conn.execute("SELECT * FROM accounts ORDER BY type, name").fetchall()
     for row in rows:
         balance = ledger.balance(row["id"], as_of) if row["type"] == "real" else Decimal(0)
@@ -627,7 +631,7 @@ def cmd_import(ledger: Ledger, args) -> int:
 
 
 def cmd_spend(ledger: Ledger, args) -> int:
-    start, end = month_range(args.month)
+    start, end = month_range(args.month, args.clock.today())
     total = ledger.spend_between(start, end)
     print(f"spent {start}..{end}: {format_decimal(total)} EUR (booked, transfers excluded)")
     return 0
@@ -652,7 +656,7 @@ def cmd_balances(ledger: Ledger, args) -> int:
             failures += 1
             continue
         for balance in balances:
-            reference = balance.date or dt.date.today()
+            reference = balance.date or args.clock.today()
             ledger.record_declared_balance(
                 account["id"], reference, balance.amount, bank_balance_source(balance.balance_type),
             )
@@ -750,12 +754,12 @@ def declared_balance(
     return dt.date.fromisoformat(row["date"]), parse_decimal(row["balance"]), row["source"]
 
 
-def month_range(month: str | None) -> tuple[dt.date, dt.date]:
+def month_range(month: str | None, today: dt.date) -> tuple[dt.date, dt.date]:
     """A YYYY-MM month; with no month, the previous one (the spend default)."""
     if month:
         year, number = (int(part) for part in month.split("-"))
     else:
-        first_of_this = dt.date.today().replace(day=1)
+        first_of_this = today.replace(day=1)
         previous = first_of_this - dt.timedelta(days=1)
         year, number = previous.year, previous.month
     last_day = calendar.monthrange(year, number)[1]

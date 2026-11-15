@@ -60,7 +60,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
 |`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
-|`amonhen/ledger.py`|`Ledger`: accounts, `record`, invariants, spend/balance queries|
+|`amonhen/ledger/`|`Ledger` (`__init__.py`) composes one mixin per sub-domain: `accounts` (accounts, categories, settings), `ingest` (`record`, dedup, pending→booked, held duplicates), `deletions` (the trash), `categorization` (categories of a movement, splits, tags, notes, proposals), `transfer_legs` (pairs, virtual destinations, mirrors), `balances` (the double-entry check, spending, balances, declarations, the opening); `definitions.py` holds the shared SQL fragments, the balance types and the result types, re-exported by `amonhen.ledger`|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
 |`amonhen/services/ingest.py`|`settle_after_ingest`: what follows every write of movements — transfer rules, pairing, passthrough, the double-entry check, the rules — in that order, called by the sync, the import and a held movement written by hand|
 |`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `run_period` is one account over a chosen period, window by window; `SyncBusy` is the process-wide guard on one run at a time|
@@ -73,13 +73,20 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/classifier.py`|Char n-gram logistic proposals for uncovered merchants|
 |`amonhen/llm.py`|The one place a chat-completion request is built, sent and parsed|
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
-|`amonhen/api.py`|FastAPI surface (transactions, review, categories, rules, budgets, anomalies, suggestions, statistics, dashboard series, first setup) and PWA host; `/callback` answers 303 to `/?setup=1`|
+|`amonhen/queries.py`|The reads the screens need, in SQL beside the ledger: a page of movements (`TransactionFilter`, `transaction_page`), the review queue, the virtual accounts, one row by id. Routes call these and write no SQL; what a missing row means (404, 422) stays the route's|
+|`amonhen/api/app.py`|`create_app`: the exception handlers, one `AppContext`, every router built from it in the order the routes were declared, then the PWA host as the catch-all|
+|`amonhen/api/routes/`|One `APIRouter` per section, each a `build(ctx)`: `setup` (consent flow and first setup; `/callback` answers 303 to `/?setup=1`), `dashboard`, `accounts`, `categories` (with tags and rules), `budgets`, `review`, `transactions`, `transfers`, `sync`, `imports`|
+|`amonhen/api/context.py`|`AppContext`: where the ledger and `accounts.json` live, `ledger_scope` (one connection per request, on the request's thread) and `credentials_or_409`|
+|`amonhen/api/schemas.py`, `amonhen/api/payloads.py`|The request bodies, and what the routers share: the payloads they answer with, query parsing, the 404 checks (`_`-named: the package's own, not the API's surface)|
+|`amonhen/api/version.py`|`API_VERSION`, and the history of what each version changed|
 |`amonhen/backup.py`|`make_snapshot`: a dated snapshot of the living ledger (SQLite's backup API, not a file copy) plus the configuration it needs, a manifest, and the retention that keeps it bounded|
 |`amonhen/ports/bank.py`|`BankProvider`, the port the sync speaks to a bank through: its operations, its data types and its three errors, none of them Enable Banking's|
+|`amonhen/ports/clock.py`|`Clock` (`today`, `now`) and `SystemClock`: what day it is, handed to the API (`create_app(clock=)`, `AppContext.clock`) and the command line (`main(clock=)`) for every figure that depends on it. The ledger's own timestamps and the client's JWT read the real time on purpose|
 |`amonhen/composition.py`|The composition root: the only place a bank client or provider is built (`bank_provider`, `enable_banking_client`, and `bank_factory` for FastAPI's `Depends`)|
 |`amonhen/adapters/enable_banking/client.py`|EB HTTP client (JWT, windows, pagination, 429 backoff, balances, the consent flow)|
 |`amonhen/adapters/enable_banking/normalize.py`|Raw EB payload → `Account` / `IncomingTransaction` / `BankAccount` / `DeclaredBalance` (pure)|
 |`amonhen/adapters/enable_banking/provider.py`|`EnableBankingProvider`: the port implemented over the client, translating data and errors|
+|`tests/fixed_clock.py`|`FixedClock`: a clock stopped on a date, for tests about today|
 |`tests/memory_bank.py`|`MemoryBank`: the port implemented in memory, for tests of the sync alone|
 |`amonhen/adapters/csv_adapter.py`|CSV import with a `CsvProfile` per bank layout|
 |`amonhen/csv_import.py`|The mapping the import screen sends, as a `CsvProfile` built at runtime|
@@ -97,6 +104,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`tools/dump_raw.py`|Dumps raw EB payloads to disk, for regenerating fixtures|
 |`tools/anonymize_dump.py`|Turns raw dumps into committed fixtures|
 |`tools/eb_stub.py`|A stand-in for Enable Banking that serves the anonymized fixtures, so the first setup can be walked without a real consent (signs and verifies nothing)|
+|`tools/rehearse_release.sh`|Rehearses a release on the NAS before deploying it: a fresh snapshot copied twice without the key, the same read-only commands and GET routes with the running image and the new one, compared by sha256 with `--network none`, then the migrated copy's version and integrity. Prints only identico/DIVERSO, so an agent can run it|
 |`tools/rehearse_local.sh`|Rehearses the first start in containers inside WSL: builds from the checkout, proves the `/config` ownership the NAS needs, walks the wizard against the stub, then the snapshot and the restore|
 |`tests/fixtures/enable_banking/`|Anonymized real payloads used by provider tests|
 |`tests/fixtures/imports/`|Synthetic CSV/OFX fixtures|
@@ -107,23 +115,25 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`settings`|`ROOT`, `DB_PATH`, `CONFIG_FILE`, `EB_API`, `SYNC_INTERVAL_HOURS`, `UNCATEGORIZED`, `CREDITS_REVIEW_FROM`, `TRANSFER_MAX_GAP_DAYS`, `MANUAL_PAIR_MAX_GAP_DAYS`|
 |`models`|`Account`, `Posting`, `IncomingTransaction`, `parse_decimal`, `format_decimal`|
-|`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`|
-|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `set_unreported_funding`, `unrecognized_balances`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `COUNTED_SOURCES_SQL`, `UNRECOGNIZED_SOURCES_SQL`, `bank_balance_source`, `TRANSFER_CLEARING`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
+|`db`|`connect`, `initialize`, `open_ledger_db`, `LedgerConnection`, `deferred_commits`, `MIGRATIONS` (one-off migrations in order; `PRAGMA user_version` counts how many a file has had, and a new one goes at the end)|
+|`ledger`|`Ledger` (with `preview_batch`, `probable_duplicate`, `held_transactions`, `decide_held`, `mirror_transfer`, `mirror_of`, `set_computed_balance`, `set_unreported_funding`, `unrecognized_balances`, `opening_from`, `anchor_opening`, `record_valuation`, `tag`, `tags`, `set_tag_flag`, `delete_tag`, `tags_of`, `add_tag`, `set_tags`, `remove_tag`), `BalanceCheck`, `DeletedTotal`, `Deletion`, `PENDING_WINDOW_DAYS`, `COUNTED_SOURCES_SQL`, `UNRECOGNIZED_SOURCES_SQL`, `bank_balance_source`, `TRANSFER_CLEARING`, `last_read_key`, `limited_key`, `account_setting_keys`, `VALUATION_PREFIX`, `INVESTMENTS_ACCOUNT`, `CREDITS_WHERE`, `RARE_SQL`, `ESSENTIAL_SQL`, `SPENDING_SQL`, `CONTRIBUTION_SQL`|
 |`dedup`|`content_hash`, `normalize_description`|
 |`config`|`MonitorConfig`, `ConfiguredAccount` (with `max_window_days`), `Passthrough`, `load_config`, `setup_state`, `save_credentials`, `save_account`, `rename_account`, `remove_account`|
 |`services.ingest`|`settle_after_ingest`, `Settled`|
 |`sync`|`SyncService` (with `settle`, `due_in`), `sync_limit`, `SyncResult`, `AccountSyncResult`, `SyncBusy`, `PeriodInvalid`, `PeriodSyncResult`, `WindowReport`, `PeriodMovement`|
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
-|`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
+|`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `held_by_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
 |`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `usual_reading`, `UsualReading`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
 |`budgets`|`budget_status`, `budget_month`, `propose_category`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
 |`suggestions`|`LlmConfig`, `llm_config`, `unseen_merchants`, `propose_for_unseen`|
-|`api`|`create_app`|
+|`queries`|`TransactionFilter`, `TransactionPage`, `transaction_page`, `uncategorized_backlog`, `queue_rows`, `backlog_accounts`, `proposed_transfers`, `waiting_credits`, `virtual_account_usage`, `category_rows`, `mirror_destinations`, `real_account_ids`, `posted_on`, `account`, `real_account`, `transaction`, `deleted_movement`, `held_movement`, `suggestion`|
+|`api`|`create_app`, `API_VERSION`; `api.context.AppContext`; `api.routes.<section>.build`|
 |`backup`|`Snapshot`, `make_snapshot`|
 |`ports.bank`|`BankProvider`, `BankAccount`, `DeclaredBalance`, `FetchedWindow`, `BankError`, `ConsentExpired`, `RateLimited`, `BankUnavailable`|
+|`ports.clock`|`Clock`, `SystemClock`|
 |`composition`|`bank_provider`, `enable_banking_client`, `bank_factory`, `BankFactory`|
 |`adapters.enable_banking`|`EnableBankingClient` (`fetch_transaction_windows` → its own `FetchedWindow` of raw payloads), `EnableBankingProvider`, `session_accounts`, `ConsentExpiredError`, `RateLimitedError`, `normalize_transaction`, `normalize_account`, `iban_of`; `normalize.describe`, `bank_account`, `declared_balances`|
 |`adapters`|`parse_export`, `parse_csv`, `parse_ofx`, `CsvProfile`, `REVOLUT`, `FINECO`, `ACTUAL`|
@@ -188,7 +198,7 @@ change, like the spec.
   mortgage payment is a movement like any other, so if it should count it
   belongs in a category. Do not reintroduce a fixed monthly cost that is not a
   movement.
-- **`API_VERSION` in `api.py` and `REQUIRED_API_VERSION` in `web/src/App.tsx`
+- **`API_VERSION` in `amonhen/api/version.py` and `REQUIRED_API_VERSION` in `web/src/App.tsx`
   move together.** The API serves `web/dist` from disk on every request while the
   Python process keeps running its old code, so a new bundle against an old
   server is a normal state; without the handshake the app rendered nothing at all
@@ -297,7 +307,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Track an account no bank exposes (the Revolut deposit)|**Conti**: add it by hand, then a transfer rule in **Categorie e regole** with the text the bank prints and the account as *Verso* — the rule writes the other half of every transfer on it. Declare today's balance and *Ricalcola il saldo iniziale* (it previews the opening first), then turn on *Saldo dai movimenti* so the net worth reads it; correct interest with a movement. CLI: `account-flags <name> --computed-balance`|
 |A purchase paid through PayPal with a card counts twice|PayPal reports the purchase but not the top-up: in **Conti** mark PayPal *Non riporta le ricariche*, then a transfer rule on the card's bank (`paypal *`, restricted to that account) towards PayPal writes the top-up. CLI: `account-flags PayPal --unreported-funding`|
 |Undo a deletion|The trash under the account in Conti (`POST /api/deleted/{id}/restore`), or the account's `reimport_deleted` flag for all of them at the next sync|
-|Deploy a new image to the NAS|Follow README, *Updating safely*: rehearse any migration on a copy of a recent snapshot, tag `v*` and let CI publish, snapshot right before, pin `AMONHEN_TAG`, then `docker compose pull && docker compose up -d` and verify. A schema change is one-way, so its rollback restores the snapshot as well as the tag|
+|Deploy a new image to the NAS|Follow README, *Updating safely*: rehearse the release with `tools/rehearse_release.sh vX.Y.Z --api`, tag `v*` and let CI publish, snapshot right before, pin `AMONHEN_TAG`, then `docker compose pull && docker compose up -d` and verify. A schema change is one-way, so its rollback restores the snapshot as well as the tag|
 |Back up the ledger, or go back to a snapshot|`uv run amonhen backup --dest <dir> [--keep N]` writes `<dir>/<2026-09-26T101500Z>/`; restoring means stopping the app, removing `amonhen.db-wal`/`-shm`, copying that folder's `amonhen.db` over the live one, and `chown 10001:10001` inside the container (README, *Backup and restore*)|
 |Rehearse the first start before the NAS does|`tools/rehearse_local.sh` inside WSL: it builds from the checkout, serves `tools/eb_stub.py` as the bank, and prints what to walk in the browser|
 |Map a bank's CSV layout|The **Importa** section of the app: choose the file, then the columns — or add a `CsvProfile` in `adapters/csv_adapter.py` plus a synthetic fixture when the layout must be a named profile|

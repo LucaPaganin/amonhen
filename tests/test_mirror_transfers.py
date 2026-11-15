@@ -337,3 +337,23 @@ def test_the_api_flips_the_wallet_flag_and_offers_the_wallet(tmp_path):
     assert answer.json()["unreported_funding"] is True
     assert client.get("/api/transfers/labels").json()["accounts"] == ["PayPal"]
     client.close()
+
+
+def test_renaming_the_account_keeps_its_rule_and_its_halves(ledger):
+    """A transfer rule names its destination; the name follows a rename.
+
+    Left behind, the next pass found no real account by the old name, took the
+    halves off the renamed deposit and recorded the legs on a new virtual
+    account under the old name.
+    """
+    _, deposit, out, back = setup(ledger)
+    book = transfer_rule(ledger)
+    assert rows_on(ledger, deposit) == 2
+
+    ledger.rename_account(deposit, "Deposito Revolut")
+    categorize(ledger, RuleBook(ledger.conn))
+
+    assert [rule.target for rule in book.rules()] == ["Deposito Revolut"]
+    assert rows_on(ledger, deposit) == 2
+    assert ledger.find_account(name="Deposito") is None
+    assert ledger.mirror_of(out) is not None

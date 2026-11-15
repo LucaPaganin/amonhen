@@ -70,7 +70,8 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   useless pause on a daily quota: two calls held the whole run for 2.5 minutes, with the
   rules unapplied behind them. `_sync_account` asks nothing else of that account, the
   period stops at the window it hit, and `sync_limit` (settings `sync:limited:<id>`,
-  `sync:last_read:<id>`, cleared by the next read that works) is what Conti shows. The
+  `sync:last_read:<id>`, cleared by the next read that works, and deleted with the account
+  because SQLite gives its id out again: `ledger.account_setting_keys`) is what Conti shows. The
   limit is presumed daily and PSD2's, not proven: read the logged body when one arrives.
 - **A restart is not a sync.** `_sync_loop` counts the interval from `sync:last_run`,
   written when any full pass ends, the button's included and one that hit a limit too.

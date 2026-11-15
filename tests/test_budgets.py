@@ -251,6 +251,8 @@ def test_a_budget_written_before_months_existed_becomes_a_default_from_always(tm
     conn.execute("INSERT INTO budgets VALUES (?, '250.00', '2026-05-01T00:00:00+00:00')", (category,))
     conn.commit()
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     ledger = Ledger(conn)

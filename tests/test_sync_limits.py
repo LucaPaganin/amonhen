@@ -201,3 +201,23 @@ def test_a_rule_keeps_its_transfer_from_an_equal_amount_elsewhere(ledger):
         "SELECT COUNT(*) AS c FROM transfer_links WHERE leg_a = ? OR leg_b = ?", (leg, leg)
     ).fetchone()["c"] == 0
     assert link_transfers(ledger) == 0
+
+
+def test_a_deleted_account_takes_its_sync_state_with_it(ledger):
+    """An account id can come back: SQLite reuses the highest one once it is deleted.
+
+    The sync's state is kept by account id in `settings`, so a new account that
+    inherited the id of a deleted one also inherited its "refused for too many
+    requests since…" until the key was cleared with the account.
+    """
+    from amonhen.ledger import limited_key
+
+    gone = ledger.ensure_account(Account(name="Banca chiusa", type="real"))
+    ledger.set_setting(limited_key(gone), "2026-09-01T08:00:00+00:00")
+    assert sync_limit(ledger, gone) is not None
+
+    ledger.delete_account(gone)
+    new = ledger.ensure_account(Account(name="Banca nuova", type="real"))
+
+    assert new == gone  # the id came back
+    assert sync_limit(ledger, new) is None

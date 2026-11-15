@@ -774,7 +774,11 @@ def usual_spending(
 
 
 def monthly_flows(
-    ledger: Ledger, start: dt.date, end: dt.date, scope: LedgerScope = LedgerScope()
+    ledger: Ledger,
+    start: dt.date,
+    end: dt.date,
+    scope: LedgerScope = LedgerScope(),
+    today: dt.date | None = None,
 ) -> list[MonthlyFlow]:
     """Income and spending per month in the period, oldest first.
 
@@ -792,7 +796,8 @@ def monthly_flows(
     counts those days only, like the category chart beside it, and that month is
     marked `partial` like the one in progress.
     """
-    last = min(_month_index(end), _month_index(dt.date.today()))
+    today = today or dt.date.today()
+    last = min(_month_index(end), _month_index(today))
     earliest = _first_month_with_data(ledger)
     # An empty ledger charts the month in progress; a ledger with data charts
     # from its own first month. Either way the period cannot invent a past.
@@ -819,7 +824,7 @@ def monthly_flows(
     ):
         income[row["month"]] = income.get(row["month"], Decimal(0)) + parse_decimal(row["amount"])
 
-    current = _month_key(_month_index(dt.date.today()))
+    current = _month_key(_month_index(today))
     cut = {keys[0]} if bounds[0] > whole[0] else set()
     if bounds[1] < whole[1]:
         cut.add(keys[-1])
@@ -896,7 +901,9 @@ def _computed_accounts(ledger: Ledger, scope: LedgerScope) -> list:
     ).fetchall()
 
 
-def latest_balances(ledger: Ledger, scope: LedgerScope = LedgerScope()) -> list[AccountBalance]:
+def latest_balances(
+    ledger: Ledger, scope: LedgerScope = LedgerScope(), today: dt.date | None = None
+) -> list[AccountBalance]:
     """The most recent reported balance of every tracked account.
 
     An account marked ``computed_balance`` reports none, and is worth what its
@@ -910,10 +917,10 @@ def latest_balances(ledger: Ledger, scope: LedgerScope = LedgerScope()) -> list[
         extra,
     ):
         if account["computed_balance"]:
-            today = dt.date.today()
+            day = today or dt.date.today()
             balances.append(
                 AccountBalance(
-                    account=account["name"], date=today, balance=ledger.balance(account["id"], today)
+                    account=account["name"], date=day, balance=ledger.balance(account["id"], day)
                 )
             )
             continue

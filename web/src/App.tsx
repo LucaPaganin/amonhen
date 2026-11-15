@@ -25,7 +25,7 @@ import { useSetup } from "./useSetup";
 
 /**
  * The API shape this bundle reads. Keep in step with `API_VERSION` in
- * `amonhen/api.py`: the bundle is served from disk on every request
+ * `amonhen/api/version.py`: the bundle is served from disk on every request
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */

@@ -29,6 +29,8 @@ def test_a_date_can_hold_every_figure_the_bank_declared_for_it(tmp_path):
     conn.execute("INSERT INTO account_balances VALUES (?, '2026-09-12', '67.56', 'eb:ITAV')", (account,))
     conn.commit()
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     key = {row["name"]: row["pk"] for row in conn.execute("PRAGMA table_info(account_balances)")}
@@ -155,6 +157,8 @@ def test_the_merchant_rules_survive_as_patterns(tmp_path):
     )
     conn.commit()
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     # The blank key came from a rule added before the pattern had to be a text;
@@ -165,6 +169,8 @@ def test_the_merchant_rules_survive_as_patterns(tmp_path):
     assert not list(conn.execute("SELECT name FROM sqlite_master WHERE name = 'merchants'"))
 
     # Running it again neither duplicates the rule nor needs the old table.
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     assert conn.execute("SELECT COUNT(*) FROM rules").fetchone()[0] == 1
@@ -211,6 +217,8 @@ def test_a_legacy_rule_shadowed_by_a_longer_text_hands_its_movement_over(tmp_pat
     )
     conn.commit()
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
     book = RuleBook(conn)
 
@@ -253,6 +261,20 @@ def test_the_legs_of_a_movement_are_found_without_reading_them_all(tmp_path):
     conn.close()
 
 
+def test_one_account_over_some_days_is_read_through_its_index(tmp_path):
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+
+    for query in (
+        "SELECT MAX(date) FROM transactions WHERE account_id = 1",
+        "SELECT * FROM transactions WHERE account_id = 1 AND date = '2026-01-01' AND amount = '-1.00'",
+        "SELECT * FROM transactions WHERE account_id = 1 AND date >= '2026-01-01' AND date <= '2026-01-31'",
+    ):
+        plan = " ".join(row[3] for row in conn.execute(f"EXPLAIN QUERY PLAN {query}"))
+        assert "transactions_account_date" in plan, plan
+    conn.close()
+
+
 def test_a_ledger_written_before_tags_takes_a_tag_rule(tmp_path):
     path = tmp_path / "legacy.db"
     conn = connect(path)
@@ -277,6 +299,8 @@ def test_a_ledger_written_before_tags_takes_a_tag_rule(tmp_path):
     )
     conn.commit()
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     conn.execute("INSERT INTO rules (key, pattern, action, target) VALUES ('ikea', 'ikea', 'tag', 'Rara')")
@@ -315,6 +339,8 @@ def test_what_the_assistant_left_behind_goes(tmp_path):
     conn.execute("CREATE TABLE budget_proposals (category TEXT PRIMARY KEY)")
     conn.execute("INSERT INTO settings (key, value) VALUES ('assistant_calls:2026-11-01', '3')")
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     tables = {row["name"] for row in conn.execute("PRAGMA table_list")}
@@ -342,6 +368,8 @@ def test_a_movement_described_by_a_bare_code_takes_its_counterparty(tmp_path):
         )
     conn.commit()
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     rows = conn.execute("SELECT description, content_hash FROM transactions ORDER BY id").fetchall()
@@ -375,6 +403,8 @@ def test_a_ledger_whose_items_needed_a_category_lets_one_wait(tmp_path):
         """
     )
 
+    # A file an older release wrote has no schema version.
+    conn.execute("PRAGMA user_version = 0")
     initialize(conn)
 
     column = next(r for r in conn.execute("PRAGMA table_info(budget_items)") if r["name"] == "category_id")
@@ -386,4 +416,54 @@ def test_a_ledger_whose_items_needed_a_category_lets_one_wait(tmp_path):
         "INSERT INTO budget_items (category_id, month, description, amount, priority, created_at)"
         " VALUES (NULL, '2026-12', 'Idraulico', '90.00', 'important', 'x')"
     )
+    conn.close()
+
+
+def test_a_new_ledger_is_at_the_latest_version(tmp_path):
+    from amonhen.db import MIGRATIONS
+
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
+    conn.close()
+
+
+def test_a_migration_runs_once_per_ledger_and_in_order(tmp_path, monkeypatch):
+    from amonhen import db
+
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+    ran: list[int] = []
+    steps = tuple(
+        (lambda position: (lambda _conn: ran.append(position)))(position)
+        for position in range(len(db.MIGRATIONS))
+    )
+    monkeypatch.setattr(db, "MIGRATIONS", steps)
+
+    initialize(conn)
+    assert ran == []  # a restart runs none of them
+
+    conn.execute("PRAGMA user_version = 0")  # a file an older release wrote
+    initialize(conn)
+    assert ran == list(range(len(steps)))
+
+    conn.execute("PRAGMA user_version = 3")  # a file that had the first three
+    ran.clear()
+    initialize(conn)
+    assert ran == list(range(3, len(steps)))
+    conn.close()
+
+
+def test_a_file_newer_than_the_code_is_left_alone(tmp_path):
+    """A rollback opens a file a newer release migrated: nothing runs, nothing is lowered."""
+    from amonhen.db import MIGRATIONS
+
+    conn = connect(tmp_path / "ledger.db")
+    initialize(conn)
+    conn.execute(f"PRAGMA user_version = {len(MIGRATIONS) + 5}")
+
+    initialize(conn)
+
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS) + 5
     conn.close()

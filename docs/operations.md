@@ -28,6 +28,18 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   — the lower-case name has to match `image:` in `docker-compose.yaml`, or the NAS
   pulls nothing. Keep the `uv` image tag in the Dockerfile at the version that
   wrote `uv.lock`: the lock is revision 3 and older uv binaries refuse to read it.
+- **A release is rehearsed on a copy of the live ledger, with both images.**
+  `tools/rehearse_release.sh NEW_TAG [--api]` snapshots the live ledger, copies it
+  twice into a scratch volume without `private.pem`, runs the same read-only commands
+  (and with `--api` the GET routes of two servers started with `--sync-interval-hours
+  0`) with the running image and the new one, and compares the answers by sha256
+  inside the volume, so nothing of the ledger reaches the terminal. Every container
+  runs with `--network none`: a server is asked from inside its own container, on its
+  loopback, so no port is published either. It then checks the migrated copy's
+  `user_version` against `MIGRATIONS`, `integrity_check` and `foreign_key_check`, and
+  removes the volume on exit unless `--keep`. A program fed to `docker run … python -`
+  needs `-i`, or Docker hands python an empty one that exits 0 having checked nothing:
+  the first run of this script did exactly that.
 - **`.env` is loaded at import, and the shell wins.** `settings._load_env_file` reads
   the `KEY=VALUE` lines before any tunable is read, so `uv run amonhen serve` and
   docker compose see the same file — the class of bug where the key is in `.env` and

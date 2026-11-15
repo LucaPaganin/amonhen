@@ -284,23 +284,48 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
    continua ad applicare le regole di giroconto anche dopo ogni conto, perché l'altra
    metà non deve aspettare la banca più lenta.
 
-   **Resta aperto, trovato scrivendo il test:** una regola di giroconto verso un conto
+   **Trovato scrivendo il test, poi corretto:** una regola di giroconto verso un conto
    *virtuale* (non creato a mano come conto reale) perde contro l'abbinamento in tutti i
    percorsi, sync compreso. La regola sposta la gamba sul conto virtuale ma non la lega a
    niente, e `transfers._candidates` scarta solo le gambe già legate: un importo uguale su
    un altro conto la abbina e la toglie dal conto della regola. Escludere le gambe con un
    lato virtuale non basta, perché anche il passthrough le mette lì e un abbinamento vero
-   deve poterlo battere: va deciso cosa distingue la gamba di una regola.
+   deve poterlo battere: va deciso cosa distingue la gamba di una regola. **Corretto:** la
+   distingue che una regola di giroconto la rivendica *adesso* verso quel conto
+   (`merchants.held_by_transfer_rules`), lo stesso criterio con cui `_apply_transfers`
+   decide cosa liberare; `link_transfers` esclude quelle gambe (`docs/transfers.md`).
 2. **`Clock` e `BankProvider`** come `Protocol`, le eccezioni tradotte nell'adapter. *Piccolo.* **`BankProvider` fatto:**
    `amonhen/ports/bank.py`, l'adapter in `amonhen/adapters/enable_banking/provider.py`, la
    composition root in `amonhen/composition.py` (con `Depends` per FastAPI), il banco in
    memoria in `tests/memory_bank.py`. Il flusso di consenso è rimasto fuori dalla porta,
-   di proposito (`docs/sync-and-banks.md`). `Clock` resta da fare.
+   di proposito (`docs/sync-and-banks.md`). **`Clock` fatto:** `amonhen/ports/clock.py`;
+   l'API lo riceve in `create_app(clock=)` e lo porta in `AppContext`, la CLI in
+   `main(clock=)`, e ogni cifra che dipende da oggi lo legge da lì (`tests/test_clock.py`
+   ferma l'orologio). Le funzioni di calcolo prendono `today` come parametro opzionale,
+   come `budgets.py` e `SyncService` facevano già. Restano fuori di proposito i timestamp
+   del ledger (`created_at`, `deleted_at`), che non decidono nessuna cifra, e il JWT del
+   client, che la banca controlla sull'ora vera.
 3. **`api.py` in router per sezione**, con `Deps` come composition root; le 22 query
    degli handler scendono in `ledger/queries.py`. Meccanico, coperto dai test dell'API.
-   *Medio.*
+   *Medio.* **Router fatti:** `amonhen/api/` è un package, con un `APIRouter` per sezione in
+   `routes/`, costruito da un `AppContext` (il `Deps` di questo documento, con il nome che
+   dice cosa porta) che sostituisce la closure di `create_app`. Lo spostamento è stato
+   meccanico: i corpi delle route sono copiati riga per riga, gli import calcolati
+   dall'albero sintattico; lo schema OpenAPI è identico, e su 3635 combinazioni di metodo
+   e URL ogni richiesta arriva alla stessa route di prima. **Query fatte:** le 22 chiamate
+   SQL che stavano nelle route e in `payloads.py` sono funzioni di `amonhen/queries.py`,
+   con le stesse stringhe SQL; le route non scrivono più SQL, e quello che una riga mancante
+   significa (404, 422) resta loro. Non stanno sulla classe `Ledger`, che ha già circa 130
+   metodi: sono letture, in un modulo di letture, come diceva la sezione 3.1.
 4. **`Ledger` in moduli per sotto-dominio**, con `Ledger` che resta come facciata così
-   nessun chiamante cambia. *Medio.*
+   nessun chiamante cambia. *Medio.* **Fatto:** `amonhen/ledger/` è un package, con un mixin
+   per sotto-dominio (`accounts`, `ingest`, `deletions`, `categorization`, `transfer_legs`,
+   `balances`) e `Ledger` che li compone; le definizioni comuni stanno in `definitions.py`,
+   riesportate da `amonhen.ledger`. I 97 metodi sono copiati identici (confrontati sorgente
+   per sorgente) e nessuna importazione cambia. È una divisione in file, non un
+   disaccoppiamento: i mixin si chiamano ancora fra loro attraverso `self`, e un metodo di
+   `ingest` può usarne uno di `transfer_legs`. Quello che compra è leggere un sotto-dominio
+   in un file da 200-350 righe invece che in uno da 2000.
 5. **Separare calcolo e lettura** in `metrics.py` e `budgets.py`, solo dove un test lo
    chiede. *Quando serve.*
 
@@ -316,10 +341,10 @@ nessuno è necessario per il refactoring sopra.
 
 |#|Cosa|Rischio oggi|Proposta|Costo|
 |---|---|---|---|---|
-|1|`settings` usa chiavi con l'id di un conto (`sync:last_read:<id>`, `sync:limited:<id>`) senza FK, e `delete_account` non le cancella. `INTEGER PRIMARY KEY` senza `AUTOINCREMENT` può riusare l'id più alto dopo una cancellazione|un conto nuovo che eredita l'id di uno cancellato si mostra "limitato dalla banca" o "letto il…" con lo stato del vecchio|cancellare le due chiavi in `delete_account` (nessun cambio di schema); a lungo andare, due colonne `last_read_at` / `rate_limited_since` su `accounts`|minimo|
-|2|Nessuna `PRAGMA user_version`|ordine delle migrazioni implicito, ogni avvio le prova tutte|`user_version` incrementale, le funzioni di oggi diventano i passi fino alla versione attuale; le nuove si aggiungono in coda|piccolo|
-|3|Nessun indice `transactions(account_id, date)`|le letture per conto e periodo (saldi, sync di un periodo, filtro Movimenti) usano `transactions_date` e filtrano il conto a mano|`CREATE INDEX IF NOT EXISTS transactions_account_date ON transactions(account_id, date)`; verificare con `EXPLAIN QUERY PLAN` sulla copia del ledger prima di aggiungerlo|minimo|
-|4|`rules.target` è un nome (categoria, conto o tag secondo `action`), `merchant_suggestions.category` pure|una rinomina deve ricordarsi di aggiornarli: `rename_category` lo fa, `Ledger.rename_account` no — una regola di giroconto verso un conto rinominato continua a nominare il vecchio nome, e il commento in `delete_account` dice che una regola così ricrea il conto come virtuale al sync dopo (da confermare con un test); niente integrità referenziale|accettabile per una tabella piccola e scritta a mano; se si tocca, `target_id INTEGER` con FK e il nome solo per la visualizzazione|medio, da non fare ora|
+|1|`settings` usa chiavi con l'id di un conto (`sync:last_read:<id>`, `sync:limited:<id>`) senza FK, e `delete_account` non le cancella. `INTEGER PRIMARY KEY` senza `AUTOINCREMENT` può riusare l'id più alto dopo una cancellazione|un conto nuovo che eredita l'id di uno cancellato si mostra "limitato dalla banca" o "letto il…" con lo stato del vecchio|cancellare le due chiavi in `delete_account` (nessun cambio di schema); a lungo andare, due colonne `last_read_at` / `rate_limited_since` su `accounts`. **Fatto:** il formato delle chiavi sta in `ledger.definitions` (`account_setting_keys`), lo usano il sync e `delete_account`, e `tests/test_sync_limits.py` riproduce l'id riusato|minimo|
+|2|Nessuna `PRAGMA user_version`|ordine delle migrazioni implicito, ogni avvio le prova tutte|`user_version` incrementale, le funzioni di oggi diventano i passi fino alla versione attuale; le nuove si aggiungono in coda **Fatto:** le nove trasformazioni (tabelle ricostruite, dati riscritti) sono `MIGRATIONS` in `amonhen/db.py` e girano una volta per file; schema, colonne aggiunte e permessi restano controlli a ogni avvio. Verificato su un ledger di 20000 movimenti scritto dal codice di prima: stesso schema, stesse righe, versione 9, e un riavvio passa da 12 a 0,4 ms. Il guadagno vero non è il tempo: è che una migrazione ha un posto (in fondo) e gira una volta, invece di dover restare innocua a ogni avvio per sempre. I nove test che simulavano un file vecchio dentro uno appena inizializzato ora gli rimettono `user_version = 0`, come ha un file vecchio vero|piccolo|
+|3|Nessun indice `transactions(account_id, date)`|le letture per conto e periodo (saldi, sync di un periodo, filtro Movimenti) usano `transactions_date` e filtrano il conto a mano|`CREATE INDEX IF NOT EXISTS transactions_account_date ON transactions(account_id, date)`; verificare con `EXPLAIN QUERY PLAN` sulla copia del ledger prima di aggiungerlo **Fatto:** misurato prima e dopo su un ledger di prova di 6000 movimenti: le tre letture (l'inizio del sync, il probabile doppione, Movimenti per conto e periodo) passano dall'indice sulla data a questo, e l'inizio del sync lo usa come *covering index*. Il guadagno a questa scala è di frazioni di millisecondo: quello che cambia è che il costo cresce con i movimenti del conto, non con quelli di tutti i conti nel periodo. `tests/test_db.py` controlla il piano|minimo|
+|4|`rules.target` è un nome (categoria, conto o tag secondo `action`), `merchant_suggestions.category` pure|una rinomina deve ricordarsi di aggiornarli: `rename_category` lo faceva, `Ledger.rename_account` no — una regola di giroconto verso un conto rinominato toglieva le metà dal conto e registrava le gambe su un nuovo conto virtuale col vecchio nome. **Corretto** (`tests/test_mirror_transfers.py`): ora la rinomina aggiorna anche le regole. Resta che niente garantisce l'integrità referenziale: la garantisce ogni rinomina che se ne ricorda|accettabile per una tabella piccola e scritta a mano; se si tocca, `target_id INTEGER` con FK e il nome solo per la visualizzazione|medio, da non fare ora|
 |5|FK senza `ON DELETE` su `budgets`, `budget_months`, `budget_items`, `account_balances`, `deleted_transactions`, `held_transactions`|cancellare una categoria con un budget fallisce con un errore di FK invece di un messaggio; `delete_account` pulisce a mano|esplicitare la politica (`CASCADE` per i budget di una categoria, `RESTRICT` dove si vuole il rifiuto) alla prossima ricostruzione di quelle tabelle, non per sé|da agganciare|
 |6|`transfer_links` non impedisce che una gamba stia in due coppie|lo garantisce il codice (`_live_link`), non lo schema|indice unico parziale su ciascuna gamba per le coppie non rifiutate, dopo aver verificato sulla copia che non ci siano violazioni|piccolo|
 |7|Importi come `TEXT` decimale, confronti con `CAST(… AS REAL)`|nessuno per i segni e le soglie; le somme sono già in `Decimal`|**lasciare così.** Centesimi `INTEGER` sarebbero la scelta da manuale, ma la migrazione tocca ogni riga e ogni query per un guadagno che qui non si vede|—|
