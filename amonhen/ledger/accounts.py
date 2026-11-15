@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import replace
 
 from amonhen.db import deferred_commits
-from amonhen.ledger.definitions import TRANSFER_CLEARING, log
+from amonhen.ledger.definitions import TRANSFER_CLEARING, account_setting_keys, log
 from amonhen.models import Account, format_decimal
 from amonhen.settings import UNCATEGORIZED
 
@@ -188,6 +188,12 @@ class AccountsMixin:
                 for table in ("deleted_transactions", "held_transactions",
                               "account_balances", "rules"):
                     self.conn.execute(f"DELETE FROM {table} WHERE account_id = ?", (account_id,))
+                # The sync's state is keyed by the account's id, which a new account
+                # can be given again: left behind, it would say the new one is limited.
+                keys = account_setting_keys(account_id)
+                self.conn.execute(
+                    f"DELETE FROM settings WHERE key IN ({', '.join('?' * len(keys))})", keys
+                )
                 # A transfer rule towards this account would recreate it as a
                 # virtual one at the next sync.
                 self.conn.execute(

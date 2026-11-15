@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from amonhen.config import ConfiguredAccount, MonitorConfig
-from amonhen.ledger import Ledger, bank_balance_source
+from amonhen.ledger import Ledger, bank_balance_source, last_read_key, limited_key
 from amonhen.merchants import RuleBook, apply_transfer_rules
 from amonhen.models import Account, RecordAction, format_decimal
 from amonhen.ports.bank import (
@@ -39,24 +39,16 @@ _SYNC_LOCK = threading.Lock()
 _LAST_RUN_KEY = "sync:last_run"
 
 
-def _last_read_key(account_id: int) -> str:
-    return f"sync:last_read:{account_id}"
-
-
-def _limited_key(account_id: int) -> str:
-    return f"sync:limited:{account_id}"
-
-
 def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
 def sync_limit(ledger: Ledger, account_id: int) -> dict | None:
     """Since when the bank refuses this account for too many requests, if it does."""
-    since = ledger.setting(_limited_key(account_id))
+    since = ledger.setting(limited_key(account_id))
     if not since:
         return None
-    return {"since": since, "last_read": ledger.setting(_last_read_key(account_id)) or None}
+    return {"since": since, "last_read": ledger.setting(last_read_key(account_id)) or None}
 
 
 class SyncBusy(RuntimeError):
@@ -369,8 +361,8 @@ class SyncService:
         result.actions = self.ledger.record_batch(transactions)
         result.balances = self._record_balances(entry, account_id)
         result.anchored = self._anchor_first_opening(entry, account_id)
-        self.ledger.set_setting(_last_read_key(account_id), _now())
-        self.ledger.set_setting(_limited_key(account_id), "")
+        self.ledger.set_setting(last_read_key(account_id), _now())
+        self.ledger.set_setting(limited_key(account_id), "")
         log.info("account %s: %s, %d balance(s)", entry.name, result.actions, result.balances)
         return result
 
@@ -380,7 +372,7 @@ class SyncService:
         """The bank has had enough of this account: nothing else is asked of it."""
         result.rate_limited = True
         result.error = f"rate limited: {detail}"
-        self.ledger.set_setting(_limited_key(account_id), _now())
+        self.ledger.set_setting(limited_key(account_id), _now())
         log.warning("account %s: %s", result.account, result.error)
         return result
 

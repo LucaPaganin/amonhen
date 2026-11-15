@@ -180,6 +180,22 @@ UNRECOGNIZED_SOURCES_SQL = (
 )
 
 
+def last_read_key(account_id: int) -> str:
+    """The setting that says when a sync last read this account."""
+    return f"sync:last_read:{account_id}"
+
+
+def limited_key(account_id: int) -> str:
+    """The setting that says since when the bank refuses this account for too many requests."""
+    return f"sync:limited:{account_id}"
+
+
+# Every setting a sync keeps about one account. They are keyed by the account's id,
+# which SQLite gives out again once the highest one is deleted, so they go with it.
+def account_setting_keys(account_id: int) -> tuple[str, ...]:
+    return last_read_key(account_id), limited_key(account_id)
+
+
 def bank_balance_source(balance_type: str | None) -> str:
     """The `eb:<TYPE>` tag a balance from the bank is recorded under."""
     return f"eb:{(balance_type or 'unknown').strip().upper()}"
