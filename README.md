@@ -587,13 +587,30 @@ Every update of the live NAS follows these rules, whoever prepares the release.
    `MIGRATIONS` in `amonhen/db.py`: `PRAGMA user_version` counts how many a file has
    had, so it runs once, at the first start of the new image, and never again. An
    older image opening a newer file runs nothing and leaves its version as it is.
-2. **Rehearse the migration on a copy of a recent snapshot first**, on the PC:
-   copy a `backups/<timestamp>/amonhen.db` off the NAS, `uv run amonhen --db
-   <copy> serve`, and check that the sections the release touches show what they
-   showed before. Delete the copy afterwards; it is the real ledger.
-3. **Release only from a green CI.** Commit, tag `vX.Y.Z`, push the tag; the image
+2. **Release only from a green CI.** Commit, tag `vX.Y.Z`, push the tag; the image
    exists only once `pytest` and the bundle build pass in
-   `.github/workflows/image.yml`. Pushing a tag publishes: do it on purpose.
+   `.github/workflows/image.yml`. Pushing a tag publishes: do it on purpose. A published tag is not
+   a deploy: the NAS runs what its `AMONHEN_TAG` says, so the image can be rehearsed
+   first.
+3. **Rehearse the release on a copy of the ledger.** From the compose directory on
+   the NAS:
+
+   ```bash
+   tools/rehearse_release.sh vX.Y.Z --api
+   ```
+
+   It takes a fresh snapshot, makes two copies, runs the same read-only commands and
+   GET routes with the running image on one and the new image on the other (which
+   migrates its copy as it would the live file), and compares the answers by sha256;
+   then it checks the migrated file's version, `integrity_check` and
+   `foreign_key_check`. Every container runs with `--network none` and the copies
+   carry no `private.pem`, so nothing reaches a bank; nothing is printed but
+   "identico" / "DIVERSO", so an agent can run it without reading the ledger; and the
+   scratch volume, a copy of the real ledger, is removed on exit. Exit 0 means the
+   new release answers like the old one; on 1, rerun with `--keep` and compare
+   `/r/out/old` with `/r/out/new` by hand before going on. A release that changes a
+   figure on purpose will differ there, and the difference is the one to recognise.
+   The script lives in the repository; on the NAS, copy it next to the compose file.
 4. **Snapshot right before the update, and take it off the NAS.** Not the nightly
    one — a snapshot taken now, so nothing written since is lost on a rollback:
 
