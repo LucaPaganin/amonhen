@@ -318,7 +318,14 @@ def decide_held(held_id: int, body: HeldDecision, deps: Deps = Depends(deps)) ->
    significa (404, 422) resta loro. Non stanno sulla classe `Ledger`, che ha già circa 130
    metodi: sono letture, in un modulo di letture, come diceva la sezione 3.1.
 4. **`Ledger` in moduli per sotto-dominio**, con `Ledger` che resta come facciata così
-   nessun chiamante cambia. *Medio.*
+   nessun chiamante cambia. *Medio.* **Fatto:** `amonhen/ledger/` è un package, con un mixin
+   per sotto-dominio (`accounts`, `ingest`, `deletions`, `categorization`, `transfer_legs`,
+   `balances`) e `Ledger` che li compone; le definizioni comuni stanno in `definitions.py`,
+   riesportate da `amonhen.ledger`. I 97 metodi sono copiati identici (confrontati sorgente
+   per sorgente) e nessuna importazione cambia. È una divisione in file, non un
+   disaccoppiamento: i mixin si chiamano ancora fra loro attraverso `self`, e un metodo di
+   `ingest` può usarne uno di `transfer_legs`. Quello che compra è leggere un sotto-dominio
+   in un file da 200-350 righe invece che in uno da 2000.
 5. **Separare calcolo e lettura** in `metrics.py` e `budgets.py`, solo dove un test lo
    chiede. *Quando serve.*
 

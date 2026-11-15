@@ -135,7 +135,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   back beside the check.
 - **The ledger is in WAL mode, and a batch is one transaction.** On the NAS's btrfs
   every commit is a flush, and the ledger commits once per movement (`with
-  self.conn:` throughout `ledger.py`): the first live sync took five and a half
+  self.conn:` throughout the ledger's modules): the first live sync took five and a half
   minutes for 750 movements, and every page opened meanwhile answered 500 with
   `database is locked`. `db.connect` opens the file with `journal_mode = WAL` and
   `synchronous = NORMAL`, so readers never wait on the writer, and returns a

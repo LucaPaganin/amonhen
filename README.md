@@ -748,7 +748,7 @@ rm -rf $HOME/amonhen-rehearsal
 |Path|Role|
 |---|---|
 |`amonhen/db.py`|SQLite schema: accounts, transactions, postings, transfer links, reported balances|
-|`amonhen/ledger.py`|The single write path; dedup, pending→booked, spend and balance queries|
+|`amonhen/ledger/`|The single write path, one module per sub-domain; dedup, pending→booked, spend and balance queries|
 |`amonhen/ports/bank.py`|The port the sync speaks to a bank through|
 |`amonhen/adapters/enable_banking/`|Enable Banking client, payload normalization, and the adapter that implements the port|
 |`amonhen/composition.py`|The one place the bank client and provider are built|
