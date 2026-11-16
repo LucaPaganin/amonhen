@@ -197,7 +197,8 @@ function ComparisonPanel({ plan }: { plan: Plan }) {
   const [problem, setProblem] = useState<string | null>(null);
 
   if (plan.goals.length === 0) return null;
-  const chosen = series ?? plan.goals[0].series;
+  // A goal taken away since it was chosen falls back to the first one.
+  const chosen = plan.goals.some((goal) => goal.series === series) ? (series as number) : plan.goals[0].series;
   const run = async () => {
     try {
       setResult(await api.compare(chosen, rate, allocations));
@@ -398,7 +399,13 @@ function TaxYears({ plan, write }: { plan: Plan; write: Write }) {
               hint={item.kind === "brackets" ? "limite:aliquota, … , :aliquota" : item.kind === "percent" ? "%" : item.kind === "euro" ? "€" : ""}
               value={current?.value ?? ""}
               source={current?.source ?? ""}
-              onSave={(value, source) => write(api.setTaxParameter(year, item.key, value, source))}
+              onSave={(value, source) =>
+                write(
+                  value.trim() === ""
+                    ? api.deleteTaxParameter(year, item.key)
+                    : api.setTaxParameter(year, item.key, value, source),
+                )
+              }
             />
           );
         })}

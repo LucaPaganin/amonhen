@@ -133,8 +133,8 @@ def compare(
     """What one allocation leads to: every step of the fund against the PAC.
 
     Contributions go in at the start of each year. The fund's returns are taxed
-    every year; at the exit only the deducted part and the employer's are taxed
-    again, because the rest was paid from taxed income. The PAC pays the stamp
+    every year; at the exit only what was deducted — own and employer's, up to the
+    cap — is taxed again, because the rest was paid from taxed income. The PAC pays the stamp
     duty every year and the tax on the gain when sold, at the horizon. The tax
     saved by the deduction goes into the PAC the same year (shortcut: it really
     arrives with the next year's return; upgrade when the projections take months).
@@ -163,7 +163,9 @@ def compare(
         pac_value = (pac_value + pac + saving) * (1 + rate) * (1 - stamp)
         pac_cost += pac + saving
     leaving = exit_rate(tax, participation_years)
-    fund_net = fund_value - (deductible + employer) * years * leaving / 100
+    # Taxed at the exit: what was deducted, own and employer's together, never past the cap.
+    deducted = min(fund + employer, cap)
+    fund_net = fund_value - deducted * years * leaving / 100
     gain = max(Decimal(0), pac_value - pac_cost)
     pac_net = pac_value - gain * parse_decimal(tax["etf_gain_tax"]) / 100
 

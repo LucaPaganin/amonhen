@@ -90,6 +90,15 @@ def test_one_year_at_zero_return_shows_only_the_taxes():
     assert result.yearly == Decimal("4000.00")
 
 
+def test_the_exit_tax_never_reaches_past_the_cap():
+    # An employer paying more than the cap alone: what is over it was never deducted.
+    generous = dict(PROFILE, employer_rate="15")  # 6,000 on a base of 40,000
+    result = compare(Decimal("3000"), Decimal(0), generous, TAX, 1, 1, Decimal(0), True)
+    assert result.deductible == 0
+    # 9,000 paid in, 5,300 of it deducted and taxed at 15% on the way out.
+    assert result.fund_net == Decimal("8205.00")
+
+
 def test_a_goal_that_needs_its_money_does_not_count_the_fund():
     result = one("3000", "1000", reachable=False)
     assert result.reachable == result.pac_net
@@ -161,6 +170,11 @@ def test_the_margin_is_read_on_the_twelve_complete_months(ledger):
     assert reading["months"] == 12 and not reading["partial"]
     assert reading["total"] == "10000.00"
     assert reading["ordinary_monthly"] == "500.00"
+
+
+def test_an_empty_ledger_has_no_margin(ledger):
+    reading = margin(ledger, dt.date(2026, 1, 15))
+    assert reading["months"] == 0 and reading["yearly"] is None
 
 
 # -- the API -----------------------------------------------------------------

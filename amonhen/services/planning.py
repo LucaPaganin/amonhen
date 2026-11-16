@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from amonhen.core.planning import LIQUIDITY, PROFILE_KEYS, TAX_KEYS, AllocationResult, compare, complete_year
 from amonhen.ledger import Ledger
-from amonhen.metrics import _first_month_with_data, _month_bounds, _month_index, _month_key, period_summary
+from amonhen.metrics import complete_months, period_summary
 from amonhen.models import format_decimal, parse_decimal
 
 
@@ -44,14 +44,10 @@ def margin(ledger: Ledger, today: dt.date) -> dict:
     the ordinary month is the median of the twelve, which those few months do not move,
     because money that arrives three times a year cannot be paid in every month.
     """
-    last = _month_index(today) - 1
-    earliest = _first_month_with_data(ledger)
-    first = last - 11 if earliest is None else max(earliest, last - 11)
     months = []
-    for index in range(first, last + 1):
-        start, end = _month_bounds(index)
+    for key, start, end in complete_months(ledger, today, 12):
         reading = period_summary(ledger, start, end)
-        months.append({"month": _month_key(index), "income": reading.income, "margin": reading.balance})
+        months.append({"month": key, "income": reading.income, "margin": reading.balance})
     margins = [month["margin"] for month in months]
     total = sum(margins, Decimal(0))
     return {
