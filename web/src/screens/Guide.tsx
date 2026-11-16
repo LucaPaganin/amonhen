@@ -48,11 +48,11 @@ const CARDS: Card[] = [
     id: "month",
     title: "Questo mese e il solito",
     means:
-      "Quanto è uscito finora in questo mese, senza le spese rare, contro quanto esce di solito a questo punto del mese.",
+      "In cima: quanto è a tuo carico finora in questo mese, cioè quanto è uscito tolti i rimborsi e la parte pagata dai contributi. Sotto, la spesa lorda, i contributi, le entrate e la differenza fra entrate e spesa a tuo carico, ognuna accanto al mese prima.",
     computed:
-      "Il solito è la mediana dei 6 mesi completi precedenti, ciascuno tagliato allo stesso giorno, per il totale e per ogni categoria. Sono mediane separate: i soliti delle categorie non sommano al solito del totale. I contributi alle spese stanno fuori dal confronto, che così non dipende dal giorno in cui arrivano: hanno una riga loro, con quanto resta a tuo carico.",
+      "Il mese prima si legge due volte: fino allo stesso giorno, per confrontare gli stessi giorni, e intero. Le spese rare ci sono. I contributi contati sono quelli che hanno coperto qualcosa: su ogni conto al massimo quanto quel conto ha speso, così spesa lorda meno contributi fa la cifra a tuo carico. Le entrate sono quelle del grafico Entrate e uscite, senza giroconti, rimborsi e contributi. Il netto dipende dal giorno in cui arriva un contributo: per questo la spesa lorda resta accanto.",
     changes:
-      "Dove sono finiti elenca le categorie con una spesa in questo mese, dalla più alta, ognuna con la sua distanza dal solito. Un tocco apre i suoi movimenti.",
+      "Dove sono finiti elenca le categorie con una spesa in questo mese, dalla più alta, ognuna con la distanza dal suo solito: la mediana dei 6 mesi completi precedenti tagliati allo stesso giorno, senza spese rare e senza contributi. Un tocco apre i suoi movimenti.",
   },
   {
     id: "statistics",
@@ -118,7 +118,7 @@ const CARDS: Card[] = [
     means:
       "Soldi che arrivano per coprire le spese in generale e non una spesa precisa: per esempio i versamenti di chi condivide con te un conto comune.",
     computed:
-      "Un accredito in una categoria col segno Contributo alle spese abbassa il totale e nessuna categoria. Copre tutte le spese del conto su cui arriva, rare comprese: in ogni mese tutto ciò che quel conto ha pagato scende della stessa percentuale, e gli altri conti restano interi. Riduce spesa tipica, riserva per spese rare e spesa attesa, quindi allunga i mesi di autonomia. Questo mese e Dove sono finiti restano lordi.",
+      "Un accredito in una categoria col segno Contributo alle spese abbassa il totale e nessuna categoria. Copre tutte le spese del conto su cui arriva, rare comprese: in ogni mese tutto ciò che quel conto ha pagato scende della stessa percentuale, e gli altri conti restano interi. Riduce spesa tipica, riserva per spese rare e spesa attesa, quindi allunga i mesi di autonomia, e in cima al cruscotto dà la cifra a tuo carico. Dove sono finiti resta lordo.",
     changes:
       "Non è un'entrata né un rimborso. Il segno sta da solo: accenderlo spegne Spesa rara, Irrinunciabile ed Entrata. I mesi di autonomia contano che i contributi continuino anche se le tue entrate si fermano.",
     now: (metrics) => amount(metrics.contributions_monthly),
