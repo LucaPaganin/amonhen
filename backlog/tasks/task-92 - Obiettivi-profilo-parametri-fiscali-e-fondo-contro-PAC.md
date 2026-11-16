@@ -1,11 +1,11 @@
 ---
 id: TASK-92
 title: Obiettivi, profilo, parametri fiscali e fondo contro PAC
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: 2026-11-03 12:00
-updated_date: '2026-11-16T20:51:00Z'
+updated_date: '2026-11-16T21:21:00Z'
 labels: []
 dependencies: []
 type: feature
@@ -20,12 +20,12 @@ La prima fetta della fase 12 (sezione 5.16): gli obiettivi, i fatti del profilo 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Un obiettivo ha nome, cifra in euro di oggi, data, liquidità richiesta e la data da cui vale
-- [ ] #2 Il profilo tiene la base del versamento separata dal lordo, ogni fatto con la data da cui vale
-- [ ] #3 I parametri fiscali sono righe per anno con la fonte; un anno mancante si dice, e ogni cifra scrive l'anno usato
-- [ ] #4 Il confronto mette in fila deduzione, contributo del datore, spazio sotto il tetto, tassazione all'uscita e vincolo di liquidità, per due ripartizioni una accanto all'altra
-- [ ] #5 Il margine si legge dal ledger sui 12 mesi completi, con quello dei mesi ordinari accanto
-- [ ] #6 Le schede della Guida per obiettivo, base del versamento e tetto di deducibilità
+- [x] #1 Un obiettivo ha nome, cifra in euro di oggi, data, liquidità richiesta e la data da cui vale
+- [x] #2 Il profilo tiene la base del versamento separata dal lordo, ogni fatto con la data da cui vale
+- [x] #3 I parametri fiscali sono righe per anno con la fonte; un anno mancante si dice, e ogni cifra scrive l'anno usato
+- [x] #4 Il confronto mette in fila deduzione, contributo del datore, spazio sotto il tetto, tassazione all'uscita e vincolo di liquidità, per due ripartizioni una accanto all'altra
+- [x] #5 Il margine si legge dal ledger sui 12 mesi completi, con quello dei mesi ordinari accanto
+- [x] #6 Le schede della Guida per obiettivo, base del versamento e tetto di deducibilità
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -45,4 +45,18 @@ Forma (docs/architettura.md): core puro, persistenza come sotto-dominio del ledg
 7. Test: core (scaglioni, tetto, datore condizionato, aliquota d'uscita, anno mancante), ledger (versioni a una data), servizio (margine su 12 mesi), API. Suite da un checkout pulito (git archive).
 8. Verifica UI in Chromium su una copia di un ledger sintetico (nel container non c'è il ledger vero), con AMONHEN_CONFIG_FILE su una copia; screenshot letti.
 9. Spec 1.47 (sezioni 5.16, 6, 9), docs/investments.md, CLAUDE.md (file map, schema: 18 tabelle), docs/frontend.md se serve.
+
+Tagli (ponytail, approvati): profilo senza data di nascita e destinazione del TFR (nessuna cifra di questa fetta le usa: arrivano con le proiezioni); tre schede della Guida, quelle del criterio 6; nessun comando CLI. Decisioni approvate: rendimento unico scritto nel confronto, mesi ordinari = mediana dei 12 margini, datore solo se il proprio raggiunge la percentuale, risparmio d'imposta nel PAC dello stesso anno, liquidità a tre valori, base annua, ripartizioni non salvate, nessuna copia dall'anno prima.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Verifica: 652 test passati da un checkout pulito (git archive, senza accounts.json e .env), 15 nuovi in tests/test_planning.py. UI percorsa in Chromium a 1280 e 390 su un ledger sintetico (nel container non c'è il ledger vero) servito con --db e AMONHEN_CONFIG_FILE su copie: due obiettivi, sei fatti del profilo, dodici parametri 2025 scritti a mano con la fonte; il 2026 mancante è detto sia nei parametri sia nel confronto; margine 13.800 € con mese ordinario 750 € (12×750 + due mensilità); risparmio d'imposta 1.690,26 € = 4.564,57 × 37,03%; aliquota d'uscita al minimo 9% con 36 anni di adesione; per l'obiettivo Casa (alla data) il fondo resta vincolato; nessun errore in console, nessuno scorrimento orizzontale a 390. Corretti durante la verifica: date e percentuali all'italiana nel profilo, bordo del fieldset.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+La prima fetta della fase 12 (sezione 5.16). Tre tabelle nuove (goals versionati per serie, profile_facts con la base del versamento separata dal lordo, tax_parameters per anno con fonte obbligatoria); il core puro amonhen/core/planning.py (IRPEF sugli scaglioni, tetto con il datore dentro e il TFR fuori, datore solo sopra la percentuale propria, aliquota d'uscita 15→9%, ETF con bollo e 26% sul guadagno); il caso d'uso services/planning.py (margine dei 12 mesi completi e mediana del mese ordinario, confronto di due ripartizioni con l'anno fiscale usato e quello mancante); /api/plan; la sezione Piano sotto Gestione; tre schede della Guida. API_VERSION e REQUIRED_API_VERSION a 43. Specifica 1.47, docs/investments.md e CLAUDE.md allineati. Rischi e seguiti: il rendimento è uno solo finché TASK-94 non porta gli scenari; le detrazioni IRPEF non entrano nel risparmio d'imposta; la UI è verificata su un ledger sintetico, non su una copia di quello vero.
+<!-- SECTION:FINAL_SUMMARY:END -->
