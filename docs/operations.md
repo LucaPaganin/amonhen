@@ -23,8 +23,11 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   Windows one — on a Windows path Docker Desktop makes up the bind-mount
   ownership, so the check that a `/config` owned by someone else is *refused*
   stops meaning anything. The image the NAS pulls is still CI's:
-  `.github/workflows/image.yml` on a `v*` tag, linux/amd64, after `pytest` and the
-  bundle build pass, published as `ghcr.io/lucapaganin/amonhen:<tag>` and `:latest`
+  `.github/workflows/image.yml` at every merge into `main` (and on a `v*` tag pushed
+  by hand), linux/amd64, after `pytest` and the bundle build pass, published as
+  `ghcr.io/lucapaganin/amonhen:<tag>` and `:latest`. The workflow works the version
+  out itself — the last tag plus a patch, or a minor or major when a commit since
+  says `[minor]` or `[major]` — and writes the tag after the image is up
   — the lower-case name has to match `image:` in `docker-compose.yaml`, or the NAS
   pulls nothing. Keep the `uv` image tag in the Dockerfile at the version that
   wrote `uv.lock`: the lock is revision 3 and older uv binaries refuse to read it.

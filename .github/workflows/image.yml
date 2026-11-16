@@ -3,14 +3,29 @@ name: image
 # The NAS pulls a built image, so it never needs this repository: the tag is
 # what decides which code arrives, and the image is the only artifact that
 # travels. Nothing here runs on the NAS.
+#
+# A merge into main is a release: the next version is worked out from the last
+# `v*` tag, the code is checked, the image is published under that version and
+# only then is the tag written, so a tag always names an image that exists. The
+# version goes up by a patch; a commit since the last tag that says `[minor]` or
+# `[major]` (a PR title, a commit message) moves that part instead. A tag
+# pushed by hand still publishes, and the tag this workflow writes starts no run
+# of its own: GitHub does not trigger workflows from its own token's pushes.
 on:
   push:
+    branches: [main]
+    # A change of prose alone is not a release.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
     tags: ["v*"]
   # A manual run publishes `latest` from the chosen branch, for a first deploy
   # or a rollback without inventing a tag.
   workflow_dispatch:
 
 concurrency:
+  # One release at a time on main, in order: two merges in a row must not
+  # compute the same next version.
   group: image-${{ github.ref }}
   cancel-in-progress: false
 
@@ -21,6 +36,51 @@ env:
   IMAGE: ghcr.io/lucapaganin/amonhen
 
 jobs:
+  # Which version this run publishes: the tag pushed, the next one after a
+  # merge, or none for a manual run (which publishes `latest` alone).
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+      new: ${{ steps.next.outputs.new }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: next
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" != push ]; then
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          already=$(git tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' | head -n 1)
+          if [ -n "$already" ]; then
+            echo "HEAD is already $already"
+            echo "tag=$already" >> "$GITHUB_OUTPUT"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo v0.0.0)
+          IFS=. read -r major minor patch <<< "${last#v}"
+          log=$(git log --format=%B "${last}..HEAD" 2>/dev/null || git log --format=%B)
+          if grep -qiF '[major]' <<< "$log"; then
+            major=$((major + 1)); minor=0; patch=0
+          elif grep -qiF '[minor]' <<< "$log"; then
+            minor=$((minor + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          next="v${major}.${minor}.${patch}"
+          echo "$last -> $next"
+          echo "tag=$next" >> "$GITHUB_OUTPUT"
+          echo "new=true" >> "$GITHUB_OUTPUT"
+
   # An image is what reaches the NAS, so the code it carries is checked before
   # anything is published: publishing is the one step nobody can undo.
   check:
@@ -45,7 +105,7 @@ jobs:
           npm --prefix web run build
 
   publish:
-    needs: check
+    needs: [version, check]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,10 +124,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
-          # The tag that was pushed, and `latest` for the newest image: a manual
-          # run publishes `latest` alone, which is how a rollback arrives.
+          # The version, and `latest` for the newest image: a manual run
+          # publishes `latest` alone, which is how a rollback arrives.
           tags: |
-            type=ref,event=tag
+            type=raw,value=${{ needs.version.outputs.tag }},enable=${{ needs.version.outputs.tag != '' }}
             type=raw,value=latest
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -78,10 +138,29 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # What the app shows at the foot of its menu: the tag, or the branch
-          # and commit of a manual run.
+          # What the app shows at the foot of its menu: the version, or the
+          # branch and commit of a manual run.
           build-args: |
-            AMONHEN_VERSION=${{ github.ref_type == 'tag' && github.ref_name || format('{0}-{1}', github.ref_name, github.sha) }}
+            AMONHEN_VERSION=${{ needs.version.outputs.tag != '' && needs.version.outputs.tag || format('{0}-{1}', github.ref_name, github.sha) }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # The tag goes on last: it says an image of this version exists.
+  tag:
+    needs: [version, publish]
+    if: needs.version.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write and push the tag
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          echo "Published $IMAGE:$TAG" >> "$GITHUB_STEP_SUMMARY"

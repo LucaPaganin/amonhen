@@ -449,8 +449,10 @@ before the month on screen.
 ## On the NAS
 
 The NAS does not need this repository. The image is built by CI and published to
-GHCR when a `v*` tag is pushed (`.github/workflows/image.yml`, `linux/amd64`,
-after `pytest` and the bundle build pass); the NAS pulls it and runs it. What the
+GHCR at every merge into `main` (`.github/workflows/image.yml`, `linux/amd64`,
+after `pytest` and the bundle build pass): the workflow takes the next version
+after the last `v*` tag, publishes the image under it and then writes the tag
+itself. The NAS pulls it and runs it. What the
 NAS carries is two small files, the configuration folder and the ledger.
 
 ```bash
@@ -587,11 +589,15 @@ Every update of the live NAS follows these rules, whoever prepares the release.
    `MIGRATIONS` in `amonhen/db.py`: `PRAGMA user_version` counts how many a file has
    had, so it runs once, at the first start of the new image, and never again. An
    older image opening a newer file runs nothing and leaves its version as it is.
-2. **Release only from a green CI.** Commit, tag `vX.Y.Z`, push the tag; the image
-   exists only once `pytest` and the bundle build pass in
-   `.github/workflows/image.yml`. Pushing a tag publishes: do it on purpose. A published tag is not
-   a deploy: the NAS runs what its `AMONHEN_TAG` says, so the image can be rehearsed
-   first.
+2. **Release only from a green CI.** A merge into `main` is the release:
+   `.github/workflows/image.yml` takes the last `v*` tag, raises the patch (or the
+   minor, or the major, when a commit or PR title since then says `[minor]` or
+   `[major]`), runs `pytest` and the bundle build, publishes the image and only then
+   writes the tag, so a tag always names an image that exists. Nobody tags by hand;
+   a merge that touches only `*.md` or `docs/` publishes nothing. The new version
+   is the newest `v*` tag on GitHub, and the run's summary names it. A published tag
+   is not a deploy: the NAS runs what its `AMONHEN_TAG` says, so the image can be
+   rehearsed first.
 3. **Rehearse the release on a copy of the ledger.** From the compose directory on
    the NAS:
 
