@@ -127,7 +127,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`transfers`|`link_transfers`, `link_passthrough_legs`, `pair_candidates`, `transfer_amount_total`|
 |`matching`|`max_weight_matching`|
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `held_by_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
-|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `month_summary`, `MonthSummary`, `period_summary`, `PeriodSummary`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `usual_reading`, `UsualReading`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`|
+|`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `month_summary`, `MonthSummary`, `period_summary`, `PeriodSummary`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `usual_reading`, `UsualReading`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`, `complete_months`|
 |`core.planning`|`PROFILE_KEYS`, `TAX_KEYS`, `LIQUIDITY`, `checked`, `parse_brackets`, `income_tax`, `exit_rate`, `compare`, `AllocationResult`, `complete_year`|
 |`services.planning`|`overview`, `margin`, `comparison`|
 |`budgets`|`budget_status`, `budget_month`, `propose_category`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
