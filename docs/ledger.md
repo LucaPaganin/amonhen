@@ -145,8 +145,9 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   import all reach it — so a batch commits once and a failure writes none of it.
   The WAL files sit beside the ledger: a restore removes `-wal`/`-shm` with the
   copy, and the snapshot is switched back to the rollback journal so it is one file.
-- **A broker holds its cash here, and nothing else.** The portfolio is not tracked
-  (section 5.8), so Scalable is a real account with its liquidity alone.
+- **A broker holds its cash here, and nothing else.** The portfolio lives outside the
+  ledger (section 5.8, `docs/investments.md`), so Scalable is a real account with its
+  liquidity alone.
   `Ledger.record_valuation` is for a real, `investment`, hand-added account: it writes
   `value − balance(date)` as a `BOOK` movement described "Aggiornamento liquidità",
   `content_hash = valuation:<account>:<date>` (a second one that day deletes and
@@ -157,5 +158,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   stays `import` because the column has a CHECK. It is written by hand (*Aggiorna la
   liquidità* in Conti, which replaces *Dichiara saldo* on that account). A monthly plan
   that leaves a bank goes straight to `Investimenti` with a transfer rule. The readers
-  of Scalable's PDF statements and the market value were both removed: do not bring
-  them back without the product deciding otherwise.
+  of Scalable's PDF statements and the market value were removed once; version 1.46
+  of the spec brought the portfolio back, outside the ledger and in its own tables
+  (`docs/investments.md`). The ledger still holds only the cash, and the valuation
+  movement above stays the way the broker's liquidity is realigned.

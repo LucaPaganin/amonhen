@@ -148,6 +148,7 @@ change, like the spec.
 |Touching|Read|
 |---|---|
 |Movements, notes, deletions, balances, the opening, the 5.4 check, net worth, WAL, the broker|`docs/ledger.md`|
+|The portfolio, the pension fund, documents from Paperless, prices, TWR/MWR, projections|`docs/investments.md`|
 |Pairing, giroconti, `passthrough`, mirrors|`docs/transfers.md`|
 |Rules, Da confermare, proposals, the classifier, the LLM, anomalies|`docs/rules-and-review.md`|
 |Sync, periods, held duplicates, consents, `accounts.json`, the key, CSV import|`docs/sync-and-banks.md`|
@@ -340,9 +341,10 @@ on purpose (sections 3 and 8):
 - AI in the synchronous sync path, or anywhere it produces numbers
 - Natural-language queries over the ledger; hand-written SQL wins
 - Generative anomaly detection where a robust statistic exists
-- Broker API integration, TWR/IRR, spending forecasts, budget optimization. The
-  long-term plan (section 5.16) is not an exception: its projections are arithmetic on
-  scenarios a person writes, its portfolio is declared by hand, and it shows the
+- Writing to the broker, spending forecasts, budget optimization. The broker's CLI
+  is read-only behind a wrapper in its own container (section 5.16). The long-term
+  plan is not a forecast either: its projections are arithmetic on scenarios a person
+  writes, or on the historical distribution declared as such, and it shows the
   consequences of a split without proposing one
 - A model inside the plan: the periodic portfolio review happens outside the app, on a
   snapshot (section 8), and tax parameters are data a person writes with their source
