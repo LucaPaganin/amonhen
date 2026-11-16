@@ -806,3 +806,85 @@ export interface CsvImportOutcome {
   passthrough: number;
   rules: number;
 }
+
+/** Desiderata 5.16: a goal as it holds today. */
+export interface Goal {
+  series: number;
+  name: string;
+  amount: string;
+  target_date: string;
+  liquidity: string;
+  valid_from: string;
+}
+
+export interface GoalDraft {
+  series: number | null;
+  name: string;
+  amount: string;
+  target_date: string;
+  liquidity: string;
+  valid_from: string;
+}
+
+export interface ProfileFact {
+  key: string;
+  label: string;
+  kind: string;
+  value: string | null;
+  valid_from: string | null;
+}
+
+export interface TaxYear {
+  year: number;
+  complete: boolean;
+  values: { key: string; value: string; source: string }[];
+}
+
+export interface Plan {
+  today: string;
+  goals: Goal[];
+  liquidity_kinds: string[];
+  profile: ProfileFact[];
+  tax: {
+    current_year: number;
+    /** The latest complete year up to this one, or null: never filled from another year. */
+    used_year: number | null;
+    current_missing: string[];
+    keys: { key: string; label: string; kind: string }[];
+    years: TaxYear[];
+  };
+  margin: {
+    months: number;
+    partial: boolean;
+    total: string;
+    yearly: string | null;
+    ordinary_monthly: string | null;
+    series: { month: string; income: string; margin: string }[];
+  };
+}
+
+export interface AllocationOutcome {
+  fund: string;
+  pac: string;
+  yearly: string;
+  employer: string;
+  employer_lost: boolean;
+  deductible: string;
+  cap_room: string;
+  tax_saving: string;
+  exit_rate: string;
+  fund_net: string;
+  pac_net: string;
+  fund_reachable: boolean;
+  reachable: string;
+}
+
+export interface Comparison {
+  goal: Goal;
+  years: number;
+  return_rate: string;
+  tax_year: number;
+  tax_missing_year: number | null;
+  margin_yearly: string | null;
+  allocations: AllocationOutcome[];
+}

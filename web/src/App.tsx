@@ -15,6 +15,7 @@ import { MovementsScreen } from "./screens/Movements";
 import { ImportScreen } from "./screens/Import";
 import { ReviewQueueScreen } from "./screens/ReviewQueue";
 import { CategoryRulesScreen } from "./screens/CategoryRules";
+import { PlanScreen } from "./screens/Plan";
 import { StatisticsScreen } from "./screens/Statistics";
 import { SetupScreen, setupStartStep } from "./screens/Setup";
 import { syncSummary } from "./notices";
@@ -268,6 +269,7 @@ export default function App() {
         {tab === "statistics" ? (
           <StatisticsScreen refreshToken={syncedAt} onOpenCategory={openCategory} />
         ) : null}
+        {tab === "plan" ? <PlanScreen /> : null}
         {tab === "categories" ? (
           <CategoryRulesScreen
             rules={rules}

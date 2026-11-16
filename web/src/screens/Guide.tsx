@@ -24,7 +24,10 @@ export type GuideTopic =
   | "tag"
   | "anomaly"
   | "check"
-  | "sync-limit";
+  | "sync-limit"
+  | "goal"
+  | "contribution-base"
+  | "deduction-cap";
 
 interface Card {
   id: GuideTopic;
@@ -44,6 +47,36 @@ function amount(value: string | null): string | null {
 }
 
 const CARDS: Card[] = [
+  {
+    id: "goal",
+    title: "Obiettivo",
+    means:
+      "Dove vuoi arrivare: un nome, una cifra in euro di oggi, una data, e quanto quel denaro deve restare raggiungibile. Il cuscinetto è liquido in ogni momento, un acquisto deve essere disponibile alla sua data, la pensione può restare vincolata.",
+    computed:
+      "Un obiettivo vale da una data in poi. Cambiarlo non riscrive il passato: dalla data scelta vale la versione nuova, e prima resta quella vecchia, come il default di un budget. Togliere un obiettivo lo fa smettere di valere da oggi.",
+    changes:
+      "La data dà l'orizzonte del confronto fra fondo e PAC, e la liquidità dice se il fondo conta: per un obiettivo che non può restare vincolato il fondo non è raggiungibile prima della pensione, salvo le anticipazioni.",
+  },
+  {
+    id: "contribution-base",
+    title: "Base del versamento",
+    means:
+      "La cifra su cui il contratto calcola il versamento al fondo pensione, tuo e del datore. Non è il lordo: nelle buste paga del 2025 e del 2026 la base è rimasta ferma quando a luglio 2026 il lordo è salito.",
+    computed:
+      "Si scrive a parte nel Profilo, annua, con la data da cui vale. Il datore versa la sua percentuale della base solo se tu versi almeno la tua: sotto quella soglia il confronto lo segna come perso. Il lordo per le mensilità serve invece a trovare l'aliquota a cui si deduce.",
+    changes:
+      "Una base sbagliata sposta il contributo del datore, e con lui lo spazio che resta sotto il tetto di deducibilità.",
+  },
+  {
+    id: "deduction-cap",
+    title: "Tetto di deducibilità",
+    means:
+      "Quanto si può versare al fondo pensione in un anno togliendolo dal reddito su cui si pagano le tasse: 5.300 € dal 2026. Dentro c'è il contributo del datore, non il TFR.",
+    computed:
+      "Il dedotto è quanto versi, fino al tetto meno il contributo del datore. Il risparmio d'imposta è l'IRPEF con le addizionali sul reddito meno quella sul reddito dedotto, sugli scaglioni dell'anno; le detrazioni non entrano. Nel confronto finisce nel PAC lo stesso anno. Il fondo paga ogni anno l'imposta sui rendimenti e all'uscita un'aliquota dal 15%, che scende di 0,30 punti per ogni anno di adesione oltre il quindicesimo fino al 9%, solo sulla parte dedotta e su quella del datore. Il PAC paga il bollo ogni anno e il 26% sul guadagno a scadenza. I parametri si scrivono a mano per anno con la loro fonte, e ogni cifra dice l'anno che ha usato: un anno che manca non si copre con quello prima.",
+    changes:
+      "Oltre il tetto un euro al fondo non si deduce più, e il confronto cambia: lo spazio sotto il tetto diventa negativo. Il rendimento è uno solo, scritto da te e uguale per fondo e PAC, così la differenza fra le due ripartizioni è quella fiscale; quale scegliere lo decidi tu.",
+  },
   {
     id: "month",
     title: "Questo mese e il solito",

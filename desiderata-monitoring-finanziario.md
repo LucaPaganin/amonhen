@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.46 — novembre 2026
+Versione 1.47 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -37,7 +37,14 @@ fondo passa da *trattenuto* a *investito*, il BTP vale nominale più rateo, il p
 a fine mese e si calcolano TWR e MWR. Le proiezioni aggiungono Coast FI e, dopo gli scenari, la
 distribuzione dei rendimenti storici. Cadono i non-obiettivi che lo escludevano (sezione 3) e la
 regola per cui gli estratti del broker non si leggono (sezione 5.8): con Paperless e un parser il
-costo di leggerli, che era la ragione, va a zero.*
+costo di leggerli, che era la ragione, va a zero.
+1.47 · la prima fetta della sezione 5.16 è costruita: obiettivi con la data da cui valgono, il
+profilo con la base del versamento separata dal lordo, i parametri fiscali per anno con la fonte,
+il margine dei 12 mesi completi con quello del mese ordinario, e il confronto fra due ripartizioni.
+Decisioni prese costruendola: la liquidità di un obiettivo ha tre valori, il mese ordinario è la
+mediana dei dodici, il datore versa solo sopra la percentuale propria, il risparmio d'imposta entra
+nel PAC dello stesso anno, e finché gli scenari non ci sono il confronto usa un solo rendimento
+scritto da chi confronta. Data di nascita e destinazione del TFR arrivano con le proiezioni.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -320,7 +327,7 @@ Un tag è un'etichetta libera su un movimento, che tiene la sua categoria: Euron
 
 ### 5.14 Guida *(costruita)*
 
-Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
+Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo, obiettivo, base del versamento, tetto di deducibilità — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
 
 ### 5.15 Statistiche *(costruita)*
 
@@ -330,7 +337,7 @@ Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le
 
 *Fatto quando*: davanti a un tetto da scegliere la cifra è già sulla riga, e la distanza fra mediana e media dice se una categoria va a strappi.
 
-### 5.16 Pianificazione a lungo termine *(da costruire)*
+### 5.16 Pianificazione a lungo termine *(in costruzione: la prima fetta è costruita)*
 
 Il resto del sistema dice com'è andata. Questa sezione serve a una decisione che si prende più volte l'anno e cambia quando cambia un obiettivo: quanto mettere da parte, e dove — liquidità, fondo pensione, PAC. Senza un punto d'arrivo la ripartizione non ha un criterio, e la risposta giusta per un acquisto fra tre anni è sbagliata per la pensione fra trenta.
 
@@ -341,6 +348,8 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 **I parametri fiscali sono dati, non codice.** Una tabella per anno — scaglioni IRPEF, addizionali, tetto di deducibilità della previdenza complementare (5.300 € dal 2026, che comprende il contributo del datore e non il TFR), aliquota sulle prestazioni del fondo (15%, che scende di 0,30 punti per ogni anno oltre il quindicesimo fino al 9%), tassazione dei rendimenti del fondo, 26% sui guadagni degli ETF, bollo — e ogni valore porta la sua fonte. La legge di bilancio li cambia ogni anno, e una regola rimasta indietro dà una cifra sbagliata con l'aria di una giusta: per questo si aggiornano a mano, a gennaio, e un anno senza parametri non si copre in silenzio con quelli dell'anno prima. Il calcolo usa l'ultimo anno disponibile, lo scrive accanto a ogni cifra, e la sezione dice che l'anno in corso manca. I parametri non li scrive un modello (sezione 8).
 
 **Fondo pensione contro PAC.** È la domanda per cui la sezione esiste. Per un euro in più versato nel fondo il calcolo mette in fila: la deduzione all'aliquota marginale dell'anno, il contributo del datore se dipende da quanto si versa, lo spazio che resta sotto il tetto (oltre il tetto la deduzione non c'è più e il confronto cambia), la tassazione all'uscita, e il fatto che quel denaro resta bloccato salvo le anticipazioni. Lo stesso euro in un ETF paga il 26% sul guadagno quando si vende e il bollo ogni anno, ma resta disponibile. Il risultato è per obiettivo e orizzonte: quanto vale a scadenza, netto, in ciascuno scenario, e quanto resta raggiungibile prima. Il sistema mostra due ripartizioni una accanto all'altra; quale scegliere lo decide la persona (sezione 3).
+
+*Come è costruito il confronto (fase 12, prima fetta).* Una ripartizione è quanto si versa in un anno al fondo, di tasca propria, e quanto al PAC; si scrive per confrontarla e non si salva. Il datore versa la sua percentuale della base solo se il versamento proprio arriva almeno alla percentuale propria della base, altrimenti il confronto lo dice perso. Il dedotto è il versamento proprio fino al tetto meno il contributo del datore; il risparmio d'imposta è l'IRPEF con le addizionali sul reddito (lordo per mensilità, tolti i contributi del dipendente) meno quella sul reddito dedotto, le detrazioni escluse, e nel confronto entra nel PAC dello stesso anno. Il fondo paga ogni anno l'imposta sui rendimenti e all'uscita l'aliquota sulle prestazioni, solo sulla parte dedotta e su quella del datore; il PAC paga il bollo ogni anno e il 26% sul guadagno a scadenza. Finché gli scenari non ci sono, il rendimento è uno solo, scritto da chi confronta e uguale per fondo e PAC, così la differenza fra le ripartizioni è quella fiscale. L'orizzonte sono gli anni interi fino alla data dell'obiettivo; un obiettivo a meno di un anno non si confronta. La liquidità di un obiettivo è *liquida*, *alla data* o *vincolabile*, e solo per un obiettivo vincolabile il fondo conta in quanto è raggiungibile alla data. Il margine del confronto è quello dei 12 mesi completi, e il mese ordinario è la mediana dei dodici: le mensilità aggiuntive e le rendite trimestrali la lasciano dov'è. Un anno di parametri vale solo se ha tutti i valori: si usa l'ultimo completo fino all'anno in corso, e uno incompleto non si completa con l'anno prima.
 
 **Il portafoglio si ricostruisce dalle fonti.** Gli strumenti sono pochi e ognuno ha la sua fonte; nessuno si dichiara a mano finché una fonte lo dice da sé.
 
@@ -393,12 +402,19 @@ merchant_suggestions (merchant, categoria, origine, decisione: pending | accepte
 settings             (chiave, valore)
 ```
 
-Per la sezione 5.16, da costruire:
+Per la sezione 5.16, costruite con la prima fetta:
 
 ```
-goals                (id, nome, importo in euro di oggi, data, liquidità richiesta, dal, al?)
-profile_facts        (chiave, valore, dal — lordo, mensilità, base del versamento, percentuali, TFR, età)
+goals                (id, serie, nome, importo in euro di oggi, data, liquidità: liquida | alla_data |
+                      vincolabile, dal, al?)
+profile_facts        (chiave, valore, dal — lordo mensile, mensilità, base annua del versamento,
+                      percentuale propria, percentuale del datore, adesione al fondo)
 tax_parameters       (anno, chiave, valore, fonte)
+```
+
+Da costruire:
+
+```
 instruments          (id, nome, tipo: etf | btp | fondo_pensione | immobile, isin?, classe?, fonte,
                       quota_proprietà, orizzonte)
 instrument_trades    (id, strumento, data, quote, prezzo, importo, commissioni, fonte, riferimento)
@@ -477,8 +493,8 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
 - **Fase 9 — il budget si pianifica.** *(fatta)*
 - **Fase 10 — si vede l'essenziale.** *(consegnata, v1.10.0)*
 - **Fase 11 — le statistiche al posto dell'assistente.** *(consegnata, v1.16.0)*
-- **Fase 12 — si pianifica verso un obiettivo.** *(da fare)* La sezione 5.16 a fette, ognuna usabile da sola:
-  1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda;
+- **Fase 12 — si pianifica verso un obiettivo.** *(in corso: la prima fetta è fatta)* La sezione 5.16 a fette, ognuna usabile da sola:
+  1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda *(fatta: la sezione **Piano**)*;
   2. il package `payslip-parser` legge la busta paga e il prospetto del fondo — nel suo repository privato, con la sua specifica;
   3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte;
   4. le fonti vere: Paperless con il write-back, la CLI del broker nel suo container, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati;

@@ -12,6 +12,7 @@ export type TabId =
   | "categories"
   | "import"
   | "statistics"
+  | "plan"
   | "setup"
   | "guide";
 
@@ -92,6 +93,14 @@ const SECTIONS: Section[] = [
     hint: "Mediane e medie delle spese, categoria per categoria",
     inBar: false,
     Icon: StatisticsIcon,
+  },
+  {
+    id: "plan",
+    label: "Piano",
+    short: "Piano",
+    hint: "Obiettivi, parametri fiscali e fondo pensione contro PAC",
+    inBar: false,
+    Icon: PlanIcon,
   },
   {
     id: "setup",
@@ -217,6 +226,24 @@ function StatisticsIcon() {
     >
       <path d="M4 18c3 0 3.5-11 8-11s5 11 8 11" />
       <path d="M12 7v11" />
+    </svg>
+  );
+}
+
+function PlanIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 21V4" />
+      <path d="M5 4h12l-2.5 4L17 12H5" />
     </svg>
   );
 }

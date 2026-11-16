@@ -1,9 +1,22 @@
 # The portfolio: sources, states, reconciliations, valuation
 
 Part of what `CLAUDE.md` says before changing code. The product rules are section 5.16 of
-the spec; this page says how they are meant to be built, and nothing here is built yet
-(phase 12, slices 3 to 6). A rule that changes changes here and in the spec, in the same
-change as the code.
+the spec; this page says how they are meant to be built, and the portfolio below is not
+built yet (phase 12, slices 3 to 6). A rule that changes changes here and in the spec, in
+the same change as the code.
+
+- **The first slice is built, and it is the shape the rest follows.** Goals, the profile
+  and the tax years are `ledger/planning.py` (`PlanningMixin`, no repository in front);
+  the arithmetic of fund against PAC is `core/planning.py`, the first module of `core/`,
+  pure; `services/planning.py` reads the margin through `metrics.period_summary` and puts
+  the two together; `/api/plan` and the **Piano** section call that and nothing else.
+  A goal is one row per version in a `series`, closed by `valid_to`, so a plan reopened on
+  a past day reads `goals_at(that day)`; a profile fact and a budget default share the
+  rule "from a day on, replacing what was written for later". The profile and tax keys are
+  closed lists in `core/planning.py`, each with its kind (`euro` stored to the cent, a
+  rate kept with the digits it was written with). A tax year counts only when every key
+  is written (`complete_year`), and nothing ever falls back to the year before: the answer
+  says which year it used and what the current one lacks. No tax value lives in code.
 
 - **The portfolio is outside the ledger, and the ledger does not move.** Instruments,
   trades, contributions, prices and snapshots live in their own tables (section 6 of the
