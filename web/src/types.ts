@@ -397,9 +397,28 @@ export interface MonthCategory {
 }
 
 /** The month in progress against the same point of the months before it. */
+/** What a stretch of days cost and brought in: the top of the dashboard. */
+export interface PeriodSummary {
+  from: string;
+  to: string;
+  /** Everything that went out, rare spending included, gross of contributions. */
+  spent: string;
+  /** The part of the contributions that covered something: `spent - contributions = net`. */
+  contributions: string;
+  net: string;
+  income: string;
+  /** `income - net`. */
+  balance: string;
+}
+
 export interface MonthReading {
   currency: string;
   applied: Applied;
+  summary: {
+    current: PeriodSummary;
+    previous_to_date: PeriodSummary;
+    previous: PeriodSummary;
+  };
   month: string;
   day: number;
   /** Rare spending and contributions are outside both figures: each has a line of its own. */

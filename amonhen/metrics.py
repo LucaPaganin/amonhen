@@ -408,6 +408,107 @@ class MonthCategory:
 
 
 @dataclass(frozen=True)
+class PeriodSummary:
+    """What a stretch of days cost and brought in, the first thing the dashboard says.
+
+    ``spent`` is everything that went out, rare spending included, net of refunds and
+    gross of contributions. ``contributions`` is the part of the contributions that
+    covered something: each account's at most what that account spent, the rule the
+    runway uses, so ``net`` is ``spent - contributions`` to the cent and money an
+    account received beyond its spending lowers nobody else's. ``income`` is the
+    money in of the income chart, and ``balance`` what is left of it after ``net``.
+    """
+
+    start: dt.date
+    end: dt.date
+    spent: Decimal
+    contributions: Decimal
+    income: Decimal
+
+    @property
+    def net(self) -> Decimal:
+        return self.spent - self.contributions
+
+    @property
+    def balance(self) -> Decimal:
+        return self.income - self.net
+
+
+def period_summary(
+    ledger: Ledger, start: dt.date, end: dt.date, scope: LedgerScope = LedgerScope()
+) -> PeriodSummary:
+    """Spending gross and net of contributions, and income, between two dates included."""
+    scoped, extra = _spending_scope(scope)
+    per_account: dict[int, list[Decimal]] = {}
+    for row in ledger.conn.execute(
+        f"""SELECT t.account_id AS account_id, p.amount AS amount,
+                   {CONTRIBUTION_SQL} AS contribution
+            FROM postings p
+            JOIN transactions t ON t.id = p.transaction_id
+            JOIN accounts a ON a.id = p.account_id
+            WHERE a.type = 'category' AND t.status = 'BOOK'
+              AND {SPENDING_SQL}
+              AND t.date >= ? AND t.date <= ?"""
+        + scoped,
+        (start.isoformat(), end.isoformat(), *extra),
+    ):
+        totals = per_account.setdefault(row["account_id"], [Decimal(0), Decimal(0)])
+        amount = parse_decimal(row["amount"])
+        if row["contribution"]:
+            totals[1] -= amount
+        else:
+            totals[0] += amount
+    spent = sum((totals[0] for totals in per_account.values()), Decimal(0))
+    covered = sum(
+        (
+            min(received, spending)
+            for spending, received in per_account.values()
+            if spending > 0 and received > 0
+        ),
+        Decimal(0),
+    )
+    account_scoped, account_params = _account_scope(scope, "a.name")
+    income = sum(
+        (
+            parse_decimal(row["amount"])
+            for row in ledger.conn.execute(
+                _MONTHLY_INCOME_SQL + account_scoped,
+                (start.isoformat(), end.isoformat(), *account_params),
+            )
+        ),
+        Decimal(0),
+    )
+    return PeriodSummary(start=start, end=end, spent=spent, contributions=covered, income=income)
+
+
+@dataclass(frozen=True)
+class MonthSummary:
+    """This month so far, the month before up to the same day, and the month before whole."""
+
+    current: PeriodSummary
+    previous_to_date: PeriodSummary
+    previous: PeriodSummary
+
+
+def month_summary(
+    ledger: Ledger, today: dt.date, scope: LedgerScope = LedgerScope()
+) -> MonthSummary:
+    """The three readings at the top of the dashboard.
+
+    The month before is cut at today's day number, at its own last day when it is
+    shorter, so the comparison is between the same number of days.
+    """
+    current = _month_index(today)
+    previous_start, previous_end = _month_bounds(current - 1)
+    cut = previous_end.replace(day=min(today.day, previous_end.day))
+    return MonthSummary(
+        current=period_summary(ledger, _month_bounds(current)[0], today, scope),
+        previous_to_date=period_summary(ledger, previous_start, cut, scope),
+        previous=period_summary(ledger, previous_start, previous_end, scope),
+    )
+
+
+@dataclass(frozen=True)
 class MonthReading:
     """The month in progress against the same point of the months before it.
 

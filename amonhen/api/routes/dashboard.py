@@ -19,7 +19,9 @@ from amonhen.api.version import API_VERSION
 from amonhen.metrics import (
     compute_metrics,
     latest_balances,
+    PeriodSummary,
     month_reading,
+    month_summary,
     monthly_flows,
     net_worth_series,
     spend_by_category,
@@ -27,6 +29,18 @@ from amonhen.metrics import (
 )
 from amonhen.models import format_decimal
 from amonhen.settings import UNCATEGORIZED, VERSION
+
+
+def _summary_payload(summary: PeriodSummary) -> dict:
+    return {
+        "from": summary.start.isoformat(),
+        "to": summary.end.isoformat(),
+        "spent": _money(summary.spent),
+        "contributions": _money(summary.contributions),
+        "net": _money(summary.net),
+        "income": _money(summary.income),
+        "balance": _money(summary.balance),
+    }
 
 
 def build(ctx: AppContext) -> APIRouter:
@@ -55,7 +69,13 @@ def build(ctx: AppContext) -> APIRouter:
         scope = _scope(accounts, categories, tags)
         with ledger_scope() as ledger:
             reading = month_reading(ledger, clock.today(), scope)
+            summary = month_summary(ledger, clock.today(), scope)
             return {
+                "summary": {
+                    "current": _summary_payload(summary.current),
+                    "previous_to_date": _summary_payload(summary.previous_to_date),
+                    "previous": _summary_payload(summary.previous),
+                },
                 "currency": "EUR",
                 "applied": _applied(scope),
                 "month": reading.month,

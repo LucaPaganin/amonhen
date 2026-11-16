@@ -43,19 +43,52 @@ interface DashboardScreenProps {
   onOpenCategory: (category: string) => void;
 }
 
-/** A figure with a sign, for the distance from the usual. */
-/** How far a figure is from its usual, in the words both month blocks use. */
+/** How far a figure is from its usual, in the words the categories use. */
 function distanceFromUsual(distance: number): string {
   if (Math.abs(distance) < 1) return "Come al solito";
   return `${formatAmount(Math.abs(distance))} ${distance > 0 ? "in più" : "in meno"} del solito`;
 }
 
-/** The sentence under the month's figure: what it is being compared with. */
-function monthComparison(reading: MonthReading): string {
-  if (reading.usual === null) return "Nessun mese completo con cui confrontarlo";
-  const usual = toAmount(reading.usual);
-  const distance = toAmount(reading.spent) - usual;
-  return `${distanceFromUsual(distance)}: di solito ${formatAmount(usual)} al giorno ${reading.day}`;
+const monthName = new Intl.DateTimeFormat("it-IT", { month: "long" });
+
+/** A difference with its sign in front: the balance can go either way. */
+function signed(value: string): string {
+  const amount = toAmount(value);
+  return amount > 0 ? `+${formatAmount(amount)}` : formatAmount(amount);
+}
+
+type SummaryFigure = "net" | "spent" | "contributions" | "income" | "balance";
+
+/** One figure of the month beside the same figure of the month before. */
+function SummaryRow({
+  label,
+  figure,
+  summary,
+  previousLabel,
+  format = formatAmount,
+}: {
+  label: string;
+  figure: SummaryFigure;
+  summary: MonthReading["summary"];
+  previousLabel: string;
+  format?: (value: string) => string;
+}) {
+  const tone =
+    figure === "balance"
+      ? toAmount(summary.current.balance) < 0
+        ? " glance__value--out"
+        : " glance__value--in"
+      : "";
+  return (
+    <li className="glance__row">
+      <span className="glance__label">{label}</span>
+      <span className={`glance__value${tone}`}>{format(summary.current[figure])}</span>
+      <span className="glance__compare">
+        {previousLabel}: {format(summary.previous_to_date[figure])} · intero:{" "}
+        {format(summary.previous[figure])}
+      </span>
+    </li>
+  );
 }
 
 export function DashboardScreen({ categories, refreshToken, onOpenCategory }: DashboardScreenProps) {
@@ -159,6 +192,18 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
 
   const activeFilters =
     scopedAccounts.length + (scopedCategory === "" ? 0 : 1) + (scopedTag === "" ? 0 : 1);
+
+  const summary = month === null ? null : month.summary;
+  // The two lines on the contributions only when some month here had any.
+  const shared =
+    summary !== null &&
+    [summary.current, summary.previous_to_date, summary.previous].some(
+      (period) => toAmount(period.contributions) !== 0,
+    );
+  const previousLabel =
+    summary === null
+      ? ""
+      : `${monthName.format(new Date(`${summary.previous.from}T00:00:00`))} al ${Number(summary.previous_to_date.to.slice(8))}`;
 
   const shownCategories =
     month === null
@@ -334,27 +379,50 @@ export function DashboardScreen({ categories, refreshToken, onOpenCategory }: Da
         </p>
       ) : null}
 
-      {month === null ? null : (
+      {summary === null ? null : (
         <section className="panel">
           <h2 className="section-title">
-            Questo mese <Help topic="month" label="questo mese" />
+            Questo mese, al {month?.day}{" "}
+            {monthName.format(new Date(`${summary.current.from}T00:00:00`))} <Help topic="month" label="questo mese" />
           </h2>
-          <p className="headline">{formatAmount(month.spent)}</p>
-          <p className="chart-note">{monthComparison(month)}</p>
-          {toAmount(month.rare) === 0 ? null : (
-            <p className="chart-note">
-              {toAmount(month.rare) > 0
-                ? `Più ${formatAmount(month.rare)} di spese rare`
-                : `Meno ${formatAmount(-toAmount(month.rare))} di rimborsi su spese rare`}{" "}
-              <Help topic="rare" label="spesa rara" />
-            </p>
-          )}
-          {toAmount(month.contributions) === 0 ? null : (
-            <p className="chart-note">
-              Contributi −{formatAmount(month.contributions)} · A tuo carico{" "}
-              {formatAmount(month.net)} <Help topic="contribution" label="contributo alle spese" />
-            </p>
-          )}
+          <p className="glance__headline-label">{shared ? "A tuo carico" : "Speso"}</p>
+          <p className="headline">{formatAmount(summary.current.net)}</p>
+          <p className="chart-note">
+            {previousLabel}: {formatAmount(summary.previous_to_date.net)} · intero:{" "}
+            {formatAmount(summary.previous.net)}
+          </p>
+          <ul className="glance">
+            {shared ? (
+              <>
+                <SummaryRow
+                  label="Speso in tutto"
+                  figure="spent"
+                  summary={summary}
+                  previousLabel={previousLabel}
+                />
+                <SummaryRow
+                  label="Contributi"
+                  figure="contributions"
+                  summary={summary}
+                  previousLabel={previousLabel}
+                  format={(value) => (toAmount(value) === 0 ? formatAmount(0) : `−${formatAmount(value)}`)}
+                />
+              </>
+            ) : null}
+            <SummaryRow
+              label="Entrate"
+              figure="income"
+              summary={summary}
+              previousLabel={previousLabel}
+            />
+            <SummaryRow
+              label="Differenza"
+              figure="balance"
+              summary={summary}
+              previousLabel={previousLabel}
+              format={signed}
+            />
+          </ul>
         </section>
       )}
 

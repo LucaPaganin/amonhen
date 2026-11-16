@@ -111,6 +111,15 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   `usual_spending` is the same reading as a median of the six months before the one on
   screen, which is the `usual` of a budget row. The period chips are windows of complete
   months and not dates: a statistic of half a month would be a different number.
+- **The dashboard opens on what the month cost you.** `month_summary` (`summary` in
+  `/api/month`) reads three stretches with `period_summary`: this month so far, the
+  month before cut at today's day, and the month before whole. Each carries `spent`
+  (everything out, rare included, net of refunds, gross of contributions),
+  `contributions` (only what covered something: per account at most what that account
+  spent, the runway's rule, so `spent - contributions = net` to the cent), `income`
+  (`_MONTHLY_INCOME_SQL`, the flows chart's) and `balance` (`income - net`). The net
+  is the big figure; the gross and the contributions show only when some of the three
+  stretches had a contribution.
 - **The dashboard answers two questions, and the client never sums.** `month_reading`
   (`/api/month`) is what was spent so far this month against the same day of the
   complete months before (their median, up to six, cut at each month's last day),
@@ -135,8 +144,7 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   one: reducing the rare spending by a share computed on the rest alone counts the same
   euro twice (on a month of 635 normal, 506 rare and 550 received, 988 of relief). What
   an account received beyond what it spent covers nothing, because the others stay
-  whole. `month_reading` keeps `spent` and `usual` gross, so the comparison does not depend on the day somebody pays in (`contributions`
-  and `net` are its own line). It leaves `spend_by_category` and the budgets too. The
+  whole. `month_reading` keeps `spent` and `usual` gross, so the categories' comparison does not depend on the day somebody pays in; the net at the top is `month_summary`'s. It leaves `spend_by_category` and the budgets too. The
   flag stands alone: `set_category_flag`
   clears the others when it turns on and clears it when one of them does, and it refuses
   the review bucket, where every waiting outflow would read as money received. The

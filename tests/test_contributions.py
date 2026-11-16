@@ -10,9 +10,18 @@ from amonhen.api import create_app
 from amonhen.budgets import budget_status, set_default
 from amonhen.db import open_ledger_db
 from amonhen.ledger import Ledger
-from amonhen.metrics import LedgerScope, compute_metrics, month_reading, monthly_flows, spend_by_category
+from amonhen.metrics import (
+    LedgerScope,
+    compute_metrics,
+    month_reading,
+    month_summary,
+    monthly_flows,
+    spend_by_category,
+)
 from amonhen.models import Account, IncomingTransaction
 from amonhen.settings import UNCATEGORIZED
+
+from fixed_clock import FixedClock
 
 MINIMAL_CONFIG = Path(__file__).parent / "fixtures" / "config" / "minimal.json"
 
@@ -283,3 +292,69 @@ def test_the_api_writes_the_kind_and_the_description(tmp_path):
     listed = next(item for item in client.get("/api/categories").json() if item["name"] == "Quote")
     assert listed["description"] == "Le quote"
     assert client.patch(f"/api/categories/{category}", json={}).status_code == 422
+
+
+def test_the_top_of_the_month_is_net_beside_the_month_before(ledger, account, contribution):
+    salary = ledger.category("Stipendio")
+    ledger.set_category_flag(salary, "income", True)
+    food = ledger.category("Alimentari")
+    move(ledger, account, food, "2026-08-03", "-400", "spesa agosto")
+    move(ledger, account, contribution, "2026-08-04", "100", "quota agosto")
+    move(ledger, account, food, "2026-08-20", "-600", "spesa tardi")
+    move(ledger, account, salary, "2026-08-27", "2000", "stipendio")
+    move(ledger, account, food, "2026-09-02", "-500", "spesa")
+    move(ledger, account, contribution, "2026-09-05", "200", "quota")
+    move(ledger, account, salary, "2026-09-10", "1800", "stipendio")
+
+    summary = month_summary(ledger, TODAY)
+
+    assert (summary.current.spent, summary.current.contributions, summary.current.net) == (
+        Decimal("500"), Decimal("200"), Decimal("300"),
+    )
+    assert summary.current.income == Decimal("1800")
+    assert summary.current.balance == Decimal("1500")
+    assert summary.previous_to_date.end == dt.date(2026, 8, 12)
+    assert summary.previous_to_date.net == Decimal("300")
+    assert summary.previous_to_date.income == 0
+    assert summary.previous.net == Decimal("900")
+    assert summary.previous.income == Decimal("2000")
+    assert summary.previous.balance == Decimal("1100")
+
+
+def test_a_contribution_beyond_its_account_spending_covers_nothing_else(ledger, account, contribution):
+    joint = ledger.ensure_account(Account(name="Cointestato", type="real"))
+    food = ledger.category("Alimentari")
+    move(ledger, joint, food, "2026-09-02", "-150", "spesa comune")
+    move(ledger, joint, contribution, "2026-09-03", "400", "quota")
+    move(ledger, account, food, "2026-09-04", "-300", "spesa mia")
+
+    current = month_summary(ledger, TODAY).current
+
+    assert current.spent == Decimal("450")
+    assert current.contributions == Decimal("150")
+    assert current.net == Decimal("300")
+
+
+def test_the_month_before_is_cut_at_its_own_last_day(ledger, account):
+    summary = month_summary(ledger, dt.date(2026, 3, 31))
+
+    assert summary.previous_to_date.end == dt.date(2026, 2, 28)
+    assert summary.current.net == 0
+
+
+def test_the_month_answers_with_its_summary(tmp_path):
+    db = tmp_path / "ledger.db"
+    conn = open_ledger_db(db)
+    ledger = Ledger(conn)
+    account = ledger.ensure_account(Account(name="Conto", type="real"))
+    move(ledger, account, ledger.category("Alimentari"), "2026-09-02", "-50")
+    conn.close()
+    app = create_app(db, web_dist=tmp_path / "missing", config_path=MINIMAL_CONFIG, clock=FixedClock(TODAY))
+
+    body = TestClient(app).get("/api/month").json()
+
+    assert body["summary"]["current"]["net"] == "50.00"
+    assert body["summary"]["previous_to_date"]["to"] == "2026-08-12"
+    assert set(body["summary"]["previous"]) == {
+        "from", "to", "spent", "contributions", "net", "income", "balance",
+    }

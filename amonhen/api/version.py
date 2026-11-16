@@ -57,4 +57,7 @@ from __future__ import annotations
 # 41 is the budget month whole: `/api/budgets` and every budget write answer with
 # `categories`, `unassigned` items and a `total` instead of a list, a row gained
 # `source` and `usual_mean`, and an item may come without `category_id`.
-API_VERSION = 41
+# 42 is the month at a glance: `/api/month` gained `summary`, this month, the month
+# before up to the same day and the month before whole, each with `spent`,
+# `contributions`, `net`, `income` and `balance`.
+API_VERSION = 42
