@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: 2026-11-03 12:00
-updated_date: '2026-11-16T21:21:00Z'
+updated_date: '2026-11-16T21:46:00Z'
 labels: []
 dependencies: []
 type: feature
@@ -53,6 +53,8 @@ Tagli (ponytail, approvati): profilo senza data di nascita e destinazione del TF
 
 <!-- SECTION:NOTES:BEGIN -->
 Verifica: 652 test passati da un checkout pulito (git archive, senza accounts.json e .env), 15 nuovi in tests/test_planning.py. UI percorsa in Chromium a 1280 e 390 su un ledger sintetico (nel container non c'è il ledger vero) servito con --db e AMONHEN_CONFIG_FILE su copie: due obiettivi, sei fatti del profilo, dodici parametri 2025 scritti a mano con la fonte; il 2026 mancante è detto sia nei parametri sia nel confronto; margine 13.800 € con mese ordinario 750 € (12×750 + due mensilità); risparmio d'imposta 1.690,26 € = 4.564,57 × 37,03%; aliquota d'uscita al minimo 9% con 36 anni di adesione; per l'obiettivo Casa (alla data) il fondo resta vincolato; nessun errore in console, nessuno scorrimento orizzontale a 390. Corretti durante la verifica: date e percentuali all'italiana nel profilo, bordo del fieldset.
+
+Seconda rilettura (16 novembre): all'uscita dal fondo si tassa min(proprio + datore, tetto), non dedotto + datore — un datore oltre il tetto era tassato anche sulla parte non dedotta (test nuovo, 8.205 € invece di 8.100 €); metrics.complete_months sostituisce quattro helper privati e un ledger vuoto non ha margine invece di dodici mesi a zero; un obiettivo tolto non lascia il confronto su una serie inesistente; un parametro fiscale salvato vuoto si toglie (la route DELETE ora è raggiungibile); le schede del piano stanno in fondo alla Guida. Riverificato in Chromium su una copia sintetica nuova; 654 test passati da un checkout pulito.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
