@@ -238,6 +238,39 @@ CREATE TABLE IF NOT EXISTS held_transactions (
     UNIQUE (account_id, key)
 );
 
+-- Desiderata 5.16. A goal is one row per version: changing it on a day closes the
+-- row there (`valid_to`) and opens another in the same `series`, like a budget
+-- default, so a plan reopened on a past day shows the goals it had then.
+CREATE TABLE IF NOT EXISTS goals (
+    id INTEGER PRIMARY KEY,
+    series INTEGER,
+    name TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    target_date TEXT NOT NULL,
+    liquidity TEXT NOT NULL CHECK (liquidity IN ('liquida', 'alla_data', 'vincolabile')),
+    valid_from TEXT NOT NULL,
+    valid_to TEXT
+);
+
+-- The facts the ledger cannot see (gross, the base of the fund contribution, the
+-- rates), each true from a day on until the next row of the same key.
+CREATE TABLE IF NOT EXISTS profile_facts (
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    valid_from TEXT NOT NULL,
+    PRIMARY KEY (key, valid_from)
+);
+
+-- One tax year, written by hand with where each value comes from. A missing year
+-- is said, never filled from the year before.
+CREATE TABLE IF NOT EXISTS tax_parameters (
+    year INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    source TEXT NOT NULL CHECK (source <> ''),
+    PRIMARY KEY (year, key)
+);
+
 -- Proposals are never applied on their own: a classifier or an LLM writes a
 -- merchant -> category pair here and a human accepts or dismisses it.
 CREATE TABLE IF NOT EXISTS merchant_suggestions (

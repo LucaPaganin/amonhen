@@ -60,4 +60,6 @@ from __future__ import annotations
 # 42 is the month at a glance: `/api/month` gained `summary`, this month, the month
 # before up to the same day and the month before whole, each with `spent`,
 # `contributions`, `net`, `income` and `balance`.
-API_VERSION = 42
+# 43 is the plan (desiderata 5.16): `/api/plan`, its goals, profile and tax years,
+# and `/api/plan/compare`.
+API_VERSION = 43

@@ -229,3 +229,37 @@ class CsvImportRequest(BaseModel):
     content: str
     account: str
     mapping: CsvMapping
+
+
+class GoalRequest(BaseModel):
+    """A goal from `valid_from` on; with `series`, a new version of that goal."""
+
+    series: int | None = None
+    name: str
+    amount: str
+    target_date: str
+    liquidity: str
+    valid_from: str
+
+
+class ProfileFactRequest(BaseModel):
+    value: str
+    valid_from: str
+
+
+class TaxParameterRequest(BaseModel):
+    value: str
+    source: str
+
+
+class AllocationRequest(BaseModel):
+    fund: str
+    pac: str
+
+
+class ComparisonRequest(BaseModel):
+    """Two allocations a person wrote, a year each, at one annual return they wrote."""
+
+    series: int
+    return_rate: str
+    allocations: list[AllocationRequest] = Field(min_length=2, max_length=2)
