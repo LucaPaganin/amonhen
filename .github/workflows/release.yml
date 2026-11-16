@@ -1,0 +1,129 @@
+name: release
+
+# Every push to main is a release, unless it changes only prose or CI: the next
+# vX.Y.Z is computed, the image is checked and published under it by
+# `image.yml`, and only then is the tag created, with a message that says what
+# the release does to the ledger. A tag therefore always names an image that
+# exists.
+#
+# A release is not a deploy: the NAS runs what its `AMONHEN_TAG` says, and
+# changing that stays a decision taken by hand (README, *Updating safely*).
+#
+# The PR that was merged decides the size: the label `release:major`,
+# `release:minor` or `release:none` (no release at all); without one, a patch.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/**"
+
+# One release at a time, in the order the pushes arrived: each one reads the
+# tag the previous one created.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Every tag, to find the last release and read its amonhen/db.py.
+          fetch-depth: 0
+      - name: The pull request this push merged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+            --jq '[.[] | select(.merged_at != null)][0] // {}' > pr.json
+      - name: Decide
+        id: decide
+        run: |
+          python3 - <<'EOF'
+          import json, os, subprocess
+          pr = json.load(open("pr.json"))
+          labels = {label["name"] for label in pr.get("labels", [])}
+          if pr:
+              title, body, number = pr["title"], pr.get("body") or "", str(pr["number"])
+          else:
+              message = subprocess.run(
+                  ["git", "log", "-1", "--format=%B"], capture_output=True, text=True, check=True
+              ).stdout.strip()
+              title, _, body = message.partition("\n")
+              number = ""
+          bump = next(
+              (part for part in ("major", "minor") if f"release:{part}" in labels), "patch"
+          )
+          tagged = subprocess.run(
+              ["git", "tag", "--points-at", "HEAD", "--list", "v*"],
+              capture_output=True, text=True, check=True,
+          ).stdout.strip()
+          release = "release:none" not in labels and not tagged
+          open("title.txt", "w").write(title)
+          open("body.txt", "w").write(body)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"release={'true' if release else 'false'}\n")
+              out.write(f"bump={bump}\n")
+              out.write(f"pr={number}\n")
+          print(f"release={release} bump={bump} pr={number or '-'} tagged={tagged or '-'}")
+          EOF
+      - name: Next version and message
+        id: next
+        if: steps.decide.outputs.release == 'true'
+        env:
+          BUMP: ${{ steps.decide.outputs.bump }}
+          PR: ${{ steps.decide.outputs.pr }}
+        run: |
+          python3 tools/next_release.py --bump "$BUMP" --title="$(cat title.txt)" \
+            ${PR:+--pr "$PR"} --body-file body.txt --message-file message.txt \
+            >> "$GITHUB_OUTPUT"
+          cat message.txt
+      - uses: actions/upload-artifact@v4
+        if: steps.decide.outputs.release == 'true'
+        with:
+          name: release-message
+          path: message.txt
+
+  image:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/image.yml
+    with:
+      tag: ${{ needs.plan.outputs.version }}
+
+  tag:
+    needs: [plan, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-message
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -F message.txt "$GITHUB_SHA"
+          git push origin "refs/tags/$VERSION"
+          gh release create "$VERSION" --verify-tag --title "$VERSION · $(head -1 message.txt)" \
+            --notes-file message.txt

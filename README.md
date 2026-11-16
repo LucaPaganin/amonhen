@@ -587,11 +587,16 @@ Every update of the live NAS follows these rules, whoever prepares the release.
    `MIGRATIONS` in `amonhen/db.py`: `PRAGMA user_version` counts how many a file has
    had, so it runs once, at the first start of the new image, and never again. An
    older image opening a newer file runs nothing and leaves its version as it is.
-2. **Release only from a green CI.** Commit, tag `vX.Y.Z`, push the tag; the image
-   exists only once `pytest` and the bundle build pass in
-   `.github/workflows/image.yml`. Pushing a tag publishes: do it on purpose. A published tag is not
-   a deploy: the NAS runs what its `AMONHEN_TAG` says, so the image can be rehearsed
-   first.
+2. **A release is made by merging, and only from a green CI.** Every push to
+   `main` that touches code is released by `.github/workflows/release.yml`: a patch
+   by default, a minor or major with the PR label `release:minor` /
+   `release:major`, none with `release:none`. The image is built and published
+   first (`pytest` and the bundle build in `.github/workflows/image.yml`), then
+   the tag `vX.Y.Z` and the GitHub release are created, with a message that says
+   whether the ledger migrates and what the rollback takes. Read it before the
+   deploy. A published tag is not a deploy: the NAS runs what its `AMONHEN_TAG`
+   says, so the image can be rehearsed first. A tag pushed by hand still publishes
+   too: do it on purpose.
 3. **Rehearse the release on a copy of the ledger.** From the compose directory on
    the NAS:
 

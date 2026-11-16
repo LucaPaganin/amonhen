@@ -9,6 +9,16 @@ on:
   # A manual run publishes `latest` from the chosen branch, for a first deploy
   # or a rollback without inventing a tag.
   workflow_dispatch:
+  # How a release arrives: `release.yml` calls this after every push to main
+  # with the tag it is about to create, and creates the tag only once the image
+  # exists. A tag pushed with the run's own token starts no workflow, so the
+  # tag does not build the image a second time.
+  workflow_call:
+    inputs:
+      tag:
+        description: The release this image is, vX.Y.Z
+        type: string
+        required: true
 
 concurrency:
   group: image-${{ github.ref }}
@@ -59,15 +69,28 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Version
+        id: version
+        env:
+          CALLED_TAG: ${{ inputs.tag }}
+        # The release: the tag the caller passed, or the tag that was pushed. A
+        # manual run has none, and the app names the branch and the commit.
+        run: |
+          if [ -n "$CALLED_TAG" ]; then tag="$CALLED_TAG"
+          elif [ "$GITHUB_REF_TYPE" = tag ]; then tag="$GITHUB_REF_NAME"
+          else tag=""
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "label=${tag:-$GITHUB_REF_NAME-$GITHUB_SHA}" >> "$GITHUB_OUTPUT"
       - name: Tags
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
-          # The tag that was pushed, and `latest` for the newest image: a manual
-          # run publishes `latest` alone, which is how a rollback arrives.
+          # The release, and `latest` for the newest image: a manual run
+          # publishes `latest` alone, which is how a rollback arrives.
           tags: |
-            type=ref,event=tag
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ steps.version.outputs.tag != '' }}
             type=raw,value=latest
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -78,10 +101,10 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # What the app shows at the foot of its menu: the tag, or the branch
-          # and commit of a manual run.
+          # What the app shows at the foot of its menu: the release, or the
+          # branch and commit of a manual run.
           build-args: |
-            AMONHEN_VERSION=${{ github.ref_type == 'tag' && github.ref_name || format('{0}-{1}', github.ref_name, github.sha) }}
+            AMONHEN_VERSION=${{ steps.version.outputs.label }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -23,11 +23,26 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   Windows one — on a Windows path Docker Desktop makes up the bind-mount
   ownership, so the check that a `/config` owned by someone else is *refused*
   stops meaning anything. The image the NAS pulls is still CI's:
-  `.github/workflows/image.yml` on a `v*` tag, linux/amd64, after `pytest` and the
-  bundle build pass, published as `ghcr.io/lucapaganin/amonhen:<tag>` and `:latest`
+  `.github/workflows/image.yml`, linux/amd64, after `pytest` and the bundle build
+  pass, published as `ghcr.io/lucapaganin/amonhen:<tag>` and `:latest`
   — the lower-case name has to match `image:` in `docker-compose.yaml`, or the NAS
   pulls nothing. Keep the `uv` image tag in the Dockerfile at the version that
   wrote `uv.lock`: the lock is revision 3 and older uv binaries refuse to read it.
+- **Every push to `main` is a release; a deploy is still a decision.**
+  `.github/workflows/release.yml` runs on each push to `main` that touches more than
+  Markdown, `docs/` or `.github/`. It finds the highest `vX.Y.Z` tag, and the merged
+  PR decides the size: the label `release:major` or `release:minor`, `release:none`
+  for no release, a patch without a label. `tools/next_release.py` computes the
+  version and writes the tag message from the PR's title and body, `API_VERSION`
+  before and after, and what the release does to the ledger, read by parsing
+  `amonhen/db.py` at both tags: unchanged (the rollback is the tag alone), new
+  entries in `MIGRATIONS` (one-way: the snapshot and the tag), or `db.py` changed
+  without a migration (read the diff before deploying). It then calls `image.yml`
+  with that version, and creates the annotated tag and the GitHub release only once
+  the image is published, so a tag always names an image that exists. The tag is
+  pushed with the run's own token, which starts no workflow, so it is not built twice;
+  a `v*` tag pushed by hand still builds through `image.yml` as before. Nothing in
+  CI touches the NAS: `AMONHEN_TAG` changes by hand, after the rehearsal below.
 - **A release is rehearsed on a copy of the live ledger, with both images.**
   `tools/rehearse_release.sh NEW_TAG [--api]` snapshots the live ledger, copies it
   twice into a scratch volume without `private.pem`, runs the same read-only commands
