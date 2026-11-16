@@ -3,8 +3,8 @@ id: TASK-93
 title: Il portafoglio si dichiara
 status: To Do
 assignee: []
-created_date: '2026-11-03 12:00'
-updated_date: '2026-11-03 12:00'
+created_date: 2026-11-03 12:00
+updated_date: '2026-11-16T20:18:00Z'
 labels: []
 dependencies:
   - TASK-92
@@ -25,3 +25,9 @@ La seconda fetta della fase 12 (sezione 5.16): le posizioni e il loro valore a u
 - [ ] #3 Il portafoglio si legge come valore contro versato e come ripartizione, mai come rendimento
 - [ ] #4 Non entra in liquidità né in mesi di autonomia, e nessun prezzo si chiede fuori
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Superata dalla versione 1.46 della specifica: il portafoglio non si dichiara più a mano ma si ricostruisce dalle fonti (TASK-95 e seguenti).
+<!-- SECTION:NOTES:END -->
