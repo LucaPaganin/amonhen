@@ -283,6 +283,7 @@ def test_the_portfolio_moves_nothing_the_ledger_measures(ledger):
     seeded(ledger)
     service.snapshot_through(ledger, today)
     service.overview(ledger, today)
+    ledger.validate()   # the double-entry check of section 5.4 still holds, and nothing was added to it
     after = (ledger.conn.execute("SELECT COUNT(*) FROM postings").fetchone()[0],
              ledger.spend_between(d(2025, 1, 1), today), compute_metrics(ledger, today).liquidity)
     assert before == after
@@ -312,6 +313,20 @@ def test_the_etf_returns_follow_from_the_trade_prices(ledger):
     npv = sum(float(a) * (1 + float(rate)) ** -((day - d(2025, 1, 1)).days / 365)
               for day, a in [(d(2025, 1, 1), -100), (d(2025, 7, 1), -120), (d(2026, 1, 15), 264)])
     assert abs(npv) < 0.01
+
+
+def test_the_whole_portfolio_chains_the_months_with_each_months_payments_taken_out(ledger):
+    etf_id = etf(ledger)
+    ledger.record_trade(etf_id, d(2025, 1, 1), D(10), D(10), D(100), D(0), "broker", "a")
+    ledger.record_trade(etf_id, d(2025, 7, 1), D(10), D(12), D(120), D(0), "broker", "b")
+    ledger.set_price(etf_id, d(2025, 6, 30), D(12), "broker")
+    ledger.set_price(etf_id, d(2025, 12, 31), D("13.2"), "broker")
+    service.take_snapshot(ledger, "2025-06")
+    service.take_snapshot(ledger, "2025-12")
+    total = service.overview(ledger, d(2026, 1, 15))["total"]
+    # June: 120 paid 100. December: 264 paid 220, of which 120 went in during the period,
+    # so the 144 that grew from 120 is a return of 20%.
+    assert total["twr"] == "20.00" and total["mwr"] is not None
 
 
 def test_the_fund_shows_what_is_still_in_transit(ledger):
