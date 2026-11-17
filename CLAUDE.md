@@ -58,9 +58,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters, scenarios|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters, scenarios, instruments, instrument_trades, pension_contributions, prices, expected_flows, portfolio_snapshots|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
-|`amonhen/ledger/`|`Ledger` (`__init__.py`) composes one mixin per sub-domain: `accounts` (accounts, categories, settings), `ingest` (`record`, dedup, pending→booked, held duplicates), `deletions` (the trash), `categorization` (categories of a movement, splits, tags, notes, proposals), `transfer_legs` (pairs, virtual destinations, mirrors), `balances` (the double-entry check, spending, balances, declarations, the opening), `planning` (goals, profile facts, tax years — desiderata 5.16); `definitions.py` holds the shared SQL fragments, the balance types and the result types, re-exported by `amonhen.ledger`|
+|`amonhen/ledger/`|`Ledger` (`__init__.py`) composes one mixin per sub-domain: `accounts` (accounts, categories, settings), `ingest` (`record`, dedup, pending→booked, held duplicates), `deletions` (the trash), `categorization` (categories of a movement, splits, tags, notes, proposals), `transfer_legs` (pairs, virtual destinations, mirrors), `balances` (the double-entry check, spending, balances, declarations, the opening), `planning` (goals, profile facts, tax years, scenarios — desiderata 5.16), `portfolio` (instruments, trades, the fund's contributions, prices, snapshots); `definitions.py` holds the shared SQL fragments, the balance types and the result types, re-exported by `amonhen.ledger`|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
 |`amonhen/services/ingest.py`|`settle_after_ingest`: what follows every write of movements — transfer rules, pairing, passthrough, the double-entry check, the rules — in that order, called by the sync, the import and a held movement written by hand|
 |`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `run_period` is one account over a chosen period, window by window; `SyncBusy` is the process-wide guard on one run at a time|
@@ -69,6 +69,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
 |`amonhen/metrics.py`|Burn, episodic accrual, runway, the month against its usual pace, the dashboard series, and the statistics per category|
 |`amonhen/core/planning.py`|Desiderata 5.16, pure: the profile and tax keys, the IRPEF on the brackets, the exit rate, one allocation's fund against PAC, the latest complete tax year|
+|`amonhen/core/portfolio.py`|Desiderata 5.16, pure: a BTP's net coupons, accrued and value, the pension contribution's states and statement matching, `fund_position`, the reconciliation types, `NetWorth`|
+|`amonhen/core/returns.py`|`twr` and `mwr` (bracketed bisection), pure|
+|`amonhen/ports/portfolio.py`|`BrokerSource`, `DocumentSource`, `NavSource`, the domain types they carry and `SourceError`: the portfolio's sources as the use cases see them|
+|`amonhen/services/portfolio.py`|Read the sources, snapshot a month end, the reconciliations, and what the screen reads|
+|`tests/memory_portfolio.py`|The three portfolio ports in memory, for tests of the use cases alone|
 |`amonhen/core/projection.py`|Desiderata 5.16, pure: the monthly rate, the value at a date, the monthly payment that reaches a goal, Coast FI, one goal under one scenario|
 |`amonhen/services/projection.py`|Every goal of today under the three scenarios, Coast FI in the chosen one, and the pace the ledger shows (`observed_monthly`)|
 |`amonhen/services/planning.py`|The plan as the API answers it: goals, profile, tax years, the margin over the 12 complete months, and the comparison of two allocations|
@@ -79,7 +84,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
 |`amonhen/queries.py`|The reads the screens need, in SQL beside the ledger: a page of movements (`TransactionFilter`, `transaction_page`), the review queue, the virtual accounts, one row by id. Routes call these and write no SQL; what a missing row means (404, 422) stays the route's|
 |`amonhen/api/app.py`|`create_app`: the exception handlers, one `AppContext`, every router built from it in the order the routes were declared, then the PWA host as the catch-all|
-|`amonhen/api/routes/`|One `APIRouter` per section, each a `build(ctx)`: `setup` (consent flow and first setup; `/callback` answers 303 to `/?setup=1`), `dashboard`, `accounts`, `categories` (with tags and rules), `budgets`, `plan`, `review`, `transactions`, `transfers`, `sync`, `imports`|
+|`amonhen/api/routes/`|One `APIRouter` per section, each a `build(ctx)`: `setup` (consent flow and first setup; `/callback` answers 303 to `/?setup=1`), `dashboard`, `accounts`, `categories` (with tags and rules), `budgets`, `plan`, `portfolio` (read only), `review`, `transactions`, `transfers`, `sync`, `imports`|
 |`amonhen/api/context.py`|`AppContext`: where the ledger and `accounts.json` live, `ledger_scope` (one connection per request, on the request's thread) and `credentials_or_409`|
 |`amonhen/api/schemas.py`, `amonhen/api/payloads.py`|The request bodies, and what the routers share: the payloads they answer with, query parsing, the 404 checks (`_`-named: the package's own, not the API's surface)|
 |`amonhen/api/version.py`|`API_VERSION`, and the history of what each version changed|
@@ -100,6 +105,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`web/src/components/OpeningRecalc.tsx`|Re-deriving an account's opening behind a preview of what it moves, closed at the foot of the account's panel (Conti and the wizard's *Saldi e verifica*)|
 |`web/src/screens/Guide.tsx`|Desiderata 5.14: a card per concept, the only place the pages explain; `components/Help.tsx` is the `?` that opens one|
 |`web/src/screens/Plan.tsx`|Desiderata 5.16: goals, the margin, fund against PAC for two allocations, the profile and the tax years with their sources|
+|`web/src/screens/Portfolio.tsx`|Desiderata 5.16: what is held, the fund in transit, the reconciliations and the month-end net worth, read only|
 |`web/src/screens/Statistics.tsx`|Desiderata 5.15: each category over the last complete months, the median and the mean, and its months on request|
 |`web/src/components/TagEditor.tsx`|The tags of one movement, in its sheet; `useTags.ts` is the list every screen reads|
 |`web/src/components/VirtualAccounts.tsx`|The virtual accounts under **Conti**: what each holds, how many movements put it there, and the movements on request (`/api/virtual-accounts`, `/api/transactions?virtual_account_id=`)|
@@ -131,6 +137,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `held_by_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
 |`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `month_summary`, `MonthSummary`, `period_summary`, `PeriodSummary`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `usual_reading`, `UsualReading`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`, `complete_months`|
 |`core.planning`|`PROFILE_KEYS`, `TAX_KEYS`, `LIQUIDITY`, `checked`, `parse_brackets`, `income_tax`, `exit_rate`, `compare`, `AllocationResult`, `complete_year`|
+|`core.portfolio`|`BtpTerms`, `coupons`, `accrued`, `btp_value`, `Contribution`, `StatementOperation`, `match_statement`, `split_units`, `fund_position`, `Difference`, `match_flows`, `NetWorth`, `add_months`, `month_end`|
+|`core.returns`|`twr`, `mwr`|
+|`ports.portfolio`|`BrokerSource`, `DocumentSource`, `NavSource`, `BrokerTrade`, `BrokerPosition`, `PricePoint`, `PayslipContribution`, `SourceError`, `SourceUnavailable`, `NavUnavailable`|
+|`services.portfolio`|`sync_broker`, `read_documents`, `fetch_nav`, `take_snapshot`, `snapshot_through`, `reconciliations`, `overview`, `holding`|
 |`core.projection`|`SCENARIOS`, `checked_rate`, `monthly_rate`, `growth`, `value_at`, `needed_monthly`, `coast_fi`, `project`, `Projection`|
 |`services.planning`|`overview`, `margin`, `comparison`|
 |`services.projection`|`projection`, `observed_monthly`, `scenarios_payload`|
@@ -273,7 +283,7 @@ change, like the spec.
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), nineteen tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), twenty-five tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
@@ -298,7 +308,13 @@ by construction.
 |`profile_facts`|3|A fact the ledger cannot see (`key`, `value`, `valid_from`): gross, months paid, the yearly base of the fund contribution (never derived from the gross), the two rates, the date the fund was joined|
 |`tax_parameters`|4|One value of one tax year with its `source`, which cannot be empty|
 |`scenarios`|3|Desiderata 5.16: one of `prudente`, `centrale`, `favorevole` with its yearly real return and inflation, written by hand; a projection does not run until all three exist|
-|`settings`|2|Key/value odds and ends|
+|`instruments`|9|Desiderata 5.16: a thing held — `kind` is `etf`, `btp`, `fondo_pensione` or `immobile`; `terms` is a BTP's nominal, start, rates, tax and bonus as text, never constants of the code; `ownership` is the share of a house|
+|`instrument_trades`|9|A trade the broker reported, unique per `(instrument, source, reference)`; a sale has negative units and amount|
+|`pension_contributions`|12|A line of the fund's money: `trattenuto` from a payslip until a statement shows its value date, unit value and units, then `investito`; a payment straight to the fund is born `investito` with no payslip|
+|`prices`|4|One value per instrument and day, with its source; a missing month is said, never borrowed|
+|`expected_flows`|5|A BTP's coupons and bonus as the terms generate them|
+|`portfolio_snapshots`|5|Units, value and net paid-in of an instrument at a month end|
+|`settings`|2|Key/value odds and ends (the units a source reported live here too)|
 
 Three shapes wrap the same movement: `IncomingTransaction` (`models.py`, 13 fields)
 is what a source reports before the ledger assigns ids, the balancing posting and
@@ -333,6 +349,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Plan a month|The **Budget** section: *Aggiungi una spesa* with a description and an amount (the category can wait: a rule gives one, or it waits under *Da assegnare* in the *Per voce* view), a category's ceiling under *Per categoria* (*Da questo mese in poi* or *Solo questo mese*; without one, the items are the budget), *Più dettagli* for the full form or a past movement, *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
 |Compare fund and PAC|**Piano** (under *Gestione*): the goals, the profile, the tax year written by hand with its sources each January, then two allocations side by side at one return you write|
 |Project a goal under the three scenarios|**Piano**: write the three scenarios (*Scenari*), then *Dove si arriva* with the capital already put aside and the monthly payment — left empty it is the pace the ledger shows. Coast FI appears for a goal that may stay locked|
+|See the portfolio|**Portafoglio** (under *Gestione*): read only — figures enter through the use cases in `services/portfolio.py`, from the ports in `ports/portfolio.py`; until the real sources exist only the tests' fakes fill them|
 |See what a category usually takes|**Statistiche**: the median and the mean over 6, 12 or 24 complete months; the **Budget** row says *di solito*, the median of the six before that month|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|

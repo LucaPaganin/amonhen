@@ -16,6 +16,7 @@ import { ImportScreen } from "./screens/Import";
 import { ReviewQueueScreen } from "./screens/ReviewQueue";
 import { CategoryRulesScreen } from "./screens/CategoryRules";
 import { PlanScreen } from "./screens/Plan";
+import { PortfolioScreen } from "./screens/Portfolio";
 import { StatisticsScreen } from "./screens/Statistics";
 import { SetupScreen, setupStartStep } from "./screens/Setup";
 import { syncSummary } from "./notices";
@@ -30,7 +31,7 @@ import { useSetup } from "./useSetup";
  * while the Python process can still be running older code, and a missing key
  * used to take the whole screen down with it.
  */
-const REQUIRED_API_VERSION = 44;
+const REQUIRED_API_VERSION = 45;
 
 export default function App() {
   // `?setup=1` is where the bank sends the browser back after a login, and the
@@ -270,6 +271,7 @@ export default function App() {
           <StatisticsScreen refreshToken={syncedAt} onOpenCategory={openCategory} />
         ) : null}
         {tab === "plan" ? <PlanScreen /> : null}
+        {tab === "portfolio" ? <PortfolioScreen refreshToken={syncedAt} /> : null}
         {tab === "categories" ? (
           <CategoryRulesScreen
             rules={rules}

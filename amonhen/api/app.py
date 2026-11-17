@@ -23,6 +23,7 @@ from amonhen.api.routes import (
     dashboard,
     imports,
     plan,
+    portfolio,
     review,
     setup,
     sync,
@@ -87,6 +88,7 @@ def create_app(
     app.include_router(sync.build(ctx))
     app.include_router(imports.build(ctx))
     app.include_router(plan.build(ctx))
+    app.include_router(portfolio.build(ctx))
     _mount_pwa(app, web_dist if web_dist is not None else WEB_DIST)
     return app
 

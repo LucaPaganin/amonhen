@@ -13,6 +13,7 @@ export type TabId =
   | "import"
   | "statistics"
   | "plan"
+  | "portfolio"
   | "setup"
   | "guide";
 
@@ -101,6 +102,14 @@ const SECTIONS: Section[] = [
     hint: "Obiettivi, parametri fiscali e fondo pensione contro PAC",
     inBar: false,
     Icon: PlanIcon,
+  },
+  {
+    id: "portfolio",
+    label: "Portafoglio",
+    short: "Portafoglio",
+    hint: "Cosa possiedi, quanto vale a fine mese e come rende",
+    inBar: false,
+    Icon: PortfolioIcon,
   },
   {
     id: "setup",
@@ -244,6 +253,24 @@ function PlanIcon() {
     >
       <path d="M5 21V4" />
       <path d="M5 4h12l-2.5 4L17 12H5" />
+    </svg>
+  );
+}
+
+function PortfolioIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" />
+      <path d="M9 9V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
     </svg>
   );
 }

@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.48 — novembre 2026
+Versione 1.49 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -51,7 +51,16 @@ soglia Coast FI per l'obiettivo che può restare vincolato. Finché il portafogl
 capitale già messo da parte si scrive nel modulo, e il ritmo di versamento parte da quello che il
 ledger mostra. La cifra della pensione è il capitale da raggiungere, senza un tasso di prelievo, e
 l'inflazione di uno scenario non cambia nessun risultato: dice quanto vale la cifra in euro della
-sua data. Data di nascita e destinazione del TFR restano fuori dal profilo: nessuna cifra le usa.*
+sua data. Data di nascita e destinazione del TFR restano fuori dal profilo: nessuna cifra le usa.
+1.49 · il portafoglio è costruito su dati finti (sezione 5.16): strumenti, transazioni, contributi
+trattenuti e investiti, prezzi di fine mese, snapshot, riconciliazioni, TWR e MWR e patrimonio
+complessivo, dietro porte che le fonti vere riempiranno. Decisioni prese costruendolo: i termini del
+BTP (nominale, inizio, tassi, imposta, premio) sono dati dello strumento e non costanti; il versato è
+netto di ciò che è tornato, quindi una cedola lo abbassa; il TWR dello strumento è esatto ai prezzi
+delle transazioni, quello dell'insieme concatena i mesi con i flussi a fine mese; il MWR del fondo
+conta i versamenti alla data della busta paga; la casa è uno strumento con quota di proprietà e
+prezzo scritto da una fonte, fuori dai rendimenti; i dati entrano dai casi d'uso e dalle porte, la
+schermata **Portafoglio** è in sola lettura, e un mese senza prezzo si dice e non si copre.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -334,7 +343,7 @@ Un tag è un'etichetta libera su un movimento, che tiene la sua categoria: Euron
 
 ### 5.14 Guida *(costruita)*
 
-Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo, obiettivo, base del versamento, tetto di deducibilità, scenario, Coast FI — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
+Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo, obiettivo, base del versamento, tetto di deducibilità, scenario, Coast FI, trattenuto e investito, TWR, MWR, rateo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
 
 ### 5.15 Statistiche *(costruita)*
 
@@ -344,7 +353,7 @@ Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le
 
 *Fatto quando*: davanti a un tetto da scegliere la cifra è già sulla riga, e la distanza fra mediana e media dice se una categoria va a strappi.
 
-### 5.16 Pianificazione a lungo termine *(in costruzione: la prima fetta è costruita)*
+### 5.16 Pianificazione a lungo termine *(in costruzione: costruite la prima, la terza e la quinta fetta)*
 
 Il resto del sistema dice com'è andata. Questa sezione serve a una decisione che si prende più volte l'anno e cambia quando cambia un obiettivo: quanto mettere da parte, e dove — liquidità, fondo pensione, PAC. Senza un punto d'arrivo la ripartizione non ha un criterio, e la risposta giusta per un acquisto fra tre anni è sbagliata per la pensione fra trenta.
 
@@ -368,6 +377,8 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 **I documenti arrivano da Paperless.** Paperless è l'unico ingresso dei documenti: una mail rule li importa e li classifica per tipo (busta paga, prospetto del fondo, contratto del broker). AmonHen li chiede con l'API REST — i documenti di quel tipo modificati dopo l'ultima lettura — e scarica l'**originale**, perché la copia d'archivio è un PDF/A rigenerato con l'OCR e può spostare il testo su cui il parser si basa. La lettura la fa il package `payslip-parser` (repository privato, sezione 4): bytes in ingresso, un oggetto validato da invarianti contabili in uscita, oppure un errore che dice cosa non torna. L'esito torna su Paperless: un tag `amonhen:importato` o `amonhen:errore` e le cifre chiave come custom field, così da Paperless si vede cosa è entrato e un errore dice che serve un template nuovo. La lettura è a richiesta e periodica, non un webhook: se AmonHen è spento quando arriva un documento, lo legge al giro dopo, e un documento già letto non si riscrive.
 
 **Un contributo al fondo è prima trattenuto, poi investito.** La busta paga dice quanto è stato trattenuto — contributo proprio, contributo del datore, TFR — ma il fondo lo riceve in ritardo e a blocchi irregolari, anche di mesi, valorizzati a fine mese. Un contributo nasce *trattenuto* dalla busta paga, valutato al costo come denaro in transito, e diventa *investito* quando il prospetto annuale lo mostra con data di valorizzazione, valore quota e quote assegnate. In ogni istante vale una conservazione esatta: trattenuto = investito + in transito. Il transito si legge: è quanto il datore ha trattenuto senza averlo ancora versato. Un versamento fatto direttamente al fondo, senza busta paga, entra investito con la sua data e conta nel tetto di deducibilità come gli altri.
+
+*Come è costruito il portafoglio (fase 12, terza fetta).* Le sei tabelle non scrivono nessun posting: spesa, mesi di autonomia e verifica della sezione 5.4 non ne vedono nulla, e un test lo controlla. Ogni fonte sta dietro una porta (`ports/portfolio.py`: broker, documenti, valore quota) con tipi ed errori suoi; in questa fetta le implementa la memoria, e le fonti vere arrivano con la quarta. Il BTP porta i suoi termini come dati: da lì escono le venti cedole nette, il premio alla scadenza e il rateo, proporzionale ai giorni del trimestre. Un contributo al fondo è una riga con il suo stato: le buste paga lo scrivono trattenuto, e un'operazione del prospetto investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, con le quote divise in proporzione; una che non quadra con nessuna si segnala e non si forza. Il transito si valuta al costo. Il versato di uno snapshot è netto di ciò che è tornato, e uno strumento tenuto senza prezzo nel giorno dello snapshot non si scrive e si nomina. Il TWR di un ETF o del fondo concatena i periodi ai prezzi delle operazioni; il TWR dell'insieme concatena i mesi, con il versamento netto del mese tolto dal valore di fine mese; il MWR cerca la radice fra due estremi che la contengono, e per il fondo conta i versamenti alla data della busta paga. Un BTP e la casa non hanno un TWR, e la casa sta nel patrimonio e non nei rendimenti. Il patrimonio complessivo di fine mese è la liquidità di quel giorno più il valore degli snapshot.
 
 **Le riconciliazioni dicono cosa non torna, invece di correggerlo.** Il PAC atteso contro le quote che il broker riporta, il calendario delle cedole contro gli accrediti, i contributi trattenuti contro quelli investiti, le quote del fondo contro il prospetto. Una differenza si mostra con le due cifre accanto, come la verifica della sezione 5.4, e nessuna cifra si aggiusta da sola.
 
@@ -422,18 +433,23 @@ tax_parameters       (anno, chiave, valore, fonte)
 scenarios            (nome: prudente | centrale | favorevole, rendimento reale, inflazione)
 ```
 
-Da costruire:
+Costruite con la terza fetta:
 
 ```
 instruments          (id, nome, tipo: etf | btp | fondo_pensione | immobile, isin?, classe?, fonte,
-                      quota_proprietà, orizzonte)
+                      quota_proprietà, orizzonte, termini)
 instrument_trades    (id, strumento, data, quote, prezzo, importo, commissioni, fonte, riferimento)
-pension_contributions(id, periodo, proprio, datore, tfr, stato: trattenuto | investito,
+pension_contributions(id, strumento, periodo, proprio, datore, tfr, stato: trattenuto | investito,
                       busta_paga?, data_valorizzazione?, valore_quota?, quote?)
 prices               (strumento, data, valore, fonte)              — un valore per fine mese
-expected_flows       (strumento, data, importo, tipo: cedola | premio | pac, movimento?)
+expected_flows       (strumento, data, importo, tipo: cedola | premio | pac)
+portfolio_snapshots  (mese, strumento, quote, valore, versato netto)
+```
+
+Da costruire con la quarta fetta:
+
+```
 documents            (paperless_id, tipo, letto_il, esito, layout, errore?)
-portfolio_snapshots  (mese, strumento, quote, valore, versato)
 ```
 
 Vincolo di integrità: per ogni `transaction_id`, `SUM(postings.importo) = 0`.
@@ -505,7 +521,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
 - **Fase 12 — si pianifica verso un obiettivo.** *(in corso: la prima fetta è fatta)* La sezione 5.16 a fette, ognuna usabile da sola:
   1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda *(fatta: la sezione **Piano**)*;
   2. il package `payslip-parser` legge la busta paga e il prospetto del fondo — nel suo repository privato, con la sua specifica;
-  3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte;
+  3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte *(fatta: la sezione **Portafoglio**)*;
   4. le fonti vere: Paperless con il write-back, la CLI del broker nel suo container, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati;
   5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI *(fatta: dentro **Piano**)*;
   6. la distribuzione dai rendimenti storici.

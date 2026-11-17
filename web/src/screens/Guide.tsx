@@ -29,7 +29,11 @@ export type GuideTopic =
   | "contribution-base"
   | "deduction-cap"
   | "scenario"
-  | "coast-fi";
+  | "coast-fi"
+  | "withheld"
+  | "twr"
+  | "mwr"
+  | "accrual";
 
 interface Card {
   id: GuideTopic;
@@ -277,6 +281,46 @@ const CARDS: Card[] = [
       "È la cifra dell'obiettivo divisa per la crescita di quello scenario fino alla data: C = obiettivo / (1 + r)^mesi. Si legge solo per un obiettivo che può restare vincolato, come la pensione, e la cifra dell'obiettivo è il capitale da raggiungere: non c'è un tasso di prelievo.",
     changes:
       "Cambia con lo scenario: nel prudente la soglia è più alta, nel favorevole più bassa. La distanza fra le due dice quanto la soglia dipende dall'ipotesi.",
+  },
+  {
+    id: "withheld",
+    title: "Trattenuto e investito",
+    means:
+      "Un contributo al fondo pensione nasce trattenuto: la busta paga dice quanto è stato tolto, ma il fondo lo riceve dopo, a blocchi irregolari anche di mesi. Diventa investito quando il prospetto lo mostra con la data di valorizzazione, il valore quota e le quote assegnate. Quello che sta in mezzo è in transito.",
+    computed:
+      "In ogni data trattenuto = investito + in transito, e il transito è quanto il datore ha trattenuto senza averlo ancora versato. Un contributo in transito vale il suo costo. Il prospetto non corrisponde riga per riga alle buste paga: un'operazione investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, e una che non quadra con nessuna si segnala senza forzarla. Un versamento fatto direttamente al fondo nasce investito, con la sua data.",
+    changes:
+      "Nessuna differenza si corregge da sola: la riconciliazione mostra le due cifre e lo scarto, e la scelta di cosa farne è tua.",
+  },
+  {
+    id: "twr",
+    title: "TWR",
+    means:
+      "Il rendimento dello strumento, indipendente da quanto e quando versi: il prodotto della crescita fra un flusso e il successivo. Dice come è andato l'ETF o il fondo, non come sei andato tu.",
+    computed:
+      "Il valore prima di ogni versamento si prende al prezzo di quella transazione, quindi non serve uno storico dei prezzi oltre quello di fine mese. Per l'insieme degli strumenti si concatenano i mesi: il valore di fine mese, tolti i versamenti di quel mese, contro quello del mese prima, con i flussi contati a fine mese. Un BTP e la casa non hanno un prezzo di mercato che entri, e il loro TWR non c'è.",
+    changes:
+      "Cambia con i prezzi e non con le date dei versamenti: due persone che hanno comprato lo stesso ETF in momenti diversi hanno lo stesso TWR e MWR diversi.",
+  },
+  {
+    id: "mwr",
+    title: "MWR",
+    means:
+      "Il rendimento tuo: il tasso annuo costante che, applicato ai versamenti nelle date in cui li hai fatti, porta al valore di oggi. Dipende dal momento dei versamenti, ed è il solo che si può leggere per l'insieme di ETF, fondo e BTP.",
+    computed:
+      "È la radice di Σ flusso × (1 + r)^(-anni) = 0, con il valore di oggi come ultimo flusso, cercata fra due estremi che la contengono. Per il fondo i versamenti contano alla data della busta paga, quindi i mesi in transito costano rendimento. Il BTP conta con il nominale all'acquisto, le cedole nette incassate e il nominale più rateo di oggi.",
+    changes:
+      "Se i flussi non hanno una radice, per esempio c'è solo un versamento e niente valore, la cifra non c'è e non si inventa.",
+  },
+  {
+    id: "accrual",
+    title: "Rateo",
+    means:
+      "La parte della cedola in corso che il BTP ha già maturato: tenuto fino a scadenza il suo prezzo torna a 100, quindi il titolo vale il nominale più il rateo.",
+    computed:
+      "È la cedola netta del trimestre, proporzionale ai giorni passati dall'ultima cedola. Le cedole sono trimestrali, nette dell'imposta, con il tasso del periodo (4,10% i primi tre anni, 4,50% gli ultimi due, scritto fra i termini del titolo). Il premio fedeltà non entra mai nel rateo: vale solo alla scadenza, perché spetta solo a chi ci arriva.",
+    changes:
+      "Dopo una cedola il rateo riparte da zero e il versato netto, cioè il nominale meno le cedole incassate, scende.",
   },
 ];
 

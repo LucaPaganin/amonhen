@@ -280,6 +280,81 @@ CREATE TABLE IF NOT EXISTS scenarios (
     inflation TEXT NOT NULL
 );
 
+-- Desiderata 5.16, the portfolio. It lives outside the ledger and writes no posting,
+-- so spending, runway and the 5.4 check cannot see market noise (docs/investments.md).
+-- `terms` holds what one instrument needs and the others do not (a BTP's nominal,
+-- start, rates, tax and bonus), as written text.
+CREATE TABLE IF NOT EXISTS instruments (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL CHECK (kind IN ('etf', 'btp', 'fondo_pensione', 'immobile')),
+    isin TEXT,
+    class TEXT,
+    source TEXT NOT NULL,
+    ownership TEXT NOT NULL DEFAULT '1',
+    horizon TEXT,
+    terms TEXT
+);
+
+CREATE TABLE IF NOT EXISTS instrument_trades (
+    id INTEGER PRIMARY KEY,
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    units TEXT NOT NULL,
+    price TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    fees TEXT NOT NULL DEFAULT '0.00',
+    source TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    UNIQUE (instrument_id, source, reference)
+);
+
+-- A contribution to the pension fund is born withheld (from a payslip, valued at cost
+-- as money in transit) and becomes invested when a statement shows its value date,
+-- unit value and units; a payment made straight to the fund is born invested.
+CREATE TABLE IF NOT EXISTS pension_contributions (
+    id INTEGER PRIMARY KEY,
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    period TEXT NOT NULL,
+    own TEXT NOT NULL,
+    employer TEXT NOT NULL,
+    tfr TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('trattenuto', 'investito')),
+    payslip TEXT,
+    value_date TEXT,
+    unit_value TEXT,
+    units TEXT,
+    UNIQUE (instrument_id, payslip)
+);
+
+-- One value per instrument and month end, with where it came from.
+CREATE TABLE IF NOT EXISTS prices (
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    value TEXT NOT NULL,
+    source TEXT NOT NULL,
+    PRIMARY KEY (instrument_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS expected_flows (
+    id INTEGER PRIMARY KEY,
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('cedola', 'premio', 'pac')),
+    UNIQUE (instrument_id, date, kind)
+);
+
+-- The month-end series: units, value, and what was paid in net of what came back.
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+    month TEXT NOT NULL,
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    units TEXT NOT NULL,
+    value TEXT NOT NULL,
+    paid TEXT NOT NULL,
+    PRIMARY KEY (month, instrument_id)
+);
+
 -- Proposals are never applied on their own: a classifier or an LLM writes a
 -- merchant -> category pair here and a human accepts or dismisses it.
 CREATE TABLE IF NOT EXISTS merchant_suggestions (

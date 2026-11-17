@@ -919,3 +919,36 @@ export interface Projection {
   scenario: string;
   goals: GoalProjection[];
 }
+
+/** Desiderata 5.16: the portfolio, read only. Rates are percents as text, null when they cannot be read. */
+export interface PortfolioPosition {
+  name: string;
+  kind: string;
+  units: string;
+  price: string | null;
+  price_date: string | null;
+  value: string | null;
+  paid: string | null;
+  twr: string | null;
+  mwr: string | null;
+  note: string | null;
+}
+
+export interface Reconciliation {
+  label: string;
+  expected: string;
+  actual: string | null;
+  difference: string | null;
+  unit: string;
+  note: string | null;
+}
+
+export interface Portfolio {
+  today: string;
+  positions: PortfolioPosition[];
+  total: { value: string; mwr: string | null; twr: string | null };
+  fund: { withheld: string; invested: string; in_transit: string } | null;
+  reconciliations: Reconciliation[];
+  series: { month: string; liquidity: string; portfolio: string; total: string; instruments: number }[];
+  missing: string[];
+}

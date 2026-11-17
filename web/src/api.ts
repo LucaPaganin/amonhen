@@ -34,6 +34,7 @@ import type {
   GoalDraft,
   Comparison,
   Projection,
+  Portfolio,
   Suggestion,
   Tag,
   DeletedMovement,
@@ -295,6 +296,7 @@ export const api = {
   rules: (signal?: AbortSignal) => get<Rule[]>("/rules", signal),
   statistics: (months: number, signal?: AbortSignal) =>
     get<Statistics>(`/statistics?months=${months}`, signal),
+  portfolio: (signal?: AbortSignal) => get<Portfolio>("/portfolio", signal),
   plan: (signal?: AbortSignal) => get<Plan>("/plan", signal),
   saveGoal: (draft: GoalDraft) => send<Plan>("PUT", "/plan/goals", draft),
   endGoal: (series: number) => send<Plan>("DELETE", `/plan/goals/${series}`, {}),

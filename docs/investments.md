@@ -1,9 +1,30 @@
 # The portfolio: sources, states, reconciliations, valuation
 
 Part of what `CLAUDE.md` says before changing code. The product rules are section 5.16 of
-the spec; this page says how they are meant to be built, and the portfolio below is not
-built yet (phase 12, slices 3 to 6). A rule that changes changes here and in the spec, in
-the same change as the code.
+the spec; this page says how they are meant to be built. Slices 1, 3 and 5 are built
+(below); the real sources and the historical distribution (slices 2, 4 and 6) are not. A
+rule that changes changes here and in the spec, in the same change as the code.
+
+- **The portfolio is built on fake sources, behind the ports the real ones will fill.**
+  `core/portfolio.py` (the BTP's coupons and accrued, the contribution's two states and its
+  conservation, the reconciliations' arithmetic), `core/returns.py` (TWR, MWR),
+  `ledger/portfolio.py` (`PortfolioMixin`, the six tables, no posting),
+  `ports/portfolio.py` (`BrokerSource`, `DocumentSource`, `NavSource` and their errors) and
+  `services/portfolio.py` (`sync_broker`, `read_documents`, `fetch_nav`, `take_snapshot`,
+  `snapshot_through`, `reconciliations`, `overview`). `tests/memory_portfolio.py` implements
+  the three ports in memory. `GET /api/portfolio` reads and writes nothing: a figure enters
+  only through a use case, and the screen has no form. What the sources reported (the
+  broker's position, the statement's closing units) is kept in `settings` under
+  `portfolio:reported_units:<instrument id>`, so a reconciliation can show both figures
+  later without calling the source.
+- **A snapshot never borrows a price.** `holding(..., exact=True)` asks for the price of the
+  month end itself; a held instrument without one is named and not written, and the series
+  skips that month for it. A reading of today takes the latest price up to today instead.
+- **`paid` is net of what came back.** A BTP's is the nominal less the coupons received, so
+  the month's change in `paid` is the flow the whole-portfolio TWR subtracts. The fund's
+  counts the money withheld (it is valued at cost while in transit), and a payment made
+  straight to the fund. The house has no `paid`: it is in the net worth and out of every
+  return.
 
 - **The first slice is built, and it is the shape the rest follows.** Goals, the profile
   and the tax years are `ledger/planning.py` (`PlanningMixin`, no repository in front);
