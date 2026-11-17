@@ -1678,6 +1678,11 @@ button.txn:active {
   padding: 0;
 }
 
+/* A table wider than the phone scrolls inside its own box, never the page */
+.plan-scroll {
+  overflow-x: auto;
+}
+
 .plan-table {
   width: 100%;
   border-collapse: collapse;
@@ -1704,6 +1709,17 @@ button.txn:active {
 .plan-table td,
 .plan-table th[scope="col"] {
   text-align: right;
+}
+
+@media (max-width: 480px) {
+  .plan-table {
+    font-size: var(--text-xs);
+  }
+
+  .plan-table th,
+  .plan-table td {
+    padding: 8px 4px;
+  }
 }
 
 /* Un pannello di giroconto: a cosa è attaccata una gamba, e la via d'uscita */

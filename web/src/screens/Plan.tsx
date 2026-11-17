@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, isAbortError } from "../api";
 import { Help } from "../components/Help";
 import { formatAmount, formatDateWithYear } from "../format";
-import type { AllocationOutcome, Comparison, Goal, GoalDraft, Plan } from "../types";
+import type { AllocationOutcome, Comparison, Goal, GoalDraft, GoalProjection, Plan, Projection } from "../types";
 
 /** How reachable a goal's money must stay, in words. */
 const LIQUIDITY: Record<string, string> = {
@@ -78,6 +78,8 @@ export function PlanScreen() {
         <>
           <Goals plan={plan} write={write} />
           <Margin plan={plan} />
+          <Scenarios plan={plan} write={write} />
+          <ProjectionPanel plan={plan} />
           <ComparisonPanel plan={plan} />
           <Profile plan={plan} write={write} />
           <TaxYears plan={plan} write={write} />
@@ -286,7 +288,8 @@ function ComparisonTable({ result }: { result: Comparison }) {
           Mancano i parametri del {result.tax_missing_year}: le cifre usano il {result.tax_year}.
         </p>
       ) : null}
-      <table className="plan-table">
+      <div className="plan-scroll">
+<table className="plan-table">
         <thead>
           <tr>
             <th scope="col"></th>
@@ -305,6 +308,7 @@ function ComparisonTable({ result }: { result: Comparison }) {
           ))}
         </tbody>
       </table>
+</div>
     </>
   );
 }
@@ -439,5 +443,182 @@ function TaxRow(props: {
         Salva
       </button>
     </li>
+  );
+}
+
+const SCENARIO_NAMES: Record<string, string> = { prudente: "Prudente", centrale: "Centrale", favorevole: "Favorevole" };
+
+function Scenarios({ plan, write }: { plan: Plan; write: Write }) {
+  return (
+    <section className="panel">
+      <h2 className="section-title">
+        Scenari <Help topic="scenario" label="scenario" />
+      </h2>
+      <p className="hint">Rendimento reale e inflazione all'anno, in percentuale, scritti da te.</p>
+      <ul className="trash-list">
+        {plan.scenarios.map((item) => (
+          <ScenarioRow
+            key={`${item.name}-${item.real_return}-${item.inflation}`}
+            name={item.name}
+            realReturn={item.real_return ?? ""}
+            inflation={item.inflation ?? ""}
+            onSave={(realReturn, inflation) => write(api.setScenario(item.name, realReturn, inflation))}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ScenarioRow(props: {
+  name: string;
+  realReturn: string;
+  inflation: string;
+  onSave: (realReturn: string, inflation: string) => Promise<string | null>;
+}) {
+  const [realReturn, setRealReturn] = useState(props.realReturn);
+  const [inflation, setInflation] = useState(props.inflation);
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <li className="field">
+      <label htmlFor={`scenario-${props.name}-return`}>{SCENARIO_NAMES[props.name]}: rendimento reale</label>
+      <input id={`scenario-${props.name}-return`} className="input" inputMode="decimal" value={realReturn}
+        onChange={(e) => setRealReturn(e.target.value)} />
+      <label htmlFor={`scenario-${props.name}-inflation`}>{SCENARIO_NAMES[props.name]}: inflazione</label>
+      <input id={`scenario-${props.name}-inflation`} className="input" inputMode="decimal" value={inflation}
+        onChange={(e) => setInflation(e.target.value)} />
+      {props.realReturn === "" ? <p className="hint">Non scritto.</p> : null}
+      {problem !== null ? <p className="account-form__error" role="alert">{problem}</p> : null}
+      <button type="button" className="button"
+        onClick={async () => setProblem(await props.onSave(realReturn, inflation))}>
+        Salva
+      </button>
+    </li>
+  );
+}
+
+function ProjectionPanel({ plan }: { plan: Plan }) {
+  const [start, setStart] = useState("0");
+  const [monthly, setMonthly] = useState("");
+  const [scenario, setScenario] = useState("centrale");
+  const [result, setResult] = useState<Projection | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  if (plan.goals.length === 0) return null;
+  const run = async () => {
+    try {
+      setResult(await api.project(start, monthly.trim() === "" ? null : monthly, scenario));
+      setProblem(null);
+    } catch (err) {
+      setResult(null);
+      setProblem(errorMessage(err));
+    }
+  };
+
+  return (
+    <section className="panel">
+      <h2 className="section-title">Dove si arriva</h2>
+      <div className="field">
+        <label htmlFor="projection-start">Capitale già messo da parte, €</label>
+        <input id="projection-start" className="input" inputMode="decimal" value={start}
+          onChange={(e) => setStart(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="projection-monthly">Versamento al mese, €</label>
+        <input id="projection-monthly" className="input" inputMode="decimal" value={monthly}
+          placeholder={plan.observed.monthly === null ? "" : `${plan.observed.monthly} (quello che il ledger mostra)`}
+          onChange={(e) => setMonthly(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="projection-scenario">Scenario per Coast FI</label>
+        <select id="projection-scenario" className="input" value={scenario}
+          onChange={(e) => setScenario(e.target.value)}>
+          {plan.scenarios.map((item) => (
+            <option key={item.name} value={item.name}>{SCENARIO_NAMES[item.name]}</option>
+          ))}
+        </select>
+      </div>
+      <button type="button" className="button button--primary" onClick={() => void run()}>
+        Proietta
+      </button>
+      {problem !== null ? <p className="account-form__error" role="alert">{problem}</p> : null}
+      {result === null ? null : (
+        <>
+          <p className="chart-note">
+            Con {formatAmount(result.start)} già messi da parte e {formatAmount(result.monthly)} al mese
+            {result.monthly_observed ? " (quello che il ledger mostra)" : ""}, in euro di oggi.
+          </p>
+          {result.goals.map((item) => (
+            <GoalProjectionTable key={item.goal.series} item={item} />
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+function GoalProjectionTable({ item }: { item: GoalProjection }) {
+  return (
+    <>
+      <h3 className="budget-voices__title">
+        {item.goal.name}: {formatAmount(item.goal.amount)} entro il {formatDateWithYear(item.goal.target_date)}
+      </h3>
+      {item.note !== undefined ? <p className="hint">{item.note[0].toUpperCase() + item.note.slice(1)}.</p> : null}
+      {item.projections.length === 0 ? null : (
+        <div className="plan-scroll">
+<table className="plan-table">
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              {item.projections.map((p) => (
+                <th scope="col" key={p.scenario}>{SCENARIO_NAMES[p.scenario]}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Rendimento reale, inflazione</th>
+              {item.projections.map((p) => (
+                <td key={p.scenario}>{percent(p.real_return)}, {percent(p.inflation)}</td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row">Alla data</th>
+              {item.projections.map((p) => <td key={p.scenario}>{formatAmount(p.value)}</td>)}
+            </tr>
+            <tr>
+              <th scope="row">Si raggiunge</th>
+              {item.projections.map((p) => (
+                <td key={p.scenario}>{p.reaches ? "sì" : "no"}</td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row">Manca alla data</th>
+              {item.projections.map((p) => (
+                <td key={p.scenario}>{p.reaches ? "—" : formatAmount(p.shortfall)}</td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row">Servirebbe al mese</th>
+              {item.projections.map((p) => <td key={p.scenario}>{formatAmount(p.needed_monthly)}</td>)}
+            </tr>
+            <tr>
+              <th scope="row">La cifra in euro di quella data</th>
+              {item.projections.map((p) => <td key={p.scenario}>{formatAmount(p.goal_nominal)}</td>)}
+            </tr>
+          </tbody>
+        </table>
+</div>
+      )}
+      {item.coast === null ? null : (
+        <p className="chart-note">
+          Coast FI <Help topic="coast-fi" label="Coast FI" />, scenario{" "}
+          {SCENARIO_NAMES[item.coast.scenario].toLowerCase()}: {formatAmount(item.coast.capital)}.{" "}
+          {item.coast.reached
+            ? "Il capitale c'è già: da qui l'obiettivo cresce da solo e il resto del risparmio è libero."
+            : "Il capitale non c'è ancora."}
+        </p>
+      )}
+    </>
   );
 }

@@ -6,8 +6,16 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException
 
 from amonhen.api.context import AppContext
-from amonhen.api.schemas import ComparisonRequest, GoalRequest, ProfileFactRequest, TaxParameterRequest
+from amonhen.api.schemas import (
+    ComparisonRequest,
+    GoalRequest,
+    ProfileFactRequest,
+    ProjectionRequest,
+    ScenarioRequest,
+    TaxParameterRequest,
+)
 from amonhen.services.planning import comparison, overview
+from amonhen.services.projection import projection
 
 
 def build(ctx: AppContext) -> APIRouter:
@@ -60,6 +68,23 @@ def build(ctx: AppContext) -> APIRouter:
         with ledger_scope() as ledger:
             ledger.delete_tax_parameter(year, key)
             return overview(ledger, clock.today())
+
+    @router.put("/api/plan/scenarios/{name}")
+    def put_scenario(name: str, body: ScenarioRequest) -> dict:
+        with ledger_scope() as ledger:
+            ledger.set_scenario(name, body.real_return, body.inflation)
+            return overview(ledger, clock.today())
+
+    @router.delete("/api/plan/scenarios/{name}")
+    def delete_scenario(name: str) -> dict:
+        with ledger_scope() as ledger:
+            ledger.delete_scenario(name)
+            return overview(ledger, clock.today())
+
+    @router.post("/api/plan/projection")
+    def project_goals(body: ProjectionRequest) -> dict:
+        with ledger_scope() as ledger:
+            return projection(ledger, clock.today(), body.start, body.monthly, body.scenario)
 
     @router.post("/api/plan/compare")
     def compare(body: ComparisonRequest) -> dict:

@@ -271,6 +271,15 @@ CREATE TABLE IF NOT EXISTS tax_parameters (
     PRIMARY KEY (year, key)
 );
 
+-- The three scenarios a projection runs under, written by hand: a yearly real
+-- return and the inflation beside it. Never estimated from the past, and an
+-- absent one is said, not replaced.
+CREATE TABLE IF NOT EXISTS scenarios (
+    name TEXT PRIMARY KEY CHECK (name IN ('prudente', 'centrale', 'favorevole')),
+    real_return TEXT NOT NULL,
+    inflation TEXT NOT NULL
+);
+
 -- Proposals are never applied on their own: a classifier or an LLM writes a
 -- merchant -> category pair here and a human accepts or dismisses it.
 CREATE TABLE IF NOT EXISTS merchant_suggestions (

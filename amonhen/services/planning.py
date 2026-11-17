@@ -13,6 +13,7 @@ from amonhen.core.planning import LIQUIDITY, PROFILE_KEYS, TAX_KEYS, AllocationR
 from amonhen.ledger import Ledger
 from amonhen.metrics import complete_months, period_summary
 from amonhen.models import format_decimal, parse_decimal
+from amonhen.services.projection import observed_monthly, scenarios_payload
 
 
 def overview(ledger: Ledger, today: dt.date) -> dict:
@@ -34,6 +35,8 @@ def overview(ledger: Ledger, today: dt.date) -> dict:
         ],
         "tax": _tax(years, today.year),
         "margin": margin(ledger, today),
+        "scenarios": scenarios_payload(ledger),
+        "observed": observed_monthly(ledger, today),
     }
 
 

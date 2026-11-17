@@ -58,7 +58,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters, scenarios|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger/`|`Ledger` (`__init__.py`) composes one mixin per sub-domain: `accounts` (accounts, categories, settings), `ingest` (`record`, dedup, pending→booked, held duplicates), `deletions` (the trash), `categorization` (categories of a movement, splits, tags, notes, proposals), `transfer_legs` (pairs, virtual destinations, mirrors), `balances` (the double-entry check, spending, balances, declarations, the opening), `planning` (goals, profile facts, tax years — desiderata 5.16); `definitions.py` holds the shared SQL fragments, the balance types and the result types, re-exported by `amonhen.ledger`|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
@@ -69,6 +69,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
 |`amonhen/metrics.py`|Burn, episodic accrual, runway, the month against its usual pace, the dashboard series, and the statistics per category|
 |`amonhen/core/planning.py`|Desiderata 5.16, pure: the profile and tax keys, the IRPEF on the brackets, the exit rate, one allocation's fund against PAC, the latest complete tax year|
+|`amonhen/core/projection.py`|Desiderata 5.16, pure: the monthly rate, the value at a date, the monthly payment that reaches a goal, Coast FI, one goal under one scenario|
+|`amonhen/services/projection.py`|Every goal of today under the three scenarios, Coast FI in the chosen one, and the pace the ledger shows (`observed_monthly`)|
 |`amonhen/services/planning.py`|The plan as the API answers it: goals, profile, tax years, the margin over the 12 complete months, and the comparison of two allocations|
 |`amonhen/budgets.py`|Desiderata 5.12: a ceiling per category and month (a default from a month on, a month's own override) and the expenses planned inside it|
 |`amonhen/anomalies.py`|Deterministic, explained spending outliers|
@@ -129,7 +131,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `held_by_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
 |`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `month_summary`, `MonthSummary`, `period_summary`, `PeriodSummary`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `usual_reading`, `UsualReading`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`, `complete_months`|
 |`core.planning`|`PROFILE_KEYS`, `TAX_KEYS`, `LIQUIDITY`, `checked`, `parse_brackets`, `income_tax`, `exit_rate`, `compare`, `AllocationResult`, `complete_year`|
+|`core.projection`|`SCENARIOS`, `checked_rate`, `monthly_rate`, `growth`, `value_at`, `needed_monthly`, `coast_fi`, `project`, `Projection`|
 |`services.planning`|`overview`, `margin`, `comparison`|
+|`services.projection`|`projection`, `observed_monthly`, `scenarios_payload`|
 |`budgets`|`budget_status`, `budget_month`, `propose_category`, `set_default`, `set_month_override`, `ItemFields`, `add_item`, `update_item`, `delete_item`, `get_item`, `copy_items`, `fitting`, `move_day`, `month_of`, `month_bounds`, `parse_month`, `PRIORITIES`|
 |`anomalies`|`detect_anomalies`, `Anomaly`|
 |`classifier`|`CharNgramClassifier`, `propose_categories`, `apply_proposals`|
@@ -269,7 +273,7 @@ change, like the spec.
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), eighteen tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), nineteen tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
@@ -293,6 +297,7 @@ by construction.
 |`goals`|8|Desiderata 5.16: a goal, one row per version — `series` ties the versions, `valid_from`/`valid_to` say when each held; `liquidity` is `liquida`, `alla_data` or `vincolabile`|
 |`profile_facts`|3|A fact the ledger cannot see (`key`, `value`, `valid_from`): gross, months paid, the yearly base of the fund contribution (never derived from the gross), the two rates, the date the fund was joined|
 |`tax_parameters`|4|One value of one tax year with its `source`, which cannot be empty|
+|`scenarios`|3|Desiderata 5.16: one of `prudente`, `centrale`, `favorevole` with its yearly real return and inflation, written by hand; a projection does not run until all three exist|
 |`settings`|2|Key/value odds and ends|
 
 Three shapes wrap the same movement: `IncomingTransaction` (`models.py`, 13 fields)
@@ -327,6 +332,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |See the balances behind the net worth|`sqlite3 amonhen.db "select * from account_balances"` — written by `sync`, `balances` and `anchor`|
 |Plan a month|The **Budget** section: *Aggiungi una spesa* with a description and an amount (the category can wait: a rule gives one, or it waits under *Da assegnare* in the *Per voce* view), a category's ceiling under *Per categoria* (*Da questo mese in poi* or *Solo questo mese*; without one, the items are the budget), *Più dettagli* for the full form or a past movement, *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
 |Compare fund and PAC|**Piano** (under *Gestione*): the goals, the profile, the tax year written by hand with its sources each January, then two allocations side by side at one return you write|
+|Project a goal under the three scenarios|**Piano**: write the three scenarios (*Scenari*), then *Dove si arriva* with the capital already put aside and the monthly payment — left empty it is the pace the ledger shows. Coast FI appears for a goal that may stay locked|
 |See what a category usually takes|**Statistiche**: the median and the mean over 6, 12 or 24 complete months; the **Budget** row says *di solito*, the median of the six before that month|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
 |Change a colour, a spacing or the type scale|The `:root` tokens in `web/src/styles.css`; the font and its licence are in `web/src/assets/`|

@@ -33,6 +33,7 @@ import type {
   Plan,
   GoalDraft,
   Comparison,
+  Projection,
   Suggestion,
   Tag,
   DeletedMovement,
@@ -303,6 +304,11 @@ export const api = {
     send<Plan>("PUT", `/plan/tax/${year}/${key}`, { value, source }),
   deleteTaxParameter: (year: number, key: string) =>
     send<Plan>("DELETE", `/plan/tax/${year}/${key}`, {}),
+  setScenario: (name: string, realReturn: string, inflation: string) =>
+    send<Plan>("PUT", `/plan/scenarios/${name}`, { real_return: realReturn, inflation }),
+  deleteScenario: (name: string) => send<Plan>("DELETE", `/plan/scenarios/${name}`, {}),
+  project: (start: string, monthly: string | null, scenario: string) =>
+    send<Projection>("POST", "/plan/projection", { start, monthly, scenario }),
   compare: (series: number, returnRate: string, allocations: { fund: string; pac: string }[]) =>
     send<Comparison>("POST", "/plan/compare", { series, return_rate: returnRate, allocations }),
   // Writing a rule applies it at once — a deleting one empties what it matches —

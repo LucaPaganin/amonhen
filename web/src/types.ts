@@ -861,6 +861,10 @@ export interface Plan {
     ordinary_monthly: string | null;
     series: { month: string; income: string; margin: string }[];
   };
+  /** The three scenarios in reading order; a figure is null until it is written. */
+  scenarios: { name: string; real_return: string | null; inflation: string | null }[];
+  /** What went into investments each month, over the complete months the ledger has. */
+  observed: { months: number; monthly: string | null };
 }
 
 export interface AllocationOutcome {
@@ -887,4 +891,31 @@ export interface Comparison {
   tax_missing_year: number | null;
   margin_yearly: string | null;
   allocations: AllocationOutcome[];
+}
+
+export interface ScenarioOutcome {
+  scenario: string;
+  real_return: string;
+  inflation: string;
+  value: string;
+  reaches: boolean;
+  shortfall: string;
+  needed_monthly: string;
+  goal_nominal: string;
+}
+
+export interface GoalProjection {
+  goal: Goal;
+  months: number;
+  projections: ScenarioOutcome[];
+  coast: { scenario: string; capital: string; reached: boolean } | null;
+  note?: string;
+}
+
+export interface Projection {
+  start: string;
+  monthly: string;
+  monthly_observed: boolean;
+  scenario: string;
+  goals: GoalProjection[];
 }

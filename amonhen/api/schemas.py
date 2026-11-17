@@ -263,3 +263,20 @@ class ComparisonRequest(BaseModel):
     series: int
     return_rate: str
     allocations: list[AllocationRequest] = Field(min_length=2, max_length=2)
+
+
+class ScenarioRequest(BaseModel):
+    real_return: str
+    inflation: str
+
+
+class ProjectionRequest(BaseModel):
+    """The capital already there and the monthly payment, both written for the run and never stored.
+
+    Without `monthly` the pace is the one the ledger shows over the 12 complete months.
+    `scenario` is the one Coast FI is read in.
+    """
+
+    start: str = "0"
+    monthly: str | None = None
+    scenario: str

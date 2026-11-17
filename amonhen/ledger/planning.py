@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import datetime as dt
 import sqlite3
+from decimal import Decimal
 
 from amonhen.core.planning import LIQUIDITY, PROFILE_KEYS, TAX_KEYS, checked
+from amonhen.core.projection import SCENARIOS, checked_rate
+from amonhen.ledger.definitions import INVESTMENTS_ACCOUNT, VALUATION_PREFIX
 from amonhen.models import format_decimal, parse_decimal
 
 
@@ -125,3 +128,43 @@ class PlanningMixin:
     def delete_tax_parameter(self, year: int, key: str) -> None:
         with self.conn:
             self.conn.execute("DELETE FROM tax_parameters WHERE year = ? AND key = ?", (year, key))
+
+    # -- scenarios ---------------------------------------------------------
+
+    def scenarios(self) -> dict[str, sqlite3.Row]:
+        """The scenarios written so far, by name; one not written is absent."""
+        return {row["name"]: row for row in self.conn.execute("SELECT * FROM scenarios")}
+
+    def set_scenario(self, name: str, real_return: str, inflation: str) -> None:
+        if name not in SCENARIOS:
+            raise ValueError(f"scenario sconosciuto: {name}")
+        values = (name, checked_rate(real_return), checked_rate(inflation))
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO scenarios (name, real_return, inflation) VALUES (?, ?, ?)
+                   ON CONFLICT (name) DO UPDATE SET
+                       real_return = excluded.real_return, inflation = excluded.inflation""",
+                values,
+            )
+
+    def delete_scenario(self, name: str) -> None:
+        with self.conn:
+            self.conn.execute("DELETE FROM scenarios WHERE name = ?", (name,))
+
+    # -- what went into investments ----------------------------------------
+
+    def invested_between(self, start: dt.date, end: dt.date) -> Decimal:
+        """Net money sent to `Investimenti` between two dates, ends included.
+
+        The broker's own cash realignments (`record_valuation`) are not payments and
+        stay out: only movements a person made reach this account otherwise.
+        """
+        rows = self.conn.execute(
+            """SELECT p.amount FROM postings p
+               JOIN transactions t ON t.id = p.transaction_id
+               JOIN accounts a ON a.id = p.account_id
+               WHERE a.type = 'virtual' AND a.name = ? AND t.date >= ? AND t.date <= ?
+                 AND COALESCE(t.content_hash, '') NOT LIKE ?""",
+            (INVESTMENTS_ACCOUNT, start.isoformat(), end.isoformat(), f"{VALUATION_PREFIX}%"),
+        )
+        return sum((parse_decimal(row["amount"]) for row in rows), Decimal(0))

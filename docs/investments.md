@@ -105,6 +105,15 @@ the same change as the code.
   root finder, not Newton alone, because a sign change in the flows can give two roots.
   Both are computed per instrument and for the whole portfolio.
 
+- **The deterministic projection is built** (`core/projection.py`, `services/projection.py`,
+  the `scenarios` table). The three scenarios are written by hand and none is read as a
+  default; `projection` refuses until all three exist. The monthly rate is
+  `(1 + r)^(1/12) - 1`, the payment enters at each month's end, and the closed form is tested
+  against the month-by-month equation. The starting capital is typed into the request until
+  the portfolio exists; the pace defaults to `Ledger.invested_between` over the 12 complete
+  months (net of the broker's own valuation movements). Coast FI is read only for a goal that
+  may stay locked, and the goal's amount is the capital, with no withdrawal rate. What follows
+  is the design of the rest:
 - **Projections.** Deterministic first: `W(t+1) = W(t)·(1 + r) + c(t)` monthly, in today's
   euros, one run per scenario a person wrote. Coast FI is the capital that reaches the
   retirement goal with `c = 0` in the chosen scenario. The historical distribution

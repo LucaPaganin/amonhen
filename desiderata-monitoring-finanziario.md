@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.47 — novembre 2026
+Versione 1.48 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -44,7 +44,14 @@ il margine dei 12 mesi completi con quello del mese ordinario, e il confronto fr
 Decisioni prese costruendola: la liquidità di un obiettivo ha tre valori, il mese ordinario è la
 mediana dei dodici, il datore versa solo sopra la percentuale propria, il risparmio d'imposta entra
 nel PAC dello stesso anno, e finché gli scenari non ci sono il confronto usa un solo rendimento
-scritto da chi confronta. Data di nascita e destinazione del TFR arrivano con le proiezioni.*
+scritto da chi confronta. Data di nascita e destinazione del TFR arrivano con le proiezioni.
+1.48 · le proiezioni per scenari sono costruite (sezione 5.16): tre scenari scritti a mano, ogni
+obiettivo sotto ciascuno con il valore alla data, quanto manca e quanto servirebbe al mese, e la
+soglia Coast FI per l'obiettivo che può restare vincolato. Finché il portafoglio non è nell'app il
+capitale già messo da parte si scrive nel modulo, e il ritmo di versamento parte da quello che il
+ledger mostra. La cifra della pensione è il capitale da raggiungere, senza un tasso di prelievo, e
+l'inflazione di uno scenario non cambia nessun risultato: dice quanto vale la cifra in euro della
+sua data. Data di nascita e destinazione del TFR restano fuori dal profilo: nessuna cifra le usa.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -327,7 +334,7 @@ Un tag è un'etichetta libera su un movimento, che tiene la sua categoria: Euron
 
 ### 5.14 Guida *(costruita)*
 
-Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo, obiettivo, base del versamento, tetto di deducibilità — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
+Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo, obiettivo, base del versamento, tetto di deducibilità, scenario, Coast FI — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
 
 ### 5.15 Statistiche *(costruita)*
 
@@ -367,6 +374,8 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 **Ogni strumento si valuta a modo suo, a fine mese.** L'ETF al prezzo di chiusura; il BTP al nominale più il rateo della cedola in corso, perché si tiene fino a scadenza e il suo prezzo di mercato torna a 100 — il premio fedeltà entra solo alla scadenza, perché spetta solo a chi ci arriva; il fondo a quote per valore quota della sua classe. La serie canonica è quella di fine mese, perché il periodo dei flussi — stipendio, PAC, contributi — è il mese, e un campionamento più fitto aggiungerebbe solo il rumore del mercato; la cifra di oggi si calcola al volo per il cruscotto. Il patrimonio complessivo è la liquidità della sezione 5.8 più il portafoglio, il fondo e la quota della casa; la liquidità resta la sola cifra che entra nei mesi di autonomia.
 
 **Il rendimento si misura in due modi, perché rispondono a due domande.** Il **TWR** (*time-weighted*) misura lo strumento: il prodotto dei fattori di crescita fra un flusso e l'altro, indipendente da quanto e quando si versa. L'**MWR** (*money-weighted*, il tasso interno) misura la persona: il tasso costante che azzera i flussi attualizzati, e dipende dal momento dei versamenti. Il broker mostra il rendimento del solo ETF; il valore aggiunto qui è l'MWR dell'insieme — ETF, fondo, BTP — che nessun altro mostra. I flussi del TWR sono ai prezzi delle transazioni, quindi non serve uno storico dei prezzi oltre quello di fine mese.
+
+*Come sono costruite (fase 12, quinta fetta).* I tre scenari stanno in `scenarios`, uno per nome, con il rendimento reale e l'inflazione annui scritti da una persona: nessun valore sta nel codice, e finché non ci sono tutti e tre la proiezione non parte e dice quali mancano. Il rendimento mensile è quello che in dodici mesi fa il rendimento annuo, il versamento entra a fine mese, e tutto è in euro di oggi: l'inflazione serve solo a dire quanto vale la cifra dell'obiettivo in euro della sua data. Il capitale già messo da parte e il versamento mensile si scrivono per la proiezione e non si salvano; senza versamento si usa il ritmo osservato, la media mensile dei soldi mandati su *Investimenti* nei 12 mesi completi, senza gli aggiornamenti di liquidità del broker. La soglia Coast FI è la cifra dell'obiettivo divisa per la crescita dello scenario scelto fino alla data, e si legge solo per un obiettivo *vincolabile*: la cifra dell'obiettivo è il capitale da raggiungere, e un tasso di prelievo per una pensione scritta come reddito annuo è un'ipotesi che arriva a parte, se serve.
 
 **Le proiezioni sono per scenari.** Ogni obiettivo si proietta in tre scenari — prudente, centrale, favorevole — con il rendimento reale e l'inflazione di ciascuno scritti accanto al risultato, in euro di oggi. È l'equazione dW/dt = r·W + c(t) con r costante: c(t) sono i versamenti osservati (PAC, contributi al fondo). La proiezione dice se l'obiettivo, al ritmo di versamento attuale, si raggiunge e quanto servirebbe al mese per raggiungerlo; quando i tre scenari divergono molto, è quella distanza la cosa da leggere. Le ipotesi degli scenari le scrive la persona. Accanto ai mesi di autonomia della sezione 5.6, il piano mostra la soglia **Coast FI**: il capitale che, senza altri versamenti, crescerebbe da solo fino all'obiettivo della pensione nello scenario scelto. Superarla vuol dire che il resto del risparmio è libero.
 
@@ -410,6 +419,7 @@ goals                (id, serie, nome, importo in euro di oggi, data, liquidità
 profile_facts        (chiave, valore, dal — lordo mensile, mensilità, base annua del versamento,
                       percentuale propria, percentuale del datore, adesione al fondo)
 tax_parameters       (anno, chiave, valore, fonte)
+scenarios            (nome: prudente | centrale | favorevole, rendimento reale, inflazione)
 ```
 
 Da costruire:
@@ -424,7 +434,6 @@ prices               (strumento, data, valore, fonte)              — un valore
 expected_flows       (strumento, data, importo, tipo: cedola | premio | pac, movimento?)
 documents            (paperless_id, tipo, letto_il, esito, layout, errore?)
 portfolio_snapshots  (mese, strumento, quote, valore, versato)
-scenarios            (nome, rendimento reale, inflazione)
 ```
 
 Vincolo di integrità: per ogni `transaction_id`, `SUM(postings.importo) = 0`.
@@ -498,7 +507,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
   2. il package `payslip-parser` legge la busta paga e il prospetto del fondo — nel suo repository privato, con la sua specifica;
   3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte;
   4. le fonti vere: Paperless con il write-back, la CLI del broker nel suo container, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati;
-  5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI;
+  5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI *(fatta: dentro **Piano**)*;
   6. la distribuzione dai rendimenti storici.
 
 **Stato (ottobre 2026).** Fasi 0-9 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la sezione 5.4 che spiega la differenza lasciata da una cancellazione a mano. La fase 7 ha aggiunto il setup guidato della sezione 5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (sezione 5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Accettare una proposta decide i movimenti e basta: una regola nasce solo se la casella la chiede, e con il testo che si scrive nel dialogo. La fase 9 ha dato al budget una sezione sua e la pianificazione della sezione 5.12. Un conto collegato si sincronizza anche su un periodo scelto, passato compreso, con l'esito per finestra e i probabili doppioni dell'import tenuti da parte finché una persona decide (sezione 5.1). Le metriche si chiamano con parole che dicono cosa misurano invece che burn e runway. Una regola può cancellare o registrare un giroconto, ristretta a un conto e a un intervallo di importi; un conto si elimina dall'app, e i movimenti si cancellano o si categorizzano in blocco. Una regola di giroconto verso un conto creato a mano gli scrive l'altra gamba, e quel conto può contare nel patrimonio per il saldo calcolato dai movimenti (sezioni 5.5 e 5.8): è come si tiene il conto deposito di Revolut, che Enable Banking non espone. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.

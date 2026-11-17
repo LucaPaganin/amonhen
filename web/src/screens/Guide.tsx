@@ -27,7 +27,9 @@ export type GuideTopic =
   | "sync-limit"
   | "goal"
   | "contribution-base"
-  | "deduction-cap";
+  | "deduction-cap"
+  | "scenario"
+  | "coast-fi";
 
 interface Card {
   id: GuideTopic;
@@ -255,6 +257,26 @@ const CARDS: Card[] = [
       "Il dedotto è quanto versi, fino al tetto meno il contributo del datore. Il risparmio d'imposta è l'IRPEF con le addizionali sul reddito meno quella sul reddito dedotto, sugli scaglioni dell'anno; le detrazioni non entrano. Nel confronto finisce nel PAC lo stesso anno. Il fondo paga ogni anno l'imposta sui rendimenti e all'uscita un'aliquota dal 15%, che scende di 0,30 punti per ogni anno di adesione oltre il quindicesimo fino al 9%, solo su quanto è stato dedotto, tuo e del datore, mai oltre il tetto. Il PAC paga il bollo ogni anno e il 26% sul guadagno a scadenza. I parametri si scrivono a mano per anno con la loro fonte, e ogni cifra dice l'anno che ha usato: un anno che manca non si copre con quello prima. Un parametro salvato vuoto si toglie, e il suo anno torna incompleto.",
     changes:
       "Oltre il tetto un euro al fondo non si deduce più, e il confronto cambia: lo spazio sotto il tetto diventa negativo. Il rendimento è uno solo, scritto da te e uguale per fondo e PAC, così la differenza fra le due ripartizioni è quella fiscale; quale scegliere lo decidi tu.",
+  },
+  {
+    id: "scenario",
+    title: "Scenario",
+    means:
+      "Un'ipotesi di rendimento per l'obiettivo: prudente, centrale e favorevole, ognuno con un rendimento reale e un'inflazione all'anno che scrivi tu. Non sono previsioni: sono tre modi di leggere la stessa strada, e quando divergono molto è quella distanza la cosa da guardare.",
+    computed:
+      "Ogni mese il capitale cresce del rendimento e riceve il versamento: W(t+1) = W(t)·(1 + r) + c, con r il rendimento mensile che in dodici mesi fa quello annuo. Il rendimento è reale, cioè già tolta l'inflazione, quindi tutto è in euro di oggi; l'inflazione serve solo a dire quanto vale la cifra dell'obiettivo in euro della sua data. Il versamento è quello che scrivi, o quello che il ledger mostra: la media mensile dei soldi mandati su Investimenti negli ultimi 12 mesi completi, senza gli aggiornamenti di liquidità del broker. Il capitale già messo da parte lo scrivi tu, finché il portafoglio non è nell'app.",
+    changes:
+      "La proiezione dice se l'obiettivo si raggiunge a quel ritmo, quanto manca alla data e quanto servirebbe al mese. Gli scenari non si stimano dal passato e uno non scritto si dice invece di sostituirlo: finché non ci sono tutti e tre, la proiezione non parte.",
+  },
+  {
+    id: "coast-fi",
+    title: "Coast FI",
+    means:
+      "Il capitale che, senza altri versamenti, cresce da solo fino alla cifra dell'obiettivo alla sua data. Superarlo vuol dire che il resto del risparmio è libero: l'obiettivo si raggiunge comunque, nello scenario scelto.",
+    computed:
+      "È la cifra dell'obiettivo divisa per la crescita di quello scenario fino alla data: C = obiettivo / (1 + r)^mesi. Si legge solo per un obiettivo che può restare vincolato, come la pensione, e la cifra dell'obiettivo è il capitale da raggiungere: non c'è un tasso di prelievo.",
+    changes:
+      "Cambia con lo scenario: nel prudente la soglia è più alta, nel favorevole più bassa. La distanza fra le due dice quanto la soglia dipende dall'ipotesi.",
   },
 ];
 

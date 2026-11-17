@@ -61,5 +61,6 @@ from __future__ import annotations
 # before up to the same day and the month before whole, each with `spent`,
 # `contributions`, `net`, `income` and `balance`.
 # 43 is the plan (desiderata 5.16): `/api/plan`, its goals, profile and tax years,
-# and `/api/plan/compare`.
-API_VERSION = 43
+# and `/api/plan/compare`. 44 is the projection by scenario: `/api/plan` gained
+# `scenarios` and `observed`, and `/api/plan/scenarios` and `/api/plan/projection` are new.
+API_VERSION = 44
