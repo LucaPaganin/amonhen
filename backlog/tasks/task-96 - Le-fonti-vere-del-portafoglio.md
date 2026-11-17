@@ -1,9 +1,11 @@
 ---
 id: TASK-96
 title: Le fonti vere del portafoglio
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-16T20:18:00Z'
+updated_date: '2026-11-17T22:03:00Z'
 labels: []
 dependencies:
   - TASK-95
@@ -30,3 +32,21 @@ Quarta fetta della fase 12 (sezione 5.16): sostituisce le sorgenti finte di TASK
 - [ ] #5 Il calendario delle cedole nette del BTP Valore si genera da ISIN, nominale e data d'acquisto e si riconcilia con gli accrediti Fineco
 - [ ] #6 Lo storico dei prezzi di fine mese dell'ETF prima del primo sync si carica una volta sola
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Stesso pattern di TASK-95: core puro, casi d'uso in services/, persistenza nel ledger, adapter dietro le porte di ports/portfolio.py; nessuna fixture da documenti reali entra qui.
+A. Fattibile ora, in questo container:
+1. payslip-parser come dipendenza git fissata a un tag; il parser si chiama solo dall'adapter documenti, che traduce Payslip/PensionStatement nei tipi di dominio (nessun tipo del parser oltre il bordo). Test della traduzione con oggetti del parser costruiti in memoria, non con PDF.
+2. Tabella documents (paperless_id, tipo, letto_il, esito, layout, errore): un documento letto non si rilegge; la porta DocumentSource diventa 'documenti nuovi di un tipo dopo una data' più il write-back dell'esito.
+3. Adapter Paperless (API REST): elenco per tipo e modified__gt, download dell'originale (?original=true), tag amonhen:importato / amonhen:errore e custom field con le cifre chiave; testato con HTTP finto (responses). Credenziale chiesta con il modulo sicuro, mai in chat.
+4. Dichiarazione degli strumenti da riga di comando (ETF con ISIN, BTP con ISIN, nominale e data d'acquisto, fondo con classe, casa con quota): nessun modulo nell'app, come vuole la 1.46.
+5. Calendario del BTP da ISIN, nominale e data d'acquisto con riconciliazione sugli accrediti Fineco (il calcolo c'è da TASK-95; manca il modo di dichiararlo).
+6. Storico dei prezzi di fine mese dell'ETF caricato una volta da file, rifiutato la seconda volta.
+B. Bloccato, serve una decisione:
+7. Valore quota da Borsa Italiana: l'host non è raggiungibile da qui; l'adapter si scrive e si prova solo con la pagina vera (accesso di rete o una copia della pagina).
+8. CLI di Scalable nel suo container dietro il wrapper: prima vanno chiarite le due verifiche del task (storico delle transazioni, login senza interazione).
+9. Immagine e CI: la dipendenza privata richiede un segreto nella build.
+C. Spec 1.50, docs/investments.md, CLAUDE.md, schede della Guida dove nasce un concetto, suite da checkout pulito.
+<!-- SECTION:PLAN:END -->
