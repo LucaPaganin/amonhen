@@ -1,5 +1,5 @@
 """The portfolio's tables (desiderata 5.16): instruments, trades, the fund's contributions,
-prices, expected flows and the month-end snapshots.
+prices and the month-end snapshots.
 
 None of it writes a posting. Persistence only — no rule of the portfolio lives here; the
 arithmetic is in `core.portfolio` and `core.returns`, the order of the steps in
@@ -11,7 +11,7 @@ import datetime as dt
 import sqlite3
 from decimal import Decimal
 
-from amonhen.core.portfolio import INVESTED, KINDS, WITHHELD, Flow, month_end
+from amonhen.core.portfolio import INVESTED, KINDS, WITHHELD
 from amonhen.models import format_decimal, parse_decimal
 
 
@@ -144,21 +144,6 @@ class PortfolioMixin:
             "SELECT * FROM prices WHERE instrument_id = ? AND date <= ? ORDER BY date DESC LIMIT 1",
             (instrument_id, on_or_before.isoformat()),
         ).fetchone()
-
-    # -- expected flows ----------------------------------------------------
-
-    def replace_expected_flows(self, instrument_id: int, flows: list[Flow]) -> None:
-        with self.conn:
-            self.conn.execute("DELETE FROM expected_flows WHERE instrument_id = ?", (instrument_id,))
-            self.conn.executemany(
-                "INSERT INTO expected_flows (instrument_id, date, amount, kind) VALUES (?, ?, ?, ?)",
-                [(instrument_id, flow.date.isoformat(), format_decimal(flow.amount), flow.kind) for flow in flows],
-            )
-
-    def expected_flows(self, instrument_id: int) -> list[sqlite3.Row]:
-        return self.conn.execute(
-            "SELECT * FROM expected_flows WHERE instrument_id = ? ORDER BY date", (instrument_id,)
-        ).fetchall()
 
     # -- snapshots ---------------------------------------------------------
 

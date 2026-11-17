@@ -8,7 +8,7 @@ rule that changes changes here and in the spec, in the same change as the code.
 - **The portfolio is built on fake sources, behind the ports the real ones will fill.**
   `core/portfolio.py` (the BTP's coupons and accrued, the contribution's two states and its
   conservation, the reconciliations' arithmetic), `core/returns.py` (TWR, MWR),
-  `ledger/portfolio.py` (`PortfolioMixin`, the six tables, no posting),
+  `ledger/portfolio.py` (`PortfolioMixin`, the five tables, no posting),
   `ports/portfolio.py` (`BrokerSource`, `DocumentSource`, `NavSource` and their errors) and
   `services/portfolio.py` (`sync_broker`, `read_documents`, `fetch_nav`, `take_snapshot`,
   `snapshot_through`, `reconciliations`, `overview`). `tests/memory_portfolio.py` implements

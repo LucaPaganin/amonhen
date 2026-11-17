@@ -378,7 +378,7 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 **Un contributo al fondo è prima trattenuto, poi investito.** La busta paga dice quanto è stato trattenuto — contributo proprio, contributo del datore, TFR — ma il fondo lo riceve in ritardo e a blocchi irregolari, anche di mesi, valorizzati a fine mese. Un contributo nasce *trattenuto* dalla busta paga, valutato al costo come denaro in transito, e diventa *investito* quando il prospetto annuale lo mostra con data di valorizzazione, valore quota e quote assegnate. In ogni istante vale una conservazione esatta: trattenuto = investito + in transito. Il transito si legge: è quanto il datore ha trattenuto senza averlo ancora versato. Un versamento fatto direttamente al fondo, senza busta paga, entra investito con la sua data e conta nel tetto di deducibilità come gli altri.
 
-*Come è costruito il portafoglio (fase 12, terza fetta).* Le sei tabelle non scrivono nessun posting: spesa, mesi di autonomia e verifica della sezione 5.4 non ne vedono nulla, e un test lo controlla. Ogni fonte sta dietro una porta (`ports/portfolio.py`: broker, documenti, valore quota) con tipi ed errori suoi; in questa fetta le implementa la memoria, e le fonti vere arrivano con la quarta. Il BTP porta i suoi termini come dati: da lì escono le venti cedole nette, il premio alla scadenza e il rateo, proporzionale ai giorni del trimestre. Un contributo al fondo è una riga con il suo stato: le buste paga lo scrivono trattenuto, e un'operazione del prospetto investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, con le quote divise in proporzione; una che non quadra con nessuna si segnala e non si forza. Il transito si valuta al costo. Il versato di uno snapshot è netto di ciò che è tornato, e uno strumento tenuto senza prezzo nel giorno dello snapshot non si scrive e si nomina. Il TWR di un ETF o del fondo concatena i periodi ai prezzi delle operazioni; il TWR dell'insieme concatena i mesi, con il versamento netto del mese tolto dal valore di fine mese; il MWR cerca la radice fra due estremi che la contengono, e per il fondo conta i versamenti alla data della busta paga. Un BTP e la casa non hanno un TWR, e la casa sta nel patrimonio e non nei rendimenti. Il patrimonio complessivo di fine mese è la liquidità di quel giorno più il valore degli snapshot.
+*Come è costruito il portafoglio (fase 12, terza fetta).* Le cinque tabelle non scrivono nessun posting: spesa, mesi di autonomia e verifica della sezione 5.4 non ne vedono nulla, e un test lo controlla. Ogni fonte sta dietro una porta (`ports/portfolio.py`: broker, documenti, valore quota) con tipi ed errori suoi; in questa fetta le implementa la memoria, e le fonti vere arrivano con la quarta. Il BTP porta i suoi termini come dati: da lì escono le venti cedole nette, il premio alla scadenza e il rateo, proporzionale ai giorni del trimestre. Un contributo al fondo è una riga con il suo stato: le buste paga lo scrivono trattenuto, e un'operazione del prospetto investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, con le quote divise in proporzione; una che non quadra con nessuna si segnala e non si forza. Il transito si valuta al costo. Il versato di uno snapshot è netto di ciò che è tornato, e uno strumento tenuto senza prezzo nel giorno dello snapshot non si scrive e si nomina. Il TWR di un ETF o del fondo concatena i periodi ai prezzi delle operazioni; il TWR dell'insieme concatena i mesi, con il versamento netto del mese tolto dal valore di fine mese; il MWR cerca la radice fra due estremi che la contengono, e per il fondo conta i versamenti alla data della busta paga. Un BTP e la casa non hanno un TWR, e la casa sta nel patrimonio e non nei rendimenti. Il patrimonio complessivo di fine mese è la liquidità di quel giorno più il valore degli snapshot.
 
 **Le riconciliazioni dicono cosa non torna, invece di correggerlo.** Il PAC atteso contro le quote che il broker riporta, il calendario delle cedole contro gli accrediti, i contributi trattenuti contro quelli investiti, le quote del fondo contro il prospetto. Una differenza si mostra con le due cifre accanto, come la verifica della sezione 5.4, e nessuna cifra si aggiusta da sola.
 
@@ -442,7 +442,6 @@ instrument_trades    (id, strumento, data, quote, prezzo, importo, commissioni, 
 pension_contributions(id, strumento, periodo, proprio, datore, tfr, stato: trattenuto | investito,
                       busta_paga?, data_valorizzazione?, valore_quota?, quote?)
 prices               (strumento, data, valore, fonte)              — un valore per fine mese
-expected_flows       (strumento, data, importo, tipo: cedola | premio | pac)
 portfolio_snapshots  (mese, strumento, quote, valore, versato netto)
 ```
 
@@ -450,7 +449,10 @@ Da costruire con la quarta fetta:
 
 ```
 documents            (paperless_id, tipo, letto_il, esito, layout, errore?)
+expected_flows       (strumento, data, importo, tipo: cedola | premio | pac, movimento?)
 ```
+
+Il calendario del BTP non ha una tabella finché serve solo alle riconciliazioni: si calcola dai termini ogni volta, e `expected_flows` arriva quando un'attesa deve restare scritta, come il PAC dalla CLI del broker.
 
 Vincolo di integrità: per ogni `transaction_id`, `SUM(postings.importo) = 0`.
 

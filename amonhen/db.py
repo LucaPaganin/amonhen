@@ -336,15 +336,6 @@ CREATE TABLE IF NOT EXISTS prices (
     PRIMARY KEY (instrument_id, date)
 );
 
-CREATE TABLE IF NOT EXISTS expected_flows (
-    id INTEGER PRIMARY KEY,
-    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
-    date TEXT NOT NULL,
-    amount TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('cedola', 'premio', 'pac')),
-    UNIQUE (instrument_id, date, kind)
-);
-
 -- The month-end series: units, value, and what was paid in net of what came back.
 CREATE TABLE IF NOT EXISTS portfolio_snapshots (
     month TEXT NOT NULL,

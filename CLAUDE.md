@@ -58,7 +58,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters, scenarios, instruments, instrument_trades, pension_contributions, prices, expected_flows, portfolio_snapshots|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters, scenarios, instruments, instrument_trades, pension_contributions, prices, portfolio_snapshots|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
 |`amonhen/ledger/`|`Ledger` (`__init__.py`) composes one mixin per sub-domain: `accounts` (accounts, categories, settings), `ingest` (`record`, dedup, pending→booked, held duplicates), `deletions` (the trash), `categorization` (categories of a movement, splits, tags, notes, proposals), `transfer_legs` (pairs, virtual destinations, mirrors), `balances` (the double-entry check, spending, balances, declarations, the opening), `planning` (goals, profile facts, tax years, scenarios — desiderata 5.16), `portfolio` (instruments, trades, the fund's contributions, prices, snapshots); `definitions.py` holds the shared SQL fragments, the balance types and the result types, re-exported by `amonhen.ledger`|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
@@ -283,7 +283,7 @@ change, like the spec.
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), twenty-five tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), twenty-four tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
@@ -312,7 +312,6 @@ by construction.
 |`instrument_trades`|9|A trade the broker reported, unique per `(instrument, source, reference)`; a sale has negative units and amount|
 |`pension_contributions`|12|A line of the fund's money: `trattenuto` from a payslip until a statement shows its value date, unit value and units, then `investito`; a payment straight to the fund is born `investito` with no payslip|
 |`prices`|4|One value per instrument and day, with its source; a missing month is said, never borrowed|
-|`expected_flows`|5|A BTP's coupons and bonus as the terms generate them|
 |`portfolio_snapshots`|5|Units, value and net paid-in of an instrument at a month end|
 |`settings`|2|Key/value odds and ends (the units a source reported live here too)|
 
