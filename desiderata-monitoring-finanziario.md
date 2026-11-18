@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.50 — novembre 2026
+Versione 1.51 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -69,7 +69,17 @@ quella schermata; gli strumenti si dichiarano da riga di comando, il BTP con ISI
 d'acquisto e i suoi termini; lo storico dei prezzi dell'ETF si carica una volta da file. La CLI di
 Scalable diventa una fetta a sé (TASK-98), perché prima vanno verificati lo storico delle
 transazioni e il login senza interazione. La dipendenza privata entra nell'immagine con un token
-montato come segreto della build.*
+montato come segreto della build.
+1.51 · la CLI del broker esce dal sistema (sezioni 3, 4, 5.16 e 10). La sua documentazione dice
+che il login va rifatto a mano almeno ogni 7 giorni, che lo storico delle transazioni non ha filtri
+né profondità documentati, e che la piattaforma non ha un permesso di sola lettura: tenerla avrebbe
+voluto dire un container, un wrapper e una sessione capace di mandare ordini accanto all'app, per
+dati che arrivano anche altrove. L'ETF del PAC si ricostruisce come gli altri strumenti, dai
+documenti: i contratti del broker passano da Paperless e li legge `payslip-parser`, il versato si
+riconcilia con i bonifici che il ledger vede, le quote con l'estratto titoli periodico, e il prezzo
+di fine mese si legge dalla pagina pubblica dell'ETF su Borsa Italiana, come il valore quota del
+fondo. Il prezzo è di un mese finito e si legge una volta: un mese che la pagina non dà si scrive
+a mano.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -103,7 +113,7 @@ Il sintomo è "non so quanto spendo davvero". La causa è assenza di riconciliaz
 
 Esplicitamente fuori scope, per evitare scope creep:
 
-- Scrivere al broker. La sua CLI si usa in sola lettura, dietro un wrapper che non espone altro (sezione 5.16): ordini, piani di accumulo, watchlist e alert non partono mai dall'app.
+- Parlare con il broker. AmonHen non apre sessioni presso il broker, né in lettura né in scrittura: ordini, piani di accumulo, watchlist e alert non partono mai dall'app, e ciò che serve del portafoglio arriva dai documenti che il broker produce (sezione 5.16).
 - Previsioni di spesa, forecasting, ottimizzazione automatica del budget. Le proiezioni verso un obiettivo (sezione 5.16) non lo sono: sono aritmetica su ipotesi che stanno accanto a ogni cifra — gli scenari che una persona scrive, o la distribuzione dei rendimenti storici dichiarata come tale — e la spesa che usano è quella osservata (sezione 5.6), non stimata.
 - Consulenza. Il sistema calcola le conseguenze di una scelta — quanto versare, dove, per quale obiettivo — e non dice quale fare: non sceglie strumenti, comparti né percentuali.
 - Il calcolo delle imposte dovute o della dichiarazione. I parametri fiscali servono a confrontare scelte; per una cifra da dichiarare fanno fede la busta paga, il CU e i documenti del fondo e del broker.
@@ -122,7 +132,7 @@ Esplicitamente fuori scope, per evitare scope creep:
 | Dati bancari personali | Storage locale; nessun invio di importi o saldi a terze parti |
 | Enable Banking come provider PSD2 | Il modello dati deve reggere pending → booked e id instabili |
 | Repository pubblico, documenti con dati personali | Il parser dei documenti vive nel repository privato `payslip-parser` ed entra come dipendenza; nessuna fixture derivata da un documento reale entra qui |
-| La sessione del broker può preparare ordini | La CLI gira in un container a parte, dietro un wrapper che espone solo comandi di lettura; la sessione non vive nel processo di AmonHen |
+| Una sessione presso il broker può preparare ordini | AmonHen non ne apre: il portafoglio si legge dai documenti del broker, che arrivano da Paperless |
 
 ## 5. Requisiti funzionali
 
@@ -280,7 +290,7 @@ Patrimonio **osservato**, non ricostruito: `account_balances` tiene ciò che la 
 
 **Un conto può valere quello che dicono i suoi movimenti.** Un conto creato a mano con la flag *saldo dai movimenti* — il conto deposito alimentato dai giroconti che una regola gli scrive (sezione 5.5) — non ha una banca che ne dichiari il saldo: il patrimonio lo conta, a ogni data della serie, per il saldo calcolato a quella data (saldo iniziale più i movimenti), dalla sua data iniziale in poi, e i saldi per conto lo mostrano a oggi. Le date della serie restano quelle osservate. Un saldo dichiarato su quel conto non è un punto della serie ma la verifica della sezione 5.4: la differenza che si accumula è quello che i movimenti non vedono, come gli interessi maturati dentro il deposito, e si corregge con un movimento a mano, così l'interesse resta un'entrata invece di sparire nel saldo iniziale. Il saldo iniziale si ricava dal saldo di oggi togliendo i giroconti già nel ledger, quindi la storia del conto parte dal primo giroconto. La liquidità usava già il saldo calcolato per ogni conto.
 
-**Del broker si tiene la liquidità, non il portafoglio.** Il conto del broker è un conto reale creato a mano, segnato come tale, e tiene solo il denaro non investito: i bonifici lo aggiornano da soli come altra metà dei giroconti. Il portafoglio non entra nel ledger né nella liquidità: non è liquido e varia. Le sue posizioni e il loro valore si ricostruiscono dalle fonti nella sezione 5.16, a fine mese. Quello che i movimenti non vedono — acquisti, vendite, rendimenti — si riallinea dichiarando la liquidità letta dal broker (*Aggiorna la liquidità* in **Conti**, o dalla CLI del broker, sezione 5.16): la differenza dal saldo calcolato a quella data è scritta come un movimento verso il conto virtuale *Investimenti*, e la cifra diventa il saldo dichiarato, così la verifica della sezione 5.4 torna. Non è un'entrata né una spesa (ha un posting virtuale), non è candidata a un giroconto e le regole non la toccano; una seconda dichiarazione sulla stessa data sostituisce la prima. I versamenti che comprano subito — il PAC — vanno direttamente su *Investimenti* con una regola di giroconto. Il saldo di *Investimenti* è quindi il netto versato e nient'altro, non un valore di mercato, e si legge fra i conti virtuali. Nessuna cifra fiscale esce dall'app: per il valore di fine anno e la giacenza fanno fede i documenti del broker.
+**Del broker si tiene la liquidità, non il portafoglio.** Il conto del broker è un conto reale creato a mano, segnato come tale, e tiene solo il denaro non investito: i bonifici lo aggiornano da soli come altra metà dei giroconti. Il portafoglio non entra nel ledger né nella liquidità: non è liquido e varia. Le sue posizioni e il loro valore si ricostruiscono dalle fonti nella sezione 5.16, a fine mese. Quello che i movimenti non vedono — acquisti, vendite, rendimenti — si riallinea dichiarando la liquidità letta dal broker (*Aggiorna la liquidità* in **Conti**): la differenza dal saldo calcolato a quella data è scritta come un movimento verso il conto virtuale *Investimenti*, e la cifra diventa il saldo dichiarato, così la verifica della sezione 5.4 torna. Non è un'entrata né una spesa (ha un posting virtuale), non è candidata a un giroconto e le regole non la toccano; una seconda dichiarazione sulla stessa data sostituisce la prima. I versamenti che comprano subito — il PAC — vanno direttamente su *Investimenti* con una regola di giroconto. Il saldo di *Investimenti* è quindi il netto versato e nient'altro, non un valore di mercato, e si legge fra i conti virtuali. Nessuna cifra fiscale esce dall'app: per il valore di fine anno e la giacenza fanno fede i documenti del broker.
 
 Motivazione della separazione: spese e patrimonio sono processi con frequenza di campionamento e struttura del rumore diverse di ordini di grandezza. Unirli fa entrare la volatilità di mercato nelle metriche di spesa.
 
@@ -362,7 +372,7 @@ Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le
 
 *Fatto quando*: davanti a un tetto da scegliere la cifra è già sulla riga, e la distanza fra mediana e media dice se una categoria va a strappi.
 
-### 5.16 Pianificazione a lungo termine *(in costruzione: costruite la prima, la terza, la quinta e la quarta salvo il broker)*
+### 5.16 Pianificazione a lungo termine *(in costruzione: costruite la prima, la terza, la quinta e la quarta; restano i documenti del broker e la distribuzione)*
 
 Il resto del sistema dice com'è andata. Questa sezione serve a una decisione che si prende più volte l'anno e cambia quando cambia un obiettivo: quanto mettere da parte, e dove — liquidità, fondo pensione, PAC. Senza un punto d'arrivo la ripartizione non ha un criterio, e la risposta giusta per un acquisto fra tre anni è sbagliata per la pensione fra trenta.
 
@@ -378,7 +388,7 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 **Il portafoglio si ricostruisce dalle fonti.** Gli strumenti sono pochi e ognuno ha la sua fonte; nessuno si dichiara a mano finché una fonte lo dice da sé.
 
-- *L'ETF del PAC (Scalable Capital).* Transazioni e posizioni dalla CLI ufficiale del broker, in sola lettura (sezione 4): il wrapper che la chiama espone solo i comandi di lettura e gira in un container a parte. Se la CLI non restituisce lo storico delle transazioni, lo storico si ricostruisce dai bonifici del PAC che il ledger già vede, e la CLI riconcilia le quote con la posizione. Il fallback sono i PDF dei contratti, letti come gli altri documenti. Il prezzo di fine mese viene dalla stessa CLI; lo storico prima del primo sync si carica una volta sola dalle chiusure mensili.
+- *L'ETF del PAC (Scalable Capital).* Ogni esecuzione ha il suo contratto in PDF, che entra in Paperless e si legge come gli altri documenti: data, ISIN, quote, prezzo, commissioni. Il versato si riconcilia con i bonifici del PAC che il ledger già vede, e le quote con l'estratto titoli periodico, che arriva dalla stessa strada. Il prezzo di fine mese si legge dalla pagina pubblica dell'ETF su Borsa Italiana, come il valore quota del fondo, e un mese che la pagina non dà si scrive a mano; lo storico prima della prima lettura si carica una volta sola dalle chiusure mensili. AmonHen non apre nessuna sessione presso il broker (sezione 3).
 - *Il BTP Valore (Fineco).* Non serve una fonte: è deterministico. ISIN, nominale e data d'acquisto bastano a generare il calendario delle cedole trimestrali nette (4,10% i primi tre anni, 4,50% gli ultimi due, 12,5% di imposta) e il premio fedeltà dello 0,5% a scadenza, e il calendario si riconcilia con gli accrediti sul conto Fineco che il sync già legge.
 - *Il fondo pensione (Generali Global, comparto Azionario Globale, classe C).* I flussi vengono dalla busta paga, le quote assegnate dal prospetto annuale, il valore quota dalla pagina pubblica della classe su Borsa Italiana, una volta al mese; se la pagina non si legge, l'app chiede il valore a mano invece di saltare il mese. La classe conta: le classi dello stesso comparto hanno commissioni e quindi valori quota diversi.
 - *La casa.* Conta per la quota di proprietà, che è un attributo dello strumento. Da dove venga il suo valore è ancora da decidere.
@@ -462,13 +472,7 @@ Costruita con la quarta fetta:
 documents            (paperless_id, tipo, letto_il, esito: importato | errore, layout?, errore?)
 ```
 
-Da costruire con la CLI del broker (TASK-98):
-
-```
-expected_flows       (strumento, data, importo, tipo: cedola | premio | pac, movimento?)
-```
-
-Il calendario del BTP non ha una tabella finché serve solo alle riconciliazioni: si calcola dai termini ogni volta, e `expected_flows` arriva quando un'attesa deve restare scritta, come il PAC dalla CLI del broker.
+La tabella `expected_flows` (strumento, data, importo, tipo: cedola | premio | pac) non c'è: il calendario del BTP si calcola dai termini ogni volta, e il PAC atteso è il bonifico che il ledger vede. Arriva solo quando un'attesa deve restare scritta.
 
 Vincolo di integrità: per ogni `transaction_id`, `SUM(postings.importo) = 0`.
 
@@ -540,7 +544,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
   1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda *(fatta: la sezione **Piano**)*;
   2. il package `payslip-parser` legge la busta paga e il prospetto del fondo — nel suo repository privato, con la sua specifica;
   3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte *(fatta: la sezione **Portafoglio**)*;
-  4. le fonti vere: Paperless con il write-back, la CLI del broker nel suo container, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati *(fatta, salvo la CLI del broker, che è TASK-98)*;
+  4. le fonti vere: Paperless con il write-back, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati *(fatta)*; poi i contratti e l'estratto titoli del broker letti da `payslip-parser` e il prezzo di fine mese dell'ETF da Borsa Italiana, al posto della CLI del broker che la 1.51 ha tolto;
   5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI *(fatta: dentro **Piano**)*;
   6. la distribuzione dai rendimenti storici.
 
@@ -565,7 +569,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
 | Un rimborso gonfia le Entrate (giugno 2026: cinque accrediti che erano denaro altrui contati come le entrate del mese) | Si mette nella categoria della spesa che compensa: esce dalle entrate e abbassa quella categoria. Denaro di altri solo di passaggio si dichiara ancora come il giroconto verso un conto proprio. La coppia con il singolo addebito non si modella, perché la contabilità viva non ne mostra nessuna |
 | I parametri fiscali invecchiano e il confronto fra fondo e PAC dà una cifra sbagliata con aria sicura | Sono dati con anno e fonte, non codice; un anno mancante si dice invece di coprirlo con il precedente, e ogni cifra scrive l'anno che ha usato (sezione 5.16) |
 | Una proiezione viene letta come una previsione | Tre scenari invece di uno, ipotesi scritte accanto al risultato, euro di oggi; la distribuzione storica arriva dopo gli scenari e si dichiara come passato, non come stima (sezione 5.16) |
-| La sessione del broker prepara un ordine | Container a parte, wrapper con i soli comandi di lettura, nessuna sessione nel processo di AmonHen (sezione 4) |
+| Una sessione presso il broker prepara un ordine | Non c'è: il portafoglio si legge dai documenti del broker, e AmonHen non si autentica presso il broker (sezioni 3 e 4) |
 | Un template sbagliato legge una cifra plausibile da un documento | Gli invarianti contabili del parser: una regione sbagliata rompe una somma, e il documento è rifiutato e segnato `amonhen:errore` su Paperless |
 | La pagina del valore quota cambia e un mese resta senza valore | L'app chiede il valore a mano invece di saltare il mese o riusare il precedente |
 | Il valore quota della classe sbagliata | La classe è un attributo dello strumento (C), e il prospetto annuale la riporta: una differenza fra le quote per valore quota e la posizione la fa emergere |

@@ -4,7 +4,7 @@ title: La CLI di Scalable nel suo container, dietro un wrapper in sola lettura
 status: To Do
 assignee: []
 created_date: '2026-11-18T05:53:00Z'
-updated_date: '2026-11-18T06:14:00Z'
+updated_date: '2026-11-18T07:05:00Z'
 labels: []
 dependencies:
   - TASK-95
@@ -36,4 +36,6 @@ Dalla documentazione ufficiale della CLI (github.com/ScalableCapital/scalable-cl
 - Scritture da bloccare nel wrapper: trade buy/sell/cancel, savings-plans add/remove, watchlist add/remove, price-alerts add/remove, portfolio-groups create/update/delete/assign/unassign, context select, login/logout. Nessuno scope di sola lettura lato piattaforma; 'sc login --local-read-only' blocca le scritture solo localmente. Il wrapper resta quindi necessario: una allowlist di comandi di lettura, non una denylist.
 - 'sc capabilities --json' dà l'elenco dei comandi della versione installata; la compatibilità del JSON fra versioni non è garantita.
 Restano da provare con l'account vero: la profondità di 'sc broker transactions' e i suoi campi, e come si vive con il login da rifare ogni 7 giorni (un avviso nell'app quando la sessione scade).
+
+Annullata il 18 novembre 2026 (specifica 1.51): la CLI del broker esce dal sistema. Login da rifare a mano almeno ogni 7 giorni, storico delle transazioni senza filtri né profondità documentati, nessun permesso di sola lettura sulla piattaforma. Al suo posto: i contratti e l'estratto titoli del broker letti da payslip-parser via Paperless (task del template), e il prezzo di fine mese dell'ETF da Borsa Italiana.
 <!-- SECTION:NOTES:END -->

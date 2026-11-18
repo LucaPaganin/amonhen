@@ -352,7 +352,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Plan a month|The **Budget** section: *Aggiungi una spesa* with a description and an amount (the category can wait: a rule gives one, or it waits under *Da assegnare* in the *Per voce* view), a category's ceiling under *Per categoria* (*Da questo mese in poi* or *Solo questo mese*; without one, the items are the budget), *Più dettagli* for the full form or a past movement, *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
 |Compare fund and PAC|**Piano** (under *Gestione*): the goals, the profile, the tax year written by hand with its sources each January, then two allocations side by side at one return you write|
 |Project a goal under the three scenarios|**Piano**: write the three scenarios (*Scenari*), then *Dove si arriva* with the capital already put aside and the monthly payment — left empty it is the pace the ledger shows. Coast FI appears for a goal that may stay locked|
-|See the portfolio|**Portafoglio** (under *Gestione*): read only but for a month's unit value the page did not give — figures enter through `portfolio-sync` (Paperless, the class's page on Borsa Italiana, the snapshots). Declare what is held once with `instrument-add`, load an ETF's past closes once with `prices-load`. The broker's CLI is TASK-98|
+|See the portfolio|**Portafoglio** (under *Gestione*): read only but for a month's unit value the page did not give — figures enter through `portfolio-sync` (Paperless, the class's page on Borsa Italiana, the snapshots). Declare what is held once with `instrument-add`, load an ETF's past closes once with `prices-load`. The broker is read from its documents, never through a session|
 |Build the image with the private parser|`PAYSLIP_PARSER_TOKEN` (read access to `payslip-parser`) in the environment for a local build, the repository secret of the same name for CI: it is mounted for one command and lands in no layer (`docs/operations.md`)|
 |See what a category usually takes|**Statistiche**: the median and the mean over 6, 12 or 24 complete months; the **Budget** row says *di solito*, the median of the six before that month|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|
@@ -377,8 +377,9 @@ on purpose (sections 3 and 8):
 - AI in the synchronous sync path, or anywhere it produces numbers
 - Natural-language queries over the ledger; hand-written SQL wins
 - Generative anomaly detection where a robust statistic exists
-- Writing to the broker, spending forecasts, budget optimization. The broker's CLI
-  is read-only behind a wrapper in its own container (section 5.16). The long-term
+- Talking to the broker, spending forecasts, budget optimization. AmonHen opens no
+  session at the broker, not even read-only: the portfolio is read from the broker's
+  documents through Paperless (section 5.16, spec 1.51). The long-term
   plan is not a forecast either: its projections are arithmetic on scenarios a person
   writes, or on the historical distribution declared as such, and it shows the
   consequences of a split without proposing one
