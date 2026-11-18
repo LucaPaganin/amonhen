@@ -1,7 +1,9 @@
 """Command line entry point: sync, import, balances, backup and the spend query."""
 import argparse
 import calendar
+import csv
 import datetime as dt
+import json
 import logging
 import sqlite3
 import sys
@@ -13,6 +15,7 @@ from amonhen.backup import make_snapshot
 from amonhen.budgets import budget_status, month_of, set_default
 from amonhen.composition import bank_provider
 from amonhen.config import load_config
+from amonhen.core.portfolio import BtpTerms
 from amonhen.ledger import Ledger, balance_kind, bank_balance_source
 from amonhen.merchants import RuleBook, categorize, rule_usage
 from amonhen.models import Account, format_decimal, parse_decimal
@@ -177,6 +180,30 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--declared", help="declared balance (default: latest recorded one)")
     check.add_argument("--kind", choices=("available", "booked"), default="available",
                        help="which figure a hand-typed --declared is (default: available)")
+
+    instrument = sub.add_parser("instrument-add", help="declare something held: an ETF, a BTP, the pension fund, a house")
+    instrument.add_argument("name")
+    instrument.add_argument("--kind", required=True, choices=("etf", "btp", "fondo_pensione", "immobile"))
+    instrument.add_argument("--source", required=True, help="where its figures come from (broker, prospetto, calcolato, manuale)")
+    instrument.add_argument("--isin")
+    instrument.add_argument("--class", dest="fund_class", help="the fund's class, as its page prints it (C)")
+    instrument.add_argument("--nav-page", help="the code of the class's page on Borsa Italiana")
+    instrument.add_argument("--ownership", default="1", help="the share owned, for a house (0.5)")
+    instrument.add_argument("--horizon")
+    instrument.add_argument("--nominal", help="BTP: the nominal bought")
+    instrument.add_argument("--start", help="BTP: the purchase date, YYYY-MM-DD")
+    instrument.add_argument("--rates", help="BTP: the gross yearly rate of each year of its life, comma separated")
+    instrument.add_argument("--tax", help="BTP: the tax on each coupon, percent")
+    instrument.add_argument("--bonus", default="0", help="BTP: the loyalty bonus at maturity, percent of the nominal")
+    instrument.add_argument("--account", help="BTP: the account the coupons are credited on")
+    instrument.add_argument("--credit-text", help="BTP: a text the credit's description holds")
+
+    prices = sub.add_parser("prices-load", help="load an ETF's month-end closes before its first sync, once")
+    prices.add_argument("name")
+    prices.add_argument("file", help="CSV with the columns date (YYYY-MM-DD) and close")
+
+    portfolio = sub.add_parser("portfolio-sync", help="read new documents, the fund's unit value, and snapshot the months")
+    portfolio.add_argument("--retry-failed", action="store_true", help="read again the documents that failed")
 
     return parser
 
@@ -766,6 +793,83 @@ def month_range(month: str | None, today: dt.date) -> tuple[dt.date, dt.date]:
     return dt.date(year, number, 1), dt.date(year, number, last_day)
 
 
+def cmd_instrument_add(ledger: Ledger, args) -> int:
+    terms = None
+    if args.kind == "btp":
+        missing = [flag for flag, value in (("--nominal", args.nominal), ("--start", args.start),
+                                             ("--rates", args.rates), ("--tax", args.tax)) if not value]
+        if missing:
+            print(f"error: a BTP needs {', '.join(missing)}", file=sys.stderr)
+            return 2
+        data = {"nominal": args.nominal, "start": args.start, "rates": args.rates.split(","),
+                "tax": args.tax, "bonus": args.bonus}
+        if args.account and args.credit_text:
+            data.update(account=args.account, credit_text=args.credit_text)
+        BtpTerms.from_text(json.dumps(data))  # refuses terms it cannot read, before anything is written
+        terms = json.dumps(data)
+    elif args.kind == "fondo_pensione" and args.nav_page:
+        terms = json.dumps({"nav_page": args.nav_page})
+    try:
+        instrument_id = ledger.add_instrument(
+            args.name, args.kind, source=args.source, isin=args.isin, fund_class=args.fund_class,
+            ownership=args.ownership, horizon=args.horizon, terms=terms)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"{args.name}: strumento {instrument_id} ({args.kind})")
+    return 0
+
+
+def cmd_prices_load(ledger: Ledger, args) -> int:
+    """The month-end closes before the first sync, loaded once: a second load is refused."""
+    instrument = ledger.instrument(args.name)
+    if instrument is None or instrument["kind"] != "etf":
+        print(f"error: no ETF named {args.name!r}", file=sys.stderr)
+        return 2
+    key = f"portfolio:history_loaded:{instrument['id']}"
+    if ledger.setting(key):
+        print(f"error: the history of {args.name} was already loaded on {ledger.setting(key)}", file=sys.stderr)
+        return 2
+    with open(args.file, newline="", encoding="utf-8") as handle:
+        rows = [(dt.date.fromisoformat(row["date"]), parse_decimal(row["close"])) for row in csv.DictReader(handle)]
+    for day, value in rows:
+        ledger.set_price(instrument["id"], day, value, "storico")
+    ledger.set_setting(key, args.clock.today().isoformat())
+    print(f"{args.name}: {len(rows)} prezzi di fine mese")
+    return 0
+
+
+def cmd_portfolio_sync(ledger: Ledger, args) -> int:
+    """New documents from Paperless, last month's unit value, then the month-end snapshots."""
+    from amonhen.composition import document_source, nav_source
+    from amonhen.services import portfolio as service
+
+    today = args.clock.today()
+    source = document_source()
+    if source is None:
+        print("documenti: Paperless non configurato (AMONHEN_PAPERLESS_URL, AMONHEN_PAPERLESS_TOKEN)")
+    else:
+        read = service.read_documents(ledger, source, retry_failed=args.retry_failed)
+        print(f"documenti: {read.imported} letti, {len(read.failed)} con errore, {read.skipped} già letti, "
+              f"{read.invested} contributi investiti")
+        for item in read.failed:
+            print(f"  errore {item['kind']} {item['id']}: {item['error']}")
+        for item in read.unmatched:
+            print(f"  operazione non abbinata del {item['date']}: {item['amount']}")
+    if any(row["kind"] == "fondo_pensione" for row in ledger.instruments()):
+        month = service.month_of(today.replace(day=1) - dt.timedelta(days=1))
+        if service.fetch_nav(ledger, nav_source(), month):
+            print(f"valore quota di {month}: letto")
+        else:
+            print(f"valore quota di {month}: non letto, va scritto a mano nel Portafoglio")
+    shots = service.snapshot_through(ledger, today)
+    print(f"snapshot: {sum(shot.written for shot in shots)} righe")
+    for shot in shots:
+        for line in shot.missing:
+            print(f"  {shot.month} {line}")
+    return 0
+
+
 HANDLERS = {
     "sync": cmd_sync,
     "daemon": cmd_daemon,
@@ -795,6 +899,9 @@ HANDLERS = {
     "balances": cmd_balances,
     "anchor": cmd_anchor,
     "balance-check": cmd_balance_check,
+    "instrument-add": cmd_instrument_add,
+    "prices-load": cmd_prices_load,
+    "portfolio-sync": cmd_portfolio_sync,
 }
 
 

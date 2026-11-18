@@ -30,7 +30,16 @@ WORKDIR /app
 COPY --from=uv /uv /uvx /bin/
 COPY pyproject.toml uv.lock README.md ./
 # Install exactly the production dependency set before copying application code.
-RUN uv sync --frozen --no-dev --no-install-project \
+# payslip-parser is private: the token arrives as a BuildKit secret, lives only in this
+# one command's environment (GIT_CONFIG_*, never a .gitconfig) and in no layer, and git
+# leaves with the command. Without the secret the build stops here, which is the point.
+RUN --mount=type=secret,id=payslip_parser_token \
+    apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && GIT_CONFIG_COUNT=1 \
+       GIT_CONFIG_KEY_0="url.https://x-access-token:$(cat /run/secrets/payslip_parser_token)@github.com/LucaPaganin/payslip-parser.insteadOf" \
+       GIT_CONFIG_VALUE_0="https://github.com/LucaPaganin/payslip-parser" \
+       UV_NO_CACHE=1 uv sync --frozen --no-dev --no-install-project \
+    && apt-get purge -y git && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 --shell /usr/sbin/nologin amonhen \
     && install --directory --owner=amonhen --group=amonhen /data \
     && install --directory --owner=amonhen --group=amonhen /config \

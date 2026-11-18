@@ -18,6 +18,7 @@ from collections.abc import Callable
 from amonhen.adapters.enable_banking import EnableBankingClient, EnableBankingProvider
 from amonhen.config import MonitorConfig
 from amonhen.ports.bank import BankProvider
+from amonhen.ports.portfolio import DocumentSource, NavSource
 
 BankFactory = Callable[[MonitorConfig], BankProvider]
 
@@ -48,3 +49,21 @@ def bank_factory() -> BankFactory:
     has to happen inside that same `try`.
     """
     return bank_provider
+
+
+def document_source() -> DocumentSource | None:
+    """Paperless, when its address and token are configured; None otherwise."""
+    from amonhen import settings
+    from amonhen.adapters.paperless import PaperlessDocuments
+
+    if not (settings.PAPERLESS_URL and settings.PAPERLESS_TOKEN):
+        return None
+    return PaperlessDocuments(settings.PAPERLESS_URL, settings.PAPERLESS_TOKEN, {
+        "busta_paga": settings.PAPERLESS_PAYSLIP_TYPE, "prospetto": settings.PAPERLESS_STATEMENT_TYPE})
+
+
+def nav_source() -> NavSource:
+    """The fund's unit value from the public page of its class."""
+    from amonhen.adapters.borsa_italiana import BorsaItalianaNav
+
+    return BorsaItalianaNav()

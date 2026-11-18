@@ -1670,6 +1670,58 @@ button.txn:active {
   font-size: var(--text-xs);
 }
 
+/* Il confronto fra due ripartizioni: una riga per passo, le due colonne affiancate */
+
+.plan-allocation {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* A table wider than the phone scrolls inside its own box, never the page */
+.plan-scroll {
+  overflow-x: auto;
+}
+
+.plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-table th,
+.plan-table td {
+  padding: 8px 6px;
+  vertical-align: top;
+}
+
+.plan-table tbody tr:nth-child(odd) {
+  background: var(--fill-1);
+}
+
+.plan-table th[scope="row"] {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.plan-table td,
+.plan-table th[scope="col"] {
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .plan-table {
+    font-size: var(--text-xs);
+  }
+
+  .plan-table th,
+  .plan-table td {
+    padding: 8px 4px;
+  }
+}
+
 /* Un pannello di giroconto: a cosa è attaccata una gamba, e la via d'uscita */
 
 .transfer__subject {

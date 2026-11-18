@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.46 — novembre 2026
+Versione 1.51 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -37,7 +37,49 @@ fondo passa da *trattenuto* a *investito*, il BTP vale nominale più rateo, il p
 a fine mese e si calcolano TWR e MWR. Le proiezioni aggiungono Coast FI e, dopo gli scenari, la
 distribuzione dei rendimenti storici. Cadono i non-obiettivi che lo escludevano (sezione 3) e la
 regola per cui gli estratti del broker non si leggono (sezione 5.8): con Paperless e un parser il
-costo di leggerli, che era la ragione, va a zero.*
+costo di leggerli, che era la ragione, va a zero.
+1.47 · la prima fetta della sezione 5.16 è costruita: obiettivi con la data da cui valgono, il
+profilo con la base del versamento separata dal lordo, i parametri fiscali per anno con la fonte,
+il margine dei 12 mesi completi con quello del mese ordinario, e il confronto fra due ripartizioni.
+Decisioni prese costruendola: la liquidità di un obiettivo ha tre valori, il mese ordinario è la
+mediana dei dodici, il datore versa solo sopra la percentuale propria, il risparmio d'imposta entra
+nel PAC dello stesso anno, e finché gli scenari non ci sono il confronto usa un solo rendimento
+scritto da chi confronta. Data di nascita e destinazione del TFR arrivano con le proiezioni.
+1.48 · le proiezioni per scenari sono costruite (sezione 5.16): tre scenari scritti a mano, ogni
+obiettivo sotto ciascuno con il valore alla data, quanto manca e quanto servirebbe al mese, e la
+soglia Coast FI per l'obiettivo che può restare vincolato. Finché il portafoglio non è nell'app il
+capitale già messo da parte si scrive nel modulo, e il ritmo di versamento parte da quello che il
+ledger mostra. La cifra della pensione è il capitale da raggiungere, senza un tasso di prelievo, e
+l'inflazione di uno scenario non cambia nessun risultato: dice quanto vale la cifra in euro della
+sua data. Data di nascita e destinazione del TFR restano fuori dal profilo: nessuna cifra le usa.
+1.49 · il portafoglio è costruito su dati finti (sezione 5.16): strumenti, transazioni, contributi
+trattenuti e investiti, prezzi di fine mese, snapshot, riconciliazioni, TWR e MWR e patrimonio
+complessivo, dietro porte che le fonti vere riempiranno. Decisioni prese costruendolo: i termini del
+BTP (nominale, inizio, tassi, imposta, premio) sono dati dello strumento e non costanti; il versato è
+netto di ciò che è tornato, quindi una cedola lo abbassa; il TWR dello strumento è esatto ai prezzi
+delle transazioni, quello dell'insieme concatena i mesi con i flussi a fine mese; il MWR del fondo
+conta i versamenti alla data della busta paga; la casa è uno strumento con quota di proprietà e
+prezzo scritto da una fonte, fuori dai rendimenti; i dati entrano dai casi d'uso e dalle porte, la
+schermata **Portafoglio** è in sola lettura, e un mese senza prezzo si dice e non si copre.
+1.50 · le fonti vere, tranne il broker (sezione 5.16): i documenti arrivano da Paperless e li legge
+il package `payslip-parser`, una volta ciascuno, con l'esito scritto su Paperless; il valore quota
+si legge dalla pagina della classe su Borsa Italiana, che deve dire la classe giusta e il mese
+chiesto, e un mese che la pagina non dà si scrive a mano nel **Portafoglio**, l'unica scrittura di
+quella schermata; gli strumenti si dichiarano da riga di comando, il BTP con ISIN, nominale, data
+d'acquisto e i suoi termini; lo storico dei prezzi dell'ETF si carica una volta da file. La CLI di
+Scalable diventa una fetta a sé (TASK-98), perché prima vanno verificati lo storico delle
+transazioni e il login senza interazione. La dipendenza privata entra nell'immagine con un token
+montato come segreto della build.
+1.51 · la CLI del broker esce dal sistema (sezioni 3, 4, 5.16 e 10). La sua documentazione dice
+che il login va rifatto a mano almeno ogni 7 giorni, che lo storico delle transazioni non ha filtri
+né profondità documentati, e che la piattaforma non ha un permesso di sola lettura: tenerla avrebbe
+voluto dire un container, un wrapper e una sessione capace di mandare ordini accanto all'app, per
+dati che arrivano anche altrove. L'ETF del PAC si ricostruisce come gli altri strumenti, dai
+documenti: i contratti del broker passano da Paperless e li legge `payslip-parser`, il versato si
+riconcilia con i bonifici che il ledger vede, le quote con l'estratto titoli periodico, e il prezzo
+di fine mese si legge dalla pagina pubblica dell'ETF su Borsa Italiana, come il valore quota del
+fondo. Il prezzo è di un mese finito e si legge una volta: un mese che la pagina non dà si scrive
+a mano.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -71,7 +113,7 @@ Il sintomo è "non so quanto spendo davvero". La causa è assenza di riconciliaz
 
 Esplicitamente fuori scope, per evitare scope creep:
 
-- Scrivere al broker. La sua CLI si usa in sola lettura, dietro un wrapper che non espone altro (sezione 5.16): ordini, piani di accumulo, watchlist e alert non partono mai dall'app.
+- Parlare con il broker. AmonHen non apre sessioni presso il broker, né in lettura né in scrittura: ordini, piani di accumulo, watchlist e alert non partono mai dall'app, e ciò che serve del portafoglio arriva dai documenti che il broker produce (sezione 5.16).
 - Previsioni di spesa, forecasting, ottimizzazione automatica del budget. Le proiezioni verso un obiettivo (sezione 5.16) non lo sono: sono aritmetica su ipotesi che stanno accanto a ogni cifra — gli scenari che una persona scrive, o la distribuzione dei rendimenti storici dichiarata come tale — e la spesa che usano è quella osservata (sezione 5.6), non stimata.
 - Consulenza. Il sistema calcola le conseguenze di una scelta — quanto versare, dove, per quale obiettivo — e non dice quale fare: non sceglie strumenti, comparti né percentuali.
 - Il calcolo delle imposte dovute o della dichiarazione. I parametri fiscali servono a confrontare scelte; per una cifra da dichiarare fanno fede la busta paga, il CU e i documenti del fondo e del broker.
@@ -90,7 +132,7 @@ Esplicitamente fuori scope, per evitare scope creep:
 | Dati bancari personali | Storage locale; nessun invio di importi o saldi a terze parti |
 | Enable Banking come provider PSD2 | Il modello dati deve reggere pending → booked e id instabili |
 | Repository pubblico, documenti con dati personali | Il parser dei documenti vive nel repository privato `payslip-parser` ed entra come dipendenza; nessuna fixture derivata da un documento reale entra qui |
-| La sessione del broker può preparare ordini | La CLI gira in un container a parte, dietro un wrapper che espone solo comandi di lettura; la sessione non vive nel processo di AmonHen |
+| Una sessione presso il broker può preparare ordini | AmonHen non ne apre: il portafoglio si legge dai documenti del broker, che arrivano da Paperless |
 
 ## 5. Requisiti funzionali
 
@@ -248,7 +290,7 @@ Patrimonio **osservato**, non ricostruito: `account_balances` tiene ciò che la 
 
 **Un conto può valere quello che dicono i suoi movimenti.** Un conto creato a mano con la flag *saldo dai movimenti* — il conto deposito alimentato dai giroconti che una regola gli scrive (sezione 5.5) — non ha una banca che ne dichiari il saldo: il patrimonio lo conta, a ogni data della serie, per il saldo calcolato a quella data (saldo iniziale più i movimenti), dalla sua data iniziale in poi, e i saldi per conto lo mostrano a oggi. Le date della serie restano quelle osservate. Un saldo dichiarato su quel conto non è un punto della serie ma la verifica della sezione 5.4: la differenza che si accumula è quello che i movimenti non vedono, come gli interessi maturati dentro il deposito, e si corregge con un movimento a mano, così l'interesse resta un'entrata invece di sparire nel saldo iniziale. Il saldo iniziale si ricava dal saldo di oggi togliendo i giroconti già nel ledger, quindi la storia del conto parte dal primo giroconto. La liquidità usava già il saldo calcolato per ogni conto.
 
-**Del broker si tiene la liquidità, non il portafoglio.** Il conto del broker è un conto reale creato a mano, segnato come tale, e tiene solo il denaro non investito: i bonifici lo aggiornano da soli come altra metà dei giroconti. Il portafoglio non entra nel ledger né nella liquidità: non è liquido e varia. Le sue posizioni e il loro valore si ricostruiscono dalle fonti nella sezione 5.16, a fine mese. Quello che i movimenti non vedono — acquisti, vendite, rendimenti — si riallinea dichiarando la liquidità letta dal broker (*Aggiorna la liquidità* in **Conti**, o dalla CLI del broker, sezione 5.16): la differenza dal saldo calcolato a quella data è scritta come un movimento verso il conto virtuale *Investimenti*, e la cifra diventa il saldo dichiarato, così la verifica della sezione 5.4 torna. Non è un'entrata né una spesa (ha un posting virtuale), non è candidata a un giroconto e le regole non la toccano; una seconda dichiarazione sulla stessa data sostituisce la prima. I versamenti che comprano subito — il PAC — vanno direttamente su *Investimenti* con una regola di giroconto. Il saldo di *Investimenti* è quindi il netto versato e nient'altro, non un valore di mercato, e si legge fra i conti virtuali. Nessuna cifra fiscale esce dall'app: per il valore di fine anno e la giacenza fanno fede i documenti del broker.
+**Del broker si tiene la liquidità, non il portafoglio.** Il conto del broker è un conto reale creato a mano, segnato come tale, e tiene solo il denaro non investito: i bonifici lo aggiornano da soli come altra metà dei giroconti. Il portafoglio non entra nel ledger né nella liquidità: non è liquido e varia. Le sue posizioni e il loro valore si ricostruiscono dalle fonti nella sezione 5.16, a fine mese. Quello che i movimenti non vedono — acquisti, vendite, rendimenti — si riallinea dichiarando la liquidità letta dal broker (*Aggiorna la liquidità* in **Conti**): la differenza dal saldo calcolato a quella data è scritta come un movimento verso il conto virtuale *Investimenti*, e la cifra diventa il saldo dichiarato, così la verifica della sezione 5.4 torna. Non è un'entrata né una spesa (ha un posting virtuale), non è candidata a un giroconto e le regole non la toccano; una seconda dichiarazione sulla stessa data sostituisce la prima. I versamenti che comprano subito — il PAC — vanno direttamente su *Investimenti* con una regola di giroconto. Il saldo di *Investimenti* è quindi il netto versato e nient'altro, non un valore di mercato, e si legge fra i conti virtuali. Nessuna cifra fiscale esce dall'app: per il valore di fine anno e la giacenza fanno fede i documenti del broker.
 
 Motivazione della separazione: spese e patrimonio sono processi con frequenza di campionamento e struttura del rumore diverse di ordini di grandezza. Unirli fa entrare la volatilità di mercato nelle metriche di spesa.
 
@@ -320,7 +362,7 @@ Un tag è un'etichetta libera su un movimento, che tiene la sua categoria: Euron
 
 ### 5.14 Guida *(costruita)*
 
-Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
+Una sezione sotto *Gestione* spiega i concetti, una scheda per concetto — il mese e il solito, mediana e media, liquidità, spesa tipica, spesa rara, rimborso, contributo alle spese, riserva, spesa attesa, autonomia, irrinunciabile e tagliabile, giroconto, conto virtuale, regola, tag, anomalia, verifica del saldo, obiettivo, base del versamento, tetto di deducibilità, scenario, Coast FI, trattenuto e investito, TWR, MWR, rateo — con cosa significa, come si calcola e cosa succede cambiandolo, e dove serve le cifre attuali come esempio. Un *?* dalle altre pagine porta alla scheda giusta. È il solo posto dove le pagine spiegano: un paragrafo che spiega un concetto in una pagina si sposta qui, e una modifica a un calcolo aggiorna la scheda nello stesso cambiamento, come questa specifica.
 
 ### 5.15 Statistiche *(costruita)*
 
@@ -330,7 +372,7 @@ Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le
 
 *Fatto quando*: davanti a un tetto da scegliere la cifra è già sulla riga, e la distanza fra mediana e media dice se una categoria va a strappi.
 
-### 5.16 Pianificazione a lungo termine *(da costruire)*
+### 5.16 Pianificazione a lungo termine *(in costruzione: costruite la prima, la terza, la quinta e la quarta; restano i documenti del broker e la distribuzione)*
 
 Il resto del sistema dice com'è andata. Questa sezione serve a una decisione che si prende più volte l'anno e cambia quando cambia un obiettivo: quanto mettere da parte, e dove — liquidità, fondo pensione, PAC. Senza un punto d'arrivo la ripartizione non ha un criterio, e la risposta giusta per un acquisto fra tre anni è sbagliata per la pensione fra trenta.
 
@@ -342,9 +384,11 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 **Fondo pensione contro PAC.** È la domanda per cui la sezione esiste. Per un euro in più versato nel fondo il calcolo mette in fila: la deduzione all'aliquota marginale dell'anno, il contributo del datore se dipende da quanto si versa, lo spazio che resta sotto il tetto (oltre il tetto la deduzione non c'è più e il confronto cambia), la tassazione all'uscita, e il fatto che quel denaro resta bloccato salvo le anticipazioni. Lo stesso euro in un ETF paga il 26% sul guadagno quando si vende e il bollo ogni anno, ma resta disponibile. Il risultato è per obiettivo e orizzonte: quanto vale a scadenza, netto, in ciascuno scenario, e quanto resta raggiungibile prima. Il sistema mostra due ripartizioni una accanto all'altra; quale scegliere lo decide la persona (sezione 3).
 
+*Come è costruito il confronto (fase 12, prima fetta).* Una ripartizione è quanto si versa in un anno al fondo, di tasca propria, e quanto al PAC; si scrive per confrontarla e non si salva. Il datore versa la sua percentuale della base solo se il versamento proprio arriva almeno alla percentuale propria della base, altrimenti il confronto lo dice perso. Il dedotto è il versamento proprio fino al tetto meno il contributo del datore; il risparmio d'imposta è l'IRPEF con le addizionali sul reddito (lordo per mensilità, tolti i contributi del dipendente) meno quella sul reddito dedotto, le detrazioni escluse, e nel confronto entra nel PAC dello stesso anno. Il fondo paga ogni anno l'imposta sui rendimenti e all'uscita l'aliquota sulle prestazioni, solo su quanto è stato dedotto, proprio e del datore, mai oltre il tetto; il PAC paga il bollo ogni anno e il 26% sul guadagno a scadenza. Finché gli scenari non ci sono, il rendimento è uno solo, scritto da chi confronta e uguale per fondo e PAC, così la differenza fra le ripartizioni è quella fiscale. L'orizzonte sono gli anni interi fino alla data dell'obiettivo; un obiettivo a meno di un anno non si confronta. La liquidità di un obiettivo è *liquida*, *alla data* o *vincolabile*, e solo per un obiettivo vincolabile il fondo conta in quanto è raggiungibile alla data. Il margine del confronto è quello dei 12 mesi completi, e il mese ordinario è la mediana dei dodici: le mensilità aggiuntive e le rendite trimestrali la lasciano dov'è. Un anno di parametri vale solo se ha tutti i valori: si usa l'ultimo completo fino all'anno in corso, e uno incompleto non si completa con l'anno prima.
+
 **Il portafoglio si ricostruisce dalle fonti.** Gli strumenti sono pochi e ognuno ha la sua fonte; nessuno si dichiara a mano finché una fonte lo dice da sé.
 
-- *L'ETF del PAC (Scalable Capital).* Transazioni e posizioni dalla CLI ufficiale del broker, in sola lettura (sezione 4): il wrapper che la chiama espone solo i comandi di lettura e gira in un container a parte. Se la CLI non restituisce lo storico delle transazioni, lo storico si ricostruisce dai bonifici del PAC che il ledger già vede, e la CLI riconcilia le quote con la posizione. Il fallback sono i PDF dei contratti, letti come gli altri documenti. Il prezzo di fine mese viene dalla stessa CLI; lo storico prima del primo sync si carica una volta sola dalle chiusure mensili.
+- *L'ETF del PAC (Scalable Capital).* Ogni esecuzione ha il suo contratto in PDF, che entra in Paperless e si legge come gli altri documenti: data, ISIN, quote, prezzo, commissioni. Il versato si riconcilia con i bonifici del PAC che il ledger già vede, e le quote con l'estratto titoli periodico, che arriva dalla stessa strada. Il prezzo di fine mese si legge dalla pagina pubblica dell'ETF su Borsa Italiana, come il valore quota del fondo, e un mese che la pagina non dà si scrive a mano; lo storico prima della prima lettura si carica una volta sola dalle chiusure mensili. AmonHen non apre nessuna sessione presso il broker (sezione 3).
 - *Il BTP Valore (Fineco).* Non serve una fonte: è deterministico. ISIN, nominale e data d'acquisto bastano a generare il calendario delle cedole trimestrali nette (4,10% i primi tre anni, 4,50% gli ultimi due, 12,5% di imposta) e il premio fedeltà dello 0,5% a scadenza, e il calendario si riconcilia con gli accrediti sul conto Fineco che il sync già legge.
 - *Il fondo pensione (Generali Global, comparto Azionario Globale, classe C).* I flussi vengono dalla busta paga, le quote assegnate dal prospetto annuale, il valore quota dalla pagina pubblica della classe su Borsa Italiana, una volta al mese; se la pagina non si legge, l'app chiede il valore a mano invece di saltare il mese. La classe conta: le classi dello stesso comparto hanno commissioni e quindi valori quota diversi.
 - *La casa.* Conta per la quota di proprietà, che è un attributo dello strumento. Da dove venga il suo valore è ancora da decidere.
@@ -353,11 +397,17 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 **Un contributo al fondo è prima trattenuto, poi investito.** La busta paga dice quanto è stato trattenuto — contributo proprio, contributo del datore, TFR — ma il fondo lo riceve in ritardo e a blocchi irregolari, anche di mesi, valorizzati a fine mese. Un contributo nasce *trattenuto* dalla busta paga, valutato al costo come denaro in transito, e diventa *investito* quando il prospetto annuale lo mostra con data di valorizzazione, valore quota e quote assegnate. In ogni istante vale una conservazione esatta: trattenuto = investito + in transito. Il transito si legge: è quanto il datore ha trattenuto senza averlo ancora versato. Un versamento fatto direttamente al fondo, senza busta paga, entra investito con la sua data e conta nel tetto di deducibilità come gli altri.
 
+*Come è costruito il portafoglio (fase 12, terza fetta).* Le cinque tabelle non scrivono nessun posting: spesa, mesi di autonomia e verifica della sezione 5.4 non ne vedono nulla, e un test lo controlla. Ogni fonte sta dietro una porta (`ports/portfolio.py`: broker, documenti, valore quota) con tipi ed errori suoi; in questa fetta le implementa la memoria, e le fonti vere arrivano con la quarta. Il BTP porta i suoi termini come dati: da lì escono le venti cedole nette, il premio alla scadenza e il rateo, proporzionale ai giorni del trimestre. Un contributo al fondo è una riga con il suo stato: le buste paga lo scrivono trattenuto, e un'operazione del prospetto investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, con le quote divise in proporzione; una che non quadra con nessuna si segnala e non si forza. Il transito si valuta al costo. Il versato di uno snapshot è netto di ciò che è tornato, e uno strumento tenuto senza prezzo nel giorno dello snapshot non si scrive e si nomina. Il TWR di un ETF o del fondo concatena i periodi ai prezzi delle operazioni; il TWR dell'insieme concatena i mesi, con il versamento netto del mese tolto dal valore di fine mese; il MWR cerca la radice fra due estremi che la contengono, e per il fondo conta i versamenti alla data della busta paga. Un BTP e la casa non hanno un TWR, e la casa sta nel patrimonio e non nei rendimenti. Il patrimonio complessivo di fine mese è la liquidità di quel giorno più il valore degli snapshot.
+
+*Come sono collegate le fonti (fase 12, quarta fetta).* Paperless implementa la porta dei documenti: AmonHen elenca i documenti di ciascun tipo modificati dopo l'ultimo passaggio, scarica l'originale di quelli che non ha ancora letto, li fa leggere a `payslip-parser` e ne traduce il risultato nei suoi tipi al bordo; prima le buste paga, poi i prospetti, così un'operazione trova le buste paga da investire. Ogni documento letto entra in `documents` con il suo esito e non si legge più, anche quando scrivere l'esito su Paperless ne sposta la data di modifica; uno con errore si rilegge solo a richiesta, dopo che un template è stato corretto. Il valore quota viene dalla pagina della classe su Borsa Italiana, il cui codice è un dato dello strumento: la pagina deve dire la classe dello strumento e un valore del mese chiesto, altrimenti non si legge e il **Portafoglio** elenca il mese da scrivere a mano. Gli strumenti si dichiarano con `instrument-add`, una volta: il BTP con ISIN, nominale, data d'acquisto, tassi, imposta e premio, e il conto e il testo degli accrediti su cui si riconcilia. `prices-load` carica le chiusure mensili dell'ETF da un file, e una seconda volta si rifiuta. `portfolio-sync` mette in fila documenti, valore quota del mese finito e snapshot.
+
 **Le riconciliazioni dicono cosa non torna, invece di correggerlo.** Il PAC atteso contro le quote che il broker riporta, il calendario delle cedole contro gli accrediti, i contributi trattenuti contro quelli investiti, le quote del fondo contro il prospetto. Una differenza si mostra con le due cifre accanto, come la verifica della sezione 5.4, e nessuna cifra si aggiusta da sola.
 
 **Ogni strumento si valuta a modo suo, a fine mese.** L'ETF al prezzo di chiusura; il BTP al nominale più il rateo della cedola in corso, perché si tiene fino a scadenza e il suo prezzo di mercato torna a 100 — il premio fedeltà entra solo alla scadenza, perché spetta solo a chi ci arriva; il fondo a quote per valore quota della sua classe. La serie canonica è quella di fine mese, perché il periodo dei flussi — stipendio, PAC, contributi — è il mese, e un campionamento più fitto aggiungerebbe solo il rumore del mercato; la cifra di oggi si calcola al volo per il cruscotto. Il patrimonio complessivo è la liquidità della sezione 5.8 più il portafoglio, il fondo e la quota della casa; la liquidità resta la sola cifra che entra nei mesi di autonomia.
 
 **Il rendimento si misura in due modi, perché rispondono a due domande.** Il **TWR** (*time-weighted*) misura lo strumento: il prodotto dei fattori di crescita fra un flusso e l'altro, indipendente da quanto e quando si versa. L'**MWR** (*money-weighted*, il tasso interno) misura la persona: il tasso costante che azzera i flussi attualizzati, e dipende dal momento dei versamenti. Il broker mostra il rendimento del solo ETF; il valore aggiunto qui è l'MWR dell'insieme — ETF, fondo, BTP — che nessun altro mostra. I flussi del TWR sono ai prezzi delle transazioni, quindi non serve uno storico dei prezzi oltre quello di fine mese.
+
+*Come sono costruite (fase 12, quinta fetta).* I tre scenari stanno in `scenarios`, uno per nome, con il rendimento reale e l'inflazione annui scritti da una persona: nessun valore sta nel codice, e finché non ci sono tutti e tre la proiezione non parte e dice quali mancano. Il rendimento mensile è quello che in dodici mesi fa il rendimento annuo, il versamento entra a fine mese, e tutto è in euro di oggi: l'inflazione serve solo a dire quanto vale la cifra dell'obiettivo in euro della sua data. Il capitale già messo da parte e il versamento mensile si scrivono per la proiezione e non si salvano; senza versamento si usa il ritmo osservato, la media mensile dei soldi mandati su *Investimenti* nei 12 mesi completi, senza gli aggiornamenti di liquidità del broker. La soglia Coast FI è la cifra dell'obiettivo divisa per la crescita dello scenario scelto fino alla data, e si legge solo per un obiettivo *vincolabile*: la cifra dell'obiettivo è il capitale da raggiungere, e un tasso di prelievo per una pensione scritta come reddito annuo è un'ipotesi che arriva a parte, se serve.
 
 **Le proiezioni sono per scenari.** Ogni obiettivo si proietta in tre scenari — prudente, centrale, favorevole — con il rendimento reale e l'inflazione di ciascuno scritti accanto al risultato, in euro di oggi. È l'equazione dW/dt = r·W + c(t) con r costante: c(t) sono i versamenti osservati (PAC, contributi al fondo). La proiezione dice se l'obiettivo, al ritmo di versamento attuale, si raggiunge e quanto servirebbe al mese per raggiungerlo; quando i tre scenari divergono molto, è quella distanza la cosa da leggere. Le ipotesi degli scenari le scrive la persona. Accanto ai mesi di autonomia della sezione 5.6, il piano mostra la soglia **Coast FI**: il capitale che, senza altri versamenti, crescerebbe da solo fino all'obiettivo della pensione nello scenario scelto. Superarla vuol dire che il resto del risparmio è libero.
 
@@ -393,23 +443,36 @@ merchant_suggestions (merchant, categoria, origine, decisione: pending | accepte
 settings             (chiave, valore)
 ```
 
-Per la sezione 5.16, da costruire:
+Per la sezione 5.16, costruite con la prima fetta:
 
 ```
-goals                (id, nome, importo in euro di oggi, data, liquidità richiesta, dal, al?)
-profile_facts        (chiave, valore, dal — lordo, mensilità, base del versamento, percentuali, TFR, età)
+goals                (id, serie, nome, importo in euro di oggi, data, liquidità: liquida | alla_data |
+                      vincolabile, dal, al?)
+profile_facts        (chiave, valore, dal — lordo mensile, mensilità, base annua del versamento,
+                      percentuale propria, percentuale del datore, adesione al fondo)
 tax_parameters       (anno, chiave, valore, fonte)
+scenarios            (nome: prudente | centrale | favorevole, rendimento reale, inflazione)
+```
+
+Costruite con la terza fetta:
+
+```
 instruments          (id, nome, tipo: etf | btp | fondo_pensione | immobile, isin?, classe?, fonte,
-                      quota_proprietà, orizzonte)
+                      quota_proprietà, orizzonte, termini)
 instrument_trades    (id, strumento, data, quote, prezzo, importo, commissioni, fonte, riferimento)
-pension_contributions(id, periodo, proprio, datore, tfr, stato: trattenuto | investito,
+pension_contributions(id, strumento, periodo, proprio, datore, tfr, stato: trattenuto | investito,
                       busta_paga?, data_valorizzazione?, valore_quota?, quote?)
 prices               (strumento, data, valore, fonte)              — un valore per fine mese
-expected_flows       (strumento, data, importo, tipo: cedola | premio | pac, movimento?)
-documents            (paperless_id, tipo, letto_il, esito, layout, errore?)
-portfolio_snapshots  (mese, strumento, quote, valore, versato)
-scenarios            (nome, rendimento reale, inflazione)
+portfolio_snapshots  (mese, strumento, quote, valore, versato netto)
 ```
+
+Costruita con la quarta fetta:
+
+```
+documents            (paperless_id, tipo, letto_il, esito: importato | errore, layout?, errore?)
+```
+
+La tabella `expected_flows` (strumento, data, importo, tipo: cedola | premio | pac) non c'è: il calendario del BTP si calcola dai termini ogni volta, e il PAC atteso è il bonifico che il ledger vede. Arriva solo quando un'attesa deve restare scritta.
 
 Vincolo di integrità: per ogni `transaction_id`, `SUM(postings.importo) = 0`.
 
@@ -477,12 +540,12 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
 - **Fase 9 — il budget si pianifica.** *(fatta)*
 - **Fase 10 — si vede l'essenziale.** *(consegnata, v1.10.0)*
 - **Fase 11 — le statistiche al posto dell'assistente.** *(consegnata, v1.16.0)*
-- **Fase 12 — si pianifica verso un obiettivo.** *(da fare)* La sezione 5.16 a fette, ognuna usabile da sola:
-  1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda;
+- **Fase 12 — si pianifica verso un obiettivo.** *(in corso: la prima fetta è fatta)* La sezione 5.16 a fette, ognuna usabile da sola:
+  1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda *(fatta: la sezione **Piano**)*;
   2. il package `payslip-parser` legge la busta paga e il prospetto del fondo — nel suo repository privato, con la sua specifica;
-  3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte;
-  4. le fonti vere: Paperless con il write-back, la CLI del broker nel suo container, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati;
-  5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI;
+  3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte *(fatta: la sezione **Portafoglio**)*;
+  4. le fonti vere: Paperless con il write-back, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati *(fatta)*; poi i contratti e l'estratto titoli del broker letti da `payslip-parser` e il prezzo di fine mese dell'ETF da Borsa Italiana, al posto della CLI del broker che la 1.51 ha tolto;
+  5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI *(fatta: dentro **Piano**)*;
   6. la distribuzione dai rendimenti storici.
 
 **Stato (ottobre 2026).** Fasi 0-9 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la sezione 5.4 che spiega la differenza lasciata da una cancellazione a mano. La fase 7 ha aggiunto il setup guidato della sezione 5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (sezione 5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Accettare una proposta decide i movimenti e basta: una regola nasce solo se la casella la chiede, e con il testo che si scrive nel dialogo. La fase 9 ha dato al budget una sezione sua e la pianificazione della sezione 5.12. Un conto collegato si sincronizza anche su un periodo scelto, passato compreso, con l'esito per finestra e i probabili doppioni dell'import tenuti da parte finché una persona decide (sezione 5.1). Le metriche si chiamano con parole che dicono cosa misurano invece che burn e runway. Una regola può cancellare o registrare un giroconto, ristretta a un conto e a un intervallo di importi; un conto si elimina dall'app, e i movimenti si cancellano o si categorizzano in blocco. Una regola di giroconto verso un conto creato a mano gli scrive l'altra gamba, e quel conto può contare nel patrimonio per il saldo calcolato dai movimenti (sezioni 5.5 e 5.8): è come si tiene il conto deposito di Revolut, che Enable Banking non espone. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
@@ -506,7 +569,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
 | Un rimborso gonfia le Entrate (giugno 2026: cinque accrediti che erano denaro altrui contati come le entrate del mese) | Si mette nella categoria della spesa che compensa: esce dalle entrate e abbassa quella categoria. Denaro di altri solo di passaggio si dichiara ancora come il giroconto verso un conto proprio. La coppia con il singolo addebito non si modella, perché la contabilità viva non ne mostra nessuna |
 | I parametri fiscali invecchiano e il confronto fra fondo e PAC dà una cifra sbagliata con aria sicura | Sono dati con anno e fonte, non codice; un anno mancante si dice invece di coprirlo con il precedente, e ogni cifra scrive l'anno che ha usato (sezione 5.16) |
 | Una proiezione viene letta come una previsione | Tre scenari invece di uno, ipotesi scritte accanto al risultato, euro di oggi; la distribuzione storica arriva dopo gli scenari e si dichiara come passato, non come stima (sezione 5.16) |
-| La sessione del broker prepara un ordine | Container a parte, wrapper con i soli comandi di lettura, nessuna sessione nel processo di AmonHen (sezione 4) |
+| Una sessione presso il broker prepara un ordine | Non c'è: il portafoglio si legge dai documenti del broker, e AmonHen non si autentica presso il broker (sezioni 3 e 4) |
 | Un template sbagliato legge una cifra plausibile da un documento | Gli invarianti contabili del parser: una regione sbagliata rompe una somma, e il documento è rifiutato e segnato `amonhen:errore` su Paperless |
 | La pagina del valore quota cambia e un mese resta senza valore | L'app chiede il valore a mano invece di saltare il mese o riusare il precedente |
 | Il valore quota della classe sbagliata | La classe è un attributo dello strumento (C), e il prospetto annuale la riporta: una differenza fra le quote per valore quota e la posizione la fa emergere |

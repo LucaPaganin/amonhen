@@ -614,6 +614,18 @@ def _first_month_with_data(ledger: Ledger) -> int | None:
     return _month_index(dt.date.fromisoformat(row["first"])) if row["first"] else None
 
 
+def complete_months(ledger: Ledger, today: dt.date, count: int) -> list[tuple[str, dt.date, dt.date]]:
+    """The last ``count`` complete months before ``today`` that the ledger covers, oldest first.
+
+    Each is its key and its first and last day. An empty ledger has none, so a
+    reading over them says it has nothing instead of adding up months of zeros.
+    """
+    window = _window(_first_month_with_data(ledger), _month_index(today) - 1, count)
+    if window is None:
+        return []
+    return [(_month_key(index), *_month_bounds(index)) for index in range(window[0], window[1] + 1)]
+
+
 def month_reading(
     ledger: Ledger, today: dt.date, scope: LedgerScope = LedgerScope(), window_months: int = 6
 ) -> MonthReading:

@@ -24,7 +24,16 @@ export type GuideTopic =
   | "tag"
   | "anomaly"
   | "check"
-  | "sync-limit";
+  | "sync-limit"
+  | "goal"
+  | "contribution-base"
+  | "deduction-cap"
+  | "scenario"
+  | "coast-fi"
+  | "withheld"
+  | "twr"
+  | "mwr"
+  | "accrual";
 
 interface Card {
   id: GuideTopic;
@@ -222,6 +231,96 @@ const CARDS: Card[] = [
       "Verificato: coincidono. Discrepanza: manca un movimento o ce n'è uno doppio, di solito fra gli ultimi. D'accordo salvo i cancellati: la differenza è esattamente ciò che hai cancellato a mano. Non verificato: nessuno ha dichiarato un saldo, e il silenzio non è un accordo.",
     changes:
       "Ricalcolare il saldo iniziale fa tornare i conti per costruzione: nasconde la differenza invece di spiegarla, e si fa solo sapendo perché. Con Ripristina i cancellati, i movimenti cancellati di un conto tornano al prossimo sync con la loro nota. Il saldo che una banca prevede per una data futura non si verifica e non conta nella liquidità: se è negativo, Conti lo dice come avviso, e il conto non è in rosso. Un saldo di un tipo che l'app non conosce resta fuori allo stesso modo, e Conti lo segnala: non vuol dire che il conto abbia un problema, ma che quel tipo va ancora capito.",
+  },
+  {
+    id: "goal",
+    title: "Obiettivo",
+    means:
+      "Dove vuoi arrivare: un nome, una cifra in euro di oggi, una data, e quanto quel denaro deve restare raggiungibile. Il cuscinetto è liquido in ogni momento, un acquisto deve essere disponibile alla sua data, la pensione può restare vincolata.",
+    computed:
+      "Un obiettivo vale da una data in poi. Cambiarlo non riscrive il passato: dalla data scelta vale la versione nuova, e prima resta quella vecchia, come il default di un budget. Togliere un obiettivo lo fa smettere di valere da oggi.",
+    changes:
+      "La data dà l'orizzonte del confronto fra fondo e PAC, e la liquidità dice se il fondo conta: per un obiettivo che non può restare vincolato il fondo non è raggiungibile prima della pensione, salvo le anticipazioni.",
+  },
+  {
+    id: "contribution-base",
+    title: "Base del versamento",
+    means:
+      "La cifra su cui il contratto calcola il versamento al fondo pensione, tuo e del datore. Non è il lordo: nelle buste paga del 2025 e del 2026 la base è rimasta ferma quando a luglio 2026 il lordo è salito.",
+    computed:
+      "Si scrive a parte nel Profilo, annua, con la data da cui vale. Il datore versa la sua percentuale della base solo se tu versi almeno la tua: sotto quella soglia il confronto lo segna come perso. Il lordo per le mensilità serve invece a trovare l'aliquota a cui si deduce.",
+    changes:
+      "Una base sbagliata sposta il contributo del datore, e con lui lo spazio che resta sotto il tetto di deducibilità.",
+  },
+  {
+    id: "deduction-cap",
+    title: "Tetto di deducibilità",
+    means:
+      "Quanto si può versare al fondo pensione in un anno togliendolo dal reddito su cui si pagano le tasse: 5.300 € dal 2026. Dentro c'è il contributo del datore, non il TFR.",
+    computed:
+      "Il dedotto è quanto versi, fino al tetto meno il contributo del datore. Il risparmio d'imposta è l'IRPEF con le addizionali sul reddito meno quella sul reddito dedotto, sugli scaglioni dell'anno; le detrazioni non entrano. Nel confronto finisce nel PAC lo stesso anno. Il fondo paga ogni anno l'imposta sui rendimenti e all'uscita un'aliquota dal 15%, che scende di 0,30 punti per ogni anno di adesione oltre il quindicesimo fino al 9%, solo su quanto è stato dedotto, tuo e del datore, mai oltre il tetto. Il PAC paga il bollo ogni anno e il 26% sul guadagno a scadenza. I parametri si scrivono a mano per anno con la loro fonte, e ogni cifra dice l'anno che ha usato: un anno che manca non si copre con quello prima. Un parametro salvato vuoto si toglie, e il suo anno torna incompleto.",
+    changes:
+      "Oltre il tetto un euro al fondo non si deduce più, e il confronto cambia: lo spazio sotto il tetto diventa negativo. Il rendimento è uno solo, scritto da te e uguale per fondo e PAC, così la differenza fra le due ripartizioni è quella fiscale; quale scegliere lo decidi tu.",
+  },
+  {
+    id: "scenario",
+    title: "Scenario",
+    means:
+      "Un'ipotesi di rendimento per l'obiettivo: prudente, centrale e favorevole, ognuno con un rendimento reale e un'inflazione all'anno che scrivi tu. Non sono previsioni: sono tre modi di leggere la stessa strada, e quando divergono molto è quella distanza la cosa da guardare.",
+    computed:
+      "Ogni mese il capitale cresce del rendimento e riceve il versamento: W(t+1) = W(t)·(1 + r) + c, con r il rendimento mensile che in dodici mesi fa quello annuo. Il rendimento è reale, cioè già tolta l'inflazione, quindi tutto è in euro di oggi; l'inflazione serve solo a dire quanto vale la cifra dell'obiettivo in euro della sua data. Il versamento è quello che scrivi, o quello che il ledger mostra: la media mensile dei soldi mandati su Investimenti negli ultimi 12 mesi completi, senza gli aggiornamenti di liquidità del broker. Il capitale già messo da parte lo scrivi tu, finché il portafoglio non è nell'app.",
+    changes:
+      "La proiezione dice se l'obiettivo si raggiunge a quel ritmo, quanto manca alla data e quanto servirebbe al mese. Gli scenari non si stimano dal passato e uno non scritto si dice invece di sostituirlo: finché non ci sono tutti e tre, la proiezione non parte.",
+  },
+  {
+    id: "coast-fi",
+    title: "Coast FI",
+    means:
+      "Il capitale che, senza altri versamenti, cresce da solo fino alla cifra dell'obiettivo alla sua data. Superarlo vuol dire che il resto del risparmio è libero: l'obiettivo si raggiunge comunque, nello scenario scelto.",
+    computed:
+      "È la cifra dell'obiettivo divisa per la crescita di quello scenario fino alla data: C = obiettivo / (1 + r)^mesi. Si legge solo per un obiettivo che può restare vincolato, come la pensione, e la cifra dell'obiettivo è il capitale da raggiungere: non c'è un tasso di prelievo.",
+    changes:
+      "Cambia con lo scenario: nel prudente la soglia è più alta, nel favorevole più bassa. La distanza fra le due dice quanto la soglia dipende dall'ipotesi.",
+  },
+  {
+    id: "withheld",
+    title: "Trattenuto e investito",
+    means:
+      "Un contributo al fondo pensione nasce trattenuto: la busta paga dice quanto è stato tolto, ma il fondo lo riceve dopo, a blocchi irregolari anche di mesi. Diventa investito quando il prospetto lo mostra con la data di valorizzazione, il valore quota e le quote assegnate. Quello che sta in mezzo è in transito.",
+    computed:
+      "In ogni data trattenuto = investito + in transito, e il transito è quanto il datore ha trattenuto senza averlo ancora versato. Un contributo in transito vale il suo costo. Il prospetto non corrisponde riga per riga alle buste paga: un'operazione investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, e una che non quadra con nessuna si segnala senza forzarla. Un versamento fatto direttamente al fondo nasce investito, con la sua data.",
+    changes:
+      "Nessuna differenza si corregge da sola: la riconciliazione mostra le due cifre e lo scarto, e la scelta di cosa farne è tua. Il valore quota si legge una volta al mese dalla pagina pubblica della classe del fondo su Borsa Italiana; se la pagina non risponde, è di un'altra classe o dà un altro mese, il Portafoglio chiede di scriverlo a mano, e un mese non prende mai il valore di un altro. Le buste paga e i prospetti arrivano da Paperless: ognuno si legge una volta sola, e su Paperless prende il tag amonhen:importato o amonhen:errore con le cifre lette.",
+  },
+  {
+    id: "twr",
+    title: "TWR",
+    means:
+      "Il rendimento dello strumento, indipendente da quanto e quando versi: il prodotto della crescita fra un flusso e il successivo. Dice come è andato l'ETF o il fondo, non come sei andato tu.",
+    computed:
+      "Il valore prima di ogni versamento si prende al prezzo di quella transazione, quindi non serve uno storico dei prezzi oltre quello di fine mese. Per l'insieme degli strumenti si concatenano i mesi: il valore di fine mese, tolti i versamenti di quel mese, contro quello del mese prima, con i flussi contati a fine mese. Un BTP e la casa non hanno un prezzo di mercato che entri, e il loro TWR non c'è.",
+    changes:
+      "Cambia con i prezzi e non con le date dei versamenti: due persone che hanno comprato lo stesso ETF in momenti diversi hanno lo stesso TWR e MWR diversi.",
+  },
+  {
+    id: "mwr",
+    title: "MWR",
+    means:
+      "Il rendimento tuo: il tasso annuo costante che, applicato ai versamenti nelle date in cui li hai fatti, porta al valore di oggi. Dipende dal momento dei versamenti, ed è il solo che si può leggere per l'insieme di ETF, fondo e BTP.",
+    computed:
+      "È la radice di Σ flusso × (1 + r)^(-anni) = 0, con il valore di oggi come ultimo flusso, cercata fra due estremi che la contengono. Per il fondo i versamenti contano alla data della busta paga, quindi i mesi in transito costano rendimento. Il BTP conta con il nominale all'acquisto, le cedole nette incassate e il nominale più rateo di oggi.",
+    changes:
+      "Se i flussi non hanno una radice, per esempio c'è solo un versamento e niente valore, la cifra non c'è e non si inventa.",
+  },
+  {
+    id: "accrual",
+    title: "Rateo",
+    means:
+      "La parte della cedola in corso che il BTP ha già maturato: tenuto fino a scadenza il suo prezzo torna a 100, quindi il titolo vale il nominale più il rateo.",
+    computed:
+      "È la cedola netta del trimestre, proporzionale ai giorni passati dall'ultima cedola. Le cedole sono trimestrali, nette dell'imposta, con il tasso del periodo (4,10% i primi tre anni, 4,50% gli ultimi due, scritto fra i termini del titolo). Il premio fedeltà non entra mai nel rateo: vale solo alla scadenza, perché spetta solo a chi ci arriva.",
+    changes:
+      "Dopo una cedola il rateo riparte da zero e il versato netto, cioè il nominale meno le cedole incassate, scende.",
   },
 ];
 

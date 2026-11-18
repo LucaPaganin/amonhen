@@ -15,6 +15,8 @@
 set -euo pipefail
 
 target="${HOME}/amonhen-rehearsal"
+# The image installs the private payslip-parser: a token that reads it, exported before running.
+: "${PAYSLIP_PARSER_TOKEN:?export PAYSLIP_PARSER_TOKEN, a token that can read the payslip-parser repository}"
 port=8000
 force=0
 failed=0
@@ -89,6 +91,8 @@ services:
       - "127.0.0.1:${port}:8000"
     build:
       context: ${target}/src
+      secrets:
+        - payslip_parser_token
   # The stand-in bank. The app reaches it by service name, so it publishes no
   # port and needs no host.docker.internal.
   eb-stub:
@@ -99,6 +103,10 @@ services:
     volumes:
       - ${target}/src/tools/eb_stub.py:/stub/eb_stub.py:ro
       - ${target}/src/tests/fixtures/enable_banking:/fixtures:ro
+# The private payslip-parser, read with the token in the environment of this script.
+secrets:
+  payslip_parser_token:
+    environment: PAYSLIP_PARSER_TOKEN
 EOF
 
 cat > "$target/deploy/.env" <<EOF
