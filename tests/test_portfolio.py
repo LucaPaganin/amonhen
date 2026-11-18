@@ -36,7 +36,7 @@ from amonhen.ports.portfolio import (
 )
 from amonhen.services import portfolio as service
 from tests.fixed_clock import FixedClock
-from tests.memory_portfolio import MemoryBroker, MemoryDocuments, MemoryNav
+from tests.memory_portfolio import MemoryBroker, MemoryDocuments, MemoryNav, documents_from
 from tests.test_amonhen_cli import MINIMAL_CONFIG
 
 d = dt.date
@@ -166,7 +166,8 @@ def etf(ledger, name="MSCI World"):
 
 
 def fund(ledger):
-    return ledger.add_instrument("Fondo", "fondo_pensione", source="prospetto", fund_class="C")
+    return ledger.add_instrument("Fondo", "fondo_pensione", source="prospetto", fund_class="C",
+                                 terms=json.dumps({"nav_page": "TESTC"}))
 
 
 def trade(day, units, price, ref, isin="IE00TEST"):
@@ -197,19 +198,54 @@ def payslips():
 
 def test_payslips_are_withheld_and_a_statement_invests_them_in_order(ledger):
     fund(ledger)
-    docs = MemoryDocuments(
-        slips=payslips(),
-        operations=[operation(d(2025, 4, 15), "200", "20"), operation(d(2025, 9, 10), "999", "1")],
-        units=D(20),
-    )
+    docs = documents_from(payslips(), [operation(d(2025, 4, 15), "200", "20"), operation(d(2025, 9, 10), "999", "1")],
+                          units=D(20))
     first = service.read_documents(ledger, docs)
     again = service.read_documents(ledger, docs)
-    assert (first.payslips, first.invested) == (3, 2)
+    assert (first.imported, first.invested, first.failed) == (4, 2, [])
     assert first.unmatched == [{"date": "2025-09-10", "amount": "999.00", "reference": "x"}]
-    assert again.payslips == 0 and again.invested == 0
+    # The write-back moved every stamp past the cursor: listed again, read never again.
+    assert (again.imported, again.skipped) == (0, 4) and docs.reads == [100, 101, 102, 199]
     rows = ledger.contributions(1)
     assert [r["state"] for r in rows] == ["investito", "investito", "trattenuto"]
     assert D(rows[0]["units"]) + D(rows[1]["units"]) == D(20)
+
+
+def test_the_outcome_goes_back_with_the_key_figures(ledger):
+    fund(ledger)
+    docs = documents_from(payslips()[:1], [operation(d(2025, 4, 15), "100", "10")], units=D(10))
+    service.read_documents(ledger, docs)
+    slip, statement = docs.reports
+    assert slip == (100, "importato", {"amonhen_periodo": "2025-01", "amonhen_proprio": "50.00",
+                                       "amonhen_datore": "30.00", "amonhen_tfr": "20.00"})
+    assert statement[1] == "importato" and statement[2]["amonhen_quote_fine"] == "10"
+    assert ledger.document(199)["outcome"] == "importato"
+
+
+def test_a_document_that_does_not_read_is_marked_and_writes_nothing(ledger):
+    from amonhen.ports.portfolio import FetchedDocument
+
+    fund(ledger)
+    docs = MemoryDocuments()
+    docs.add(FetchedDocument(7, "busta_paga", error="InvariantViolated: net_pay: 1 != 2 (difference -1)"), "2026-01-01")
+    result = service.read_documents(ledger, docs)
+    assert result.failed == [{"id": 7, "kind": "busta_paga", "error": "InvariantViolated: net_pay: 1 != 2 (difference -1)"}]
+    assert ledger.contributions(1) == [] and docs.reports[0][1] == "errore"
+    assert ledger.document(7)["outcome"] == "errore"
+    # Fixed the template: the failed one is read again on request, and only then.
+    docs.documents[7] = ("busta_paga", "2026-01-01", FetchedDocument(7, "busta_paga", payslip=payslips()[0]))
+    assert service.read_documents(ledger, docs).imported == 0
+    assert service.read_documents(ledger, docs, retry_failed=True).imported == 1
+    assert ledger.document(7)["outcome"] == "importato"
+
+
+def test_a_source_that_does_not_answer_stops_before_anything_is_written(ledger):
+    fund(ledger)
+    docs = documents_from(payslips())
+    docs.down = True
+    with pytest.raises(SourceUnavailable):
+        service.read_documents(ledger, docs)
+    assert ledger.contributions(1) == []
 
 
 def test_an_unreadable_nav_writes_nothing_and_is_never_borrowed(ledger):
@@ -219,6 +255,21 @@ def test_an_unreadable_nav_writes_nothing_and_is_never_borrowed(ledger):
     assert service.fetch_nav(ledger, nav, "2025-11") is False
     assert ledger.price_at(1, d(2025, 11, 30)) is None
     assert ledger.price_at(1, d(2025, 10, 31))["value"] == "11"
+    assert ledger.price_at(1, d(2025, 10, 31))["source"] == "pagina pubblica"
+
+
+def test_a_fund_without_a_page_asks_for_every_value_by_hand(ledger):
+    ledger.add_instrument("Fondo", "fondo_pensione", source="prospetto", fund_class="C")
+    assert service.fetch_nav(ledger, MemoryNav({"2025-10": D("11")}), "2025-10") is False
+
+
+def test_the_months_without_a_unit_value_are_listed_and_written_by_hand(ledger):
+    _, fund_id = seeded(ledger)
+    missing = service.nav_missing(ledger, d(2025, 8, 10))
+    assert missing == ["2025-04", "2025-05", "2025-06", "2025-07"]
+    service.set_nav(ledger, "2025-05", D("10.4"))
+    assert service.nav_missing(ledger, d(2025, 8, 10)) == ["2025-04", "2025-06", "2025-07"]
+    assert ledger.price_at(fund_id, d(2025, 5, 31))["source"] == "a mano"
 
 
 def seeded(ledger):
@@ -231,8 +282,7 @@ def seeded(ledger):
                              for m, day, p in ((1, 31, "10"), (6, 30, "12"), (12, 31, "13.2"))]},
     ))
     fund_id = fund(ledger)
-    service.read_documents(ledger, MemoryDocuments(
-        slips=payslips(), operations=[operation(d(2025, 4, 15), "200", "20")], units=D(20)))
+    service.read_documents(ledger, documents_from(payslips(), [operation(d(2025, 4, 15), "200", "20")], units=D(20)))
     return instrument, fund_id
 
 
@@ -387,3 +437,18 @@ def test_the_api_reads_what_the_use_cases_wrote(api):
     assert {p["name"] for p in body["positions"]} == {"MSCI World", "Fondo"}
     assert body["fund"]["in_transit"] == "150.00"
     assert client.post("/api/portfolio", json={}).status_code == 405
+
+
+def test_a_missing_unit_value_is_written_by_hand_through_the_api(api):
+    client, db_path = api
+    ledger = Ledger(connect(db_path))
+    seeded(ledger)
+    ledger.conn.close()
+    body = client.get("/api/portfolio").json()
+    assert body["nav_missing"][:2] == ["2025-04", "2025-05"]
+    after = client.post("/api/portfolio/nav", json={"month": "2025-04", "value": "10.2"}).json()
+    assert "2025-04" not in after["nav_missing"]
+    assert client.post("/api/portfolio/nav", json={"month": "aprile", "value": "10"}).status_code == 422
+    assert client.post("/api/portfolio/nav", json={"month": "2025-05", "value": "0"}).status_code == 422
+    wrong = client.post("/api/portfolio/nav", json={"month": "2025-05", "value": "abc"})
+    assert wrong.status_code == 422 and wrong.json()["detail"] == "'abc' non è un numero"

@@ -280,3 +280,10 @@ class ProjectionRequest(BaseModel):
     start: str = "0"
     monthly: str | None = None
     scenario: str
+
+
+class NavRequest(BaseModel):
+    """A month's unit value of the pension fund, read by a person where the page did not give it."""
+
+    month: str
+    value: str

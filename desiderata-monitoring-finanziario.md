@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.49 — novembre 2026
+Versione 1.50 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -60,7 +60,16 @@ netto di ciò che è tornato, quindi una cedola lo abbassa; il TWR dello strumen
 delle transazioni, quello dell'insieme concatena i mesi con i flussi a fine mese; il MWR del fondo
 conta i versamenti alla data della busta paga; la casa è uno strumento con quota di proprietà e
 prezzo scritto da una fonte, fuori dai rendimenti; i dati entrano dai casi d'uso e dalle porte, la
-schermata **Portafoglio** è in sola lettura, e un mese senza prezzo si dice e non si copre.*
+schermata **Portafoglio** è in sola lettura, e un mese senza prezzo si dice e non si copre.
+1.50 · le fonti vere, tranne il broker (sezione 5.16): i documenti arrivano da Paperless e li legge
+il package `payslip-parser`, una volta ciascuno, con l'esito scritto su Paperless; il valore quota
+si legge dalla pagina della classe su Borsa Italiana, che deve dire la classe giusta e il mese
+chiesto, e un mese che la pagina non dà si scrive a mano nel **Portafoglio**, l'unica scrittura di
+quella schermata; gli strumenti si dichiarano da riga di comando, il BTP con ISIN, nominale, data
+d'acquisto e i suoi termini; lo storico dei prezzi dell'ETF si carica una volta da file. La CLI di
+Scalable diventa una fetta a sé (TASK-98), perché prima vanno verificati lo storico delle
+transazioni e il login senza interazione. La dipendenza privata entra nell'immagine con un token
+montato come segreto della build.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -353,7 +362,7 @@ Il conto è quello del budget: al netto dei rimborsi, non dei contributi, con le
 
 *Fatto quando*: davanti a un tetto da scegliere la cifra è già sulla riga, e la distanza fra mediana e media dice se una categoria va a strappi.
 
-### 5.16 Pianificazione a lungo termine *(in costruzione: costruite la prima, la terza e la quinta fetta)*
+### 5.16 Pianificazione a lungo termine *(in costruzione: costruite la prima, la terza, la quinta e la quarta salvo il broker)*
 
 Il resto del sistema dice com'è andata. Questa sezione serve a una decisione che si prende più volte l'anno e cambia quando cambia un obiettivo: quanto mettere da parte, e dove — liquidità, fondo pensione, PAC. Senza un punto d'arrivo la ripartizione non ha un criterio, e la risposta giusta per un acquisto fra tre anni è sbagliata per la pensione fra trenta.
 
@@ -379,6 +388,8 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 **Un contributo al fondo è prima trattenuto, poi investito.** La busta paga dice quanto è stato trattenuto — contributo proprio, contributo del datore, TFR — ma il fondo lo riceve in ritardo e a blocchi irregolari, anche di mesi, valorizzati a fine mese. Un contributo nasce *trattenuto* dalla busta paga, valutato al costo come denaro in transito, e diventa *investito* quando il prospetto annuale lo mostra con data di valorizzazione, valore quota e quote assegnate. In ogni istante vale una conservazione esatta: trattenuto = investito + in transito. Il transito si legge: è quanto il datore ha trattenuto senza averlo ancora versato. Un versamento fatto direttamente al fondo, senza busta paga, entra investito con la sua data e conta nel tetto di deducibilità come gli altri.
 
 *Come è costruito il portafoglio (fase 12, terza fetta).* Le cinque tabelle non scrivono nessun posting: spesa, mesi di autonomia e verifica della sezione 5.4 non ne vedono nulla, e un test lo controlla. Ogni fonte sta dietro una porta (`ports/portfolio.py`: broker, documenti, valore quota) con tipi ed errori suoi; in questa fetta le implementa la memoria, e le fonti vere arrivano con la quarta. Il BTP porta i suoi termini come dati: da lì escono le venti cedole nette, il premio alla scadenza e il rateo, proporzionale ai giorni del trimestre. Un contributo al fondo è una riga con il suo stato: le buste paga lo scrivono trattenuto, e un'operazione del prospetto investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, con le quote divise in proporzione; una che non quadra con nessuna si segnala e non si forza. Il transito si valuta al costo. Il versato di uno snapshot è netto di ciò che è tornato, e uno strumento tenuto senza prezzo nel giorno dello snapshot non si scrive e si nomina. Il TWR di un ETF o del fondo concatena i periodi ai prezzi delle operazioni; il TWR dell'insieme concatena i mesi, con il versamento netto del mese tolto dal valore di fine mese; il MWR cerca la radice fra due estremi che la contengono, e per il fondo conta i versamenti alla data della busta paga. Un BTP e la casa non hanno un TWR, e la casa sta nel patrimonio e non nei rendimenti. Il patrimonio complessivo di fine mese è la liquidità di quel giorno più il valore degli snapshot.
+
+*Come sono collegate le fonti (fase 12, quarta fetta).* Paperless implementa la porta dei documenti: AmonHen elenca i documenti di ciascun tipo modificati dopo l'ultimo passaggio, scarica l'originale di quelli che non ha ancora letto, li fa leggere a `payslip-parser` e ne traduce il risultato nei suoi tipi al bordo; prima le buste paga, poi i prospetti, così un'operazione trova le buste paga da investire. Ogni documento letto entra in `documents` con il suo esito e non si legge più, anche quando scrivere l'esito su Paperless ne sposta la data di modifica; uno con errore si rilegge solo a richiesta, dopo che un template è stato corretto. Il valore quota viene dalla pagina della classe su Borsa Italiana, il cui codice è un dato dello strumento: la pagina deve dire la classe dello strumento e un valore del mese chiesto, altrimenti non si legge e il **Portafoglio** elenca il mese da scrivere a mano. Gli strumenti si dichiarano con `instrument-add`, una volta: il BTP con ISIN, nominale, data d'acquisto, tassi, imposta e premio, e il conto e il testo degli accrediti su cui si riconcilia. `prices-load` carica le chiusure mensili dell'ETF da un file, e una seconda volta si rifiuta. `portfolio-sync` mette in fila documenti, valore quota del mese finito e snapshot.
 
 **Le riconciliazioni dicono cosa non torna, invece di correggerlo.** Il PAC atteso contro le quote che il broker riporta, il calendario delle cedole contro gli accrediti, i contributi trattenuti contro quelli investiti, le quote del fondo contro il prospetto. Una differenza si mostra con le due cifre accanto, come la verifica della sezione 5.4, e nessuna cifra si aggiusta da sola.
 
@@ -445,10 +456,15 @@ prices               (strumento, data, valore, fonte)              — un valore
 portfolio_snapshots  (mese, strumento, quote, valore, versato netto)
 ```
 
-Da costruire con la quarta fetta:
+Costruita con la quarta fetta:
 
 ```
-documents            (paperless_id, tipo, letto_il, esito, layout, errore?)
+documents            (paperless_id, tipo, letto_il, esito: importato | errore, layout?, errore?)
+```
+
+Da costruire con la CLI del broker (TASK-98):
+
+```
 expected_flows       (strumento, data, importo, tipo: cedola | premio | pac, movimento?)
 ```
 
@@ -524,7 +540,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
   1. obiettivi, profilo, parametri fiscali per anno e confronto fra fondo pensione e PAC — la fetta che risponde alla domanda *(fatta: la sezione **Piano**)*;
   2. il package `payslip-parser` legge la busta paga e il prospetto del fondo — nel suo repository privato, con la sua specifica;
   3. il portafoglio su dati finti: strumenti, transazioni, contributi trattenuti e investiti, riconciliazioni, valutazione e snapshot di fine mese, TWR e MWR, patrimonio complessivo. Si prova prima di collegare le fonti vere, così un errore è del modello e non della fonte *(fatta: la sezione **Portafoglio**)*;
-  4. le fonti vere: Paperless con il write-back, la CLI del broker nel suo container, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati;
+  4. le fonti vere: Paperless con il write-back, la CLI del broker nel suo container, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati *(fatta, salvo la CLI del broker, che è TASK-98)*;
   5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI *(fatta: dentro **Piano**)*;
   6. la distribuzione dai rendimenti storici.
 

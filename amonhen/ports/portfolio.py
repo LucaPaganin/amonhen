@@ -74,17 +74,54 @@ class BrokerSource(Protocol):
     def month_end_prices(self, isin: str) -> list[PricePoint]: ...
 
 
+# What a document is about, as AmonHen names it: the source maps each kind to its own
+# document type (Paperless's "Busta paga", for instance).
+DOCUMENT_KINDS = ("busta_paga", "prospetto")
+IMPORTED, FAILED = "importato", "errore"
+
+
+@dataclass(frozen=True)
+class ReadStatement:
+    """What a fund's annual statement says: its contribution operations and the closing units."""
+
+    year: int
+    operations: tuple[StatementOperation, ...]
+    units_end: Decimal
+
+
+@dataclass(frozen=True)
+class FetchedDocument:
+    """One document a source holds, already read: what it says, or why it could not be read.
+
+    Exactly one of ``payslip``, ``statement`` and ``error`` is set.
+    """
+
+    source_id: int
+    kind: str
+    layout: str | None = None
+    payslip: PayslipContribution | None = None
+    statement: ReadStatement | None = None
+    error: str | None = None
+
+
 @runtime_checkable
 class DocumentSource(Protocol):
-    def payslips(self, since: dt.date | None) -> list[PayslipContribution]: ...
+    """Where the documents come from (Paperless), read and written back by id."""
 
-    def statement_operations(self, since: dt.date | None) -> list[StatementOperation]: ...
+    def list_new(self, kind: str, modified_after: str | None) -> list[tuple[int, str]]:
+        """The ids of the documents of ``kind`` modified after the cursor, with their own
+        modification stamp, oldest first. The stamp is the source's text, kept as it is."""
 
-    def statement_units(self) -> Decimal | None:
-        """The units the latest statement says the fund holds."""
+    def read(self, kind: str, source_id: int) -> FetchedDocument:
+        """Download the original and read it. A document that cannot be read comes back with
+        ``error``; only an unreachable source raises."""
+
+    def report(self, source_id: int, outcome: str, figures: dict[str, str]) -> None:
+        """Say on the source what became of the document: its outcome and its key figures."""
 
 
 @runtime_checkable
 class NavSource(Protocol):
-    def unit_value(self, fund_class: str, month: str) -> Decimal:
-        """The fund's unit value for a month; raises `NavUnavailable` when it cannot be read."""
+    def unit_value(self, page: str, fund_class: str, month: str) -> Decimal:
+        """The unit value of ``fund_class`` for ``month`` from its public page; raises
+        `NavUnavailable` when the page cannot be read, names another class or another month."""

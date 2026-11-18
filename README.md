@@ -85,6 +85,12 @@ uv run python -m amonhen budgets --month 2026-11  # budget, planned, spent, left
 uv run python -m amonhen anomalies              # explained outliers
 uv run python -m amonhen suggest                # classifier proposals
 uv run python -m amonhen llm-suggest            # needs AMONHEN_LLM_*
+uv run python -m amonhen instrument-add "Fondo pensione" --kind fondo_pensione --source prospetto --class C --nav-page <code>
+uv run python -m amonhen instrument-add "BTP Valore" --kind btp --source calcolato --isin IT0005565392 \
+    --nominal <nominale> --start <YYYY-MM-DD> --rates 4.10,4.10,4.10,4.50,4.50 --tax 12.5 --bonus 0.5 \
+    --account Fineco --credit-text "cedola"
+uv run python -m amonhen prices-load "MSCI World" closes.csv   # date,close — once, before the first broker sync
+uv run python -m amonhen portfolio-sync         # new documents from Paperless, last month's unit value, snapshots
 ```
 
 The PWA source lives in `web/`: `npm --prefix web install`,
@@ -366,6 +372,15 @@ The holder's name the wizard asks for is `account_holder_name`, read as
 `own_names`: a movement whose counterparty is the holder's own name is relabelled
 with the remittance text instead, because money coming back to you is not a payment
 to yourself, and a counterparty of your own name tells the ledger nothing.
+
+The portfolio's documents come from Paperless-ngx: `AMONHEN_PAPERLESS_URL` (the instance's
+address, as the NAS reaches it), `AMONHEN_PAPERLESS_TOKEN` (an API token, in `.env` and nowhere
+else), and the names of the two document types, `AMONHEN_PAPERLESS_PAYSLIP_TYPE` (`Busta paga`)
+and `AMONHEN_PAPERLESS_STATEMENT_TYPE` (`Prospetto fondo pensione`). `portfolio-sync` reads every
+document of those types modified since its last pass, each once, downloads the **original**,
+reads it with `payslip-parser`, and tags it `amonhen:importato` or `amonhen:errore` with the
+figures it read as custom fields (`amonhen_*`, created on first use). `--retry-failed` reads the
+failed ones again after a template is fixed. Without a URL the documents are skipped.
 
 The optional model, which proposes a category for merchants no rule covers, is configured with
 `AMONHEN_LLM_URL`, `AMONHEN_LLM_API_KEY` and `AMONHEN_LLM_MODEL`.
@@ -713,11 +728,15 @@ source; `docker-compose.build.yaml` adds the build for a machine that has the
 checkout:
 
 ```bash
-docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+PAYSLIP_PARSER_TOKEN=… docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
 ```
 
 The two files leave the same container behind, under the same image name, so a
-locally built image and a pulled one are interchangeable.
+locally built image and a pulled one are interchangeable. `payslip-parser` is a private
+repository: the build reads it with `PAYSLIP_PARSER_TOKEN` (a fine-grained token with
+*Contents: read* on that repository alone), mounted as a BuildKit secret for the one command
+that installs the dependencies, so it is in no layer. CI does the same with the repository
+secret of the same name, which has to exist before the first `v*` tag after this change.
 
 ### Trying the first start before the NAS
 

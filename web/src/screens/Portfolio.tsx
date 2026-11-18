@@ -33,6 +33,34 @@ function dated(note: string): string {
   return note.replace(/\d{4}-\d{2}-\d{2}/g, (iso) => formatDateWithYear(iso));
 }
 
+/** One month without a unit value: the page did not give it, and a person reads it elsewhere. */
+function NavRow({ month, onSaved }: { month: string; onSaved: (portfolio: Portfolio) => void }) {
+  const [value, setValue] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const id = `nav-${month}`;
+  return (
+    <li className="field">
+      <label htmlFor={id}>{formatMonth(month)}</label>
+      <input id={id} className="input" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
+      {problem !== null ? <p className="account-form__error" role="alert">{problem}</p> : null}
+      <button
+        type="button"
+        className="button"
+        onClick={async () => {
+          try {
+            onSaved(await api.setNav(month, value.replace(",", ".")));
+            setProblem(null);
+          } catch (err) {
+            setProblem(errorMessage(err));
+          }
+        }}
+      >
+        Salva
+      </button>
+    </li>
+  );
+}
+
 function Row({ position }: { position: PortfolioPosition }) {
   return (
     <tr>
@@ -127,6 +155,23 @@ export function PortfolioScreen({ refreshToken }: { refreshToken: number }) {
               </table>
             </div>
           </section>
+
+          {portfolio.nav_missing.length === 0 ? null : (
+            <section className="panel">
+              <h2 className="section-title">
+                Valore quota da scrivere <Help topic="withheld" label="trattenuto e investito" />
+              </h2>
+              <p className="hint">
+                La pagina della classe non ha dato il valore di questi mesi: scrivilo dal prospetto o dal sito
+                del fondo. Un mese non prende mai il valore di un altro.
+              </p>
+              <ul className="trash-list">
+                {portfolio.nav_missing.map((month) => (
+                  <NavRow key={month} month={month} onSaved={setPortfolio} />
+                ))}
+              </ul>
+            </section>
+          )}
 
           {portfolio.fund === null ? null : (
             <section className="panel">

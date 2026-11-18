@@ -1,9 +1,26 @@
 # The portfolio: sources, states, reconciliations, valuation
 
 Part of what `CLAUDE.md` says before changing code. The product rules are section 5.16 of
-the spec; this page says how they are meant to be built. Slices 1, 3 and 5 are built
-(below); the real sources and the historical distribution (slices 2, 4 and 6) are not. A
-rule that changes changes here and in the spec, in the same change as the code.
+the spec; this page says how they are meant to be built. Slices 1, 3, 5 and 4 (but the
+broker, TASK-98) are built; the historical distribution (slice 6) is not. A rule that
+changes changes here and in the spec, in the same change as the code.
+
+- **The real sources, but the broker.** `adapters/paperless.py` implements `DocumentSource`
+  over Paperless's REST API (`list_new` by document type and `modified__gt`, `read`
+  downloading `?original=true`, `report` with the tag and the `amonhen_*` custom fields,
+  created on first use). `adapters/payslips.py` is the one place `payslip_parser` is
+  imported: it calls `parse` and turns `Payslip` / `PensionStatement` into
+  `PayslipContribution` / `ReadStatement`, keeping only the operations that contribute
+  (own + employer + TFR > 0, the figure a payslip withholds). `adapters/borsa_italiana.py`
+  implements `NavSource`: the page's *Ultima … Data* table and its *Classe*, refused when
+  the class or the month is not the one asked. `composition.document_source()` builds
+  Paperless from `AMONHEN_PAPERLESS_*` (None without a URL), `nav_source()` the NAV page.
+  `services.portfolio.read_documents` lists, skips what `documents` already holds, reads,
+  applies, records, then writes back; a write-back that fails is reported and does not undo
+  the reading. The cursor per kind is in `settings` (`paperless:modified_after:<kind>`), the
+  page code of the fund in its `terms` (`nav_page`). The tests use objects of the parser's
+  own model with invented figures and an HTTP stub: no document and no figure of one enters
+  this repository.
 
 - **The portfolio is built on fake sources, behind the ports the real ones will fill.**
   `core/portfolio.py` (the BTP's coupons and accrued, the contribution's two states and its

@@ -32,10 +32,15 @@ from amonhen.core.returns import mwr, twr
 from amonhen.ledger import Ledger
 from amonhen.models import format_decimal, parse_decimal
 from amonhen.ports.portfolio import (
+    DOCUMENT_KINDS,
+    FAILED,
+    IMPORTED,
     BrokerSource,
     DocumentSource,
+    FetchedDocument,
     NavSource,
     NavUnavailable,
+    SourceError,
 )
 
 ZERO = Decimal(0)
@@ -81,9 +86,12 @@ def sync_broker(ledger: Ledger, broker: BrokerSource, since: dt.date | None = No
 
 @dataclass
 class DocumentsRead:
-    payslips: int = 0
-    invested: int = 0      # contributions a statement turned from withheld to invested
-    unmatched: list[dict] = field(default_factory=list)  # operations no payslips explain
+    imported: int = 0
+    failed: list[dict] = field(default_factory=list)      # {"id", "kind", "error"}
+    skipped: int = 0                                      # already read, never read again
+    invested: int = 0                                     # contributions a statement invested
+    unmatched: list[dict] = field(default_factory=list)   # operations no payslips explain
+    unreported: list[int] = field(default_factory=list)   # read here, but the write-back failed
 
 
 def _fund(ledger: Ledger):
@@ -106,46 +114,111 @@ def _contribution_rows(ledger: Ledger, fund_id: int) -> list[Contribution]:
     return rows
 
 
-def read_documents(ledger: Ledger, documents: DocumentSource, since: dt.date | None = None) -> DocumentsRead:
-    """Payslips become withheld contributions; the statement invests them, in order.
+def cursor_key(kind: str) -> str:
+    """Where the modification stamp of the last document listed of a kind is kept."""
+    return f"paperless:modified_after:{kind}"
 
-    An operation no consecutive payslips add up to is reported and left alone, and a
-    payslip already read is skipped by its reference.
+
+def read_documents(ledger: Ledger, documents: DocumentSource, *, retry_failed: bool = False) -> DocumentsRead:
+    """Payslips first, then statements: every new document read once, applied, recorded,
+    and its outcome written back to the source.
+
+    A payslip's contribution is born withheld; a statement invests the payslips its
+    operations add up to, in order. A document already recorded is skipped even when the
+    write-back moved its modification date past the cursor — the reason `documents`
+    exists. ``retry_failed`` reads the failed ones again, after a template was fixed.
     """
     fund = _fund(ledger)
     result = DocumentsRead()
-    for slip in documents.payslips(since):
-        result.payslips += ledger.withhold(fund["id"], slip.period, slip.own, slip.employer, slip.tfr, slip.reference)
+    for kind in DOCUMENT_KINDS:
+        listed = documents.list_new(kind, ledger.setting(cursor_key(kind)))
+        ids = [source_id for source_id, _ in listed if ledger.document(source_id) is None]
+        result.skipped += len(listed) - len(ids)
+        if retry_failed:
+            ids = ledger.failed_documents(kind) + [i for i in ids if i not in ledger.failed_documents(kind)]
+        for source_id in ids:
+            fetched = documents.read(kind, source_id)
+            figures = _apply(ledger, fund, fetched, result)
+            outcome = FAILED if fetched.error is not None else IMPORTED
+            ledger.record_document(source_id, kind, outcome, fetched.layout, fetched.error)
+            if outcome == IMPORTED:
+                result.imported += 1
+            else:
+                result.failed.append({"id": source_id, "kind": kind, "error": fetched.error})
+            try:
+                documents.report(source_id, outcome, figures)
+            except SourceError:
+                result.unreported.append(source_id)
+        if listed:
+            ledger.set_setting(cursor_key(kind), max(stamp for _, stamp in listed))
+    return result
+
+
+def _apply(ledger: Ledger, fund, fetched: FetchedDocument, result: DocumentsRead) -> dict[str, str]:
+    """Write what a document says, and return the figures that go back to the source."""
+    if fetched.error is not None:
+        return {"amonhen_errore": fetched.error[:500]}
+    if fetched.payslip is not None:
+        slip = fetched.payslip
+        if slip.own + slip.employer + slip.tfr > 0:
+            ledger.withhold(fund["id"], slip.period, slip.own, slip.employer, slip.tfr, slip.reference)
+        return {"amonhen_periodo": slip.period, "amonhen_proprio": format_decimal(slip.own),
+                "amonhen_datore": format_decimal(slip.employer), "amonhen_tfr": format_decimal(slip.tfr)}
+    statement = fetched.statement
     waiting = [row for row in _contribution_rows(ledger, fund["id"])
                if row.withheld_on is not None and row.invested_on is None]
-    matched, unmatched = match_statement(waiting, documents.statement_operations(since))
+    matched, unmatched = match_statement(waiting, list(statement.operations))
     for operation, rows in matched:
         for row, units in zip(rows, split_units(operation, [row.total for row in rows])):
             ledger.invest(row.id, operation.date, operation.unit_value, units)
             result.invested += 1
-    result.unmatched = [
+    result.unmatched += [
         {"date": op.date.isoformat(), "amount": format_decimal(op.amount), "reference": op.reference}
         for op in unmatched
     ]
-    reported = documents.statement_units()
-    if reported is not None:
-        ledger.set_setting(reported_key(fund["id"]), str(reported))
-    return result
+    ledger.set_setting(reported_key(fund["id"]), str(statement.units_end))
+    return {"amonhen_anno": str(statement.year), "amonhen_quote_fine": str(statement.units_end),
+            "amonhen_operazioni": str(len(statement.operations)),
+            "amonhen_non_abbinate": str(len(unmatched))}
 
 
 def fetch_nav(ledger: Ledger, nav: NavSource, month: str) -> bool:
-    """The fund's unit value for a month; False when it cannot be read.
+    """The fund's unit value for a month from its class's public page; False when it cannot be read.
 
-    Nothing is written then, and the month stays without a value until a person gives it:
-    last month's is never reused.
+    Nothing is written then, and the month waits for a person to give the value
+    (`set_nav`): another month's is never reused.
     """
     fund = _fund(ledger)
+    page = json.loads(fund["terms"] or "{}").get("nav_page")
+    if not page:
+        return False
     try:
-        value = nav.unit_value(fund["class"] or "", month)
+        value = nav.unit_value(page, fund["class"] or "", month)
     except NavUnavailable:
         return False
-    ledger.set_price(fund["id"], month_end(month), value, fund["source"])
+    ledger.set_price(fund["id"], month_end(month), value, "pagina pubblica")
     return True
+
+
+def set_nav(ledger: Ledger, month: str, value: Decimal) -> None:
+    """The unit value a person read for a month the page did not give."""
+    ledger.set_price(_fund(ledger)["id"], month_end(month), value, "a mano")
+
+
+def nav_missing(ledger: Ledger, today: dt.date) -> list[str]:
+    """The complete months, since the fund first held units, that still have no unit value."""
+    funds = [row for row in ledger.instruments() if row["kind"] == "fondo_pensione"]
+    if not funds:
+        return []
+    dates = [row["value_date"] for row in ledger.contributions(funds[0]["id"]) if row["value_date"]]
+    if not dates:
+        return []
+    month, missing = min(dates)[:7], []
+    while month_end(month) < today.replace(day=1):
+        if ledger.price_at(funds[0]["id"], month_end(month)) is None:
+            missing.append(month)
+        month = month_of(add_months(month_end(month), 1))
+    return missing
 
 
 # -- what is held on a date ---------------------------------------------------------
@@ -423,6 +496,7 @@ def overview(ledger: Ledger, today: dt.date) -> dict:
         "reconciliations": reconciliations(ledger, today),
         "series": snapshots["points"],
         "missing": missing,
+        "nav_missing": nav_missing(ledger, today),
     }
 
 

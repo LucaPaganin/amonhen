@@ -951,4 +951,6 @@ export interface Portfolio {
   reconciliations: Reconciliation[];
   series: { month: string; liquidity: string; portfolio: string; total: string; instruments: number }[];
   missing: string[];
+  /** Complete months the fund held units in and has no unit value for: a person writes them. */
+  nav_missing: string[];
 }

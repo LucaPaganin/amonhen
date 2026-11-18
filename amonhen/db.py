@@ -346,6 +346,18 @@ CREATE TABLE IF NOT EXISTS portfolio_snapshots (
     PRIMARY KEY (month, instrument_id)
 );
 
+-- A document read from Paperless, once: the id is Paperless's own, and a document
+-- already here is never read again, whatever its outcome, even when the write-back
+-- of that outcome moves its modification date.
+CREATE TABLE IF NOT EXISTS documents (
+    paperless_id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    read_at TEXT NOT NULL,
+    outcome TEXT NOT NULL CHECK (outcome IN ('importato', 'errore')),
+    layout TEXT,
+    error TEXT
+);
+
 -- Proposals are never applied on their own: a classifier or an LLM writes a
 -- merchant -> category pair here and a human accepts or dismisses it.
 CREATE TABLE IF NOT EXISTS merchant_suggestions (

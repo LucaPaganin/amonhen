@@ -297,6 +297,7 @@ export const api = {
   statistics: (months: number, signal?: AbortSignal) =>
     get<Statistics>(`/statistics?months=${months}`, signal),
   portfolio: (signal?: AbortSignal) => get<Portfolio>("/portfolio", signal),
+  setNav: (month: string, value: string) => send<Portfolio>("POST", "/portfolio/nav", { month, value }),
   plan: (signal?: AbortSignal) => get<Plan>("/plan", signal),
   saveGoal: (draft: GoalDraft) => send<Plan>("PUT", "/plan/goals", draft),
   endGoal: (series: number) => send<Plan>("DELETE", `/plan/goals/${series}`, {}),

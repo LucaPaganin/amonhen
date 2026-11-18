@@ -145,6 +145,26 @@ class PortfolioMixin:
             (instrument_id, on_or_before.isoformat()),
         ).fetchone()
 
+    # -- documents ---------------------------------------------------------
+
+    def document(self, paperless_id: int) -> sqlite3.Row | None:
+        return self.conn.execute("SELECT * FROM documents WHERE paperless_id = ?", (paperless_id,)).fetchone()
+
+    def failed_documents(self, kind: str) -> list[int]:
+        return [row["paperless_id"] for row in self.conn.execute(
+            "SELECT paperless_id FROM documents WHERE kind = ? AND outcome = 'errore' ORDER BY paperless_id", (kind,))]
+
+    def record_document(self, paperless_id: int, kind: str, outcome: str, layout: str | None,
+                        error: str | None) -> None:
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO documents (paperless_id, kind, read_at, outcome, layout, error)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT (paperless_id) DO UPDATE SET read_at = excluded.read_at,
+                       outcome = excluded.outcome, layout = excluded.layout, error = excluded.error""",
+                (paperless_id, kind, dt.datetime.now(dt.UTC).isoformat(), outcome, layout, error),
+            )
+
     # -- snapshots ---------------------------------------------------------
 
     def save_snapshot(self, month: str, instrument_id: int, units: Decimal, value: Decimal, paid: Decimal) -> None:

@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-16T20:18:00Z'
-updated_date: '2026-11-17T22:03:00Z'
+updated_date: '2026-11-18T05:53:00Z'
 labels: []
 dependencies:
   - TASK-95
@@ -27,10 +27,9 @@ Quarta fetta della fase 12 (sezione 5.16): sostituisce le sorgenti finte di TASK
 <!-- AC:BEGIN -->
 - [ ] #1 AmonHen legge da Paperless i documenti di un tipo modificati dopo l'ultima lettura, scarica l'originale e non la copia d'archivio, e non rilegge un documento già letto
 - [ ] #2 L'esito torna su Paperless come tag amonhen:importato o amonhen:errore, con le cifre chiave come custom field
-- [ ] #3 La CLI di Scalable gira in un container a parte dietro un wrapper che espone solo comandi di lettura; dal processo di AmonHen non si raggiunge nulla che prepari un ordine
-- [ ] #4 Il valore quota del fondo si legge una volta al mese dalla pagina pubblica della sua classe (Azionario Globale C); se la pagina non si legge l'app chiede il valore a mano invece di saltare il mese
-- [ ] #5 Il calendario delle cedole nette del BTP Valore si genera da ISIN, nominale e data d'acquisto e si riconcilia con gli accrediti Fineco
-- [ ] #6 Lo storico dei prezzi di fine mese dell'ETF prima del primo sync si carica una volta sola
+- [ ] #3 Il valore quota del fondo si legge una volta al mese dalla pagina pubblica della sua classe (Azionario Globale C); se la pagina non si legge l'app chiede il valore a mano invece di saltare il mese
+- [ ] #4 Il calendario delle cedole nette del BTP Valore si genera da ISIN, nominale e data d'acquisto e si riconcilia con gli accrediti Fineco
+- [ ] #5 Lo storico dei prezzi di fine mese dell'ETF prima del primo sync si carica una volta sola
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -50,3 +49,9 @@ B. Bloccato, serve una decisione:
 9. Immagine e CI: la dipendenza privata richiede un segreto nella build.
 C. Spec 1.50, docs/investments.md, CLAUDE.md, schede della Guida dove nasce un concetto, suite da checkout pulito.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Il criterio della CLI di Scalable (container a parte, wrapper in sola lettura) è passato a TASK-98 su decisione del 18 novembre: le due verifiche richieste non si possono fare dalla sessione cloud.
+<!-- SECTION:NOTES:END -->

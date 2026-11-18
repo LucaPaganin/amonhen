@@ -290,7 +290,7 @@ const CARDS: Card[] = [
     computed:
       "In ogni data trattenuto = investito + in transito, e il transito è quanto il datore ha trattenuto senza averlo ancora versato. Un contributo in transito vale il suo costo. Il prospetto non corrisponde riga per riga alle buste paga: un'operazione investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, e una che non quadra con nessuna si segnala senza forzarla. Un versamento fatto direttamente al fondo nasce investito, con la sua data.",
     changes:
-      "Nessuna differenza si corregge da sola: la riconciliazione mostra le due cifre e lo scarto, e la scelta di cosa farne è tua.",
+      "Nessuna differenza si corregge da sola: la riconciliazione mostra le due cifre e lo scarto, e la scelta di cosa farne è tua. Il valore quota si legge una volta al mese dalla pagina pubblica della classe del fondo su Borsa Italiana; se la pagina non risponde, è di un'altra classe o dà un altro mese, il Portafoglio chiede di scriverlo a mano, e un mese non prende mai il valore di un altro. Le buste paga e i prospetti arrivano da Paperless: ognuno si legge una volta sola, e su Paperless prende il tag amonhen:importato o amonhen:errore con le cifre lette.",
   },
   {
     id: "twr",
