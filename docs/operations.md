@@ -28,6 +28,15 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   — the lower-case name has to match `image:` in `docker-compose.yaml`, or the NAS
   pulls nothing. Keep the `uv` image tag in the Dockerfile at the version that
   wrote `uv.lock`: the lock is revision 3 and older uv binaries refuse to read it.
+- **The image installs a private package, and the token never lands in a layer.**
+  `payslip-parser` is a git dependency pinned in `uv.lock`; the Dockerfile's install step
+  mounts the BuildKit secret `payslip_parser_token`, hands it to git only through
+  `GIT_CONFIG_*` variables of that one command (never a `.gitconfig`), installs `git` for
+  the step and purges it after, with `UV_NO_CACHE` so no clone stays behind. CI passes the
+  repository secret `PAYSLIP_PARSER_TOKEN` to the check job (as a git `insteadOf`) and to
+  the build; `docker-compose.build.yaml` and `tools/rehearse_local.sh` read the same name
+  from the environment. The code of the parser does end up in the image, as any dependency
+  does: the fixtures do not, because the wheel carries `src/payslip_parser` only.
 - **A release is rehearsed on a copy of the live ledger, with both images.**
   `tools/rehearse_release.sh NEW_TAG [--api]` snapshots the live ledger, copies it
   twice into a scratch volume without `private.pem`, runs the same read-only commands

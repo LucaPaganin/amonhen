@@ -30,6 +30,11 @@ import type {
   SetupCredentials,
   SetupState,
   Statistics,
+  Plan,
+  GoalDraft,
+  Comparison,
+  Projection,
+  Portfolio,
   Suggestion,
   Tag,
   DeletedMovement,
@@ -291,6 +296,24 @@ export const api = {
   rules: (signal?: AbortSignal) => get<Rule[]>("/rules", signal),
   statistics: (months: number, signal?: AbortSignal) =>
     get<Statistics>(`/statistics?months=${months}`, signal),
+  portfolio: (signal?: AbortSignal) => get<Portfolio>("/portfolio", signal),
+  setNav: (month: string, value: string) => send<Portfolio>("POST", "/portfolio/nav", { month, value }),
+  plan: (signal?: AbortSignal) => get<Plan>("/plan", signal),
+  saveGoal: (draft: GoalDraft) => send<Plan>("PUT", "/plan/goals", draft),
+  endGoal: (series: number) => send<Plan>("DELETE", `/plan/goals/${series}`, {}),
+  setProfileFact: (key: string, value: string, validFrom: string) =>
+    send<Plan>("PUT", `/plan/profile/${key}`, { value, valid_from: validFrom }),
+  setTaxParameter: (year: number, key: string, value: string, source: string) =>
+    send<Plan>("PUT", `/plan/tax/${year}/${key}`, { value, source }),
+  deleteTaxParameter: (year: number, key: string) =>
+    send<Plan>("DELETE", `/plan/tax/${year}/${key}`, {}),
+  setScenario: (name: string, realReturn: string, inflation: string) =>
+    send<Plan>("PUT", `/plan/scenarios/${name}`, { real_return: realReturn, inflation }),
+  deleteScenario: (name: string) => send<Plan>("DELETE", `/plan/scenarios/${name}`, {}),
+  project: (start: string, monthly: string | null, scenario: string) =>
+    send<Projection>("POST", "/plan/projection", { start, monthly, scenario }),
+  compare: (series: number, returnRate: string, allocations: { fund: string; pac: string }[]) =>
+    send<Comparison>("POST", "/plan/compare", { series, return_rate: returnRate, allocations }),
   // Writing a rule applies it at once — a deleting one empties what it matches —
   // so the editor asks for the preview first.
   createRule: (draft: RuleDraft) => send<Rule>("POST", "/rules", draft),

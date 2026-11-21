@@ -30,6 +30,15 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+      # payslip-parser is a private repository: PAYSLIP_PARSER_TOKEN is a token that can
+      # read it (a fine-grained token, Contents: read, on that repository alone).
+      - name: Reach the private parser
+        env:
+          TOKEN: ${{ secrets.PAYSLIP_PARSER_TOKEN }}
+        run: >-
+          git config --global
+          url."https://x-access-token:${TOKEN}@github.com/LucaPaganin/payslip-parser".insteadOf
+          "https://github.com/LucaPaganin/payslip-parser"
       - name: Install the locked dependencies
         run: uv sync --frozen
       - name: Tests
@@ -78,6 +87,9 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          # Mounted for the one command that installs the dependencies, and in no layer.
+          secrets: |
+            payslip_parser_token=${{ secrets.PAYSLIP_PARSER_TOKEN }}
           # What the app shows at the foot of its menu: the tag, or the branch
           # and commit of a manual run.
           build-args: |

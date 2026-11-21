@@ -60,4 +60,9 @@ from __future__ import annotations
 # 42 is the month at a glance: `/api/month` gained `summary`, this month, the month
 # before up to the same day and the month before whole, each with `spent`,
 # `contributions`, `net`, `income` and `balance`.
-API_VERSION = 42
+# 43 is the plan (desiderata 5.16): `/api/plan`, its goals, profile and tax years,
+# and `/api/plan/compare`. 44 is the projection by scenario: `/api/plan` gained
+# `scenarios` and `observed`, and `/api/plan/scenarios` and `/api/plan/projection` are new.
+# 45 is the portfolio: `GET /api/portfolio`. 46 is the unit value written by hand:
+# `/api/portfolio` gained `nav_missing`, and `POST /api/portfolio/nav` is new.
+API_VERSION = 46

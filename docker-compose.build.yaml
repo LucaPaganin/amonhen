@@ -4,9 +4,17 @@
 # `docker-compose.yaml` alone. Here the image is built from this checkout
 # instead, under the same name, so either path leaves the same container behind:
 #
-#   docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+#   PAYSLIP_PARSER_TOKEN=… docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
 #
+# The token reads the private payslip-parser repository; the build mounts it as a
+# secret for the one command that installs the dependencies.
 services:
   amonhen:
     build:
       context: .
+      secrets:
+        - payslip_parser_token
+
+secrets:
+  payslip_parser_token:
+    environment: PAYSLIP_PARSER_TOKEN

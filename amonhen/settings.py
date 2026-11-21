@@ -96,3 +96,10 @@ MANUAL_PAIR_MAX_GAP_DAYS = int(_env_str("MANUAL_PAIR_MAX_GAP_DAYS", "7"))
 LLM_URL = _env_str("LLM_URL", "")
 LLM_API_KEY = _env_str("LLM_API_KEY", "")
 LLM_MODEL = _env_str("LLM_MODEL", "")
+
+# Paperless-ngx, where the payslips and the fund's statements arrive (desiderata 5.16).
+# Empty URL: no documents are read. The token goes in .env, never in accounts.json.
+PAPERLESS_URL = _env_str("PAPERLESS_URL", "")
+PAPERLESS_TOKEN = _env_str("PAPERLESS_TOKEN", "")
+PAPERLESS_PAYSLIP_TYPE = _env_str("PAPERLESS_PAYSLIP_TYPE", "Busta paga")
+PAPERLESS_STATEMENT_TYPE = _env_str("PAPERLESS_STATEMENT_TYPE", "Prospetto fondo pensione")
