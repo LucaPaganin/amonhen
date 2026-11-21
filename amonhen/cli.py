@@ -375,7 +375,12 @@ def cmd_rules(ledger: Ledger, args) -> int:
     rules = book.rules()
     usage = rule_usage(ledger, rules)
     for rule in rules:
-        does = {"category": rule.target, "delete": "(delete)", "transfer": f"-> {rule.target}"}[rule.action]
+        does = {
+            "category": rule.target,
+            "delete": "(delete)",
+            "transfer": f"-> {rule.target}",
+            "tag": f"#{rule.target}",
+        }[rule.action]
         narrowed = " [conditions]" if rule.conditions else ""
         print(f"{rule.pattern:<40} {does:<20} {usage.get(rule.id, 0):>4} movements{narrowed}")
     return 0
