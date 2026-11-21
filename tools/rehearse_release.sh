@@ -56,7 +56,9 @@ done
 
 cd "$dir"
 if [ -z "$old" ]; then
-  old=$(sed -n 's/^AMONHEN_TAG=//p' .env 2>/dev/null | tr -d '"' | tail -1)
+  # A .env saved with Windows line endings ends the value with \r, which docker
+  # compose tolerates and an image reference does not ("invalid reference format").
+  old=$(sed -n 's/^AMONHEN_TAG=//p' .env 2>/dev/null | tr -d '"\r' | tail -1)
   [ -n "$old" ] || { echo "no AMONHEN_TAG in $dir/.env: pass --old" >&2; exit 2; }
 fi
 [ "$old" != "$new" ] || { echo "the NAS already runs $new" >&2; exit 2; }
