@@ -422,3 +422,31 @@ def test_sync_period_is_validated_before_the_bank(tmp_path, capsys, monkeypatch)
     assert run(db, "sync", "--account", "Nessuno", "--from", "2025-09-01", "--to", "2025-09-30") == 2
     assert "no account named" in capsys.readouterr().err
     assert fake.window_calls == []
+
+
+def test_rules_lists_every_action(tmp_path, capsys):
+    """`rules` printed a category, a deletion and a transfer, and raised on a tag rule."""
+    from amonhen.db import open_ledger_db
+    from amonhen.ledger import Ledger
+    from amonhen.merchants import RuleBook
+
+    db = tmp_path / "ledger.db"
+    run(db, "account-add", "Revolut", "--opening", "0.00", "--opening-date", "2026-08-01")
+    conn = open_ledger_db(db)
+    ledger = Ledger(conn)
+    book = RuleBook(conn)
+    book.set_rule("trattoria", "Ristoranti", ledger)
+    book.set_rule("commissione", None, ledger, action="delete")
+    book.set_rule("bonifico a me", "Revolut", ledger, action="transfer")
+    book.set_rule("acme", "lavoro", ledger, action="tag")
+    conn.commit()
+    conn.close()
+    capsys.readouterr()
+
+    assert run(db, "rules") == 0
+
+    out = capsys.readouterr().out
+    assert "Ristoranti" in out
+    assert "(delete)" in out
+    assert "-> Revolut" in out
+    assert "#lavoro" in out
