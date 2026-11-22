@@ -197,10 +197,18 @@ class PortfolioMixin:
 
     def credits_between(self, account_name: str, start: dt.date, end: dt.date, text: str) -> list[tuple[dt.date, Decimal]]:
         """Money that came in on an account in a window whose description holds ``text``."""
+        return self._movements_between(account_name, start, end, text, "> 0")
+
+    def debits_between(self, account_name: str, start: dt.date, end: dt.date, text: str) -> list[tuple[dt.date, Decimal]]:
+        """Money that went out of an account in a window whose description holds ``text`` (negative)."""
+        return self._movements_between(account_name, start, end, text, "< 0")
+
+    def _movements_between(self, account_name: str, start: dt.date, end: dt.date, text: str,
+                           sign: str) -> list[tuple[dt.date, Decimal]]:
         rows = self.conn.execute(
-            """SELECT t.date, t.amount FROM transactions t JOIN accounts a ON a.id = t.account_id
+            f"""SELECT t.date, t.amount FROM transactions t JOIN accounts a ON a.id = t.account_id
                WHERE a.name = ? AND t.date >= ? AND t.date <= ?
-                 AND CAST(t.amount AS REAL) > 0 AND LOWER(t.description) LIKE ?""",
+                 AND CAST(t.amount AS REAL) {sign} AND LOWER(t.description) LIKE ?""",
             (account_name, start.isoformat(), end.isoformat(), f"%{text.lower()}%"),
         )
         return [(dt.date.fromisoformat(row["date"]), parse_decimal(row["amount"])) for row in rows]

@@ -13,6 +13,7 @@ from amonhen.core.portfolio import (
     Contribution,
     Difference,
     Flow,
+    Opening,
     StatementOperation,
     accrued,
     btp_value,
@@ -404,6 +405,113 @@ def test_the_house_counts_in_the_net_worth_and_not_in_the_returns(ledger):
     assert (row["value"], row["paid"]) == ("100000.00", "0.00")
     position = service.overview(ledger, d(2026, 1, 15))["positions"][0]
     assert position["twr"] is None and position["mwr"] is None and position["paid"] is None
+
+
+# -- the opening: declared once, explained by the documents, then retired --------------
+
+OPENING = Opening(d(2025, 6, 30), D(20), D(12), D(220))
+
+
+def test_an_etf_opening_counts_only_the_trades_after_it(ledger):
+    etf_id = etf(ledger)
+    ledger.record_trade(etf_id, d(2025, 1, 1), D(10), D(10), D(100), D(0), "broker", "a")   # inside the opening
+    ledger.record_trade(etf_id, d(2025, 9, 1), D(5), D("12.5"), D("62.5"), D(0), "broker", "c")
+    ledger.set_price(etf_id, d(2025, 12, 31), D(13), "broker")
+    service.open_position(ledger, "MSCI World", OPENING)
+    held = service.holding(ledger, ledger.instrument("MSCI World"), d(2025, 12, 31), exact=True)
+    assert (held.units, held.paid, held.value) == (D(25), D("282.5"), D(325))
+    # Before the opening nothing is known for certain, so nothing is held.
+    assert service.holding(ledger, ledger.instrument("MSCI World"), d(2025, 3, 31)).units == 0
+    with pytest.raises(ValueError, match="già un'apertura"):
+        service.open_position(ledger, "MSCI World", OPENING)
+
+
+def test_the_documents_before_the_opening_reconcile_against_it_and_then_it_retires(ledger):
+    etf_id = etf(ledger)
+    ledger.record_trade(etf_id, d(2025, 1, 1), D(10), D(10), D(100), D(0), "broker", "a")
+    service.open_position(ledger, "MSCI World", OPENING)
+    row = {r["label"]: r for r in service.reconciliations(ledger, d(2026, 1, 15))}["Apertura di MSCI World contro i documenti"]
+    assert (row["expected"], row["actual"], row["difference"]) == ("20", "10", "-10")
+    ledger.record_trade(etf_id, d(2025, 6, 2), D(10), D(12), D(120), D(0), "broker", "b")   # the missing contract
+    row = {r["label"]: r for r in service.reconciliations(ledger, d(2026, 1, 15))}["Apertura di MSCI World contro i documenti"]
+    assert row["difference"] == "0" and "si può ritirare" in row["note"]
+    service.retire_opening(ledger, "MSCI World")
+    held = service.holding(ledger, ledger.instrument("MSCI World"), d(2025, 12, 31))
+    assert (held.units, held.paid) == (D(20), D(220))   # the documents alone, the same position
+
+
+def test_with_an_opening_the_pac_compares_only_what_was_sent_and_bought_after_it(ledger):
+    bank = ledger.ensure_account(Account(name="Banca", type="real"))
+    investments = ledger.ensure_account(Account(name="Investimenti", type="virtual"))
+    for day in (d(2025, 3, 1), d(2025, 8, 1)):   # one transfer inside the opening, one after it
+        ledger.record(IncomingTransaction(account_id=bank, date=day, amount=D("-62.5"), description="pac",
+                                          status="BOOK", source="psd2", balancing_account_id=investments))
+    etf_id = etf(ledger)
+    ledger.record_trade(etf_id, d(2025, 8, 2), D(5), D("12.5"), D("62.5"), D(0), "broker", "c")
+    service.open_position(ledger, "MSCI World", OPENING)
+    row = service.reconciliations(ledger, d(2026, 1, 15))[0]
+    assert (row["expected"], row["actual"], row["difference"]) == ("62.50", "62.50", "0.00")
+    assert row["note"] == "dal 2025-07-01, dopo l'apertura"
+
+
+def test_the_returns_start_from_the_value_of_the_opening(ledger):
+    etf_id = etf(ledger)
+    ledger.record_trade(etf_id, d(2025, 1, 1), D(20), D(5), D(100), D(0), "broker", "a")   # an old, cheap trade
+    ledger.set_price(etf_id, d(2025, 12, 31), D("13.2"), "broker")
+    service.open_position(ledger, "MSCI World", OPENING)
+    position = service.overview(ledger, d(2026, 1, 15))["positions"][0]
+    # 20 units from 12 to 13.2: what grew before the opening is not a return of these months.
+    assert position["twr"] == "10.00" and position["paid"] == "220.00"
+    assert position["note"] == "rendimenti dall'apertura del 2025-06-30"
+    rate = float(D(position["mwr"]) / 100)
+    npv = -240 + 264 * (1 + rate) ** -((d(2026, 1, 15) - d(2025, 6, 30)).days / 365)
+    assert abs(npv) < 0.01
+
+
+def test_a_fund_opening_contains_the_payslips_up_to_its_date(ledger):
+    fund_id = fund(ledger)
+    # January invested before the opening, February withheld before it and invested after.
+    service.read_documents(ledger, documents_from(payslips(), [
+        operation(d(2025, 2, 20), "100", "10", reference="gen"), operation(d(2025, 4, 15), "100", "10", reference="feb")],
+        units=D(20)))
+    service.open_position(ledger, "Fondo", Opening(d(2025, 2, 28), D(10), D(10), D(100)))
+    ledger.set_price(fund_id, d(2025, 12, 31), D(12), "pagina")
+    held = service.holding(ledger, ledger.instrument("Fondo"), d(2025, 12, 31), exact=True)
+    # February's units came after the opening and add to it; only March's money is new and in transit.
+    assert (held.units, held.paid, held.value) == (D(20), D(250), D(390))
+    rows = {r["label"]: r for r in service.reconciliations(ledger, d(2026, 1, 15))}
+    assert rows["Apertura di Fondo contro i documenti"]["difference"] == "0"
+    assert (rows["Trattenuto contro investito"]["expected"], rows["Trattenuto contro investito"]["actual"]) == ("150.00", "0.00")
+    assert rows["Quote del fondo contro il prospetto"]["difference"] == "0"
+    # The opening's unit value is the price of its day, so its month asks for nothing.
+    assert ledger.price_at(fund_id, d(2025, 2, 28))["source"] == "apertura"
+    assert service.nav_missing(ledger, d(2025, 6, 15))[0] == "2025-03"
+
+
+def test_a_coupon_credited_gross_is_netted_by_its_tax_and_only_looked_for_since_the_account(ledger):
+    bank = ledger.ensure_account(Account(name="Fineco", type="real"))
+    for amount, text in (("102.50", "Ced.su 10.000 BTP"), ("-12.81", "Rit.ced.su 10.000 BTP")):
+        ledger.record(IncomingTransaction(account_id=bank, date=d(2025, 10, 10), amount=D(amount), description=text,
+                                          status="BOOK", source="psd2", balancing_account_id=ledger.category("Cedole")))
+    ledger.add_instrument("BTP Valore", "btp", source="calcolato", terms=json.dumps({
+        "nominal": "10000", "start": "2023-10-10", "rates": ["4.10"] * 3 + ["4.50"] * 2, "tax": "12.5",
+        "bonus": "0.5", "account": "Fineco", "credit_text": "Ced.su", "credits_from": "2025-09-01",
+        "withholding_text": "Rit.ced"}))
+    row = service.reconciliations(ledger, d(2025, 11, 1))[0]
+    assert (row["expected"], row["actual"], row["difference"], row["note"]) == ("89.69", "89.69", "0.00", None)
+
+
+def test_the_opening_is_declared_and_retired_from_the_command_line(tmp_path, capsys):
+    from tests.test_amonhen_cli import run
+
+    db = tmp_path / "cli.db"
+    assert run(db, "instrument-add", "MSCI World", "--kind", "etf", "--source", "broker") == 0
+    assert run(db, "position-open", "MSCI World", "--date", "2025-06-30", "--units", "20") == 2
+    args = ("position-open", "MSCI World", "--date", "2025-06-30", "--units", "20", "--price", "12", "--paid", "220")
+    assert run(db, *args) == 0 and run(db, *args) == 2
+    assert run(db, "position-open", "MSCI World", "--retire") == 0
+    assert run(db, "position-open", "MSCI World", "--retire") == 2
+    assert "ritirata" in capsys.readouterr().out
 
 
 # -- the API ---------------------------------------------------------------------------

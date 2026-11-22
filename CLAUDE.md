@@ -44,7 +44,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 `spend`, `balances`, `anchor`, `balance-check`, `categorize`, `rules`,
 `rule-add`, `rule-remove`, `category-add`, `category-rename`, `metrics`, `category-flags`, `account-flags`,
 `split`, `set`, `budget`, `budgets`, `anomalies`, `suggest`, `llm-suggest`,
-`validate`, `backup`, `instrument-add`, `prices-load`, `portfolio-sync`.
+`validate`, `backup`, `instrument-add`, `position-open`, `prices-load`, `portfolio-sync`.
 
 ## Architecture in one line
 
@@ -69,7 +69,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/merchants.py`|Merchant normalization, the rules on the description and their application|
 |`amonhen/metrics.py`|Burn, episodic accrual, runway, the month against its usual pace, the dashboard series, and the statistics per category|
 |`amonhen/core/planning.py`|Desiderata 5.16, pure: the profile and tax keys, the IRPEF on the brackets, the exit rate, one allocation's fund against PAC, the latest complete tax year|
-|`amonhen/core/portfolio.py`|Desiderata 5.16, pure: a BTP's net coupons, accrued and value, the pension contribution's states and statement matching, `fund_position`, the reconciliation types, `NetWorth`|
+|`amonhen/core/portfolio.py`|Desiderata 5.16, pure: a BTP's net coupons, accrued and value, the opening that bridges the documents not read yet, the pension contribution's states and statement matching, `fund_position`, the reconciliation types, `NetWorth`|
 |`amonhen/core/returns.py`|`twr` and `mwr` (bracketed bisection), pure|
 |`amonhen/ports/portfolio.py`|`BrokerSource`, `DocumentSource`, `NavSource`, the domain types they carry and `SourceError`: the portfolio's sources as the use cases see them|
 |`amonhen/services/portfolio.py`|Read the sources, snapshot a month end, the reconciliations, and what the screen reads|
@@ -140,10 +140,10 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`merchants`|`merchant_name`, `rule_key`, `matching_rule`, `Rule`, `Movement`, `RuleBook`, `ACTIONS`, `categorize`, `apply_transfer_rules`, `held_by_transfer_rules`, `apply_rule_changes`, `rule_usage`, `preview`, `deleting_rule`|
 |`metrics`|`compute_metrics`, `Metrics`, `LedgerScope`, `month_reading`, `MonthReading`, `MonthCategory`, `month_summary`, `MonthSummary`, `period_summary`, `PeriodSummary`, `spending_statistics`, `SpendingStatistics`, `CategoryStatistics`, `SeriesStatistics`, `usual_spending`, `usual_reading`, `UsualReading`, `spend_by_category`, `monthly_flows`, `net_worth_series`, `latest_balances`, `complete_months`|
 |`core.planning`|`PROFILE_KEYS`, `TAX_KEYS`, `LIQUIDITY`, `checked`, `parse_brackets`, `income_tax`, `exit_rate`, `compare`, `AllocationResult`, `complete_year`|
-|`core.portfolio`|`BtpTerms`, `coupons`, `accrued`, `btp_value`, `Contribution`, `StatementOperation`, `match_statement`, `split_units`, `fund_position`, `Difference`, `match_flows`, `NetWorth`, `add_months`, `month_end`|
+|`core.portfolio`|`BtpTerms`, `Opening`, `coupons`, `accrued`, `btp_value`, `Contribution`, `StatementOperation`, `match_statement`, `split_units`, `fund_position`, `Difference`, `match_flows`, `NetWorth`, `add_months`, `month_end`|
 |`core.returns`|`twr`, `mwr`|
 |`ports.portfolio`|`BrokerSource`, `DocumentSource`, `NavSource`, `BrokerTrade`, `BrokerPosition`, `PricePoint`, `PayslipContribution`, `SourceError`, `SourceUnavailable`, `NavUnavailable`, `FetchedDocument`, `ReadStatement`, `DOCUMENT_KINDS`|
-|`services.portfolio`|`sync_broker`, `read_documents`, `fetch_nav`, `set_nav`, `nav_missing`, `take_snapshot`, `snapshot_through`, `reconciliations`, `overview`, `holding`|
+|`services.portfolio`|`opening`, `open_position`, `retire_opening`, `sync_broker`, `read_documents`, `fetch_nav`, `set_nav`, `nav_missing`, `take_snapshot`, `snapshot_through`, `reconciliations`, `overview`, `holding`|
 |`core.projection`|`SCENARIOS`, `checked_rate`, `monthly_rate`, `growth`, `value_at`, `needed_monthly`, `coast_fi`, `project`, `Projection`|
 |`services.planning`|`overview`, `margin`, `comparison`|
 |`services.projection`|`projection`, `observed_monthly`, `scenarios_payload`|
@@ -352,7 +352,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Plan a month|The **Budget** section: *Aggiungi una spesa* with a description and an amount (the category can wait: a rule gives one, or it waits under *Da assegnare* in the *Per voce* view), a category's ceiling under *Per categoria* (*Da questo mese in poi* or *Solo questo mese*; without one, the items are the budget), *Più dettagli* for the full form or a past movement, *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
 |Compare fund and PAC|**Piano** (under *Gestione*): the goals, the profile, the tax year written by hand with its sources each January, then two allocations side by side at one return you write|
 |Project a goal under the three scenarios|**Piano**: write the three scenarios (*Scenari*), then *Dove si arriva* with the capital already put aside and the monthly payment — left empty it is the pace the ledger shows. Coast FI appears for a goal that may stay locked|
-|See the portfolio|**Portafoglio** (under *Gestione*): read only but for a month's unit value the page did not give — figures enter through `portfolio-sync` (Paperless, the class's page on Borsa Italiana, the snapshots). Declare what is held once with `instrument-add`, load an ETF's past closes once with `prices-load`. The broker is read from its documents, never through a session|
+|See the portfolio|**Portafoglio** (under *Gestione*): read only but for a month's unit value the page did not give — figures enter through `portfolio-sync` (Paperless, the class's page on Borsa Italiana, the snapshots). Declare what is held once with `instrument-add`, load an ETF's past closes once with `prices-load`. While the documents of an ETF or the fund are not there yet, `position-open` declares what it held on a date; the documents up to it are reconciled against it, and `position-open --retire` hands it back to them when they explain it all (`docs/investments.md`). The broker is read from its documents, never through a session|
 |Build the image with the private parser|`PAYSLIP_PARSER_TOKEN` (read access to `payslip-parser`) in the environment for a local build, the repository secret of the same name for CI: it is mounted for one command and lands in no layer (`docs/operations.md`)|
 |See what a category usually takes|**Statistiche**: the median and the mean over 6, 12 or 24 complete months; the **Budget** row says *di solito*, the median of the six before that month|
 |Change a dashboard chart|The series in `metrics.py`, then the panel in `web/src/screens/Dashboard.tsx`; the API returns the sums, the client only draws them|

@@ -197,6 +197,19 @@ def build_parser() -> argparse.ArgumentParser:
     instrument.add_argument("--bonus", default="0", help="BTP: the loyalty bonus at maturity, percent of the nominal")
     instrument.add_argument("--account", help="BTP: the account the coupons are credited on")
     instrument.add_argument("--credit-text", help="BTP: a text the credit's description holds")
+    instrument.add_argument("--credits-from", help="BTP: the first day the account can show a coupon, YYYY-MM-DD "
+                                                   "(another bank held it before)")
+    instrument.add_argument("--withholding-text", help="BTP: a text the tax debit holds, when the bank credits "
+                                                       "the gross coupon and debits the tax apart")
+
+    opening = sub.add_parser("position-open", help="declare what an ETF or the fund held on a date, "
+                                                   "until the documents explain it")
+    opening.add_argument("name")
+    opening.add_argument("--date", help="YYYY-MM-DD")
+    opening.add_argument("--units", help="the units held that day")
+    opening.add_argument("--price", help="the price (the unit value, for the fund) of that day")
+    opening.add_argument("--paid", help="what had been paid in by that day")
+    opening.add_argument("--retire", action="store_true", help="take the opening away: the documents explain it")
 
     prices = sub.add_parser("prices-load", help="load an ETF's month-end closes before its first sync, once")
     prices.add_argument("name")
@@ -810,6 +823,10 @@ def cmd_instrument_add(ledger: Ledger, args) -> int:
                 "tax": args.tax, "bonus": args.bonus}
         if args.account and args.credit_text:
             data.update(account=args.account, credit_text=args.credit_text)
+            if args.credits_from:
+                data["credits_from"] = dt.date.fromisoformat(args.credits_from).isoformat()
+            if args.withholding_text:
+                data["withholding_text"] = args.withholding_text
         BtpTerms.from_text(json.dumps(data))  # refuses terms it cannot read, before anything is written
         terms = json.dumps(data)
     elif args.kind == "fondo_pensione" and args.nav_page:
@@ -822,6 +839,32 @@ def cmd_instrument_add(ledger: Ledger, args) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     print(f"{args.name}: strumento {instrument_id} ({args.kind})")
+    return 0
+
+
+def cmd_position_open(ledger: Ledger, args) -> int:
+    """An ETF's or the fund's opening: declared once, retired when the documents explain it."""
+    from amonhen.core.portfolio import Opening
+    from amonhen.services import portfolio as service
+
+    try:
+        if args.retire:
+            gone = service.retire_opening(ledger, args.name)
+            print(f"{args.name}: apertura del {gone.date.isoformat()} ritirata, contano i documenti")
+            return 0
+        missing = [flag for flag, value in (("--date", args.date), ("--units", args.units),
+                                             ("--price", args.price), ("--paid", args.paid)) if not value]
+        if missing:
+            print(f"error: an opening needs {', '.join(missing)}", file=sys.stderr)
+            return 2
+        start = Opening(dt.date.fromisoformat(args.date), parse_decimal(args.units),
+                        parse_decimal(args.price), parse_decimal(args.paid))
+        service.open_position(ledger, args.name, start)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"{args.name}: apertura del {start.date.isoformat()}, {start.units} quote a {start.price}, "
+          f"versato {format_decimal(start.paid)}")
     return 0
 
 
@@ -863,7 +906,10 @@ def cmd_portfolio_sync(ledger: Ledger, args) -> int:
             print(f"  operazione non abbinata del {item['date']}: {item['amount']}")
     if any(row["kind"] == "fondo_pensione" for row in ledger.instruments()):
         month = service.month_of(today.replace(day=1) - dt.timedelta(days=1))
-        if service.fetch_nav(ledger, nav_source(), month):
+        fund_id = next(row["id"] for row in ledger.instruments() if row["kind"] == "fondo_pensione")
+        if ledger.price_at(fund_id, service.month_end(month)) is not None:
+            print(f"valore quota di {month}: c'è già")
+        elif service.fetch_nav(ledger, nav_source(), month):
             print(f"valore quota di {month}: letto")
         else:
             print(f"valore quota di {month}: non letto, va scritto a mano nel Portafoglio")
@@ -905,6 +951,7 @@ HANDLERS = {
     "anchor": cmd_anchor,
     "balance-check": cmd_balance_check,
     "instrument-add": cmd_instrument_add,
+    "position-open": cmd_position_open,
     "prices-load": cmd_prices_load,
     "portfolio-sync": cmd_portfolio_sync,
 }
