@@ -155,6 +155,8 @@ export interface SyncOutcome {
   rules_applied: number;
   passthrough_legs: number;
   errors: string[];
+  /** What each calendar of a tracked service did after the banks (desiderata 5.17). */
+  calendars: CalendarOutcome[];
 }
 
 /** One window of a period sync: what the bank returned, or why it did not. */
@@ -953,4 +955,75 @@ export interface Portfolio {
   missing: string[];
   /** Complete months the fund held units in and has no unit value for: a person writes them. */
   nav_missing: string[];
+}
+
+/** Desiderata 5.17: one calendar read by the sync, or why it was not. */
+export interface CalendarOutcome {
+  calendar_id: string;
+  written: number;
+  cancelled: number;
+  error: string | null;
+}
+
+export type ServiceKind = "lezione" | "seduta" | "altro";
+export type ServiceDirection = "entrata" | "uscita";
+export type SessionState = "pagata" | "parziale" | "da_pagare" | "futura" | "annullata";
+
+/** What a service is, as it is written. */
+export interface ServiceDraft {
+  name: string;
+  kind: ServiceKind;
+  direction: ServiceDirection;
+  rate: string;
+  calendar_id: string;
+  title_pattern: string;
+  counterparty_iban: string | null;
+  active: boolean;
+}
+
+/** A service with its balance: due is the valid sessions up to today, paid the linked payments. */
+export interface ServiceSummary extends ServiceDraft {
+  id: number;
+  due: string;
+  paid: string;
+  balance: string;
+  sessions_due: number;
+  sessions_unpaid: number;
+}
+
+export interface ServiceSession {
+  event_id: string;
+  start: string;
+  summary: string;
+  amount: string;
+  covered?: string;
+  state: SessionState;
+}
+
+export interface ServicePayment {
+  transaction_id: number;
+  date: string;
+  amount: string;
+  description: string;
+  counterparty: string | null;
+  by_iban: boolean;
+}
+
+export interface ServiceDetail extends ServiceSummary {
+  sessions: ServiceSession[];
+  cancelled: ServiceSession[];
+  payments: ServicePayment[];
+}
+
+export interface ServiceList {
+  services: ServiceSummary[];
+  calendar_configured: boolean;
+}
+
+export interface PaymentCandidate {
+  id: number;
+  date: string;
+  amount: string;
+  description: string;
+  counterparty: string | null;
 }

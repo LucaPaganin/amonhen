@@ -6,7 +6,7 @@ balanced by the transfer clearing account, which is why transfers never show up
 as spending without needing a rule.
 
 The class is split by sub-domain, one module each (`accounts`, `ingest`,
-`deletions`, `categorization`, `transfer_legs`, `balances`, `planning`, `portfolio`); `Ledger` composes
+`deletions`, `categorization`, `transfer_legs`, `balances`, `planning`, `portfolio`, `tracking`); `Ledger` composes
 them, so every caller keeps one object and one import. The module-level
 definitions are in `definitions` and are re-exported here."""
 from __future__ import annotations
@@ -61,6 +61,7 @@ from amonhen.ledger.deletions import DeletionsMixin
 from amonhen.ledger.ingest import IngestMixin
 from amonhen.ledger.planning import PlanningMixin
 from amonhen.ledger.portfolio import PortfolioMixin
+from amonhen.ledger.tracking import TrackingMixin
 from amonhen.ledger.transfer_legs import TransferLegsMixin
 
 
@@ -73,6 +74,7 @@ class Ledger(
     BalancesMixin,
     PlanningMixin,
     PortfolioMixin,
+    TrackingMixin,
 ):
     """The one object every caller holds: each part keeps its sub-domain, and they
     share the connection and call each other through `self`."""

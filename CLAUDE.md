@@ -44,7 +44,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 `spend`, `balances`, `anchor`, `balance-check`, `categorize`, `rules`,
 `rule-add`, `rule-remove`, `category-add`, `category-rename`, `metrics`, `category-flags`, `account-flags`,
 `split`, `set`, `budget`, `budgets`, `anomalies`, `suggest`, `llm-suggest`,
-`validate`, `backup`, `instrument-add`, `position-open`, `prices-load`, `portfolio-sync`.
+`validate`, `backup`, `instrument-add`, `position-open`, `prices-load`, `portfolio-sync`, `services`, `services-sync`.
 
 ## Architecture in one line
 
@@ -58,9 +58,9 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |---|---|
 |`amonhen/settings.py`|Paths and tunables, each overridable via `AMONHEN_<NAME>`; loads `.env` first|
 |`amonhen/models.py`|`Account`, `Posting`, `IncomingTransaction`, decimal helpers|
-|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters, scenarios, instruments, instrument_trades, pension_contributions, prices, portfolio_snapshots, documents|
+|`amonhen/db.py`|Schema for accounts, transactions, postings, transfer_links, rules, tags, transaction_tags, budgets, budget_months, budget_items, merchant_suggestions, account_balances, settings, held_transactions, goals, profile_facts, tax_parameters, scenarios, instruments, instrument_trades, pension_contributions, prices, portfolio_snapshots, documents, services, service_sessions, service_payments|
 |`amonhen/dedup.py`|`content_hash` fallback identity (whitespace/case normalized)|
-|`amonhen/ledger/`|`Ledger` (`__init__.py`) composes one mixin per sub-domain: `accounts` (accounts, categories, settings), `ingest` (`record`, dedup, pending→booked, held duplicates), `deletions` (the trash), `categorization` (categories of a movement, splits, tags, notes, proposals), `transfer_legs` (pairs, virtual destinations, mirrors), `balances` (the double-entry check, spending, balances, declarations, the opening), `planning` (goals, profile facts, tax years, scenarios — desiderata 5.16), `portfolio` (instruments, trades, the fund's contributions, prices, snapshots); `definitions.py` holds the shared SQL fragments, the balance types and the result types, re-exported by `amonhen.ledger`|
+|`amonhen/ledger/`|`Ledger` (`__init__.py`) composes one mixin per sub-domain: `accounts` (accounts, categories, settings), `ingest` (`record`, dedup, pending→booked, held duplicates), `deletions` (the trash), `categorization` (categories of a movement, splits, tags, notes, proposals), `transfer_legs` (pairs, virtual destinations, mirrors), `balances` (the double-entry check, spending, balances, declarations, the opening), `planning` (goals, profile facts, tax years, scenarios — desiderata 5.16), `portfolio` (instruments, trades, the fund's contributions, prices, snapshots), `tracking` (services, sessions, payments — desiderata 5.17); `definitions.py` holds the shared SQL fragments, the balance types and the result types, re-exported by `amonhen.ledger`|
 |`amonhen/config.py`|Reads **and writes** `accounts.json`: Enable Banking credentials, accounts and the `passthrough` declarations; `setup_state` answers the first-setup screen for a file that does not exist yet|
 |`amonhen/services/ingest.py`|`settle_after_ingest`: what follows every write of movements — transfer rules, pairing, passthrough, the double-entry check, the rules — in that order, called by the sync, the import and a held movement written by hand|
 |`amonhen/sync.py`|`SyncService`: per-account fetch → normalize → ledger, then links transfers; `run_period` is one account over a chosen period, window by window; `SyncBusy` is the process-wide guard on one run at a time|
@@ -77,6 +77,11 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/core/projection.py`|Desiderata 5.16, pure: the monthly rate, the value at a date, the monthly payment that reaches a goal, Coast FI, one goal under one scenario|
 |`amonhen/services/projection.py`|Every goal of today under the three scenarios, Coast FI in the chosen one, and the pace the ledger shows (`observed_monthly`)|
 |`amonhen/services/planning.py`|The plan as the API answers it: goals, profile, tax years, the margin over the 12 complete months, and the comparison of two allocations|
+|`amonhen/core/tracking.py`|Desiderata 5.17, pure: which event title is a session (`title_matches`), the FIFO `coverage` of the sessions by the payments, `normalize_iban`|
+|`amonhen/services/tracking.py`|`sync_calendars` (incremental with the sync token, one full read when it expired, then the IBAN links), `overview`, `detail`|
+|`amonhen/ports/calendar.py`|`CalendarSource`, `CalendarEvent`, `CalendarChanges`, `CalendarError`, `SyncTokenExpired`|
+|`amonhen/adapters/google_calendar.py`|`GoogleCalendar`: the events of a calendar with a service account, its token signed with PyJWT, pages followed, 410 as `SyncTokenExpired`|
+|`web/src/screens/Services.tsx`|Desiderata 5.17: the services with their balance, a service's sessions and coverage, the payments, a link by hand, the service sheet|
 |`amonhen/budgets.py`|Desiderata 5.12: a ceiling per category and month (a default from a month on, a month's own override) and the expenses planned inside it|
 |`amonhen/anomalies.py`|Deterministic, explained spending outliers|
 |`amonhen/classifier.py`|Char n-gram logistic proposals for uncovered merchants|
@@ -84,7 +89,7 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 |`amonhen/suggestions.py`|Optional LLM proposals for merchants never seen|
 |`amonhen/queries.py`|The reads the screens need, in SQL beside the ledger: a page of movements (`TransactionFilter`, `transaction_page`), the review queue, the virtual accounts, one row by id. Routes call these and write no SQL; what a missing row means (404, 422) stays the route's|
 |`amonhen/api/app.py`|`create_app`: the exception handlers, one `AppContext`, every router built from it in the order the routes were declared, then the PWA host as the catch-all|
-|`amonhen/api/routes/`|One `APIRouter` per section, each a `build(ctx)`: `setup` (consent flow and first setup; `/callback` answers 303 to `/?setup=1`), `dashboard`, `accounts`, `categories` (with tags and rules), `budgets`, `plan`, `portfolio` (read only), `review`, `transactions`, `transfers`, `sync`, `imports`|
+|`amonhen/api/routes/`|One `APIRouter` per section, each a `build(ctx)`: `setup` (consent flow and first setup; `/callback` answers 303 to `/?setup=1`), `dashboard`, `accounts`, `categories` (with tags and rules), `budgets`, `plan`, `portfolio` (read only), `services` (desiderata 5.17), `review`, `transactions`, `transfers`, `sync`, `imports`|
 |`amonhen/api/context.py`|`AppContext`: where the ledger and `accounts.json` live, `ledger_scope` (one connection per request, on the request's thread) and `credentials_or_409`|
 |`amonhen/api/schemas.py`, `amonhen/api/payloads.py`|The request bodies, and what the routers share: the payloads they answer with, query parsing, the 404 checks (`_`-named: the package's own, not the API's surface)|
 |`amonhen/api/version.py`|`API_VERSION`, and the history of what each version changed|
@@ -286,7 +291,7 @@ change, like the spec.
 
 ## Ledger schema
 
-One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), twenty-five tables. The
+One SQLite file (`amonhen.db`, overridable with `AMONHEN_DB_PATH`), twenty-eight tables. The
 ledger's shape is the first four, and **a transaction has no category column**: the
 category lives on a posting, which is what makes an internal transfer not spending
 by construction.
@@ -317,6 +322,9 @@ by construction.
 |`prices`|4|One value per instrument and day, with its source; a missing month is said, never borrowed|
 |`portfolio_snapshots`|5|Units, value and net paid-in of an instrument at a month end|
 |`documents`|6|A document read from Paperless, once: its Paperless id, kind, when, `outcome` (`importato` / `errore`), the layout and the error. A document here is never read again unless a failed one is retried|
+|`services`|9|Desiderata 5.17: a service with an agreed price — `kind` is `lezione`, `seduta` or `altro`, `direction` `entrata` or `uscita`; `rate` per session; the `calendar_id` and `title_pattern` (exact text or `/an expression/`) its sessions match; `counterparty_iban` links payments|
+|`service_sessions`|7|One calendar event a service matched, keyed by Google's `event_id`: `start`, `summary`, `amount` (the rate when first seen, editable), `status` `valida` / `annullata`. Which sessions are paid is computed, FIFO, never stored|
+|`service_payments`|3|Which movement pays which service; `by_iban` 0 is a link by hand, which no sync undoes, and a movement unlinked by hand is marked in `settings` (`tracking:unlinked:<id>`) so the IBAN does not link it again. It writes nothing on the movement, and a deleted movement takes its link with it (`ON DELETE CASCADE`)|
 |`settings`|2|Key/value odds and ends (the units a source reported, and the Paperless cursor per kind, live here too)|
 
 Three shapes wrap the same movement: `IncomingTransaction` (`models.py`, 13 fields)
@@ -350,6 +358,7 @@ there are several), `merchant` is the normalized name, and `review_state` /
 |Inspect the ledger|`sqlite3 amonhen.db` — accounts, transactions, postings, transfer_links (see *Ledger schema* above)|
 |See the balances behind the net worth|`sqlite3 amonhen.db "select * from account_balances"` — written by `sync`, `balances` and `anchor`|
 |Plan a month|The **Budget** section: *Aggiungi una spesa* with a description and an amount (the category can wait: a rule gives one, or it waits under *Da assegnare* in the *Per voce* view), a category's ceiling under *Per categoria* (*Da questo mese in poi* or *Solo questo mese*; without one, the items are the budget), *Più dettagli* for the full form or a past movement, *Copia dal mese prima*; `uv run amonhen budget <category> <amount> [--from YYYY-MM]` sets a default from the command line|
+|Track lessons or sessions with an agreed price|**Servizi** (under *Gestione*): *Nuovo servizio* with the calendar ID, the exact event title (or `/an expression/`) and the counterparty's IBAN. The calendar is shared read-only with the service account whose key `AMONHEN_GOOGLE_SERVICE_ACCOUNT_FILE` points at; *Sincronizza* reads it after the banks, or `uv run amonhen services-sync`. A payment without the IBAN is linked from the service's panel|
 |Compare fund and PAC|**Piano** (under *Gestione*): the goals, the profile, the tax year written by hand with its sources each January, then two allocations side by side at one return you write|
 |Project a goal under the three scenarios|**Piano**: write the three scenarios (*Scenari*), then *Dove si arriva* with the capital already put aside and the monthly payment — left empty it is the pace the ledger shows. Coast FI appears for a goal that may stay locked|
 |See the portfolio|**Portafoglio** (under *Gestione*): read only but for a month's unit value the page did not give — figures enter through `portfolio-sync` (Paperless, the class's page on Borsa Italiana, the snapshots). Declare what is held once with `instrument-add`, load an ETF's past closes once with `prices-load`. While the documents of an ETF or the fund are not there yet, `position-open` declares what it held on a date; the documents up to it are reconciled against it, and `position-open --retire` hands it back to them when they explain it all (`docs/investments.md`). The broker is read from its documents, never through a session|

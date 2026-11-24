@@ -287,3 +287,26 @@ class NavRequest(BaseModel):
 
     month: str
     value: str
+
+
+class ServiceRequest(BaseModel):
+    """A tracked service (desiderata 5.17): created without an id, rewritten with one."""
+
+    name: str
+    kind: Literal["lezione", "seduta", "altro"]
+    direction: Literal["entrata", "uscita"]
+    rate: str
+    calendar_id: str
+    title_pattern: str
+    counterparty_iban: str | None = None
+    active: bool = True
+
+
+class SessionAmountRequest(BaseModel):
+    amount: str
+
+
+class PaymentLinkRequest(BaseModel):
+    """The service a movement pays, or None to take it out of every service."""
+
+    service_id: int | None = None

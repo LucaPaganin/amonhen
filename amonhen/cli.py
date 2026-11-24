@@ -218,6 +218,9 @@ def build_parser() -> argparse.ArgumentParser:
     portfolio = sub.add_parser("portfolio-sync", help="read new documents, the fund's unit value, and snapshot the months")
     portfolio.add_argument("--retry-failed", action="store_true", help="read again the documents that failed")
 
+    sub.add_parser("services", help="the tracked services and their balances (desiderata 5.17)")
+    sub.add_parser("services-sync", help="read the calendars of the tracked services, then link payments")
+
     return parser
 
 
@@ -300,6 +303,7 @@ def _sync_period(ledger: Ledger, args) -> int:
 def cmd_daemon(ledger: Ledger, args) -> int:
     while True:
         cmd_sync(ledger, args)
+        cmd_services_sync(ledger, args)
         wait = args.interval_hours * 3600
         logging.info("sleeping %.1f h", args.interval_hours)
         try:
@@ -407,7 +411,33 @@ def _sync_loop(db_path: str, config_path: str, interval_hours: float) -> None:
             logging.info("scheduled sync skipped: another one is running")
         except Exception:
             logging.exception("scheduled sync failed")
+        _calendar_pass(db_path)
         time.sleep(wait)
+
+
+def _calendar_pass(db_path: str) -> None:
+    """The calendars of the tracked services, at every wake-up of the sync loop.
+
+    Apart from the banks on purpose: a calendar that does not answer is logged and
+    stops nothing, and reading one spends no bank's quota.
+    """
+    from amonhen.composition import calendar_source
+    from amonhen.db import open_ledger_db
+    from amonhen.services.tracking import sync_calendars
+
+    try:
+        source = calendar_source()
+        if source is None:
+            return
+        conn = open_ledger_db(db_path)
+        try:
+            ledger = Ledger(conn)
+            if ledger.services(active_only=True):
+                sync_calendars(ledger, source, SystemClock().now())
+        finally:
+            conn.close()
+    except Exception:
+        logging.exception("scheduled calendar read failed")
 
 
 def cmd_rules(ledger: Ledger, args) -> int:
@@ -921,6 +951,41 @@ def cmd_portfolio_sync(ledger: Ledger, args) -> int:
     return 0
 
 
+def cmd_services(ledger: Ledger, args) -> int:
+    """Each tracked service with what is due, what was paid and the balance."""
+    from amonhen.services.tracking import overview
+
+    for row in overview(ledger, args.clock.today()):
+        state = "" if row["active"] else " (inattivo)"
+        print(f"{row['name']}{state} [{row['kind']}, {row['direction']}]: dovuto {row['due']}, "
+              f"pagato {row['paid']}, saldo {row['balance']} — {row['sessions_unpaid']} sessioni non coperte")
+    return 0
+
+
+def cmd_services_sync(ledger: Ledger, args) -> int:
+    """Read what changed in the calendars of the active services, then link payments by IBAN."""
+    from amonhen.composition import calendar_source
+    from amonhen.services.tracking import sync_calendars
+
+    try:
+        source = calendar_source()
+    except ValueError as exc:
+        print(f"cannot read the calendars: {exc}", file=sys.stderr)
+        return 2
+    if source is None:
+        print("calendari: nessun service account (AMONHEN_GOOGLE_SERVICE_ACCOUNT_FILE)")
+        return 0
+    result = sync_calendars(ledger, source, args.clock.now())
+    for calendar_outcome in result.calendars:
+        if calendar_outcome.error:
+            print(f"{calendar_outcome.calendar_id}: {calendar_outcome.error}", file=sys.stderr)
+        else:
+            print(f"{calendar_outcome.calendar_id}: {calendar_outcome.written} sessioni scritte, "
+                  f"{calendar_outcome.cancelled} annullate")
+    print(f"pagamenti collegati: {result.payments_linked}")
+    return 1 if result.errors else 0
+
+
 HANDLERS = {
     "sync": cmd_sync,
     "daemon": cmd_daemon,
@@ -954,6 +1019,8 @@ HANDLERS = {
     "position-open": cmd_position_open,
     "prices-load": cmd_prices_load,
     "portfolio-sync": cmd_portfolio_sync,
+    "services": cmd_services,
+    "services-sync": cmd_services_sync,
 }
 
 

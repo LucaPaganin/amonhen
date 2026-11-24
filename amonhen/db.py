@@ -368,6 +368,48 @@ CREATE TABLE IF NOT EXISTS merchant_suggestions (
     decision TEXT NOT NULL DEFAULT 'pending'
         CHECK (decision IN ('pending', 'accepted', 'dismissed'))
 );
+
+-- Desiderata 5.17: a service with an agreed price, given or received, whose
+-- sessions are events on a Google calendar. The ledger's movements stay what
+-- they are: a service only reads them, through the payments linked below.
+CREATE TABLE IF NOT EXISTS services (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL CHECK (kind IN ('lezione', 'seduta', 'altro')),
+    direction TEXT NOT NULL CHECK (direction IN ('entrata', 'uscita')),
+    -- Unsigned, cents-exact text, like every amount: the price of a new session.
+    rate TEXT NOT NULL,
+    calendar_id TEXT NOT NULL,
+    -- The event title: an exact text, case-insensitive, or `/an expression/`.
+    title_pattern TEXT NOT NULL,
+    -- The IBAN the payments come from or go to; NULL links payments by hand only.
+    counterparty_iban TEXT,
+    active INTEGER NOT NULL DEFAULT 1
+);
+
+-- One row per calendar event a service's title matched, keyed by Google's
+-- event id (the instance id for a recurring one). The sync writes start and
+-- summary; amount is the rate when first seen, and a person may change it.
+CREATE TABLE IF NOT EXISTS service_sessions (
+    event_id TEXT PRIMARY KEY,
+    service_id INTEGER NOT NULL REFERENCES services(id),
+    start TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('valida', 'annullata')),
+    synced_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS service_sessions_service ON service_sessions(service_id, start);
+
+-- Which movement pays which service. `by_iban` says the sync linked it from the
+-- counterparty's IBAN; a link made by hand (0) is never undone by a sync. A
+-- deleted movement takes its link with it; restored, the IBAN links it again.
+CREATE TABLE IF NOT EXISTS service_payments (
+    transaction_id INTEGER PRIMARY KEY REFERENCES transactions(id) ON DELETE CASCADE,
+    service_id INTEGER NOT NULL REFERENCES services(id),
+    by_iban INTEGER NOT NULL DEFAULT 0
+);
 """
 
 # Columns added after the first release. A single-user local ledger does not

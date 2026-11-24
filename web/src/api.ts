@@ -35,6 +35,11 @@ import type {
   Comparison,
   Projection,
   Portfolio,
+  ServiceList,
+  ServiceDetail,
+  ServiceDraft,
+  PaymentCandidate,
+  CalendarOutcome,
   Suggestion,
   Tag,
   DeletedMovement,
@@ -298,6 +303,19 @@ export const api = {
     get<Statistics>(`/statistics?months=${months}`, signal),
   portfolio: (signal?: AbortSignal) => get<Portfolio>("/portfolio", signal),
   setNav: (month: string, value: string) => send<Portfolio>("POST", "/portfolio/nav", { month, value }),
+  services: (signal?: AbortSignal) => get<ServiceList>("/services", signal),
+  service: (id: number, signal?: AbortSignal) => get<ServiceDetail>(`/services/${id}`, signal),
+  createService: (draft: ServiceDraft) => send<ServiceDetail>("POST", "/services", draft),
+  updateService: (id: number, draft: ServiceDraft) => send<ServiceDetail>("PUT", `/services/${id}`, draft),
+  paymentCandidates: (id: number) => get<PaymentCandidate[]>(`/services/${id}/candidates`),
+  setSessionAmount: (eventId: string, amount: string) =>
+    send<ServiceDetail>("PUT", `/services/sessions/${encodeURIComponent(eventId)}/amount`, { amount }),
+  linkPayment: (transactionId: number, serviceId: number | null) =>
+    send<ServiceDetail | Record<string, never>>("PUT", `/services/payments/${transactionId}`, {
+      service_id: serviceId,
+    }),
+  syncCalendars: () =>
+    send<{ calendars: CalendarOutcome[]; services: ServiceList["services"] }>("POST", "/services/sync", {}),
   plan: (signal?: AbortSignal) => get<Plan>("/plan", signal),
   saveGoal: (draft: GoalDraft) => send<Plan>("PUT", "/plan/goals", draft),
   endGoal: (series: number) => send<Plan>("DELETE", `/plan/goals/${series}`, {}),

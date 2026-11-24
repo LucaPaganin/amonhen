@@ -65,4 +65,6 @@ from __future__ import annotations
 # `scenarios` and `observed`, and `/api/plan/scenarios` and `/api/plan/projection` are new.
 # 45 is the portfolio: `GET /api/portfolio`. 46 is the unit value written by hand:
 # `/api/portfolio` gained `nav_missing`, and `POST /api/portfolio/nav` is new.
-API_VERSION = 46
+# 47 is the tracked services (desiderata 5.17): `/api/services` and the routes under
+# it, and a sync answers with `calendars`, what each calendar of a service did.
+API_VERSION = 47

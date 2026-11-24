@@ -4306,3 +4306,37 @@ button.txn:active {
 .budget-assign__select {
   min-height: var(--tap);
 }
+
+/* Servizi (desiderata 5.17): il nome si apre come un bottone, il saldo resta a destra. */
+.services__open {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.services__body .section-title {
+  margin-top: 8px;
+}
+
+.services__payment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.services__amount {
+  width: 7em;
+}
+
+.services__edit {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}

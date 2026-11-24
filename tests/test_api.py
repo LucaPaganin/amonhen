@@ -1940,7 +1940,10 @@ def test_the_sync_button_writes_what_the_bank_reports(tmp_path, monkeypatch):
         "rules_applied",
         "passthrough_legs",
         "errors",
+        "calendars",
     }
+    # No service tracked, so no calendar was read (desiderata 5.17).
+    assert payload["calendars"] == []
     assert payload["accounts"][0]["fetched"] == len(transactions)
     # What the app reads afterwards is what the sync wrote, not a second ledger.
     assert client.get("/api/transactions").json()["total"] == len(transactions)

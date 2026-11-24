@@ -18,6 +18,7 @@ from collections.abc import Callable
 from amonhen.adapters.enable_banking import EnableBankingClient, EnableBankingProvider
 from amonhen.config import MonitorConfig
 from amonhen.ports.bank import BankProvider
+from amonhen.ports.calendar import CalendarSource
 from amonhen.ports.portfolio import DocumentSource, NavSource
 
 BankFactory = Callable[[MonitorConfig], BankProvider]
@@ -67,3 +68,16 @@ def nav_source() -> NavSource:
     from amonhen.adapters.borsa_italiana import BorsaItalianaNav
 
     return BorsaItalianaNav()
+
+
+def calendar_source() -> CalendarSource | None:
+    """Google Calendar with the service account, when its key is configured; None otherwise.
+
+    A key that does not load raises `ValueError`, reported as "cannot read the calendars".
+    """
+    from amonhen import settings
+    from amonhen.adapters.google_calendar import GoogleCalendar
+
+    if not settings.GOOGLE_SERVICE_ACCOUNT_FILE:
+        return None
+    return GoogleCalendar(settings.GOOGLE_SERVICE_ACCOUNT_FILE)

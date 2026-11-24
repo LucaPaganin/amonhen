@@ -103,3 +103,8 @@ PAPERLESS_URL = _env_str("PAPERLESS_URL", "")
 PAPERLESS_TOKEN = _env_str("PAPERLESS_TOKEN", "")
 PAPERLESS_PAYSLIP_TYPE = _env_str("PAPERLESS_PAYSLIP_TYPE", "Busta paga")
 PAPERLESS_STATEMENT_TYPE = _env_str("PAPERLESS_STATEMENT_TYPE", "Prospetto fondo pensione")
+
+# The Google service account that reads the calendars of the tracked services
+# (desiderata 5.17): the path of its JSON key. Empty: no calendar is read. Each
+# calendar is shared with the account's address, read-only.
+GOOGLE_SERVICE_ACCOUNT_FILE = _env_str("GOOGLE_SERVICE_ACCOUNT_FILE", "")

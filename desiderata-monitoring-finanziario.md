@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.52 — novembre 2026
+Versione 1.53 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -88,7 +88,12 @@ l'apertura si ritira e restano i documenti. I rendimenti partono dall'apertura. 
 dichiarazione per strumento e non corregge niente: la 1.46 resta vera per tutto il resto. Il BTP
 si riconcilia anche quando la banca accredita la cedola lorda e addebita l'imposta a parte, e dal
 giorno in cui il conto può vederla, se prima lo teneva un'altra banca. Un valore quota che
-c'è già, scritto a mano o dall'apertura, `portfolio-sync` non lo rilegge.*
+c'è già, scritto a mano o dall'apertura, `portfolio-sync` non lo rilegge.
+1.53 · i servizi a prezzo concordato si tracciano (sezione 5.17): lezioni date o prese, sedute e
+altro, con le sessioni lette da Google Calendar e i pagamenti che sono già movimenti del ledger.
+Per ogni servizio un saldo e le sessioni coperte, in ordine di data. Il non-obiettivo sui crediti
+verso terzi (sezione 3) si restringe alle spese anticipate per altri: un servizio ha un prezzo
+scritto e sessioni datate, quindi quanto è dovuto si calcola invece di stimarsi.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -128,7 +133,7 @@ Esplicitamente fuori scope, per evitare scope creep:
 - Il calcolo delle imposte dovute o della dichiarazione. I parametri fiscali servono a confrontare scelte; per una cifra da dichiarare fanno fede la busta paga, il CU e i documenti del fondo e del broker.
 - Categorizzazione completamente automatica senza revisione umana.
 - Multi-utente, multi-valuta, condivisione.
-- Gestione dei crediti verso terzi. Le spese anticipate per altri non vengono modellate come crediti: nessun elenco dice chi deve ancora cosa, e finché non paga la spesa resta alta. **Un rimborso o una quota non sono entrate**, e quello che non si modella è la *coppia* con la singola spesa: un rimborso copre spesso molte spese insieme. La spesa però è al netto: un accredito messo in una categoria abbassa quella categoria, e un contributo alle spese abbassa il totale (sezione 5.6).
+- Gestione dei crediti verso terzi per le spese anticipate. Le spese anticipate per altri non vengono modellate come crediti: nessun elenco dice chi deve ancora cosa, e finché non paga la spesa resta alta. **Un rimborso o una quota non sono entrate**, e quello che non si modella è la *coppia* con la singola spesa: un rimborso copre spesso molte spese insieme. La spesa però è al netto: un accredito messo in una categoria abbassa quella categoria, e un contributo alle spese abbassa il totale (sezione 5.6). Un servizio a prezzo concordato è un'altra cosa (sezione 5.17): le sessioni hanno una data e un prezzo scritto, quindi quanto è dovuto si calcola, e il saldo resta fuori da ogni cifra di spesa.
 - App nativa. La UI è una PWA.
 
 ## 4. Vincoli
@@ -428,6 +433,22 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 *Fatto quando*: davanti alla domanda "quanto verso nel fondo e quanto nel PAC l'anno prossimo" l'app mostra, per ogni obiettivo, le conseguenze di due ripartizioni con i parametri fiscali dell'anno e le ipotesi scritte, e dice se i parametri dell'anno mancano; il patrimonio complessivo di fine mese si compone senza dichiarazioni a mano finché le fonti rispondono, salvo l'apertura che i documenti poi spiegano, ogni riconciliazione dice cosa non torna, e il fondo mostra quanto è ancora in transito.
 
+### 5.17 Servizi a prezzo concordato *(costruita, da provare sul NAS)*
+
+Lezioni private date, lezioni prese, sedute: un servizio ha una controparte, un prezzo per sessione e sessioni che stanno già su Google Calendar. I pagamenti arrivano a blocchi, con un bonifico, quindi sono già movimenti del ledger. La sezione mette accanto le due cose e dice quanto resta: chi deve ancora quanto, o quanto si deve.
+
+**Un servizio è una riga, generale.** Nome, tipo (*lezione*, *seduta*, *altro*: il tipo ordina e filtra, non cambia nessun calcolo), verso (*entrata* per un servizio che si dà, *uscita* per uno che si riceve), prezzo per sessione, il calendario e il titolo degli eventi che sono sue sessioni, e l'IBAN della controparte. Il titolo è un testo esatto, maiuscole a parte, o un'espressione fra barre, come una regola (sezione 5.5). Un servizio non più seguito si disattiva e resta leggibile.
+
+**Le sessioni le scrive il calendario, deterministicamente.** Il sync legge ogni calendario dei servizi attivi con un service account a cui il calendario è condiviso in sola lettura, e dopo la prima lettura completa chiede solo le differenze (`syncToken`), cancellazioni comprese: leggere due volte dà lo stesso risultato, e un giro saltato si recupera al successivo. Un evento il cui titolo corrisponde a un servizio diventa una sessione con l'id dell'evento come chiave (quello dell'istanza, per un evento ricorrente); data e titolo seguono il calendario, l'importo è il prezzo del servizio quando la sessione compare e una persona può correggerlo. Un evento cancellato rende la sessione *annullata*: esce dal saldo, resta visibile, e torna valida se l'evento ricompare. Il sync del calendario gira con quello delle banche e dal pulsante *Sincronizza*, e un calendario che non risponde non ferma le banche. Nessun modello interpreta un titolo (sezione 8).
+
+**I pagamenti sono movimenti, collegati.** Un movimento con l'IBAN della controparte nel verso del servizio (un accredito per un'entrata, un addebito per un'uscita) si collega al servizio da sé; un movimento senza IBAN si collega a mano dalla sezione del servizio, scelto fra i movimenti degli ultimi sei mesi nel verso giusto e non ancora collegati. Un collegamento a mano non lo tocca nessun sync, e un movimento scollegato a mano non torna collegato dall'IBAN. Un movimento cancellato perde il collegamento; ripristinato, l'IBAN lo ricollega. Il collegamento non scrive niente sul movimento: categoria, tag e spesa restano quelli di sempre (sezione 5.6), e il tracciamento li legge e basta.
+
+**Il saldo è la differenza, la copertura si calcola.** Per ogni servizio il saldo è la somma delle sessioni valide fino a oggi meno la somma dei pagamenti collegati, in valore assoluto: positivo vuol dire che la controparte deve ancora (o che si deve ancora, per un'uscita), negativo che è stato pagato in anticipo. Una sessione futura non conta finché la data non arriva. Quali sessioni sono pagate non si scrive: i pagamenti coprono le sessioni in ordine di data, dalla più vecchia, e l'ultima può essere coperta in parte. Correggere un importo, annullare una sessione o collegare un pagamento ricalcola tutto, e nessuna copertura scritta resta indietro. Il calcolo è del backend (sezione 5.6).
+
+**Una sezione sola.** Sotto *Gestione*: i servizi con il loro saldo, e aprendone uno le sessioni del periodo, ciascuna coperta, in parte o da pagare, accanto ai pagamenti collegati; le sessioni annullate a richiesta. I servizi si creano e si modificano da lì. *Servizio*, *sessione* e *copertura* hanno la loro scheda nella **Guida** (sezione 5.14).
+
+*Fatto quando*: dopo una lezione segnata sul calendario e un bonifico arrivato, la sezione dice senza nessun inserimento a mano quanto resta da pagare e quali lezioni lo compongono, e leggerla due volte dà lo stesso numero.
+
 ## 6. Modello dati minimo
 
 ```
@@ -482,6 +503,18 @@ Costruita con la quarta fetta:
 ```
 documents            (paperless_id, tipo, letto_il, esito: importato | errore, layout?, errore?)
 ```
+
+Per la sezione 5.17:
+
+```
+services             (id, nome, tipo: lezione | seduta | altro, verso: entrata | uscita, prezzo,
+                      calendario, titolo, iban_controparte?, attivo)
+service_sessions     (id_evento, servizio, inizio, titolo, importo, stato: valida | annullata,
+                      sincronizzato_il)
+service_payments     (movimento, servizio, da_iban)
+```
+
+Il `syncToken` di ogni calendario sta in `settings`, e lì anche il segno che un movimento è stato scollegato a mano. Il service account si configura con `AMONHEN_GOOGLE_SERVICE_ACCOUNT_FILE`, il percorso della sua chiave JSON. La copertura delle sessioni non ha tabella: si calcola.
 
 La tabella `expected_flows` (strumento, data, importo, tipo: cedola | premio | pac) non c'è: il calendario del BTP si calcola dai termini ogni volta, e il PAC atteso è il bonifico che il ledger vede. Arriva solo quando un'attesa deve restare scritta.
 
@@ -558,6 +591,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
   4. le fonti vere: Paperless con il write-back, il valore quota del fondo, il calendario del BTP, il caricamento una tantum dei prezzi passati *(fatta)*; poi i contratti e l'estratto titoli del broker letti da `payslip-parser` e il prezzo di fine mese dell'ETF da Borsa Italiana, al posto della CLI del broker che la 1.51 ha tolto;
   5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI *(fatta: dentro **Piano**)*;
   6. la distribuzione dai rendimenti storici.
+- **Fase 13 — i servizi a prezzo concordato.** *(costruita, da provare sul NAS)* La sezione 5.17: i servizi, il sync del calendario, il collegamento dei pagamenti per IBAN e a mano, il saldo con la copertura, la sezione nell'app.
 
 **Stato (ottobre 2026).** Fasi 0-9 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la sezione 5.4 che spiega la differenza lasciata da una cancellazione a mano. La fase 7 ha aggiunto il setup guidato della sezione 5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (sezione 5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Accettare una proposta decide i movimenti e basta: una regola nasce solo se la casella la chiede, e con il testo che si scrive nel dialogo. La fase 9 ha dato al budget una sezione sua e la pianificazione della sezione 5.12. Un conto collegato si sincronizza anche su un periodo scelto, passato compreso, con l'esito per finestra e i probabili doppioni dell'import tenuti da parte finché una persona decide (sezione 5.1). Le metriche si chiamano con parole che dicono cosa misurano invece che burn e runway. Una regola può cancellare o registrare un giroconto, ristretta a un conto e a un intervallo di importi; un conto si elimina dall'app, e i movimenti si cancellano o si categorizzano in blocco. Una regola di giroconto verso un conto creato a mano gli scrive l'altra gamba, e quel conto può contare nel patrimonio per il saldo calcolato dai movimenti (sezioni 5.5 e 5.8): è come si tiene il conto deposito di Revolut, che Enable Banking non espone. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
 

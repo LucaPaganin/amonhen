@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from amonhen import queries
 from amonhen.api.context import AppContext
 from amonhen.api.payloads import _day, _held_payload, _passthrough, _period_payload, _sync_payload
+from amonhen.api.routes.services import calendar_pass
 from amonhen.api.schemas import PeriodSyncRequest
 from amonhen.composition import BankFactory, bank_factory
 from amonhen.config import load_config
@@ -40,7 +41,9 @@ def build(ctx: AppContext) -> APIRouter:
                 result = SyncService(ledger, bank, config, today=clock.today()).run()
             except SyncBusy as exc:
                 raise HTTPException(status_code=409, detail=str(exc))
-            return _sync_payload(ledger, result)
+            # The calendars of the tracked services (desiderata 5.17) after the
+            # banks, so a payment that just arrived is linked against fresh sessions.
+            return {**_sync_payload(ledger, result), "calendars": calendar_pass(ledger, clock.now())}
 
     @router.post("/api/sync/period")
     def run_period_sync(

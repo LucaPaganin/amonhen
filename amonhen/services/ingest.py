@@ -26,6 +26,7 @@ class Settled:
     linked: int
     passthrough: int
     categorized: int
+    service_payments: int = 0
 
 
 def settle_after_ingest(
@@ -45,11 +46,14 @@ def settle_after_ingest(
     3. the declared passthrough labels, after the pairing, so a real pair
        between two tracked accounts wins over a label;
     4. the double-entry check, before anything is categorized on a broken ledger;
-    5. the rules, last: on a leg the matcher paired, the pair wins.
+    5. the rules, last: on a leg the matcher paired, the pair wins;
+    6. the payments of the tracked services, linked by IBAN (desiderata 5.17):
+       a link writes nothing on the movement, so its place in the order is free.
     """
     transfer_rules = apply_transfer_rules(ledger, RuleBook(ledger.conn))
     linked = link_transfers(ledger, since=since)
     legs = link_passthrough_legs(ledger, passthrough)
     ledger.validate()
     categorized = categorize(ledger, RuleBook(ledger.conn))
-    return Settled(transfer_rules, linked, legs, categorized)
+    service_payments = ledger.link_payments_by_iban()
+    return Settled(transfer_rules, linked, legs, categorized, service_payments)

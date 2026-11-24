@@ -14,6 +14,7 @@ export type TabId =
   | "statistics"
   | "plan"
   | "portfolio"
+  | "services"
   | "setup"
   | "guide";
 
@@ -110,6 +111,14 @@ const SECTIONS: Section[] = [
     hint: "Cosa possiedi, quanto vale a fine mese e come rende",
     inBar: false,
     Icon: PortfolioIcon,
+  },
+  {
+    id: "services",
+    label: "Servizi",
+    short: "Servizi",
+    hint: "Lezioni e sedute dal calendario, e quanto resta da pagare",
+    inBar: false,
+    Icon: ServicesIcon,
   },
   {
     id: "setup",
@@ -253,6 +262,25 @@ function PlanIcon() {
     >
       <path d="M5 21V4" />
       <path d="M5 4h12l-2.5 4L17 12H5" />
+    </svg>
+  );
+}
+
+function ServicesIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="5" width="16" height="15" rx="1.5" />
+      <path d="M4 10h16M9 3v4M15 3v4" />
+      <path d="m9.5 15 2 2 3.5-3.5" />
     </svg>
   );
 }

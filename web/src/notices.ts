@@ -30,6 +30,13 @@ export function syncSummary(outcome: SyncOutcome): string {
       ? null
       : `${outcome.passthrough_legs} verso un conto dichiarato`,
     suppressed === 0 ? null : `${suppressed} cancellati a mano, lasciati fuori`,
+    ...(outcome.calendars ?? []).map((calendar) =>
+      calendar.error !== null
+        ? `calendario ${calendar.calendar_id}: ${calendar.error}`
+        : calendar.written + calendar.cancelled === 0
+          ? null
+          : `${calendar.written} sessioni dal calendario`,
+    ),
   ].filter((extra): extra is string => extra !== null);
 
   return [...outcome.accounts.map(accountLine), ...extras].join(" · ");

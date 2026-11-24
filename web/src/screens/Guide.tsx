@@ -34,7 +34,9 @@ export type GuideTopic =
   | "opening"
   | "twr"
   | "mwr"
-  | "accrual";
+  | "accrual"
+  | "service"
+  | "coverage";
 
 interface Card {
   id: GuideTopic;
@@ -332,6 +334,26 @@ const CARDS: Card[] = [
       "È la cedola netta del trimestre, proporzionale ai giorni passati dall'ultima cedola. Le cedole sono trimestrali, nette dell'imposta, con il tasso del periodo (4,10% i primi tre anni, 4,50% gli ultimi due, scritto fra i termini del titolo). Il premio fedeltà non entra mai nel rateo: vale solo alla scadenza, perché spetta solo a chi ci arriva.",
     changes:
       "Dopo una cedola il rateo riparte da zero e il versato netto, cioè il nominale meno le cedole incassate, scende.",
+  },
+  {
+    id: "service",
+    title: "Servizio e sessione",
+    means:
+      "Un servizio a prezzo concordato, dato o ricevuto: lezioni private, lezioni prese, sedute. Ogni sessione è un evento sul calendario Google con il titolo del servizio, e i pagamenti sono i movimenti del ledger collegati al servizio.",
+    computed:
+      "Le sessioni le scrive il calendario: un evento con il titolo esatto del servizio (maiuscole e spazi a parte), o che corrisponde a un'espressione fra barre, diventa una sessione al prezzo del servizio. Un evento cancellato o rinominato la rende annullata. I pagamenti si collegano da soli quando il movimento porta l'IBAN della controparte, nel verso del servizio; gli altri si collegano a mano dalla sezione.",
+    changes:
+      "Cambiare il prezzo vale per le sessioni nuove: quelle già scritte tengono il loro importo, che si corregge una per una. Un servizio non entra in nessuna cifra di spesa: il movimento tiene la sua categoria.",
+  },
+  {
+    id: "coverage",
+    title: "Saldo e copertura",
+    means:
+      "Il saldo è quanto resta: le sessioni valide fino a oggi meno i pagamenti collegati. Positivo vuol dire che la controparte deve ancora pagare, o che devi ancora pagare tu per un servizio ricevuto; negativo, che è stato pagato in anticipo.",
+    computed:
+      "I pagamenti coprono le sessioni in ordine di data, dalla più vecchia: una sessione è pagata, in parte o da pagare a seconda di dove arriva la somma dei pagamenti. Non è scritto da nessuna parte, si ricalcola ogni volta. Una sessione futura non conta finché la sua data non arriva.",
+    changes:
+      "Correggere un importo, annullare una sessione o collegare un pagamento sposta la copertura di tutte le sessioni dopo, ma non quella di prima.",
   },
 ];
 
