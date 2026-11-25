@@ -188,7 +188,9 @@ export function PortfolioScreen({ refreshToken }: { refreshToken: number }) {
 
           <section className="panel">
             <h2 className="section-title">Cosa non torna</h2>
-            <p className="hint">Due cifre e lo scarto: nessuna si corregge da sola.</p>
+            <p className="hint">
+              Due cifre e lo scarto: nessuna si corregge da sola. <Help topic="opening" label="apertura" />
+            </p>
             <div className="plan-scroll">
               <table className="plan-table">
                 <thead>

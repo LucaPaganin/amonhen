@@ -120,6 +120,40 @@ def btp_value(terms: BtpTerms, on: dt.date) -> Decimal:
     return terms.nominal + accrued(terms, on)
 
 
+# -- an opening: what was held on a date, before the documents explain it ----------
+
+@dataclass(frozen=True)
+class Opening:
+    """An ETF's or the fund's position declared once, on a date, until the documents explain it.
+
+    ``price`` is the price (or unit value) of that day, so the returns start from the value
+    held then; ``paid`` is what had been paid in by then, the cost the position carries.
+    """
+
+    date: dt.date
+    units: Decimal
+    price: Decimal
+    paid: Decimal
+
+    def __post_init__(self) -> None:
+        if not (self.units > 0 and self.price > 0 and self.paid >= 0):
+            raise ValueError("un'apertura ha quote e prezzo positivi e un versato non negativo")
+
+    @classmethod
+    def from_text(cls, text: str) -> "Opening":
+        data = json.loads(text)
+        return cls(dt.date.fromisoformat(data["date"]), parse_decimal(data["units"]),
+                   parse_decimal(data["price"]), parse_decimal(data["paid"]))
+
+    def to_text(self) -> str:
+        return json.dumps({"date": self.date.isoformat(), "units": str(self.units),
+                           "price": str(self.price), "paid": str(self.paid)})
+
+    @property
+    def value(self) -> Decimal:
+        return self.units * self.price
+
+
 # -- a pension contribution: withheld first, invested later ----------------------
 
 @dataclass(frozen=True)

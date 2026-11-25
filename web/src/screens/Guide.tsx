@@ -31,6 +31,7 @@ export type GuideTopic =
   | "scenario"
   | "coast-fi"
   | "withheld"
+  | "opening"
   | "twr"
   | "mwr"
   | "accrual";
@@ -291,6 +292,16 @@ const CARDS: Card[] = [
       "In ogni data trattenuto = investito + in transito, e il transito è quanto il datore ha trattenuto senza averlo ancora versato. Un contributo in transito vale il suo costo. Il prospetto non corrisponde riga per riga alle buste paga: un'operazione investe le buste paga consecutive che sommano esattamente al suo importo, in ordine, e una che non quadra con nessuna si segnala senza forzarla. Un versamento fatto direttamente al fondo nasce investito, con la sua data.",
     changes:
       "Nessuna differenza si corregge da sola: la riconciliazione mostra le due cifre e lo scarto, e la scelta di cosa farne è tua. Il valore quota si legge una volta al mese dalla pagina pubblica della classe del fondo su Borsa Italiana; se la pagina non risponde, è di un'altra classe o dà un altro mese, il Portafoglio chiede di scriverlo a mano, e un mese non prende mai il valore di un altro. Le buste paga e i prospetti arrivano da Paperless: ognuno si legge una volta sola, e su Paperless prende il tag amonhen:importato o amonhen:errore con le cifre lette.",
+  },
+  {
+    id: "opening",
+    title: "Apertura",
+    means:
+      "Quello che un ETF o il fondo teneva in una data, dichiarato una volta sola finché i documenti non arrivano: le quote, il prezzo o il valore quota di quel giorno e quanto avevi versato fino a lì. È un ponte verso i documenti, non un'alternativa.",
+    computed:
+      "Dopo la data dell'apertura i documenti si sommano a lei; quelli datati fino a quella data sono già dentro, quindi non si sommano ma si riconciliano: la riga «Apertura contro i documenti» mette le quote dichiarate accanto a quelle che i documenti spiegano. Per il fondo conta la data della busta paga, e le quote di un contributo investito dopo l'apertura si aggiungono, perché quel giorno era in transito. Prima dell'apertura lo strumento non tiene niente, e i rendimenti partono dal suo valore di quel giorno.",
+    changes:
+      "Quando i documenti spiegano tutta l'apertura la riga lo dice, e l'apertura si ritira: da lì valgono solo i documenti e i rendimenti partono dal primo versamento. Il BTP non ne ha bisogno, i suoi termini bastano.",
   },
   {
     id: "twr",

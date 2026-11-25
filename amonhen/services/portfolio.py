@@ -17,6 +17,7 @@ from amonhen.core.portfolio import (
     Contribution,
     Difference,
     BtpTerms,
+    Opening,
     accrued,
     btp_value,
     coupons,
@@ -49,6 +50,62 @@ ZERO = Decimal(0)
 def reported_key(instrument_id: int) -> str:
     """Where what a source reported about an instrument is kept, for the reconciliations."""
     return f"portfolio:reported_units:{instrument_id}"
+
+
+def opening_key(instrument_id: int) -> str:
+    """Where an instrument's opening is kept, while the documents do not explain it yet."""
+    return f"portfolio:opening:{instrument_id}"
+
+
+# -- the opening ---------------------------------------------------------------------
+
+def opening(ledger: Ledger, instrument) -> Opening | None:
+    if instrument["kind"] not in ("etf", "fondo_pensione"):
+        return None
+    text = ledger.setting(opening_key(instrument["id"]))
+    return None if text is None else Opening.from_text(text)
+
+
+def open_position(ledger: Ledger, name: str, start: Opening) -> None:
+    """Declare what an ETF or the fund held on a date, once.
+
+    From that date the documents add what follows it; the ones dated up to it are already
+    inside the opening, and are reconciled against it instead of being added.
+    """
+    instrument = ledger.instrument(name)
+    if instrument is None or instrument["kind"] not in ("etf", "fondo_pensione"):
+        raise ValueError(f"nessun ETF o fondo pensione di nome {name!r}")
+    if opening(ledger, instrument) is not None:
+        raise ValueError(f"{name} ha già un'apertura: va ritirata prima di dichiararne un'altra")
+    ledger.set_setting(opening_key(instrument["id"]), start.to_text())
+    # The price of that day is a price like any other: it stays when the opening retires.
+    if ledger.price_at(instrument["id"], start.date) is None:
+        ledger.set_price(instrument["id"], start.date, start.price, "apertura")
+
+
+def retire_opening(ledger: Ledger, name: str) -> Opening:
+    """Take the opening away: from now on the documents alone say what is held."""
+    instrument = ledger.instrument(name)
+    held = None if instrument is None else opening(ledger, instrument)
+    if held is None:
+        raise ValueError(f"{name} non ha un'apertura")
+    with ledger.conn:
+        ledger.conn.execute("DELETE FROM settings WHERE key = ?", (opening_key(instrument["id"]),))
+    return held
+
+
+def _after(rows: list[Contribution], start: Opening | None) -> list[Contribution]:
+    """The fund's rows the opening does not contain: withheld (or paid straight) after its date."""
+    if start is None:
+        return rows
+    return [r for r in rows if (r.withheld_on or r.invested_on) is not None
+            and (r.withheld_on or r.invested_on) > start.date]
+
+
+def _trades_after(ledger: Ledger, instrument_id: int, start: Opening | None):
+    """An ETF's trades the opening does not contain: those dated after it."""
+    trades = ledger.trades(instrument_id)
+    return trades if start is None else [t for t in trades if t["date"] > start.date.isoformat()]
 
 
 # -- reading the sources -----------------------------------------------------------
@@ -211,6 +268,9 @@ def nav_missing(ledger: Ledger, today: dt.date) -> list[str]:
     if not funds:
         return []
     dates = [row["value_date"] for row in ledger.contributions(funds[0]["id"]) if row["value_date"]]
+    start = opening(ledger, funds[0])
+    if start is not None:
+        dates = [day for day in dates if day > start.date.isoformat()] + [start.date.isoformat()]
     if not dates:
         return []
     month, missing = min(dates)[:7], []
@@ -256,20 +316,28 @@ def holding(ledger: Ledger, instrument, day: dt.date, *, exact: bool = False) ->
         if quoted is None:
             return Holding(share, None, ZERO)
         return Holding(share, quoted[0] * share, ZERO, quoted[0], quoted[1])
+    start = opening(ledger, instrument)
+    if start is not None and day < start.date:
+        # Before the opening nothing is known for certain: the documents may be missing some.
+        return Holding(ZERO, ZERO, ZERO)
+    base_units, base_paid = (ZERO, ZERO) if start is None else (start.units, start.paid)
     if kind == "etf":
-        trades = [t for t in ledger.trades(instrument_id) if t["date"] <= day.isoformat()]
-        units = sum((parse_decimal(t["units"]) for t in trades), ZERO)
-        paid = sum((parse_decimal(t["amount"]) + parse_decimal(t["fees"]) for t in trades), ZERO)
+        trades = [t for t in _trades_after(ledger, instrument_id, start) if t["date"] <= day.isoformat()]
+        units = base_units + sum((parse_decimal(t["units"]) for t in trades), ZERO)
+        paid = base_paid + sum((parse_decimal(t["amount"]) + parse_decimal(t["fees"]) for t in trades), ZERO)
         quoted = _price(ledger, instrument_id, day, exact)
     else:  # fondo_pensione
-        rows = _contribution_rows(ledger, instrument_id)
+        every = _contribution_rows(ledger, instrument_id)
+        rows = _after(every, start)
         position = fund_position(rows, day)
         units_by_id = {row["id"]: parse_decimal(row["units"]) for row in ledger.contributions(instrument_id) if row["units"]}
-        units = sum((units_by_id[r.id] for r in rows if r.invested_on is not None and r.invested_on <= day
-                     and (r.withheld_on is None or r.withheld_on <= day)), ZERO)
+        # A row invested after the opening was not among its units, even when it was withheld before.
+        units = base_units + sum((units_by_id[r.id] for r in every if r.invested_on is not None and r.invested_on <= day
+                                  and (r.withheld_on is None or r.withheld_on <= day)
+                                  and (start is None or r.invested_on > start.date)), ZERO)
         direct = sum((r.total for r in rows if r.withheld_on is None and r.invested_on is not None
                       and r.invested_on <= day), ZERO)
-        paid = position.withheld + direct
+        paid = base_paid + position.withheld + direct
         quoted = _price(ledger, instrument_id, day, exact)
         if quoted is None:
             return Holding(units, None if units > 0 else position.in_transit, paid)
@@ -310,7 +378,10 @@ def take_snapshot(ledger: Ledger, month: str) -> Snapshot:
 def _first_event(ledger: Ledger) -> dt.date | None:
     days = []
     for instrument in ledger.instruments():
-        if instrument["kind"] == "btp":
+        start = opening(ledger, instrument)
+        if start is not None:
+            days.append(start.date)
+        elif instrument["kind"] == "btp":
             days.append(BtpTerms.from_text(instrument["terms"]).start)
         elif instrument["kind"] == "etf":
             days += [dt.date.fromisoformat(t["date"]) for t in ledger.trades(instrument["id"])]
@@ -347,14 +418,32 @@ def reconciliations(ledger: Ledger, today: dt.date) -> list[dict]:
             "note": note,
         })
 
+    def opening_row(name: str, start: Opening, explained: Decimal) -> None:
+        add(Difference(f"Apertura di {name} contro i documenti", start.units, explained, "quote"),
+            "i documenti spiegano tutta l'apertura: si può ritirare" if explained == start.units
+            else f"documenti fino al {start.date.isoformat()}: la differenza è quanto ancora non spiegano")
+
     etfs = [row for row in ledger.instruments() if row["kind"] == "etf"]
     if etfs:
-        sent = ledger.invested_between(dt.date(1970, 1, 1), today)
-        bought = sum((ledger.trades_total(row["id"]) for row in etfs), ZERO)
-        add(Difference("PAC: soldi mandati a Investimenti contro acquisti del broker", sent, bought, "€"))
+        # With an opening on every ETF the ledger's transfers are compared from the day after
+        # it: before then they may predate the ledger's history, and the opening holds the rest.
+        starts = [opening(ledger, row) for row in etfs]
+        since = (min(s.date for s in starts) + dt.timedelta(days=1)) if all(starts) else dt.date(1970, 1, 1)
+        sent = ledger.invested_between(since, today)
+        bought = sum((parse_decimal(t["amount"]) + parse_decimal(t["fees"])
+                      for row, start in zip(etfs, starts)
+                      for t in _trades_after(ledger, row["id"], start) if t["date"] >= since.isoformat()), ZERO)
+        add(Difference("PAC: soldi mandati a Investimenti contro acquisti del broker", sent, bought, "€"),
+            None if not all(starts) else f"dal {since.isoformat()}, dopo l'apertura")
         for row in etfs:
+            start = opening(ledger, row)
+            if start is not None:
+                opening_row(row["name"], start, sum(
+                    (parse_decimal(t["units"]) for t in ledger.trades(row["id"]) if t["date"] <= start.date.isoformat()),
+                    ZERO))
             reported = ledger.setting(reported_key(row["id"]))
-            ours = sum((parse_decimal(t["units"]) for t in ledger.trades(row["id"])), ZERO)
+            ours = (ZERO if start is None else start.units) + sum(
+                (parse_decimal(t["units"]) for t in _trades_after(ledger, row["id"], start)), ZERO)
             if reported is None:
                 out.append({"label": f"Quote di {row['name']} contro la posizione del broker", "expected": str(ours),
                             "actual": None, "difference": None, "unit": "quote",
@@ -369,7 +458,16 @@ def reconciliations(ledger: Ledger, today: dt.date) -> list[dict]:
             expected = [f for f in coupons(terms) if f.date <= today and f.kind == "cedola"]
             if not (data.get("account") and data.get("credit_text")):
                 continue
-            credits = ledger.credits_between(data["account"], terms.start, today, data["credit_text"])
+            # Coupons paid before the account's history (another bank held the BTP) are not looked for.
+            since = dt.date.fromisoformat(data["credits_from"]) if data.get("credits_from") else terms.start
+            expected = [f for f in expected if f.date >= since]
+            credits = ledger.credits_between(data["account"], since, today, data["credit_text"])
+            if data.get("withholding_text"):
+                # A bank that credits the gross coupon and debits the tax apart: net them by day.
+                withheld: dict[dt.date, Decimal] = {}
+                for day, amount in ledger.debits_between(data["account"], since, today, data["withholding_text"]):
+                    withheld[day] = withheld.get(day, ZERO) + amount
+                credits = [(day, amount + withheld.pop(day, ZERO)) for day, amount in credits]
             matches = match_flows(expected, credits)
             late = [m.date.isoformat() for m in matches if m.actual is None]
             add(
@@ -379,12 +477,20 @@ def reconciliations(ledger: Ledger, today: dt.date) -> list[dict]:
             )
     fund_rows = [row for row in ledger.instruments() if row["kind"] == "fondo_pensione"]
     for fund in fund_rows:
-        rows = _contribution_rows(ledger, fund["id"])
-        position = fund_position(rows, today)
+        start = opening(ledger, fund)
+        every = _contribution_rows(ledger, fund["id"])
+        position = fund_position(_after(every, start), today)
         add(Difference("Trattenuto contro investito", position.withheld, position.invested, "€"),
-            "la differenza è in transito")
+            "la differenza è in transito" if start is None
+            else f"dopo l'apertura del {start.date.isoformat()}; la differenza è in transito")
+        units_by_id = {r["id"]: parse_decimal(r["units"]) for r in ledger.contributions(fund["id"]) if r["units"]}
+        if start is not None:
+            opening_row(fund["name"], start, sum(
+                (units_by_id[r.id] for r in every if r.id in units_by_id and r.invested_on <= start.date), ZERO))
         reported = ledger.setting(reported_key(fund["id"]))
-        units = sum((parse_decimal(r["units"]) for r in ledger.contributions(fund["id"]) if r["units"]), ZERO)
+        units = (ZERO if start is None else start.units) + sum(
+            (units_by_id[r.id] for r in every if r.id in units_by_id
+             and (start is None or r.invested_on > start.date)), ZERO)
         if reported is None:
             out.append({"label": "Quote del fondo contro il prospetto", "expected": str(units), "actual": None,
                         "difference": None, "unit": "quote", "note": "nessun prospetto letto"})
@@ -409,9 +515,13 @@ def _flows_and_chain(ledger: Ledger, instrument, today: dt.date):
     kind, instrument_id = instrument["kind"], instrument["id"]
     flows: list[tuple[dt.date, Decimal]] = []
     periods: list[tuple[Decimal, Decimal]] = []
+    start = opening(ledger, instrument)
+    # The returns start from the opening: its value that day is the first money in.
+    units, last = (ZERO, None) if start is None else (start.units, start.price)
+    if start is not None and start.date <= today:
+        flows.append((start.date, -start.value))
     if kind == "etf":
-        units, last = ZERO, None
-        for t in ledger.trades(instrument_id):
+        for t in _trades_after(ledger, instrument_id, start):
             price = parse_decimal(t["price"])
             if units > 0 and last is not None:
                 periods.append((units * last, units * price))
@@ -422,9 +532,9 @@ def _flows_and_chain(ledger: Ledger, instrument, today: dt.date):
         if held.price is not None and units > 0 and last is not None:
             periods.append((units * last, units * held.price))
     elif kind == "fondo_pensione":
-        units, last = ZERO, None
         invested = sorted(
-            (r for r in ledger.contributions(instrument_id) if r["units"]),
+            (r for r in ledger.contributions(instrument_id)
+             if r["units"] and (start is None or r["value_date"] > start.date.isoformat())),
             key=lambda r: r["value_date"],
         )
         for r in invested:
@@ -435,7 +545,7 @@ def _flows_and_chain(ledger: Ledger, instrument, today: dt.date):
             last = price
         if held.price is not None and units > 0 and last is not None:
             periods.append((units * last, units * held.price))
-        for row in _contribution_rows(ledger, instrument_id):
+        for row in _after(_contribution_rows(ledger, instrument_id), start):
             moment = row.withheld_on or row.invested_on
             if moment is not None and moment <= today:
                 flows.append((moment, -row.total))
@@ -452,7 +562,8 @@ def overview(ledger: Ledger, today: dt.date) -> dict:
     positions, all_flows, final_value, missing = [], [], ZERO, []
     for instrument in ledger.instruments():
         held, flows, periods = _flows_and_chain(ledger, instrument, today)
-        note = None
+        start = opening(ledger, instrument)
+        note = None if start is None else f"rendimenti dall'apertura del {start.date.isoformat()}"
         value = held.value
         if value is None:
             note = "manca il prezzo"
@@ -481,7 +592,7 @@ def overview(ledger: Ledger, today: dt.date) -> dict:
     fund = [row for row in ledger.instruments() if row["kind"] == "fondo_pensione"]
     transit = None
     if fund:
-        position = fund_position(_contribution_rows(ledger, fund[0]["id"]), today)
+        position = fund_position(_after(_contribution_rows(ledger, fund[0]["id"]), opening(ledger, fund[0])), today)
         transit = {"withheld": format_decimal(position.withheld), "invested": format_decimal(position.invested),
                    "in_transit": format_decimal(position.in_transit)}
     return {
@@ -532,7 +643,12 @@ def _total_twr(ledger: Ledger, series: dict, today: dt.date) -> Decimal | None:
     month-end values exist, so a month's net payments are subtracted from its end value.
     """
     chain = series["chain"]
+    openings = [start.date for row in ledger.instruments() for start in [opening(ledger, row)] if start is not None]
+    # The month an opening enters in would count as a return what grew before it: it is skipped.
+    first = month_of(max(openings)) if openings else ""
     periods = []
-    for (_, before, paid_before), (_, after, paid_after) in zip(chain, chain[1:]):
+    for (_, before, paid_before), (month, after, paid_after) in zip(chain, chain[1:]):
+        if month <= first:
+            continue
         periods.append((before, after - (paid_after - paid_before)))
     return twr(periods)

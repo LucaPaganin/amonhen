@@ -2,7 +2,8 @@
 
 Part of what `CLAUDE.md` says before changing code. The product rules are section 5.16 of
 the spec; this page says how they are meant to be built. Slices 1, 3, 5 and 4 (but the
-broker's documents) are built; the historical distribution (slice 6) is not. A rule that
+broker's documents) are built, with the opening that stands in for the documents not read
+yet; the historical distribution (slice 6) is not. A rule that
 changes changes here and in the spec, in the same change as the code.
 
 - **The real sources, but the broker.** `adapters/paperless.py` implements `DocumentSource`
@@ -34,6 +35,22 @@ changes changes here and in the spec, in the same change as the code.
   broker's position, the statement's closing units) is kept in `settings` under
   `portfolio:reported_units:<instrument id>`, so a reconciliation can show both figures
   later without calling the source.
+- **An opening bridges the documents that are not there yet (spec 1.52).** An ETF or the
+  fund can carry one opening, declared with `position-open` and kept in `settings` under
+  `portfolio:opening:<instrument id>` as `core.portfolio.Opening` (date, units, the price or
+  unit value of that day, paid in by then); its price is written as that day's price
+  (source `apertura`) unless one is there, and stays when the opening retires. `holding` adds to it only what follows its date:
+  an ETF's trades dated after it; for the fund, the money withheld (or paid straight) after
+  it, and the units of every row invested after it — a payslip withheld before the opening
+  and invested after it was in transit then, so its units were not in the opening, while
+  its money stays out of `paid`. Before its date the instrument holds nothing, because the
+  documents may be incomplete there. The documents dated up to the opening are reconciled
+  against it (*Apertura di X contro i documenti*: units explained against units declared);
+  when the gap is zero the note says so, and `position-open --retire` hands the instrument
+  back to the documents alone. The returns start from the opening: its value that day is the
+  first flow, the TWR starts at its price, and the whole-portfolio TWR skips the month the
+  latest opening enters in, which would otherwise count as a return what grew before it.
+  The opening never touches the ledger: it is the portfolio's, like the reported units.
 - **A snapshot never borrows a price.** `holding(..., exact=True)` asks for the price of the
   month end itself; a held instrument without one is named and not written, and the series
   skips that month for it. A reading of today takes the latest price up to today instead.
@@ -122,6 +139,10 @@ changes changes here and in the spec, in the same change as the code.
 - **Reconciliations report, they never correct.** Expected PAC buys against the
   broker's positions, the BTP's expected coupons against the credits on Fineco (net of
   the 12.5% tax), withheld against invested contributions, units against the statement.
+  Fineco credits the gross coupon and debits the tax apart on the same day: the BTP's terms
+  name that debit's text (`withholding_text`), and the credits are netted by day before
+  they are matched. A BTP another bank held first is looked for from `credits_from`, the
+  first day the account can show a coupon; the earlier ones went to the other bank.
   Each one is a pair of figures and their difference, shown like the 5.4 check. A
   difference is never absorbed into an opening, a balance or a price.
 
