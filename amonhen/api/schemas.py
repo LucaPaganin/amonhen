@@ -313,6 +313,12 @@ class ServiceRequest(BaseModel):
     active: bool = True
 
 
+class ClosureRequest(BaseModel):
+    """A session closed by hand: how and why, in the note, is all there is."""
+
+    note: str = Field(min_length=1, max_length=500)
+
+
 class SessionAmountRequest(BaseModel):
     amount: str
 

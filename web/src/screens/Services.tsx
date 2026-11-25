@@ -23,6 +23,7 @@ const STATES: Record<SessionState, string> = {
   da_pagare: "da pagare",
   futura: "futura",
   annullata: "annullata",
+  chiusa: "chiusa a mano",
 };
 
 /** What the screen says before the ledger answers: 90 days each way. */
@@ -308,12 +309,15 @@ function ServiceBody({
                 <th scope="col">Durata</th>
                 <th scope="col">Importo</th>
                 <th scope="col">Stato</th>
+                <th scope="col">Azione</th>
               </tr>
             </thead>
             <tbody>
               {past.map((session) => (
-                <SessionRow key={session.event_id} session={session} onSave={(amount) =>
-                  void run(() => api.setSessionAmount(session.event_id, amount))} />
+                <SessionRow key={session.event_id} session={session}
+                  onSave={(amount) => void run(() => api.setSessionAmount(session.event_id, amount))}
+                  onClose={(note) => void run(() => api.closeSession(session.event_id, note))}
+                  onReopen={() => void run(() => api.reopenSession(session.event_id))} />
               ))}
             </tbody>
           </table>
@@ -420,8 +424,21 @@ function ServiceBody({
   );
 }
 
-function SessionRow({ session, onSave }: { session: ServiceSession; onSave: (amount: string) => void }) {
+function SessionRow({
+  session,
+  onSave,
+  onClose,
+  onReopen,
+}: {
+  session: ServiceSession;
+  onSave: (amount: string) => void;
+  /** Close it by hand: the note is required, because no movement explains it. */
+  onClose: (note: string) => void;
+  onReopen: () => void;
+}) {
   const [amount, setAmount] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const noteId = useId();
   return (
     <tr>
       <th scope="row">{day(session.start)}</th>
@@ -448,6 +465,38 @@ function SessionRow({ session, onSave }: { session: ServiceSession; onSave: (amo
         {STATES[session.state]}
         {session.state === "parziale" && session.covered !== undefined
           ? ` (${formatAmount(session.covered)})` : ""}
+        {session.state === "chiusa" && session.note !== null ? (
+          <span className="hint"> · {session.note}</span>
+        ) : null}
+      </td>
+      <td>
+        {note !== null ? (
+          <form className="services__note" onSubmit={(event) => {
+            event.preventDefault();
+            if (note.trim() === "") return;
+            onClose(note.trim());
+            setNote(null);
+          }}>
+            <label htmlFor={`${noteId}-note`}>Come e perché</label>
+            <input id={`${noteId}-note`} className="input" autoFocus value={note}
+              placeholder="es. in contanti / non fatta, concordato"
+              onChange={(event) => setNote(event.target.value)} />
+            <button type="submit" className="button button--primary" disabled={note.trim() === ""}>
+              Chiudi la sessione
+            </button>
+            <button type="button" className="button button--ghost" onClick={() => setNote(null)}>
+              Annulla
+            </button>
+          </form>
+        ) : session.state === "chiusa" ? (
+          <button type="button" className="button button--ghost" onClick={onReopen}>
+            Riapri
+          </button>
+        ) : session.state === "annullata" ? null : (
+          <button type="button" className="button button--ghost" onClick={() => setNote("")}>
+            Chiudi a mano
+          </button>
+        )}
       </td>
     </tr>
   );

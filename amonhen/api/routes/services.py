@@ -6,7 +6,12 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Query
 
 from amonhen.api.context import AppContext
-from amonhen.api.schemas import PaymentLinkRequest, ServiceRequest, SessionAmountRequest
+from amonhen.api.schemas import (
+    PaymentLinkRequest,
+    ServiceRequest,
+    ClosureRequest,
+    SessionAmountRequest,
+)
 from amonhen.composition import calendar_source
 from amonhen.services import tracking
 
@@ -71,6 +76,29 @@ def build(ctx: AppContext) -> APIRouter:
             if session is None:
                 raise HTTPException(status_code=404, detail=f"session {event_id} not found")
             ledger.set_session_amount(event_id, body.amount)
+            return tracking.detail(ledger, session["service_id"], ctx.clock.today())
+
+    @router.put("/api/services/sessions/{event_id}/closed")
+    def close_session(event_id: str, body: ClosureRequest) -> dict:
+        """Close a session by hand, with the note that says how and why."""
+        with ledger_scope() as ledger:
+            session = ledger.session(event_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail=f"session {event_id} not found")
+            try:
+                ledger.close_session(event_id, body.note, ctx.clock.now().isoformat(timespec="seconds"))
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            return tracking.detail(ledger, session["service_id"], ctx.clock.today())
+
+    @router.delete("/api/services/sessions/{event_id}/closed")
+    def reopen_session(event_id: str) -> dict:
+        """The session is owed again."""
+        with ledger_scope() as ledger:
+            session = ledger.session(event_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail=f"session {event_id} not found")
+            ledger.reopen_session(event_id)
             return tracking.detail(ledger, session["service_id"], ctx.clock.today())
 
     @router.put("/api/services/payments/{transaction_id}")

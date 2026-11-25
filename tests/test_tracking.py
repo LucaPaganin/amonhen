@@ -118,6 +118,32 @@ def test_payments_cover_the_oldest_sessions_first():
     ]
 
 
+def test_a_session_closed_by_hand_leaves_the_debt_and_takes_no_payment():
+    sessions = [Session("a", "2026-11-06", Decimal(25)), Session("b", "2026-11-13", Decimal(25))]
+    result = coverage(sessions, Decimal(25), TODAY, {"a": "non fatta, d'accordo così"})
+    assert result.due == Decimal(25)  # only b is still owed
+    assert result.balance == Decimal(0)  # the one payment covers b, not a
+    states = [(line.event_id, line.state, line.covered) for line in result.sessions]
+    assert states == [("a", "chiusa", Decimal(25)), ("b", "pagata", Decimal(25))]
+
+
+def test_closing_a_session_by_hand_needs_a_note_and_can_be_undone(ledger):
+    service = lesson(ledger)
+    calendar = MemoryCalendar()
+    calendar.add("andrea@cal", "e1", "Lezione Andrea", "2026-11-06")
+    sync_calendars(ledger, calendar, NOW)
+    with pytest.raises(ValueError):
+        ledger.close_session("e1", "   ", NOW.isoformat())
+    ledger.close_session("e1", "non fatta, d'accordo così", NOW.isoformat())
+    view = detail(ledger, service, TODAY)
+    assert view["balance"] == "0.00"
+    assert [(s["state"], s["note"]) for s in view["sessions"]] == [
+        ("chiusa", "non fatta, d'accordo così"),
+    ]
+    ledger.reopen_session("e1")
+    assert detail(ledger, service, TODAY)["balance"] == "25.00"
+
+
 def test_a_payment_ahead_leaves_a_negative_balance():
     result = coverage([Session("a", "2026-11-06", Decimal(25))], Decimal(100), TODAY)
     assert result.balance == Decimal(-75)
@@ -430,6 +456,29 @@ def test_the_api_creates_a_service_reads_its_calendar_and_corrects_a_session(api
         "Carla Spallarossa", 30, 7,
     )
     assert api.get("/api/services/999").status_code == 404
+
+
+def test_the_api_closes_a_session_by_hand_only_with_a_note(api):
+    created = api.post("/api/services", json={
+        "name": "Tennis", "kind": "lezione", "direction": "uscita", "rate": "30",
+        "calendar_id": "main@cal", "title_pattern": "Lezione Tennis",
+    })
+    assert created.status_code == 200, created.text
+    api.calendar.add("main@cal", "t1", "Lezione Tennis", "2026-11-10T18:00:00+01:00",
+                     "2026-11-10T19:00:00+01:00")
+    api.post("/api/services/sync")
+
+    assert api.put("/api/services/sessions/t1/closed", json={"note": "  "}).status_code == 422
+    closed = api.put("/api/services/sessions/t1/closed", json={"note": "non fatta, concordato"})
+    assert closed.status_code == 200, closed.text
+    assert [(s["state"], s["note"]) for s in closed.json()["sessions"]] == [
+        ("chiusa", "non fatta, concordato"),
+    ]
+    assert closed.json()["balance"] == "0.00"
+
+    reopened = api.delete("/api/services/sessions/t1/closed")
+    assert [(s["state"], s["note"]) for s in reopened.json()["sessions"]] == [("da_pagare", None)]
+    assert reopened.json()["balance"] == "30.00"
 
 
 def test_the_adapter_follows_pages_and_reports_an_expired_token(tmp_path):

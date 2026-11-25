@@ -180,6 +180,42 @@ class TrackingMixin:
                 (format_decimal(value), event_id),
             )
 
+    # -- sessions closed by hand --------------------------------------------
+
+    def closures_of(self, service_id: int) -> dict[str, str]:
+        """The sessions a person closed by hand, with the note that says why."""
+        rows = self.conn.execute(
+            """SELECT s.event_id, s.note FROM service_closures s
+               JOIN service_sessions x ON x.event_id = s.event_id
+               WHERE x.service_id = ?""",
+            (service_id,),
+        ).fetchall()
+        return {row["event_id"]: row["note"] for row in rows}
+
+    def close_session(self, event_id: str, note: str, closed_at: str) -> None:
+        """Close a session by hand: it stops being owed, and the note says why.
+
+        The note is required and always: with no movement behind it, it is the
+        only thing that explains a session nobody paid.
+        """
+        written = (note or "").strip()
+        if not written:
+            raise ValueError("una sessione chiusa a mano ha una nota")
+        if self.session(event_id) is None:
+            raise ValueError(f"nessuna sessione {event_id}")
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO service_closures (event_id, note, closed_at) VALUES (?, ?, ?)
+                   ON CONFLICT (event_id) DO UPDATE SET note = excluded.note,
+                       closed_at = excluded.closed_at""",
+                (event_id, written, closed_at),
+            )
+
+    def reopen_session(self, event_id: str) -> None:
+        """The session is owed again: the hand's mark goes, the payments stay."""
+        with self.conn:
+            self.conn.execute("DELETE FROM service_closures WHERE event_id = ?", (event_id,))
+
     # -- payments ----------------------------------------------------------
 
     def payments_of(self, service_id: int) -> list[sqlite3.Row]:

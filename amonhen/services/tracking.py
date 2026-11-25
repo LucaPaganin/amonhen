@@ -11,7 +11,15 @@ import datetime as dt
 import logging
 from dataclasses import dataclass, field
 
-from amonhen.core.tracking import CANCELLED, VALID, Session, coverage, event_hours, title_matches
+from amonhen.core.tracking import (
+    CANCELLED,
+    CLOSED,
+    VALID,
+    Session,
+    coverage,
+    event_hours,
+    title_matches,
+)
 from amonhen.ledger import Ledger
 from amonhen.ledger.tracking import sync_token_key, sync_window_key, synced_at
 from amonhen.models import format_decimal, parse_decimal
@@ -128,6 +136,7 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
     rows = ledger.sessions_of(service_id)
     summaries = {row["event_id"]: row["summary"] for row in rows}
     hours = {row["event_id"]: row["hours"] for row in rows}
+    notes = ledger.closures_of(service_id)
     covered = _coverage(ledger, service_id, today, rows)
     sessions = [
         {
@@ -135,6 +144,7 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
             "start": line.start,
             "summary": summaries[line.event_id],
             "hours": hours[line.event_id],
+            "note": notes.get(line.event_id),
             "amount": format_decimal(line.amount),
             "covered": format_decimal(line.covered),
             "state": line.state,
@@ -143,7 +153,7 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
     ]
     cancelled = [
         {"event_id": row["event_id"], "start": row["start"], "summary": row["summary"],
-         "hours": row["hours"], "amount": row["amount"], "state": CANCELLED}
+         "hours": row["hours"], "note": None, "amount": row["amount"], "state": CANCELLED}
         for row in rows if row["status"] == CANCELLED
     ]
     payments = [
@@ -230,7 +240,7 @@ def _coverage(ledger: Ledger, service_id: int, today: dt.date, rows=None):
         Session(row["event_id"], row["start"], parse_decimal(row["amount"]))
         for row in rows if row["status"] == VALID
     ]
-    return coverage(sessions, ledger.paid_total(service_id), today)
+    return coverage(sessions, ledger.paid_total(service_id), today, ledger.closures_of(service_id))
 
 
 def _summary(ledger: Ledger, service, today: dt.date, covered=None) -> dict:
@@ -254,5 +264,7 @@ def _summary(ledger: Ledger, service, today: dt.date, covered=None) -> dict:
         "paid": format_decimal(covered.paid),
         "balance": format_decimal(covered.balance),
         "sessions_due": len(due_sessions),
-        "sessions_unpaid": sum(1 for line in due_sessions if line.state != "pagata"),
+        "sessions_unpaid": sum(
+            1 for line in due_sessions if line.state not in ("pagata", CLOSED)
+        ),
     }

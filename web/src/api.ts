@@ -312,6 +312,10 @@ export const api = {
     get<PaymentCandidatePage>(
       `/services/${id}/candidates?q=${encodeURIComponent(query)}&offset=${offset}`,
     ),
+  closeSession: (eventId: string, note: string) =>
+    send<ServiceDetail>("PUT", `/services/sessions/${encodeURIComponent(eventId)}/closed`, { note }),
+  reopenSession: (eventId: string) =>
+    send<ServiceDetail>("DELETE", `/services/sessions/${encodeURIComponent(eventId)}/closed`, {}),
   setSessionAmount: (eventId: string, amount: string) =>
     send<ServiceDetail>("PUT", `/services/sessions/${encodeURIComponent(eventId)}/amount`, { amount }),
   linkPayment: (transactionId: number, serviceId: number | null) =>

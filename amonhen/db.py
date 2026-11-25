@@ -417,6 +417,16 @@ CREATE TABLE IF NOT EXISTS service_sessions (
 
 CREATE INDEX IF NOT EXISTS service_sessions_service ON service_sessions(service_id, start);
 
+-- A session closed by hand, with no movement behind it: cash that never reached
+-- the bank, a lesson that did not happen, an agreement. The note is not optional:
+-- with no payment to read, it is the only thing that explains why the session
+-- stopped being owed.
+CREATE TABLE IF NOT EXISTS service_closures (
+    event_id TEXT PRIMARY KEY REFERENCES service_sessions(event_id) ON DELETE CASCADE,
+    note TEXT NOT NULL,
+    closed_at TEXT NOT NULL
+);
+
 -- Which movement pays which service. `by_rule` says a sync linked it from the
 -- service's text; a link made by hand (0) is never undone by a sync. A deleted
 -- movement takes its link with it; restored, the rule links it again.

@@ -973,7 +973,7 @@ export interface CalendarOutcome {
 export type ServiceKind = "lezione" | "seduta" | "altro";
 export type ServiceBilling = "sessione" | "ora";
 export type ServiceDirection = "entrata" | "uscita";
-export type SessionState = "pagata" | "parziale" | "da_pagare" | "futura" | "annullata";
+export type SessionState = "pagata" | "parziale" | "da_pagare" | "futura" | "annullata" | "chiusa";
 
 /** What a service is, as it is written. */
 export interface ServiceDraft {
@@ -1013,6 +1013,8 @@ export interface ServiceSession {
   summary: string;
   /** The length the calendar gave, in hours; null when the event has no end. */
   hours: string | null;
+  /** How and why a session was closed by hand; null when it was not. */
+  note: string | null;
   amount: string;
   covered?: string;
   state: SessionState;

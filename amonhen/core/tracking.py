@@ -26,6 +26,10 @@ CENT = Decimal("0.01")
 HOUR = Decimal("0.01")
 
 PAID, PARTIAL, DUE, FUTURE = "pagata", "parziale", "da_pagare", "futura"
+# Closed by hand, outside the payments: cash that never reached the bank, a
+# lesson that did not happen, anything the ledger cannot see. The note says how
+# and why, because the money is not in the statement.
+CLOSED = "chiusa"
 
 ZERO = Decimal(0)
 
@@ -106,17 +110,32 @@ def session_amount(rate: Decimal, hours: Decimal | None, billing: str, default_h
     return (rate * billed).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def coverage(sessions: list[Session], paid: Decimal, today: dt.date) -> Coverage:
+def coverage(
+    sessions: list[Session], paid: Decimal, today: dt.date, closed: dict[str, str] | None = None
+) -> Coverage:
     """The payments spread over the valid sessions, the oldest first.
 
     ``sessions`` are the valid ones; a session after ``today`` is not due yet, so
     it neither counts in the balance nor takes a payment.
+
+    ``closed`` are the sessions a person closed by hand, with their note: they
+    are out of what is owed and take no payment, so the same money is never
+    counted twice, and a closed session that nobody paid is not a debt either.
     """
+    closed = closed or {}
     ordered = sorted(sessions, key=lambda session: (session.start, session.event_id))
-    due = sum((s.amount for s in ordered if session_day(s.start) <= today), ZERO)
+    due = sum(
+        (s.amount for s in ordered if session_day(s.start) <= today and s.event_id not in closed),
+        ZERO,
+    )
     left = paid
     lines: list[CoveredSession] = []
     for session in ordered:
+        if session.event_id in closed:
+            lines.append(
+                CoveredSession(session.event_id, session.start, session.amount, session.amount, CLOSED)
+            )
+            continue
         if session_day(session.start) > today:
             lines.append(CoveredSession(session.event_id, session.start, session.amount, ZERO, FUTURE))
             continue
