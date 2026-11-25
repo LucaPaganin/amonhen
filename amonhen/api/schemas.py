@@ -301,9 +301,15 @@ class ServiceRequest(BaseModel):
     # The text a movement's description carries to pay this service; empty links
     # payments only by hand.
     match_text: str | None = None
+    # `sessione`: the rate once; `ora`: the rate for each hour the event lasts.
+    billing: Literal["sessione", "ora"] = "sessione"
+    default_hours: str = "1.00"
     # How far this service's calendar is read: empty means the ledger's defaults.
     lookback_days: int | None = Field(None, ge=0, le=3650)
     ahead_days: int | None = Field(None, ge=0, le=3650)
+    # Ask for the sessions already written again: forgets the calendar's token,
+    # so the next read recomputes every duration and the amounts nobody corrected.
+    recalculate: bool = False
     active: bool = True
 
 

@@ -971,6 +971,7 @@ export interface CalendarOutcome {
 }
 
 export type ServiceKind = "lezione" | "seduta" | "altro";
+export type ServiceBilling = "sessione" | "ora";
 export type ServiceDirection = "entrata" | "uscita";
 export type SessionState = "pagata" | "parziale" | "da_pagare" | "futura" | "annullata";
 
@@ -984,6 +985,12 @@ export interface ServiceDraft {
   title_pattern: string;
   /** The text a movement's description carries to pay this service. */
   match_text: string | null;
+  /** `sessione`: the rate once; `ora`: the rate for each hour the event lasts. */
+  billing: ServiceBilling;
+  /** The hours an hourly service bills when the event carries no end. */
+  default_hours: string;
+  /** Ask the sessions already written again, recomputing their amounts. */
+  recalculate: boolean;
   /** How far this service's calendar is read; null is the ledger's default. */
   lookback_days: number | null;
   ahead_days: number | null;
@@ -1004,6 +1011,8 @@ export interface ServiceSession {
   event_id: string;
   start: string;
   summary: string;
+  /** The length the calendar gave, in hours; null when the event has no end. */
+  hours: string | null;
   amount: string;
   covered?: string;
   state: SessionState;

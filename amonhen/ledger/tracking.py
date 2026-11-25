@@ -9,7 +9,7 @@ import datetime as dt
 import sqlite3
 from decimal import Decimal
 
-from amonhen.core.tracking import CANCELLED, DIRECTIONS, KINDS, VALID
+from amonhen.core.tracking import BILLING, CANCELLED, DIRECTIONS, KINDS, VALID, session_amount
 from amonhen.models import format_decimal, parse_decimal
 
 # A payment moves money the service's way: a credit for a service given, a debit
@@ -40,16 +40,21 @@ class TrackingMixin:
         calendar_id: str,
         title_pattern: str,
         match_text: str | None,
+        billing: str = "sessione",
+        default_hours: str = "1.00",
         lookback_days: int | None = None,
         ahead_days: int | None = None,
         active: bool = True,
+        recalculate: bool = False,
     ) -> int:
         """Create a service (``service_id`` None) or rewrite one; returns its id.
 
         A new rate is the price of the sessions that appear from now on: the
-        sessions already written keep the amount they had. ``match_text`` empty
-        and the two day counts empty mean "the ledger's own": payments only by
-        hand, and the default window.
+        sessions already written keep the amount they had, unless ``recalculate``
+        asks for them again — that forgets the calendar's token, so the next read
+        re-reads every event and recomputes the amounts nobody corrected by hand.
+        ``match_text`` empty and the two day counts empty mean "the ledger's own":
+        payments only by hand, and the default window.
         """
         name, calendar_id, title_pattern = name.strip(), calendar_id.strip(), title_pattern.strip()
         if not name or not calendar_id or not title_pattern:
@@ -58,20 +63,26 @@ class TrackingMixin:
             raise ValueError(f"tipo sconosciuto: {kind}")
         if direction not in DIRECTIONS:
             raise ValueError(f"verso sconosciuto: {direction}")
+        if billing not in BILLING:
+            raise ValueError(f"modo di pagare sconosciuto: {billing}")
+        hours = parse_decimal(default_hours or "1")
+        if not hours.is_finite() or hours <= 0:
+            raise ValueError("le ore di una sessione sono un numero positivo")
         value = parse_decimal(rate)
         if not value.is_finite() or value < 0:
             raise ValueError("il prezzo di una sessione è un importo non negativo")
         row = (
             name, kind, direction, format_decimal(value), calendar_id, title_pattern,
-            (match_text or "").strip() or None, _days(lookback_days), _days(ahead_days),
-            1 if active else 0,
+            (match_text or "").strip() or None, billing, format_decimal(hours),
+            _days(lookback_days), _days(ahead_days), 1 if active else 0,
         )
         with self.conn:
             if service_id is None:
                 cursor = self.conn.execute(
                     """INSERT INTO services (name, kind, direction, rate, calendar_id, title_pattern,
-                                             match_text, lookback_days, ahead_days, active)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                             match_text, billing, default_hours, lookback_days,
+                                             ahead_days, active)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     row,
                 )
                 return int(cursor.lastrowid)
@@ -79,12 +90,14 @@ class TrackingMixin:
                 raise ValueError(f"nessun servizio {service_id}")
             self.conn.execute(
                 """UPDATE services SET name = ?, kind = ?, direction = ?, rate = ?, calendar_id = ?,
-                                       title_pattern = ?, match_text = ?, lookback_days = ?,
-                                       ahead_days = ?, active = ?
+                                       title_pattern = ?, match_text = ?, billing = ?,
+                                       default_hours = ?, lookback_days = ?, ahead_days = ?, active = ?
                    WHERE id = ?""",
                 (*row, service_id),
             )
-            return service_id
+        if recalculate:
+            self.forget_calendar_token(calendar_id)
+        return service_id
 
     # -- sessions ----------------------------------------------------------
 
@@ -99,28 +112,51 @@ class TrackingMixin:
             "SELECT * FROM service_sessions WHERE event_id = ?", (event_id,)
         ).fetchone()
 
-    def write_session(self, event_id: str, service_id: int, start: str, summary: str, synced_at: str) -> None:
-        """The event as the calendar says it now, valid; the amount is kept if it existed.
+    def forget_calendar_token(self, calendar_id: str) -> None:
+        """Make the next read of this calendar a full one, as a new ledger would."""
+        with self.conn:
+            self.conn.execute(
+                "DELETE FROM settings WHERE key IN (?, ?)",
+                (sync_token_key(calendar_id), sync_window_key(calendar_id)),
+            )
 
-        A session moving to another service takes that service's rate, because the
-        amount it had was the other service's price.
+    def write_session(
+        self, event_id: str, service_id: int, start: str, end: str, summary: str,
+        hours: str | None, synced_at: str,
+    ) -> None:
+        """The event as the calendar says it now, valid; the amount follows the length.
+
+        An hourly service is paid by the hours the event lasts, so a session whose
+        duration changed changes its amount — unless a person corrected it, and
+        that correction survives. A session moving to another service takes that
+        service's price and loses the correction, which was the other one's.
         """
+        service = self.service(service_id)
+        hours_value = parse_decimal(hours) if hours is not None else None
+        amount = format_decimal(session_amount(
+            parse_decimal(service["rate"]), hours_value, service["billing"],
+            parse_decimal(service["default_hours"]),
+        ))
         existing = self.session(event_id)
         if existing is not None and existing["service_id"] == service_id:
+            kept = existing["amount"] if existing["amount_by_hand"] else amount
             self.conn.execute(
-                """UPDATE service_sessions SET start = ?, summary = ?, status = ?, synced_at = ?
+                """UPDATE service_sessions SET start = ?, "end" = ?, summary = ?, hours = ?,
+                                               amount = ?, status = ?, synced_at = ?
                    WHERE event_id = ?""",
-                (start, summary, VALID, synced_at, event_id),
+                (start, end or None, summary, _hours_text(hours_value), kept, VALID, synced_at, event_id),
             )
             return
-        rate = self.service(service_id)["rate"]
         self.conn.execute(
-            """INSERT INTO service_sessions (event_id, service_id, start, summary, amount, status, synced_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+            """INSERT INTO service_sessions (event_id, service_id, start, "end", summary, hours,
+                                             amount, amount_by_hand, status, synced_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                ON CONFLICT (event_id) DO UPDATE SET service_id = excluded.service_id,
-                   start = excluded.start, summary = excluded.summary, amount = excluded.amount,
+                   start = excluded.start, "end" = excluded."end", summary = excluded.summary,
+                   hours = excluded.hours, amount = excluded.amount, amount_by_hand = 0,
                    status = excluded.status, synced_at = excluded.synced_at""",
-            (event_id, service_id, start, summary, rate, VALID, synced_at),
+            (event_id, service_id, start, end or None, summary, _hours_text(hours_value),
+             amount, VALID, synced_at),
         )
 
     def cancel_session(self, event_id: str, synced_at: str) -> bool:
@@ -140,7 +176,7 @@ class TrackingMixin:
             raise ValueError(f"nessuna sessione {event_id}")
         with self.conn:
             self.conn.execute(
-                "UPDATE service_sessions SET amount = ? WHERE event_id = ?",
+                "UPDATE service_sessions SET amount = ?, amount_by_hand = 1 WHERE event_id = ?",
                 (format_decimal(value), event_id),
             )
 
@@ -267,6 +303,10 @@ def _unlinked_key(transaction_id: int) -> str:
 def sync_token_key(calendar_id: str) -> str:
     """Where the calendar's sync token is kept, in `settings`."""
     return f"tracking:sync_token:{calendar_id}"
+
+
+def _hours_text(hours) -> str | None:
+    return None if hours is None else format_decimal(hours)
 
 
 def sync_window_key(calendar_id: str) -> str:

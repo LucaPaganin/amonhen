@@ -131,11 +131,13 @@ class GoogleCalendar:
 
 def _event(item: dict) -> CalendarEvent:
     start = item.get("start", {})
+    end = item.get("end", {})
     return CalendarEvent(
         event_id=item["id"],
         summary=item.get("summary", ""),
         start=start.get("dateTime") or start.get("date") or "",
         cancelled=item.get("status") == "cancelled",
+        end=end.get("dateTime") or end.get("date") or "",
     )
 
 

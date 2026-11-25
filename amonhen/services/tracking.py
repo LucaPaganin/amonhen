@@ -11,7 +11,7 @@ import datetime as dt
 import logging
 from dataclasses import dataclass, field
 
-from amonhen.core.tracking import CANCELLED, VALID, Session, coverage, title_matches
+from amonhen.core.tracking import CANCELLED, VALID, Session, coverage, event_hours, title_matches
 from amonhen.ledger import Ledger
 from amonhen.ledger.tracking import sync_token_key, sync_window_key, synced_at
 from amonhen.models import format_decimal, parse_decimal
@@ -127,12 +127,14 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
         return None
     rows = ledger.sessions_of(service_id)
     summaries = {row["event_id"]: row["summary"] for row in rows}
+    hours = {row["event_id"]: row["hours"] for row in rows}
     covered = _coverage(ledger, service_id, today, rows)
     sessions = [
         {
             "event_id": line.event_id,
             "start": line.start,
             "summary": summaries[line.event_id],
+            "hours": hours[line.event_id],
             "amount": format_decimal(line.amount),
             "covered": format_decimal(line.covered),
             "state": line.state,
@@ -141,7 +143,7 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
     ]
     cancelled = [
         {"event_id": row["event_id"], "start": row["start"], "summary": row["summary"],
-         "amount": row["amount"], "state": CANCELLED}
+         "hours": row["hours"], "amount": row["amount"], "state": CANCELLED}
         for row in rows if row["status"] == CANCELLED
     ]
     payments = [
@@ -180,7 +182,11 @@ def _apply(
                 if ledger.cancel_session(event.event_id, stamp):
                     outcome.cancelled += 1
                 continue
-            ledger.write_session(event.event_id, match["id"], event.start, event.summary, stamp)
+            length = event_hours(event.start, event.end)
+            ledger.write_session(
+                event.event_id, match["id"], event.start, event.end, event.summary,
+                None if length is None else format_decimal(length), stamp,
+            )
             outcome.written += 1
         if full:
             # Only the session days this read could have listed, per service: a
@@ -239,6 +245,8 @@ def _summary(ledger: Ledger, service, today: dt.date, covered=None) -> dict:
         "calendar_id": service["calendar_id"],
         "title_pattern": service["title_pattern"],
         "match_text": service["match_text"],
+        "billing": service["billing"],
+        "default_hours": service["default_hours"],
         "lookback_days": service["lookback_days"],
         "ahead_days": service["ahead_days"],
         "active": bool(service["active"]),

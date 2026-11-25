@@ -37,8 +37,8 @@ class MemoryCalendar:
         self.tokens: list[str | None] = []
         self.windows: list[CalendarWindow] = []
 
-    def add(self, calendar_id, event_id, summary, start, cancelled=False):
-        event = CalendarEvent(event_id, summary, start, cancelled)
+    def add(self, calendar_id, event_id, summary, start, end="", cancelled=False):
+        event = CalendarEvent(event_id, summary, start, cancelled, end)
         events = [e for e in self.events.get(calendar_id, []) if e.event_id != event_id]
         if not cancelled:
             events.append(event)
@@ -210,6 +210,65 @@ def test_the_read_uses_the_ledger_days_and_a_service_may_ask_its_own(ledger):
         TODAY - dt.timedelta(days=10), TODAY + dt.timedelta(days=5)
     )
     assert calendar.tokens[-1] is None  # a different window is a full read
+
+
+def test_an_hourly_service_is_paid_by_the_hours_the_event_lasts(ledger):
+    service = lesson(ledger, billing="ora", rate="15")
+    calendar = MemoryCalendar()
+    calendar.add("andrea@cal", "one", "Lezione Andrea", "2026-11-06T15:00:00+01:00",
+                 "2026-11-06T16:00:00+01:00")
+    calendar.add("andrea@cal", "two", "Lezione Andrea", "2026-11-07T14:00:00+01:00",
+                 "2026-11-07T16:00:00+01:00")
+    sync_calendars(ledger, calendar, NOW)
+    view = detail(ledger, service, TODAY)
+    assert [(s["hours"], s["amount"]) for s in view["sessions"]] == [("1.00", "15.00"), ("2.00", "30.00")]
+    assert view["due"] == "45.00"
+
+
+def test_an_hourly_event_without_an_end_bills_the_service_hours(ledger):
+    service = lesson(ledger, billing="ora", rate="20", default_hours="1.5")
+    calendar = MemoryCalendar()
+    calendar.add("andrea@cal", "allday", "Lezione Andrea", "2026-11-06")
+    sync_calendars(ledger, calendar, NOW)
+    view = detail(ledger, service, TODAY)
+    assert [(s["hours"], s["amount"]) for s in view["sessions"]] == [(None, "30.00")]
+
+
+def test_a_flat_service_ignores_the_length(ledger):
+    service = lesson(ledger, rate="25")
+    calendar = MemoryCalendar()
+    calendar.add("andrea@cal", "two", "Lezione Andrea", "2026-11-06T14:00:00+01:00",
+                 "2026-11-06T16:00:00+01:00")
+    sync_calendars(ledger, calendar, NOW)
+    view = detail(ledger, service, TODAY)
+    assert [(s["hours"], s["amount"]) for s in view["sessions"]] == [("2.00", "25.00")]
+
+
+def test_a_corrected_amount_survives_a_change_of_length(ledger):
+    service = lesson(ledger, billing="ora", rate="15")
+    calendar = MemoryCalendar()
+    calendar.add("andrea@cal", "e1", "Lezione Andrea", "2026-11-06T15:00:00+01:00",
+                 "2026-11-06T16:00:00+01:00")
+    sync_calendars(ledger, calendar, NOW)
+    ledger.set_session_amount("e1", "20")
+    calendar.add("andrea@cal", "e1", "Lezione Andrea", "2026-11-06T15:00:00+01:00",
+                 "2026-11-06T17:00:00+01:00")
+    sync_calendars(ledger, calendar, NOW)
+    row = ledger.session("e1")
+    assert (row["hours"], row["amount"]) == ("2.00", "20.00")
+
+
+def test_asking_to_recalculate_forgets_the_token_and_redoes_the_amounts(ledger):
+    service = lesson(ledger, rate="15")
+    calendar = MemoryCalendar()
+    calendar.add("andrea@cal", "e1", "Lezione Andrea", "2026-11-06T15:00:00+01:00",
+                 "2026-11-06T17:00:00+01:00")
+    sync_calendars(ledger, calendar, NOW)
+    assert ledger.session("e1")["amount"] == "15.00"
+    ledger.save_service(service, **service_fields(billing="ora", rate="15", recalculate=True))
+    sync_calendars(ledger, calendar, NOW)
+    assert calendar.tokens[-1] is None  # the token was forgotten: a full read
+    assert ledger.session("e1")["amount"] == "30.00"
 
 
 def test_a_service_keeps_only_the_days_it_asked_for(ledger):

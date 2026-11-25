@@ -36,12 +36,15 @@ class CalendarEvent:
     `start` is the ISO text the calendar gave (a day, or an instant with its
     offset), so its first ten characters are the local day. A cancelled event
     may arrive with neither summary nor start: only its id is certain.
+    `end` is the same text for the end, which is what makes an hour worth
+    billing: empty when the calendar gave none (an all-day event).
     """
 
     event_id: str
     summary: str
     start: str
     cancelled: bool
+    end: str = ""
 
 
 @dataclass(frozen=True)

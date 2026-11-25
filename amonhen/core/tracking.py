@@ -10,12 +10,20 @@ from __future__ import annotations
 import datetime as dt
 import re
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 
 KINDS = ("lezione", "seduta", "altro")
 DIRECTIONS = ("entrata", "uscita")
 VALID, CANCELLED = "valida", "annullata"
+
+# How a service's price becomes a session's amount: the price once, or the price
+# for every hour the event lasts.
+BILLING = ("sessione", "ora")
+BILLING_HOURS = "ora"
+
+CENT = Decimal("0.01")
+HOUR = Decimal("0.01")
 
 PAID, PARTIAL, DUE, FUTURE = "pagata", "parziale", "da_pagare", "futura"
 
@@ -66,6 +74,36 @@ def title_matches(pattern: str, summary: str) -> bool:
 def session_day(start: str) -> dt.date:
     """The local day of a session: the calendar's text begins with it."""
     return dt.date.fromisoformat(start[:10])
+
+
+def event_hours(start: str, end: str) -> Decimal | None:
+    """How long the event lasts, in hours; None when the calendar gave no length.
+
+    An all-day event carries two dates and no times: its length is not a length
+    anybody is paid for, so it is unknown rather than twenty-four.
+    """
+    if len(start) <= 10 or len(end) <= 10:
+        return None
+    try:
+        first, last = dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end)
+    except ValueError:
+        return None
+    seconds = Decimal(int((last - first).total_seconds()))
+    if seconds <= 0:
+        return None
+    return (seconds / Decimal(3600)).quantize(HOUR, rounding=ROUND_HALF_UP)
+
+
+def session_amount(rate: Decimal, hours: Decimal | None, billing: str, default_hours: Decimal) -> Decimal:
+    """What one session costs: the price, or the price for each hour it lasts.
+
+    An hourly service whose event has no length bills ``default_hours``: a
+    session that costs nothing would be a silent hole in the balance.
+    """
+    if billing != BILLING_HOURS:
+        return rate
+    billed = hours if hours is not None and hours > 0 else default_hours
+    return (rate * billed).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
 def coverage(sessions: list[Session], paid: Decimal, today: dt.date) -> Coverage:

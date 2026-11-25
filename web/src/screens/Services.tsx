@@ -36,6 +36,9 @@ const EMPTY: ServiceDraft = {
   calendar_id: "",
   title_pattern: "",
   match_text: null,
+  billing: "sessione",
+  default_hours: "1.00",
+  recalculate: false,
   lookback_days: null,
   ahead_days: null,
   active: true,
@@ -222,8 +225,11 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
 }
 
 function draftOf(service: ServiceSummary): ServiceDraft {
-  const { name, kind, direction, rate, calendar_id, title_pattern, match_text, lookback_days, ahead_days, active } = service;
-  return { name, kind, direction, rate, calendar_id, title_pattern, match_text, lookback_days, ahead_days, active };
+  const { name, kind, direction, rate, calendar_id, title_pattern, match_text, billing, default_hours, lookback_days, ahead_days, active } = service;
+  return {
+    name, kind, direction, rate, calendar_id, title_pattern, match_text, billing, default_hours,
+    recalculate: false, lookback_days, ahead_days, active,
+  };
 }
 
 /** One service opened: the sessions with their coverage, the payments, and a link by hand. */
@@ -299,6 +305,7 @@ function ServiceBody({
             <thead>
               <tr>
                 <th scope="col">Data</th>
+                <th scope="col">Durata</th>
                 <th scope="col">Importo</th>
                 <th scope="col">Stato</th>
               </tr>
@@ -418,6 +425,7 @@ function SessionRow({ session, onSave }: { session: ServiceSession; onSave: (amo
   return (
     <tr>
       <th scope="row">{day(session.start)}</th>
+      <td>{session.hours === null ? "—" : `${Number(session.hours)} h`}</td>
       <td>
         {amount === null ? (
           <button type="button" className="services__open services__edit" title="Correggi l'importo"
@@ -545,10 +553,31 @@ function ServiceSheet({
           </select>
         </div>
         <div className="field">
-          <label htmlFor={`${fieldId}-rate`}>Prezzo per sessione</label>
+          <label htmlFor={`${fieldId}-billing`}>Come si paga</label>
+          <select id={`${fieldId}-billing`} className="input" value={draft.billing}
+            onChange={(event) => set("billing", event.target.value as ServiceDraft["billing"])}>
+            <option value="sessione">A sessione: un prezzo, quanto dura non conta</option>
+            <option value="ora">A ora: il prezzo per ogni ora dell&apos;evento</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor={`${fieldId}-rate`}>
+            {draft.billing === "ora" ? "Prezzo per ora" : "Prezzo per sessione"}
+          </label>
           <input id={`${fieldId}-rate`} className="input" inputMode="decimal" value={draft.rate}
             onChange={(event) => set("rate", event.target.value)} />
         </div>
+        {draft.billing === "ora" ? (
+          <div className="field">
+            <label htmlFor={`${fieldId}-hours`}>Ore di una sessione senza fine</label>
+            <input id={`${fieldId}-hours`} className="input" inputMode="decimal"
+              value={draft.default_hours}
+              onChange={(event) => set("default_hours", event.target.value)} />
+            <p className="hint">
+              Per gli eventi che non dicono quando finiscono: la durata la legge dal calendario.
+            </p>
+          </div>
+        ) : null}
         <div className="field">
           <label htmlFor={`${fieldId}-calendar`}>Calendario (ID)</label>
           <input id={`${fieldId}-calendar`} className="input" value={draft.calendar_id}
@@ -587,6 +616,12 @@ function ServiceSheet({
           <div className="field">
             <Toggle checked={draft.active} label="Attivo: il calendario si legge"
               onChange={(value) => set("active", value)} />
+            <Toggle checked={draft.recalculate} label="Ricalcola le sessioni già scritte"
+              onChange={(value) => set("recalculate", value)} />
+            <p className="hint">
+              Rilegge il calendario e rifà durata e importo di ogni sessione, tranne quelle
+              corrette a mano.
+            </p>
           </div>
         )}
         {error !== null ? <p className="account-form__error" role="alert">{error}</p> : null}

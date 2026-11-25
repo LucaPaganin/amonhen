@@ -385,6 +385,11 @@ CREATE TABLE IF NOT EXISTS services (
     -- The text a movement's description carries to pay this service; NULL links
     -- payments by hand only.
     match_text TEXT,
+    -- How the price is charged: `sessione` (a flat price, whatever the length)
+    -- or `ora` (the price times the event's hours, `default_hours` when the
+    -- event carries no end).
+    billing TEXT NOT NULL DEFAULT 'sessione',
+    default_hours TEXT NOT NULL DEFAULT '1.00',
     -- How far this service's calendar is read, when it is not the ledger's own
     -- default (`CALENDAR_LOOKBACK_DAYS`, `CALENDAR_AHEAD_DAYS`).
     lookback_days INTEGER,
@@ -399,8 +404,13 @@ CREATE TABLE IF NOT EXISTS service_sessions (
     event_id TEXT PRIMARY KEY,
     service_id INTEGER NOT NULL REFERENCES services(id),
     start TEXT NOT NULL,
+    "end" TEXT,
     summary TEXT NOT NULL,
+    -- The length the calendar gave, in hours; NULL when the event has no end.
+    hours TEXT,
     amount TEXT NOT NULL,
+    -- 1 when a person corrected the amount: a duration change must not undo it.
+    amount_by_hand INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL CHECK (status IN ('valida', 'annullata')),
     synced_at TEXT NOT NULL
 );
@@ -445,6 +455,13 @@ _ADDED_COLUMNS = (
     ("services", "match_text", "TEXT"),
     ("services", "lookback_days", "INTEGER"),
     ("services", "ahead_days", "INTEGER"),
+    # A service may charge by the hour, where the event's own length is the
+    # quantity billed: the price stays per hour, the session keeps its hours.
+    ("services", "billing", "TEXT NOT NULL DEFAULT 'sessione'"),
+    ("services", "default_hours", "TEXT NOT NULL DEFAULT '1.00'"),
+    ("service_sessions", "end", "TEXT"),
+    ("service_sessions", "hours", "TEXT"),
+    ("service_sessions", "amount_by_hand", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 
