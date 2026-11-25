@@ -370,4 +370,35 @@ def test_the_adapter_follows_pages_and_reports_an_expired_token(tmp_path):
         assert "timeMax=2027-02-22T23%3A59%3A59" in asked
         with pytest.raises(SyncTokenExpired):
             calendar.changes("a@cal", "s1", WINDOW)
+        incremental = [call.request.url for call in mock.calls if "/events" in call.request.url][-1]
+        assert "syncToken=s1" in incremental
+        assert "timeMin" not in incremental
         assert len([c for c in mock.calls if "token" in c.request.url and "oauth2" in c.request.url]) == 1
+
+
+def test_a_token_asked_with_a_different_request_is_an_expired_token(tmp_path):
+    """Google answers 400, not 410, when a token comes back with other restrictions."""
+    import json
+
+    import responses
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from amonhen.adapters.google_calendar import GoogleCalendar
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    ).decode()
+    key_file = tmp_path / "sa.json"
+    key_file.write_text(json.dumps({
+        "client_email": "amonhen@p.iam.gserviceaccount.com", "private_key": pem,
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }))
+    url = "https://www.googleapis.com/calendar/v3/calendars/a%40cal/events"
+    with responses.RequestsMock() as mock:
+        mock.post("https://oauth2.googleapis.com/token", json={"access_token": "tok", "expires_in": 3600})
+        mock.get(url, status=400, json={"error": {"message": "Sync token cannot be used with other request restrictions."}})
+        calendar = GoogleCalendar(key_file)
+        with pytest.raises(SyncTokenExpired):
+            calendar.changes("a@cal", "s1", WINDOW)

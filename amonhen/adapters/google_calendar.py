@@ -52,15 +52,18 @@ class GoogleCalendar:
     def changes(self, calendar_id: str, sync_token: str | None, window: CalendarWindow) -> CalendarChanges:
         """The events of ``window``, or those changed since ``sync_token``.
 
-        The bounds are always sent: without them Google answers within its own
-        undocumented range, and whether a session exists would depend on a
-        default nobody can read.
+        A full read is bounded by the window, because without bounds Google
+        answers within its own undocumented range. A read with a token carries
+        the token alone: Google refuses it together with any other restriction
+        (400, "Sync token cannot be used with other request restrictions"), and
+        what changed since the token is a better answer than a range anyway.
         """
         params = dict(LIST_PARAMS)
-        params["timeMin"] = _instant(window.start, end_of_day=False)
-        params["timeMax"] = _instant(window.end, end_of_day=True)
         if sync_token:
             params["syncToken"] = sync_token
+        else:
+            params["timeMin"] = _instant(window.start, end_of_day=False)
+            params["timeMax"] = _instant(window.end, end_of_day=True)
         url = EVENTS_URL.format(calendar=quote(calendar_id, safe=""))
         events: list[CalendarEvent] = []
         while True:
@@ -85,6 +88,10 @@ class GoogleCalendar:
             raise CalendarError(f"Google Calendar did not answer: {exc}") from exc
         if response.status_code == 410:
             raise SyncTokenExpired("the sync token expired")
+        if response.status_code == 400 and "sync token" in response.text.lower():
+            # A token is bound to the request that produced it: a read that asks
+            # for it with other parameters is refused, not expired. Same answer.
+            raise SyncTokenExpired("the sync token was asked with a different request")
         if response.status_code != 200:
             raise CalendarError(f"Google Calendar answered {response.status_code}: {response.text[:300]}")
         return response.json()
