@@ -960,6 +960,8 @@ export interface Portfolio {
 /** Desiderata 5.17: one calendar read by the sync, or why it was not. */
 export interface CalendarOutcome {
   calendar_id: string;
+  /** Events the calendar returned for the window, sessions or not. */
+  events: number;
   written: number;
   cancelled: number;
   error: string | null;
@@ -1018,6 +1020,15 @@ export interface ServiceDetail extends ServiceSummary {
 export interface ServiceList {
   services: ServiceSummary[];
   calendar_configured: boolean;
+  /** The days a calendar read covers, so the screen can name the range. */
+  calendar_window: CalendarWindow;
+}
+
+export interface CalendarWindow {
+  start: string;
+  end: string;
+  lookback_days: number;
+  ahead_days: number;
 }
 
 export interface PaymentCandidate {
@@ -1026,4 +1037,9 @@ export interface PaymentCandidate {
   amount: string;
   description: string;
   counterparty: string | null;
+}
+
+export interface PaymentCandidatePage {
+  items: PaymentCandidate[];
+  total: number;
 }

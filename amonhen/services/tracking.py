@@ -13,9 +13,15 @@ from dataclasses import dataclass, field
 
 from amonhen.core.tracking import CANCELLED, VALID, Session, coverage, title_matches
 from amonhen.ledger import Ledger
-from amonhen.ledger.tracking import sync_token_key, synced_at
+from amonhen.ledger.tracking import sync_token_key, sync_window_key, synced_at
 from amonhen.models import format_decimal, parse_decimal
-from amonhen.ports.calendar import CalendarChanges, CalendarError, CalendarSource, SyncTokenExpired
+from amonhen.ports.calendar import (
+    CalendarChanges,
+    CalendarError,
+    CalendarSource,
+    CalendarWindow,
+    SyncTokenExpired,
+)
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +29,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class CalendarOutcome:
     calendar_id: str
+    events: int = 0
     written: int = 0
     cancelled: int = 0
     error: str | None = None
@@ -32,41 +39,63 @@ class CalendarOutcome:
 class CalendarSyncResult:
     calendars: list[CalendarOutcome] = field(default_factory=list)
     payments_linked: int = 0
+    window: CalendarWindow | None = None
 
     @property
     def errors(self) -> list[str]:
         return [f"{c.calendar_id}: {c.error}" for c in self.calendars if c.error]
 
 
-def sync_calendars(ledger: Ledger, source: CalendarSource, now: dt.datetime) -> CalendarSyncResult:
+def calendar_window(now: dt.datetime) -> CalendarWindow:
+    """Today widened by the configured days on each side: what a read covers."""
+    from amonhen import settings
+
+    today = now.date()
+    return CalendarWindow(
+        today - dt.timedelta(days=settings.CALENDAR_LOOKBACK_DAYS),
+        today + dt.timedelta(days=settings.CALENDAR_AHEAD_DAYS),
+    )
+
+
+def sync_calendars(
+    ledger: Ledger, source: CalendarSource, now: dt.datetime, window: CalendarWindow
+) -> CalendarSyncResult:
     """Read what changed in every calendar of an active service, then link payments.
 
     A token Google no longer accepts means one full read: the sessions of that
     calendar it does not list any more were deleted meanwhile, and are cancelled.
+    A token is only good for the window it was asked with, so a different window
+    is a full read too.
     """
-    result = CalendarSyncResult()
+    result = CalendarSyncResult(window=window)
     services = ledger.services(active_only=True)
     for calendar_id in sorted({service["calendar_id"] for service in services}):
         outcome = CalendarOutcome(calendar_id)
         result.calendars.append(outcome)
         token = ledger.setting(sync_token_key(calendar_id))
+        if ledger.setting(sync_window_key(calendar_id)) != window.key():
+            if token is not None:
+                log.info("calendar %s: read window changed, reading everything", calendar_id)
+            token = None
         try:
             try:
-                changes = source.changes(calendar_id, token)
+                changes = source.changes(calendar_id, token, window)
             except SyncTokenExpired:
                 log.info("calendar %s: sync token expired, reading everything", calendar_id)
                 token = None
-                changes = source.changes(calendar_id, None)
+                changes = source.changes(calendar_id, None, window)
         except CalendarError as exc:
             log.warning("calendar %s not read: %s", calendar_id, exc)
             outcome.error = str(exc)
             continue
         calendar_services = [s for s in services if s["calendar_id"] == calendar_id]
-        _apply(ledger, calendar_services, changes, full=token is None, now=now, outcome=outcome)
+        outcome.events = len(changes.events)
+        _apply(ledger, calendar_services, changes, full=token is None, window=window, now=now, outcome=outcome)
         ledger.set_setting(sync_token_key(calendar_id), changes.next_sync_token)
+        ledger.set_setting(sync_window_key(calendar_id), window.key())
         log.info(
-            "calendar %s: %d sessions written, %d cancelled",
-            calendar_id, outcome.written, outcome.cancelled,
+            "calendar %s: %d events read from %s to %s, %d sessions written, %d cancelled",
+            calendar_id, outcome.events, window.start, window.end, outcome.written, outcome.cancelled,
         )
     result.payments_linked = ledger.link_payments_by_iban()
     return result
@@ -117,7 +146,10 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
 
 # -- private helpers ---------------------------------------------------------------
 
-def _apply(ledger, services, changes: CalendarChanges, *, full: bool, now: dt.datetime, outcome) -> None:
+def _apply(
+    ledger, services, changes: CalendarChanges, *, full: bool, window: CalendarWindow,
+    now: dt.datetime, outcome,
+) -> None:
     stamp = synced_at(now)
     seen: set[str] = set()
     with ledger.conn:
@@ -133,10 +165,13 @@ def _apply(ledger, services, changes: CalendarChanges, *, full: bool, now: dt.da
             outcome.written += 1
         if full:
             ids = [service["id"] for service in services]
+            # Only the session days this read could have listed: a session older
+            # than the window is not gone, it is out of sight.
             for row in ledger.conn.execute(
                 f"""SELECT event_id FROM service_sessions
-                    WHERE status = ? AND service_id IN ({', '.join('?' * len(ids))})""",
-                (VALID, *ids),
+                    WHERE status = ? AND service_id IN ({', '.join('?' * len(ids))})
+                      AND substr(start, 1, 10) BETWEEN ? AND ?""",
+                (VALID, *ids, window.start.isoformat(), window.end.isoformat()),
             ).fetchall():
                 if row["event_id"] not in seen and ledger.cancel_session(row["event_id"], stamp):
                     outcome.cancelled += 1

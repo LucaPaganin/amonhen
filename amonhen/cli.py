@@ -423,7 +423,7 @@ def _calendar_pass(db_path: str) -> None:
     """
     from amonhen.composition import calendar_source
     from amonhen.db import open_ledger_db
-    from amonhen.services.tracking import sync_calendars
+    from amonhen.services.tracking import calendar_window, sync_calendars
 
     try:
         source = calendar_source()
@@ -433,7 +433,8 @@ def _calendar_pass(db_path: str) -> None:
         try:
             ledger = Ledger(conn)
             if ledger.services(active_only=True):
-                sync_calendars(ledger, source, SystemClock().now())
+                now = SystemClock().now()
+                sync_calendars(ledger, source, now, calendar_window(now))
         finally:
             conn.close()
     except Exception:
@@ -965,7 +966,7 @@ def cmd_services(ledger: Ledger, args) -> int:
 def cmd_services_sync(ledger: Ledger, args) -> int:
     """Read what changed in the calendars of the active services, then link payments by IBAN."""
     from amonhen.composition import calendar_source
-    from amonhen.services.tracking import sync_calendars
+    from amonhen.services.tracking import calendar_window, sync_calendars
 
     try:
         source = calendar_source()
@@ -975,13 +976,16 @@ def cmd_services_sync(ledger: Ledger, args) -> int:
     if source is None:
         print("calendari: nessun service account (AMONHEN_GOOGLE_SERVICE_ACCOUNT_FILE)")
         return 0
-    result = sync_calendars(ledger, source, args.clock.now())
+    now = args.clock.now()
+    window = calendar_window(now)
+    result = sync_calendars(ledger, source, now, window)
+    print(f"finestra letta: {window.start} → {window.end}")
     for calendar_outcome in result.calendars:
         if calendar_outcome.error:
             print(f"{calendar_outcome.calendar_id}: {calendar_outcome.error}", file=sys.stderr)
         else:
-            print(f"{calendar_outcome.calendar_id}: {calendar_outcome.written} sessioni scritte, "
-                  f"{calendar_outcome.cancelled} annullate")
+            print(f"{calendar_outcome.calendar_id}: {calendar_outcome.events} eventi letti, "
+                  f"{calendar_outcome.written} sessioni scritte, {calendar_outcome.cancelled} annullate")
     print(f"pagamenti collegati: {result.payments_linked}")
     return 1 if result.errors else 0
 

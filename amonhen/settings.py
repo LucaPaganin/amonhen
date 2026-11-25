@@ -108,3 +108,10 @@ PAPERLESS_STATEMENT_TYPE = _env_str("PAPERLESS_STATEMENT_TYPE", "Prospetto fondo
 # (desiderata 5.17): the path of its JSON key. Empty: no calendar is read. Each
 # calendar is shared with the account's address, read-only.
 GOOGLE_SERVICE_ACCOUNT_FILE = _env_str("GOOGLE_SERVICE_ACCOUNT_FILE", "")
+
+# How far around today a calendar is read (desiderata 5.17): the sessions
+# already given and those already booked. The window is explicit because a read
+# without bounds answers within a range only Google knows. Changing it makes the
+# stored sync token unusable, so the next read starts over.
+CALENDAR_LOOKBACK_DAYS = int(_env_str("CALENDAR_LOOKBACK_DAYS", "90"))
+CALENDAR_AHEAD_DAYS = int(_env_str("CALENDAR_AHEAD_DAYS", "90"))

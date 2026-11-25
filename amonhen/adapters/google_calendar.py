@@ -7,6 +7,7 @@ which the Enable Banking client already needs, so no Google library comes in.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import time
@@ -16,7 +17,13 @@ from urllib.parse import quote
 import jwt
 import requests
 
-from amonhen.ports.calendar import CalendarChanges, CalendarError, CalendarEvent, SyncTokenExpired
+from amonhen.ports.calendar import (
+    CalendarChanges,
+    CalendarError,
+    CalendarEvent,
+    CalendarWindow,
+    SyncTokenExpired,
+)
 
 log = logging.getLogger(__name__)
 
@@ -42,8 +49,16 @@ class GoogleCalendar:
         self._access_token: str | None = None
         self._expires_at = 0.0
 
-    def changes(self, calendar_id: str, sync_token: str | None) -> CalendarChanges:
+    def changes(self, calendar_id: str, sync_token: str | None, window: CalendarWindow) -> CalendarChanges:
+        """The events of ``window``, or those changed since ``sync_token``.
+
+        The bounds are always sent: without them Google answers within its own
+        undocumented range, and whether a session exists would depend on a
+        default nobody can read.
+        """
         params = dict(LIST_PARAMS)
+        params["timeMin"] = _instant(window.start, end_of_day=False)
+        params["timeMax"] = _instant(window.end, end_of_day=True)
         if sync_token:
             params["syncToken"] = sync_token
         url = EVENTS_URL.format(calendar=quote(calendar_id, safe=""))
@@ -115,3 +130,9 @@ def _event(item: dict) -> CalendarEvent:
         start=start.get("dateTime") or start.get("date") or "",
         cancelled=item.get("status") == "cancelled",
     )
+
+
+def _instant(day: dt.date, *, end_of_day: bool) -> str:
+    """The day as the RFC3339 instant Google wants, in this machine's timezone."""
+    moment = dt.datetime.combine(day, dt.time.max if end_of_day else dt.time.min)
+    return moment.astimezone().isoformat(timespec="seconds")

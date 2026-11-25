@@ -47,16 +47,20 @@ class Coverage:
 
 
 def title_matches(pattern: str, summary: str) -> bool:
-    """Exact text, case and spaces aside, or `/an expression/` searched in the title.
+    """The title carries the pattern, case and spaces aside, or `/an expression/` in it.
 
-    The slashes are the rules' convention (`merchants.rule_pattern`). Exact rather
-    than contained, unlike a rule on a description: "Lezione Tennis"
-    must not take "Lezione Tennis annullata" as a session.
+    Contained rather than equal: a calendar entry that gains a name ("Ripetizioni
+    Andrea" for a series typed as "Ripetizioni") is still the same session, and
+    losing a whole series to a renamed title is a silent, invisible failure. A
+    cancelled event is excluded by its status, not by its wording.
+
+    The slashes are the rules' convention (`merchants.rule_pattern`).
     """
     typed = pattern.strip()
     if len(typed) > 2 and typed.startswith("/") and typed.endswith("/"):
         return re.search(typed[1:-1], summary, re.IGNORECASE) is not None
-    return _text_key(summary) == _text_key(typed)
+    wanted = _text_key(typed)
+    return bool(wanted) and wanted in _text_key(summary)
 
 
 def session_day(start: str) -> dt.date:

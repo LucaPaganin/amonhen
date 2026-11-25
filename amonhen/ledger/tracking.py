@@ -159,22 +159,50 @@ class TrackingMixin:
         ).fetchone()
         return row["service_id"] if row else None
 
-    def payment_candidates(self, service_id: int, since: dt.date, limit: int = 50) -> list[sqlite3.Row]:
-        """The movements a person may link by hand: the service's direction, not linked yet.
+    def payment_candidates(
+        self, service_id: int, query: str | None = None, limit: int = 15, offset: int = 0
+    ) -> list[sqlite3.Row]:
+        """The movements a person may link by hand, the likeliest first.
 
         Only movements on a real account, because a mirror written by a transfer
-        rule is the other half of money already in the list.
+        rule is the other half of money already in the list. No date limit: the
+        list is searched rather than scrolled, and a payment may be older than
+        the bank's own retention.
+
+        The order is what makes a short page useful: whoever already paid this
+        service, then an amount that is a whole number of sessions, then the most
+        recent.
         """
         service = self.service(service_id)
+        where, params = _candidate_filters(service, query)
+        rate_cents = _cents(service["rate"])
         return self.conn.execute(
             f"""SELECT t.id, t.date, t.amount, t.description, t.counterparty
                 FROM transactions t JOIN accounts a ON a.id = t.account_id
-                WHERE a.type = 'real' AND t.mirror_of IS NULL AND t.date >= ?
-                  AND {_PAYMENT_SIGN_SQL[service["direction"]]}
-                  AND t.id NOT IN (SELECT transaction_id FROM service_payments)
-                ORDER BY t.date DESC, t.id DESC LIMIT ?""",
-            (since.isoformat(), limit),
+                WHERE {where}
+                ORDER BY
+                  CASE WHEN UPPER(REPLACE(COALESCE(t.counterparty_account, ''), ' ', '')) IN (
+                             SELECT UPPER(REPLACE(COALESCE(t2.counterparty_account, ''), ' ', ''))
+                             FROM service_payments p JOIN transactions t2 ON t2.id = p.transaction_id
+                             WHERE p.service_id = ? AND COALESCE(t2.counterparty_account, '') <> ''
+                           ) THEN 0 ELSE 1 END,
+                  CASE WHEN ? > 0 AND CAST(ROUND(ABS(CAST(t.amount AS REAL)) * 100) AS INTEGER) % ? = 0
+                       THEN 0 ELSE 1 END,
+                  t.date DESC, t.id DESC
+                LIMIT ? OFFSET ?""",
+            (*params, service_id, rate_cents, rate_cents, limit, offset),
         ).fetchall()
+
+    def count_payment_candidates(self, service_id: int, query: str | None = None) -> int:
+        """How many movements the same search would page through."""
+        service = self.service(service_id)
+        where, params = _candidate_filters(service, query)
+        row = self.conn.execute(
+            f"""SELECT COUNT(*) AS n FROM transactions t JOIN accounts a ON a.id = t.account_id
+                WHERE {where}""",
+            params,
+        ).fetchone()
+        return int(row["n"])
 
     def link_payment(self, transaction_id: int, service_id: int | None) -> None:
         """Link a movement to a service by hand, or unlink it (``service_id`` None).
@@ -232,5 +260,38 @@ def sync_token_key(calendar_id: str) -> str:
     return f"tracking:sync_token:{calendar_id}"
 
 
+def sync_window_key(calendar_id: str) -> str:
+    """The window the stored token was asked with: a different one needs a full read."""
+    return f"tracking:sync_window:{calendar_id}"
+
+
 def synced_at(now: dt.datetime) -> str:
     return now.isoformat(timespec="seconds")
+
+
+def _candidate_filters(service, query: str | None) -> tuple[str, list]:
+    """The movements a link may use, and the search over them.
+
+    The same filter feeds the page and its count, so a total can never disagree
+    with what paging returns.
+    """
+    clauses = [
+        "a.type = 'real'",
+        "t.mirror_of IS NULL",
+        _PAYMENT_SIGN_SQL[service["direction"]],
+        "t.id NOT IN (SELECT transaction_id FROM service_payments)",
+    ]
+    params: list = []
+    typed = (query or "").strip()
+    if typed:
+        like = f"%{typed}%"
+        clauses.append(
+            "(t.description LIKE ? OR COALESCE(t.counterparty, '') LIKE ? OR t.amount LIKE ?)"
+        )
+        params += [like, like, like]
+    return " AND ".join(clauses), params
+
+
+def _cents(amount: str) -> int:
+    """A money amount in cents, so a whole number of sessions stays exact."""
+    return int(parse_decimal(amount) * 100)

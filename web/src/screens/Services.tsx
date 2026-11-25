@@ -6,7 +6,8 @@ import { Help } from "../components/Help";
 import { Toggle } from "../components/Toggle";
 import { formatAmount, formatDateWithYear } from "../format";
 import type {
-  PaymentCandidate,
+  CalendarWindow,
+  PaymentCandidatePage,
   ServiceDetail,
   ServiceDraft,
   ServiceSession,
@@ -52,6 +53,7 @@ function day(start: string): string {
 export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
   const [services, setServices] = useState<ServiceSummary[] | null>(null);
   const [configured, setConfigured] = useState(true);
+  const [window, setWindow] = useState<CalendarWindow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<ServiceDetail | null>(null);
   const [editing, setEditing] = useState<{ id: number | null; draft: ServiceDraft } | null>(null);
@@ -63,6 +65,7 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
       const list = await api.services(signal);
       setServices(list.services);
       setConfigured(list.calendar_configured);
+      setWindow(list.calendar_window);
       setError(null);
     } catch (err) {
       if (!isAbortError(err)) setError(errorMessage(err));
@@ -95,10 +98,12 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
       setServices(outcome.services);
       const problems = outcome.calendars.filter((item) => item.error !== null);
       const written = outcome.calendars.reduce((total, item) => total + item.written, 0);
+      const events = outcome.calendars.reduce((total, item) => total + item.events, 0);
+      setWindow(outcome.window);
       setNotice(
         problems.length > 0
           ? problems.map((item) => `${item.calendar_id}: ${item.error}`).join(" · ")
-          : `${written} sessioni lette dal calendario`,
+          : `${events} eventi letti dal calendario, ${written} sessioni`,
       );
       if (open !== null) setOpen(await api.service(open.id));
     } catch (err) {
@@ -152,6 +157,13 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
             </p>
           )}
           {notice !== null ? <p className="hint" role="status">{notice}</p> : null}
+          {window !== null && configured && services.length > 0 ? (
+            <p className="hint">
+              Ogni lettura chiede al calendario dal {formatDateWithYear(window.start)} al{" "}
+              {formatDateWithYear(window.end)}: {window.lookback_days} giorni indietro,{" "}
+              {window.ahead_days} avanti.
+            </p>
+          ) : null}
           {services.length === 0 ? (
             <p className="state">Nessun servizio ancora.</p>
           ) : (
@@ -215,8 +227,39 @@ function ServiceBody({
   onChanged: (detail: ServiceDetail) => void;
   onEdit: () => void;
 }) {
-  const [candidates, setCandidates] = useState<PaymentCandidate[] | null>(null);
+  const [page, setPage] = useState<PaymentCandidatePage | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const pickerId = useId();
+
+  // The search runs while it is typed: a short page the person narrows down is
+  // the point, not a wall of movements to scroll.
+  useEffect(() => {
+    if (!picking) return;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      api.paymentCandidates(detail.id, query, 0)
+        .then((found) => {
+          setPage(found);
+          setProblem(null);
+        })
+        .catch((err) => setProblem(errorMessage(err)))
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [picking, query, detail.id]);
+
+  const more = async () => {
+    if (page === null) return;
+    try {
+      const next = await api.paymentCandidates(detail.id, query, page.items.length);
+      setPage({ items: [...page.items, ...next.items], total: next.total });
+    } catch (err) {
+      setProblem(errorMessage(err));
+    }
+  };
 
   const run = async (action: () => Promise<ServiceDetail | Record<string, never>>) => {
     try {
@@ -240,7 +283,7 @@ function ServiceBody({
 
       <h3 className="section-title">Sessioni</h3>
       {past.length === 0 ? (
-        <p className="hint">Nessuna sessione: il calendario non ha ancora eventi con il titolo «{detail.title_pattern}».</p>
+        <p className="hint">Nessuna sessione: il calendario non ha eventi con un titolo che contiene «{detail.title_pattern}».</p>
       ) : (
         <div className="plan-scroll">
           <table className="plan-table">
@@ -292,14 +335,11 @@ function ServiceBody({
         </ul>
       )}
 
-      {candidates === null ? (
+      {!picking ? (
         <div className="account-row__actions">
-          <button type="button" className="button" onClick={async () => {
-            try {
-              setCandidates(await api.paymentCandidates(detail.id));
-            } catch (err) {
-              setProblem(errorMessage(err));
-            }
+          <button type="button" className="button" onClick={() => {
+            setPage(null);
+            setPicking(true);
           }}>
             Collega un movimento
           </button>
@@ -307,25 +347,58 @@ function ServiceBody({
             Modifica il servizio
           </button>
         </div>
-      ) : candidates.length === 0 ? (
-        <p className="hint">Nessun movimento non collegato in questo verso negli ultimi sei mesi.</p>
       ) : (
-        <ul className="trash-list">
-          {candidates.map((candidate) => (
-            <li key={candidate.id} className="services__payment">
-              <span>
-                {formatDateWithYear(candidate.date)} · {formatAmount(candidate.amount)} ·{" "}
-                {candidate.counterparty ?? candidate.description}
-              </span>
-              <button type="button" className="button button--primary" onClick={() => {
-                setCandidates(null);
-                void run(() => api.linkPayment(candidate.id, detail.id));
-              }}>
-                Collega
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="services__picker">
+          <div className="field">
+            <label htmlFor={`${pickerId}-query`}>Cerca un movimento</label>
+            <input id={`${pickerId}-query`} className="input" value={query} autoFocus
+              placeholder="controparte, descrizione o importo"
+              onChange={(event) => setQuery(event.target.value)} />
+          </div>
+          {page === null ? (
+            <p className="hint" aria-busy="true">Cerco…</p>
+          ) : page.items.length === 0 ? (
+            <p className="hint">Nessun movimento non collegato in questo verso con questa ricerca.</p>
+          ) : (
+            <>
+              <ul className="trash-list">
+                {page.items.map((candidate) => (
+                  <li key={candidate.id} className="services__payment">
+                    <span>
+                      {formatDateWithYear(candidate.date)} · {formatAmount(candidate.amount)} ·{" "}
+                      {candidate.counterparty ?? candidate.description}
+                    </span>
+                    <button type="button" className="button button--primary" onClick={() => {
+                      setPicking(false);
+                      setPage(null);
+                      setQuery("");
+                      void run(() => api.linkPayment(candidate.id, detail.id));
+                    }}>
+                      Collega
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="account-row__actions">
+                <span className="hint">
+                  {page.items.length} di {page.total}
+                  {searching ? " · aggiorno…" : ""}
+                </span>
+                {page.items.length < page.total ? (
+                  <button type="button" className="button button--ghost" onClick={() => void more()}>
+                    Mostra altri
+                  </button>
+                ) : null}
+                <button type="button" className="button button--ghost" onClick={() => {
+                  setPicking(false);
+                  setPage(null);
+                }}>
+                  Chiudi
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -465,9 +538,9 @@ function ServiceSheet({
             onChange={(event) => set("calendar_id", event.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor={`${fieldId}-title`}>Titolo degli eventi</label>
+          <label htmlFor={`${fieldId}-title`}>Titolo degli eventi (anche solo una parte)</label>
           <input id={`${fieldId}-title`} className="input" value={draft.title_pattern}
-            placeholder="Lezione Tennis, oppure /^seduta/"
+            placeholder="Ripetizioni, oppure /^seduta/"
             onChange={(event) => set("title_pattern", event.target.value)} />
         </div>
         <div className="field">

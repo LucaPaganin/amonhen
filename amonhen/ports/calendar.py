@@ -7,8 +7,26 @@ sync, and it is what makes reading twice give the same ledger.
 """
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 from typing import Protocol
+
+
+@dataclass(frozen=True)
+class CalendarWindow:
+    """The days a read covers, both ends included.
+
+    The window belongs to the contract, not to one adapter: it decides which
+    sessions can exist, and Google binds a sync token to the request that
+    produced it, so a different window is a different question and needs a
+    full read.
+    """
+
+    start: dt.date
+    end: dt.date
+
+    def key(self) -> str:
+        return f"{self.start.isoformat()}|{self.end.isoformat()}"
 
 
 @dataclass(frozen=True)
@@ -41,6 +59,6 @@ class SyncTokenExpired(CalendarError):
 
 
 class CalendarSource(Protocol):
-    def changes(self, calendar_id: str, sync_token: str | None) -> CalendarChanges:
-        """Every event since ``sync_token``, or every event when it is None."""
+    def changes(self, calendar_id: str, sync_token: str | None, window: CalendarWindow) -> CalendarChanges:
+        """Every event since ``sync_token`` within ``window``, or every one when it is None."""
         ...

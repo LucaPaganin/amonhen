@@ -341,7 +341,7 @@ const CARDS: Card[] = [
     means:
       "Un servizio a prezzo concordato, dato o ricevuto: lezioni private, lezioni prese, sedute. Ogni sessione è un evento sul calendario Google con il titolo del servizio, e i pagamenti sono i movimenti del ledger collegati al servizio.",
     computed:
-      "Le sessioni le scrive il calendario: un evento con il titolo esatto del servizio (maiuscole e spazi a parte), o che corrisponde a un'espressione fra barre, diventa una sessione al prezzo del servizio. Un evento cancellato o rinominato la rende annullata. I pagamenti si collegano da soli quando il movimento porta l'IBAN della controparte, nel verso del servizio; gli altri si collegano a mano dalla sezione.",
+      "Le sessioni le scrive il calendario: un evento il cui titolo contiene quello del servizio (maiuscole e spazi a parte), o che corrisponde a un'espressione fra barre, diventa una sessione al prezzo del servizio. Ogni lettura chiede al calendario i 90 giorni prima e i 90 dopo oggi, e la sezione dice il periodo letto. Un evento cancellato o rinominato la rende annullata. I pagamenti si collegano da soli quando il movimento porta l'IBAN della controparte, nel verso del servizio; gli altri si cercano dalla sezione, per controparte, descrizione o importo.",
     changes:
       "Cambiare il prezzo vale per le sessioni nuove: quelle già scritte tengono il loro importo, che si corregge una per una. Un servizio non entra in nessuna cifra di spesa: il movimento tiene la sua categoria.",
   },
