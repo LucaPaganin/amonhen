@@ -26,14 +26,14 @@ def build(ctx: AppContext) -> APIRouter:
             return {
                 "services": tracking.overview(ledger, ctx.clock.today()),
                 "calendar_configured": calendar_source_configured(),
-                "calendar_window": _window_payload(ctx.clock.now()),
+                "default_window": _window_payload(ctx.clock.now()),
             }
 
     @router.post("/api/services")
     def create_service(body: ServiceRequest) -> dict:
         with ledger_scope() as ledger:
             service_id = ledger.save_service(None, **body.model_dump())
-            ledger.link_payments_by_iban()
+            ledger.link_payments_by_text()
             return tracking.detail(ledger, service_id, ctx.clock.today())
 
     @router.get("/api/services/{service_id}")
@@ -46,7 +46,7 @@ def build(ctx: AppContext) -> APIRouter:
         with ledger_scope() as ledger:
             _detail_or_404(ledger, service_id, ctx.clock.today())
             ledger.save_service(service_id, **body.model_dump())
-            ledger.link_payments_by_iban()
+            ledger.link_payments_by_text()
             return tracking.detail(ledger, service_id, ctx.clock.today())
 
     @router.get("/api/services/{service_id}/candidates")
@@ -95,12 +95,11 @@ def build(ctx: AppContext) -> APIRouter:
             raise HTTPException(status_code=503, detail=f"cannot read the calendars: {exc}") from exc
         if source is None:
             raise HTTPException(status_code=503, detail="no Google service account configured")
-        window = tracking.calendar_window(ctx.clock.now())
         with ledger_scope() as ledger:
-            result = tracking.sync_calendars(ledger, source, ctx.clock.now(), window)
+            result = tracking.sync_calendars(ledger, source, ctx.clock.now())
             return {
                 "calendars": calendars_payload(result),
-                "window": _window_payload(ctx.clock.now()),
+                "default_window": _window_payload(ctx.clock.now()),
                 "services": tracking.overview(ledger, ctx.clock.today()),
             }
 
@@ -116,10 +115,11 @@ def calendar_pass(ledger, now: dt.datetime) -> list[dict]:
     try:
         source = calendar_source()
     except ValueError as exc:
-        return [{"calendar_id": "", "written": 0, "cancelled": 0, "error": str(exc)}]
+        return [{"calendar_id": "", "events": 0, "written": 0, "cancelled": 0,
+                 "error": str(exc), "start": None, "end": None}]
     if source is None or not ledger.services(active_only=True):
         return []
-    return calendars_payload(tracking.sync_calendars(ledger, source, now, tracking.calendar_window(now)))
+    return calendars_payload(tracking.sync_calendars(ledger, source, now))
 
 
 def calendar_source_configured() -> bool:
@@ -131,7 +131,9 @@ def calendar_source_configured() -> bool:
 def calendars_payload(result: tracking.CalendarSyncResult) -> list[dict]:
     return [
         {"calendar_id": c.calendar_id, "events": c.events, "written": c.written,
-         "cancelled": c.cancelled, "error": c.error}
+         "cancelled": c.cancelled, "error": c.error,
+         "start": c.window.start.isoformat() if c.window else None,
+         "end": c.window.end.isoformat() if c.window else None}
         for c in result.calendars
     ]
 

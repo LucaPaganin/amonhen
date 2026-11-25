@@ -97,11 +97,3 @@ def coverage(sessions: list[Session], paid: Decimal, today: dt.date) -> Coverage
 def _text_key(text: str) -> str:
     """Trimmed, spaces collapsed, lower case: how a rule on a description compares text too."""
     return re.sub(r"\s+", " ", text.strip()).lower()
-
-
-def normalize_iban(iban: str | None) -> str | None:
-    """An IBAN as the banks print it differently: no spaces, upper case."""
-    if not iban:
-        return None
-    cleaned = re.sub(r"\s+", "", iban).upper()
-    return cleaned or None

@@ -25,6 +25,9 @@ const STATES: Record<SessionState, string> = {
   annullata: "annullata",
 };
 
+/** What the screen says before the ledger answers: 90 days each way. */
+const DEFAULT_WINDOW: CalendarWindow = { start: "", end: "", lookback_days: 90, ahead_days: 90 };
+
 const EMPTY: ServiceDraft = {
   name: "",
   kind: "lezione",
@@ -32,7 +35,9 @@ const EMPTY: ServiceDraft = {
   rate: "",
   calendar_id: "",
   title_pattern: "",
-  counterparty_iban: null,
+  match_text: null,
+  lookback_days: null,
+  ahead_days: null,
   active: true,
 };
 
@@ -65,7 +70,7 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
       const list = await api.services(signal);
       setServices(list.services);
       setConfigured(list.calendar_configured);
-      setWindow(list.calendar_window);
+      setWindow(list.default_window);
       setError(null);
     } catch (err) {
       if (!isAbortError(err)) setError(errorMessage(err));
@@ -99,7 +104,7 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
       const problems = outcome.calendars.filter((item) => item.error !== null);
       const written = outcome.calendars.reduce((total, item) => total + item.written, 0);
       const events = outcome.calendars.reduce((total, item) => total + item.events, 0);
-      setWindow(outcome.window);
+      setWindow(outcome.default_window);
       setNotice(
         problems.length > 0
           ? problems.map((item) => `${item.calendar_id}: ${item.error}`).join(" · ")
@@ -159,9 +164,9 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
           {notice !== null ? <p className="hint" role="status">{notice}</p> : null}
           {window !== null && configured && services.length > 0 ? (
             <p className="hint">
-              Ogni lettura chiede al calendario dal {formatDateWithYear(window.start)} al{" "}
-              {formatDateWithYear(window.end)}: {window.lookback_days} giorni indietro,{" "}
-              {window.ahead_days} avanti.
+              Di default una lettura chiede al calendario dal {formatDateWithYear(window.start)} al{" "}
+              {formatDateWithYear(window.end)} ({window.lookback_days} giorni indietro,{" "}
+              {window.ahead_days} avanti); ogni servizio può avere i suoi.
             </p>
           ) : null}
           {services.length === 0 ? (
@@ -182,6 +187,9 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
                       {service.sessions_unpaid === 0
                         ? `${service.sessions_due} sessioni, tutte coperte`
                         : `${service.sessions_unpaid} di ${service.sessions_due} sessioni non coperte`}
+                      {service.lookback_days === null && service.ahead_days === null
+                        ? ""
+                        : ` · finestra ${service.lookback_days ?? 90}/${service.ahead_days ?? 90} giorni`}
                       {service.active ? "" : " · inattivo"}
                     </span>
                   </button>
@@ -202,6 +210,7 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
 
       <ServiceSheet
         state={editing}
+        defaultWindow={window ?? DEFAULT_WINDOW}
         onClose={() => setEditing(null)}
         onSaved={(detail) => {
           setEditing(null);
@@ -213,8 +222,8 @@ export function ServicesScreen({ refreshToken }: { refreshToken: number }) {
 }
 
 function draftOf(service: ServiceSummary): ServiceDraft {
-  const { name, kind, direction, rate, calendar_id, title_pattern, counterparty_iban, active } = service;
-  return { name, kind, direction, rate, calendar_id, title_pattern, counterparty_iban, active };
+  const { name, kind, direction, rate, calendar_id, title_pattern, match_text, lookback_days, ahead_days, active } = service;
+  return { name, kind, direction, rate, calendar_id, title_pattern, match_text, lookback_days, ahead_days, active };
 }
 
 /** One service opened: the sessions with their coverage, the payments, and a link by hand. */
@@ -324,7 +333,7 @@ function ServiceBody({
               <span>
                 {formatDateWithYear(payment.date)} · {formatAmount(payment.amount)} ·{" "}
                 {payment.counterparty ?? payment.description}
-                <span className="hint">{payment.by_iban ? " dall'IBAN" : " a mano"}</span>
+                <span className="hint">{payment.by_rule ? " dalla regola" : " a mano"}</span>
               </span>
               <button type="button" className="button button--ghost"
                 onClick={() => void run(() => api.linkPayment(payment.transaction_id, null).then(() => api.service(detail.id)))}>
@@ -436,13 +445,16 @@ function SessionRow({ session, onSave }: { session: ServiceSession; onSave: (amo
   );
 }
 
-/** Create or change a service: name, type, direction, price, calendar, title, IBAN. */
+/** Create or change a service: name, type, direction, price, calendar, title, text, days. */
 function ServiceSheet({
   state,
+  defaultWindow,
   onClose,
   onSaved,
 }: {
   state: { id: number | null; draft: ServiceDraft } | null;
+  /** The days a read covers when the service asks for none of its own. */
+  defaultWindow: CalendarWindow;
   onClose: () => void;
   onSaved: (detail: ServiceDetail) => void;
 }) {
@@ -468,13 +480,19 @@ function ServiceSheet({
   const set = <K extends keyof ServiceDraft>(key: K, value: ServiceDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
+  const setDays = (key: "lookback_days" | "ahead_days", typed: string) => {
+    const trimmed = typed.trim();
+    const value = trimmed === "" ? null : Number(trimmed);
+    set(key, value !== null && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : null);
+  };
+
   const save = async () => {
     if (state === null || saving) return;
     setSaving(true);
     const body: ServiceDraft = {
       ...draft,
       rate: draft.rate.trim().replace(",", "."),
-      counterparty_iban: draft.counterparty_iban?.trim() ? draft.counterparty_iban.trim() : null,
+      match_text: draft.match_text?.trim() ? draft.match_text.trim() : null,
     };
     try {
       onSaved(state.id === null ? await api.createService(body) : await api.updateService(state.id, body));
@@ -544,10 +562,26 @@ function ServiceSheet({
             onChange={(event) => set("title_pattern", event.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor={`${fieldId}-iban`}>IBAN della controparte</label>
-          <input id={`${fieldId}-iban`} className="input" value={draft.counterparty_iban ?? ""}
-            placeholder="Facoltativo: senza, i pagamenti si collegano a mano"
-            onChange={(event) => set("counterparty_iban", event.target.value)} />
+          <label htmlFor={`${fieldId}-match`}>Testo nella descrizione dei movimenti</label>
+          <input id={`${fieldId}-match`} className="input" value={draft.match_text ?? ""}
+            placeholder="es. Carla Spallarossa: i movimenti che lo contengono si collegano da soli"
+            onChange={(event) => set("match_text", event.target.value)} />
+          <p className="hint">
+            Contiene, maiuscole a parte. Vuoto: i pagamenti si collegano solo a mano.
+          </p>
+        </div>
+        <div className="field">
+          <label htmlFor={`${fieldId}-lookback`}>Giorni di calendario indietro</label>
+          <input id={`${fieldId}-lookback`} className="input" inputMode="numeric"
+            value={draft.lookback_days ?? ""} placeholder={`${defaultWindow.lookback_days}`}
+            onChange={(event) => setDays("lookback_days", event.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor={`${fieldId}-ahead`}>Giorni di calendario avanti</label>
+          <input id={`${fieldId}-ahead`} className="input" inputMode="numeric"
+            value={draft.ahead_days ?? ""} placeholder={`${defaultWindow.ahead_days}`}
+            onChange={(event) => setDays("ahead_days", event.target.value)} />
+          <p className="hint">Vuoti valgono {defaultWindow.lookback_days} e {defaultWindow.ahead_days}.</p>
         </div>
         {state?.id == null ? null : (
           <div className="field">

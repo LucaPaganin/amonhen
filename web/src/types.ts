@@ -965,6 +965,9 @@ export interface CalendarOutcome {
   written: number;
   cancelled: number;
   error: string | null;
+  /** The days this read asked for: the widest its services need. */
+  start: string | null;
+  end: string | null;
 }
 
 export type ServiceKind = "lezione" | "seduta" | "altro";
@@ -979,7 +982,11 @@ export interface ServiceDraft {
   rate: string;
   calendar_id: string;
   title_pattern: string;
-  counterparty_iban: string | null;
+  /** The text a movement's description carries to pay this service. */
+  match_text: string | null;
+  /** How far this service's calendar is read; null is the ledger's default. */
+  lookback_days: number | null;
+  ahead_days: number | null;
   active: boolean;
 }
 
@@ -1008,7 +1015,8 @@ export interface ServicePayment {
   amount: string;
   description: string;
   counterparty: string | null;
-  by_iban: boolean;
+  /** Linked by the service's text, not by hand. */
+  by_rule: boolean;
 }
 
 export interface ServiceDetail extends ServiceSummary {
@@ -1020,8 +1028,8 @@ export interface ServiceDetail extends ServiceSummary {
 export interface ServiceList {
   services: ServiceSummary[];
   calendar_configured: boolean;
-  /** The days a calendar read covers, so the screen can name the range. */
-  calendar_window: CalendarWindow;
+  /** The days a read covers for a service that asks for none of its own. */
+  default_window: CalendarWindow;
 }
 
 export interface CalendarWindow {

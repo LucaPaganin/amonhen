@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class CalendarOutcome:
     calendar_id: str
+    window: CalendarWindow | None = None
     events: int = 0
     written: int = 0
     cancelled: int = 0
@@ -39,26 +40,36 @@ class CalendarOutcome:
 class CalendarSyncResult:
     calendars: list[CalendarOutcome] = field(default_factory=list)
     payments_linked: int = 0
-    window: CalendarWindow | None = None
 
     @property
     def errors(self) -> list[str]:
         return [f"{c.calendar_id}: {c.error}" for c in self.calendars if c.error]
 
 
-def calendar_window(now: dt.datetime) -> CalendarWindow:
-    """Today widened by the configured days on each side: what a read covers."""
+def calendar_window(now: dt.datetime, service=None) -> CalendarWindow:
+    """Today widened by the days on each side: what a read covers.
+
+    A service may ask for its own days (an annual course is not a weekly lesson);
+    without them the ledger's defaults apply, so the old call still means the
+    same window for everyone.
+    """
     from amonhen import settings
 
     today = now.date()
-    return CalendarWindow(
-        today - dt.timedelta(days=settings.CALENDAR_LOOKBACK_DAYS),
-        today + dt.timedelta(days=settings.CALENDAR_AHEAD_DAYS),
-    )
+    lookback = _service_days(service, "lookback_days", settings.CALENDAR_LOOKBACK_DAYS)
+    ahead = _service_days(service, "ahead_days", settings.CALENDAR_AHEAD_DAYS)
+    return CalendarWindow(today - dt.timedelta(days=lookback), today + dt.timedelta(days=ahead))
+
+
+def _service_days(service, column: str, default: int) -> int:
+    if service is None:
+        return default
+    value = service[column] if column in service.keys() else None
+    return default if value is None else int(value)
 
 
 def sync_calendars(
-    ledger: Ledger, source: CalendarSource, now: dt.datetime, window: CalendarWindow
+    ledger: Ledger, source: CalendarSource, now: dt.datetime
 ) -> CalendarSyncResult:
     """Read what changed in every calendar of an active service, then link payments.
 
@@ -67,10 +78,14 @@ def sync_calendars(
     A token is only good for the window it was asked with, so a different window
     is a full read too.
     """
-    result = CalendarSyncResult(window=window)
+    result = CalendarSyncResult()
     services = ledger.services(active_only=True)
     for calendar_id in sorted({service["calendar_id"] for service in services}):
-        outcome = CalendarOutcome(calendar_id)
+        calendar_services = [s for s in services if s["calendar_id"] == calendar_id]
+        # One read per calendar, so the window is the widest any of its services
+        # asks for; each service then keeps only the days of its own.
+        window = _widest([calendar_window(now, service) for service in calendar_services])
+        outcome = CalendarOutcome(calendar_id, window=window)
         result.calendars.append(outcome)
         token = ledger.setting(sync_token_key(calendar_id))
         if ledger.setting(sync_window_key(calendar_id)) != window.key():
@@ -88,16 +103,15 @@ def sync_calendars(
             log.warning("calendar %s not read: %s", calendar_id, exc)
             outcome.error = str(exc)
             continue
-        calendar_services = [s for s in services if s["calendar_id"] == calendar_id]
         outcome.events = len(changes.events)
-        _apply(ledger, calendar_services, changes, full=token is None, window=window, now=now, outcome=outcome)
+        _apply(ledger, calendar_services, changes, full=token is None, now=now, outcome=outcome)
         ledger.set_setting(sync_token_key(calendar_id), changes.next_sync_token)
         ledger.set_setting(sync_window_key(calendar_id), window.key())
         log.info(
             "calendar %s: %d events read from %s to %s, %d sessions written, %d cancelled",
             calendar_id, outcome.events, window.start, window.end, outcome.written, outcome.cancelled,
         )
-    result.payments_linked = ledger.link_payments_by_iban()
+    result.payments_linked = ledger.link_payments_by_text()
     return result
 
 
@@ -133,7 +147,7 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
     payments = [
         {"transaction_id": row["id"], "date": row["date"], "amount": row["amount"],
          "description": row["description"], "counterparty": row["counterparty"],
-         "by_iban": bool(row["by_iban"])}
+         "by_rule": bool(row["by_rule"])}
         for row in ledger.payments_of(service_id)
     ]
     return {
@@ -147,32 +161,40 @@ def detail(ledger: Ledger, service_id: int, today: dt.date) -> dict | None:
 # -- private helpers ---------------------------------------------------------------
 
 def _apply(
-    ledger, services, changes: CalendarChanges, *, full: bool, window: CalendarWindow,
-    now: dt.datetime, outcome,
+    ledger, services, changes: CalendarChanges, *, full: bool, now: dt.datetime, outcome,
 ) -> None:
     stamp = synced_at(now)
+    own = {service["id"]: calendar_window(now, service) for service in services}
     seen: set[str] = set()
     with ledger.conn:
         for event in changes.events:
             seen.add(event.event_id)
             match = None if event.cancelled else _service_for(services, event.summary)
+            # The read covers the widest window of the calendar's services; each
+            # one keeps the days it asked for, and nothing else is its session.
+            if match is not None and not _inside(own[match["id"]], event.start):
+                match = None
             if match is None:
-                # Cancelled, or renamed out of every service: no longer a session.
+                # Cancelled, renamed out of every service, or outside the days
+                # that service reads: no longer a session.
                 if ledger.cancel_session(event.event_id, stamp):
                     outcome.cancelled += 1
                 continue
             ledger.write_session(event.event_id, match["id"], event.start, event.summary, stamp)
             outcome.written += 1
         if full:
-            ids = [service["id"] for service in services]
-            # Only the session days this read could have listed: a session older
-            # than the window is not gone, it is out of sight.
-            for row in ledger.conn.execute(
-                f"""SELECT event_id FROM service_sessions
-                    WHERE status = ? AND service_id IN ({', '.join('?' * len(ids))})
-                      AND substr(start, 1, 10) BETWEEN ? AND ?""",
-                (VALID, *ids, window.start.isoformat(), window.end.isoformat()),
-            ).fetchall():
+            # Only the session days this read could have listed, per service: a
+            # session outside its window is not gone, it is out of sight.
+            stale = []
+            for service in services:
+                days = own[service["id"]]
+                stale += ledger.conn.execute(
+                    """SELECT event_id FROM service_sessions
+                       WHERE status = ? AND service_id = ?
+                         AND substr(start, 1, 10) BETWEEN ? AND ?""",
+                    (VALID, service["id"], days.start.isoformat(), days.end.isoformat()),
+                ).fetchall()
+            for row in stale:
                 if row["event_id"] not in seen and ledger.cancel_session(row["event_id"], stamp):
                     outcome.cancelled += 1
 
@@ -183,6 +205,17 @@ def _service_for(services, summary: str):
         if title_matches(service["title_pattern"], summary):
             return service
     return None
+
+
+def _inside(window: CalendarWindow, start: str) -> bool:
+    """Whether an event's day falls in the days a service reads."""
+    day = start[:10]
+    return bool(day) and window.start.isoformat() <= day <= window.end.isoformat()
+
+
+def _widest(windows: list[CalendarWindow]) -> CalendarWindow:
+    """The window covering every service of one calendar: one read, its bounds."""
+    return CalendarWindow(min(w.start for w in windows), max(w.end for w in windows))
 
 
 def _coverage(ledger: Ledger, service_id: int, today: dt.date, rows=None):
@@ -205,7 +238,9 @@ def _summary(ledger: Ledger, service, today: dt.date, covered=None) -> dict:
         "rate": service["rate"],
         "calendar_id": service["calendar_id"],
         "title_pattern": service["title_pattern"],
-        "counterparty_iban": service["counterparty_iban"],
+        "match_text": service["match_text"],
+        "lookback_days": service["lookback_days"],
+        "ahead_days": service["ahead_days"],
         "active": bool(service["active"]),
         "due": format_decimal(covered.due),
         "paid": format_decimal(covered.paid),

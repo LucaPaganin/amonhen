@@ -319,7 +319,7 @@ export const api = {
       service_id: serviceId,
     }),
   syncCalendars: () =>
-    send<{ calendars: CalendarOutcome[]; window: CalendarWindow; services: ServiceList["services"] }>(
+    send<{ calendars: CalendarOutcome[]; default_window: CalendarWindow; services: ServiceList["services"] }>(
       "POST",
       "/services/sync",
       {},

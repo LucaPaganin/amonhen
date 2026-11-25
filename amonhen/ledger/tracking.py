@@ -9,7 +9,7 @@ import datetime as dt
 import sqlite3
 from decimal import Decimal
 
-from amonhen.core.tracking import CANCELLED, DIRECTIONS, KINDS, VALID, normalize_iban
+from amonhen.core.tracking import CANCELLED, DIRECTIONS, KINDS, VALID
 from amonhen.models import format_decimal, parse_decimal
 
 # A payment moves money the service's way: a credit for a service given, a debit
@@ -39,13 +39,17 @@ class TrackingMixin:
         rate: str,
         calendar_id: str,
         title_pattern: str,
-        counterparty_iban: str | None,
+        match_text: str | None,
+        lookback_days: int | None = None,
+        ahead_days: int | None = None,
         active: bool = True,
     ) -> int:
         """Create a service (``service_id`` None) or rewrite one; returns its id.
 
         A new rate is the price of the sessions that appear from now on: the
-        sessions already written keep the amount they had.
+        sessions already written keep the amount they had. ``match_text`` empty
+        and the two day counts empty mean "the ledger's own": payments only by
+        hand, and the default window.
         """
         name, calendar_id, title_pattern = name.strip(), calendar_id.strip(), title_pattern.strip()
         if not name or not calendar_id or not title_pattern:
@@ -59,14 +63,15 @@ class TrackingMixin:
             raise ValueError("il prezzo di una sessione è un importo non negativo")
         row = (
             name, kind, direction, format_decimal(value), calendar_id, title_pattern,
-            normalize_iban(counterparty_iban), 1 if active else 0,
+            (match_text or "").strip() or None, _days(lookback_days), _days(ahead_days),
+            1 if active else 0,
         )
         with self.conn:
             if service_id is None:
                 cursor = self.conn.execute(
                     """INSERT INTO services (name, kind, direction, rate, calendar_id, title_pattern,
-                                             counterparty_iban, active)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                                             match_text, lookback_days, ahead_days, active)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     row,
                 )
                 return int(cursor.lastrowid)
@@ -74,7 +79,8 @@ class TrackingMixin:
                 raise ValueError(f"nessun servizio {service_id}")
             self.conn.execute(
                 """UPDATE services SET name = ?, kind = ?, direction = ?, rate = ?, calendar_id = ?,
-                                       title_pattern = ?, counterparty_iban = ?, active = ?
+                                       title_pattern = ?, match_text = ?, lookback_days = ?,
+                                       ahead_days = ?, active = ?
                    WHERE id = ?""",
                 (*row, service_id),
             )
@@ -142,7 +148,7 @@ class TrackingMixin:
 
     def payments_of(self, service_id: int) -> list[sqlite3.Row]:
         return self.conn.execute(
-            """SELECT t.id, t.date, t.amount, t.description, t.counterparty, p.by_iban
+            """SELECT t.id, t.date, t.amount, t.description, t.counterparty, p.by_rule
                FROM service_payments p JOIN transactions t ON t.id = p.transaction_id
                WHERE p.service_id = ? ORDER BY t.date, t.id""",
             (service_id,),
@@ -223,29 +229,32 @@ class TrackingMixin:
                 raise ValueError(f"nessun servizio {service_id}")
             self.conn.execute("DELETE FROM settings WHERE key = ?", (_unlinked_key(transaction_id),))
             self.conn.execute(
-                "INSERT INTO service_payments (transaction_id, service_id, by_iban) VALUES (?, ?, 0)",
+                "INSERT INTO service_payments (transaction_id, service_id, by_rule) VALUES (?, ?, 0)",
                 (transaction_id, service_id),
             )
 
-    def link_payments_by_iban(self) -> int:
-        """Link every movement from or to a service's IBAN, in the service's direction.
+    def link_payments_by_text(self) -> int:
+        """Link every movement whose description carries a service's text.
 
-        Movements already linked, by hand or not, and movements a person unlinked
-        are left as they are. Returns how many were linked.
+        The service's direction decides which way the money moves: a credit for
+        one given, a debit for one received. Movements already linked, by hand or
+        by another service, and movements a person unlinked are left as they are.
+        Returns how many were linked.
         """
         linked = 0
         with self.conn:
             for service in self.services(active_only=True):
-                if not service["counterparty_iban"]:
+                text = (service["match_text"] or "").strip()
+                if not text:
                     continue
                 cursor = self.conn.execute(
-                    f"""INSERT INTO service_payments (transaction_id, service_id, by_iban)
+                    f"""INSERT INTO service_payments (transaction_id, service_id, by_rule)
                         SELECT t.id, ?, 1 FROM transactions t
-                        WHERE UPPER(REPLACE(t.counterparty_account, ' ', '')) = ?
+                        WHERE t.description LIKE ? ESCAPE '\\'
                           AND {_PAYMENT_SIGN_SQL[service["direction"]]}
                           AND t.id NOT IN (SELECT transaction_id FROM service_payments)
                           AND 'tracking:unlinked:' || t.id NOT IN (SELECT key FROM settings)""",
-                    (service["id"], service["counterparty_iban"]),
+                    (service["id"], _contains(text)),
                 )
                 linked += cursor.rowcount
         return linked
@@ -295,3 +304,22 @@ def _candidate_filters(service, query: str | None) -> tuple[str, list]:
 def _cents(amount: str) -> int:
     """A money amount in cents, so a whole number of sessions stays exact."""
     return int(parse_decimal(amount) * 100)
+
+
+def _days(value: int | None) -> int | None:
+    """A day count a service may set, or None for the ledger's own default."""
+    if value is None:
+        return None
+    if value < 0:
+        raise ValueError("i giorni di una finestra non sono negativi")
+    return int(value)
+
+
+def _contains(text: str) -> str:
+    """The text as a `LIKE` pattern that means exactly "contains this".
+
+    The wildcards a person may type are escapes, not wildcards: searching for
+    "50%" or "a_b" must not quietly match everything.
+    """
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"

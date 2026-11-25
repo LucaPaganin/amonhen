@@ -380,10 +380,15 @@ CREATE TABLE IF NOT EXISTS services (
     -- Unsigned, cents-exact text, like every amount: the price of a new session.
     rate TEXT NOT NULL,
     calendar_id TEXT NOT NULL,
-    -- The event title: an exact text, case-insensitive, or `/an expression/`.
+    -- The event title: a text the title carries, case-insensitive, or `/an expression/`.
     title_pattern TEXT NOT NULL,
-    -- The IBAN the payments come from or go to; NULL links payments by hand only.
-    counterparty_iban TEXT,
+    -- The text a movement's description carries to pay this service; NULL links
+    -- payments by hand only.
+    match_text TEXT,
+    -- How far this service's calendar is read, when it is not the ledger's own
+    -- default (`CALENDAR_LOOKBACK_DAYS`, `CALENDAR_AHEAD_DAYS`).
+    lookback_days INTEGER,
+    ahead_days INTEGER,
     active INTEGER NOT NULL DEFAULT 1
 );
 
@@ -402,13 +407,13 @@ CREATE TABLE IF NOT EXISTS service_sessions (
 
 CREATE INDEX IF NOT EXISTS service_sessions_service ON service_sessions(service_id, start);
 
--- Which movement pays which service. `by_iban` says the sync linked it from the
--- counterparty's IBAN; a link made by hand (0) is never undone by a sync. A
--- deleted movement takes its link with it; restored, the IBAN links it again.
+-- Which movement pays which service. `by_rule` says a sync linked it from the
+-- service's text; a link made by hand (0) is never undone by a sync. A deleted
+-- movement takes its link with it; restored, the rule links it again.
 CREATE TABLE IF NOT EXISTS service_payments (
     transaction_id INTEGER PRIMARY KEY REFERENCES transactions(id) ON DELETE CASCADE,
     service_id INTEGER NOT NULL REFERENCES services(id),
-    by_iban INTEGER NOT NULL DEFAULT 0
+    by_rule INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -435,6 +440,11 @@ _ADDED_COLUMNS = (
     # The tags a person wrote on a deleted movement, as a JSON list: like the
     # note, they are the one thing the bank cannot send back.
     ("deleted_transactions", "tags", "TEXT"),
+    # What a payment's description must carry to belong to a service, and how
+    # far that service's calendar is read: both are per service, not per ledger.
+    ("services", "match_text", "TEXT"),
+    ("services", "lookback_days", "INTEGER"),
+    ("services", "ahead_days", "INTEGER"),
 )
 
 
@@ -832,6 +842,17 @@ def _restrict_to_owner(conn: sqlite3.Connection) -> None:
                 pass
 
 
+def _rename_payment_flag(conn: sqlite3.Connection) -> None:
+    """The flag that tells a link by rule from a link by hand, said honestly.
+
+    It counted links made from the counterparty's IBAN; the rule is a text in the
+    description now, so the column is `by_rule`. The values mean the same thing.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(service_payments)")}
+    if "by_iban" in columns and "by_rule" not in columns:
+        conn.execute("ALTER TABLE service_payments RENAME COLUMN by_iban TO by_rule")
+
+
 # The migrations, in the order they were written; a new one goes at the end, and
 # none is ever removed or moved, because its position is the version it brings a
 # ledger to.
@@ -845,6 +866,7 @@ MIGRATIONS = (
     _unassigned_budget_items,
     _drop_obsolete,
     _describe_bare_codes,
+    _rename_payment_flag,
 )
 
 

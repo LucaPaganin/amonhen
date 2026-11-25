@@ -55,5 +55,5 @@ def settle_after_ingest(
     legs = link_passthrough_legs(ledger, passthrough)
     ledger.validate()
     categorized = categorize(ledger, RuleBook(ledger.conn))
-    service_payments = ledger.link_payments_by_iban()
+    service_payments = ledger.link_payments_by_text()
     return Settled(transfer_rules, linked, legs, categorized, service_payments)

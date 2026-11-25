@@ -298,7 +298,12 @@ class ServiceRequest(BaseModel):
     rate: str
     calendar_id: str
     title_pattern: str
-    counterparty_iban: str | None = None
+    # The text a movement's description carries to pay this service; empty links
+    # payments only by hand.
+    match_text: str | None = None
+    # How far this service's calendar is read: empty means the ledger's defaults.
+    lookback_days: int | None = Field(None, ge=0, le=3650)
+    ahead_days: int | None = Field(None, ge=0, le=3650)
     active: bool = True
 
 
