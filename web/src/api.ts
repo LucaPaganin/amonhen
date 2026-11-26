@@ -12,6 +12,8 @@ import type {
   CsvImportOutcome,
   CsvPreview,
   DashboardFilters,
+  DocumentLinkResult,
+  DocumentRule,
   Declaration,
   Flows,
   Spending,
@@ -257,6 +259,15 @@ export const onlineApi = {
     get<{ configured: boolean; items: PaperlessHit[] }>(
       `/documents/search?q=${encodeURIComponent(query)}`,
     ),
+  documentRules: (signal?: AbortSignal) => get<{ rules: DocumentRule[] }>("/document-rules", signal),
+  setDocumentRule: (
+    correspondent: string,
+    rule: { before_days: number; after_days: number; match_text?: string | null; active?: boolean },
+  ) =>
+    send<DocumentRule>("PUT", `/document-rules/${encodeURIComponent(correspondent)}`, rule),
+  removeDocumentRule: (correspondent: string) =>
+    drop<{ removed: string }>(`/document-rules/${encodeURIComponent(correspondent)}`),
+  linkDocuments: () => send<DocumentLinkResult>("POST", "/documents/link", {}),
   linkDocument: (transactionId: number, paperlessId: number) =>
     send<Transaction>("PUT", `/transactions/${transactionId}/documents/${paperlessId}`, {}),
   unlinkDocument: (transactionId: number, paperlessId: number) =>

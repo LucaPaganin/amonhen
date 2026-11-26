@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.55 — novembre 2026
+Versione 1.56 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -103,6 +103,11 @@ rete non risponde.
 per i periodi che offre (1, 3, 6, 12 e 24 mesi, senza filtri), un nuovo download con modifiche in
 coda chiede conferma e le lascia in coda, una riga modificata porta il segno *Da inviare* e un banner conta le
 modifiche in coda; il conflitto non riscrive la nota, si sceglie fra le due versioni.*
+1.56 · il documento dietro un movimento si collega con una regola (sezione 5.16-bis): la finestra è
+per emittente, in giorni prima e dopo la data del documento, e si legge in chiaro; la regola collega
+da sé solo quando il movimento possibile è uno, e due candidati restano la scelta di una persona. La
+finestra si scrive e si spegne dalla sezione **Fatture**, che la mostra accanto a ogni emittente e a
+ogni documento, e il pulsante *Collega le fatture* fa passare le regole su quello che Paperless ha.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -444,7 +449,13 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 ### 5.16-bis Il documento dietro un movimento *(costruita)*
 
-Ogni movimento può avere la sua carta: la fattura, la ricevuta, la bolletta che sta su Paperless. Il collegamento si fa a mano e per scelta — si cerca in Paperless per emittente, importo o mese, e si prende il documento giusto — perché un'automazione che sbaglia accoppiata è peggio di nessuna accoppiata. Il legame conserva titolo e data del documento com'erano al momento del collegamento, così il movimento mostra la sua carta anche quando Paperless non risponde; il documento resta di Paperless, che è l'unico a possederlo, e scollegarlo non lo tocca. Un movimento cancellato porta via i suoi collegamenti. Il giro si fa anche dall'altra parte, che è quella che serve quando la carta arriva prima del pagamento: la sezione **Fatture** elenca fatture, ricevute e bollette che Paperless ha, con l'importo che il documento dichiara, e accanto il movimento che le salda o la ricerca che lo trova.
+Ogni movimento può avere la sua carta: la fattura, la ricevuta, la bolletta che sta su Paperless. Il collegamento lo fa una regola, e a mano resta la scelta per quello che la regola non può decidere.
+
+**Una regola è per emittente, e dice una cosa sola:** quanto vicino al documento deve stare il movimento che lo paga, contato dalla data del documento. Giorni prima, perché una ricevuta arriva dopo il pagamento e un anno di sedute si paga in acconto; giorni dopo, perché una bolletta esce prima dell'addebito. La finestra si legge in chiaro — «da 120 giorni prima a 10 giorni dopo il documento» — e non come due numeri con un segno: la sezione **Fatture** la mostra accanto a ogni emittente, la scrive con due campi (giorni prima, giorni dopo) e la ripete accanto a ogni documento, così una riga rimasta senza pagamento dice perché. L'importo confrontato è quello che il documento dichiara, esatto al centesimo; un testo che la descrizione del movimento deve contenere può confermare l'emittente quando l'importo da solo non basta. Una regola si spegne senza cancellarla, e senza regola un documento si collega solo a mano.
+
+**La regola collega solo quando non c'è niente da scegliere.** Un solo movimento possibile dentro la finestra: si collega. Due o più: nessun collegamento, il documento resta da collegare a mano e la sezione lo dice — un'accoppiata sbagliata costa più di una riga da sistemare. Un movimento che una persona ha collegato, o che la regola ha già usato, non è un candidato; un movimento scollegato a mano non torna collegato da una passata successiva, e un movimento che è metà di un giroconto non è mai un pagamento. Più documenti possono comunque saldarsi con lo stesso movimento, ma solo per scelta di una persona: è il caso di un saldo che copre più ricevute.
+
+Il legame conserva titolo e data del documento com'erano al momento del collegamento, così il movimento mostra la sua carta anche quando Paperless non risponde; il documento resta di Paperless, che è l'unico a possederlo, e scollegarlo non lo tocca. Un movimento cancellato porta via i suoi collegamenti. Il giro si fa anche dall'altra parte, che è quella che serve quando la carta arriva prima del pagamento: la sezione **Fatture** elenca fatture, ricevute e bollette che Paperless ha, con l'importo che il documento dichiara, e accanto il movimento che le salda o la ricerca che lo trova.
 
 ### 5.17 Servizi a prezzo concordato *(costruita, da provare sul NAS)*
 

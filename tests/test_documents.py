@@ -195,3 +195,174 @@ def test_the_invoice_list_asks_paperless_for_the_three_kinds_and_their_totals():
         }]
         asked = next(c for c in mock.calls if "/api/documents/" in c.request.url).request.url
         assert "document_type__id__in=6" in asked  # the referto is not an invoice
+
+
+# -- the rules that link a document to its payment (desiderata 5.16-bis) ----------
+
+
+def spend(ledger, day: str, amount: str, description: str, external: str) -> int:
+    """One outflow of the checking account, as a bill would be paid."""
+    bank = ledger.ensure_account(Account(name="Banca", type="real"))
+    txn_id, _ = ledger.record(IncomingTransaction(
+        account_id=bank, date=dt.date.fromisoformat(day), amount=Decimal(amount),
+        description=description, status="BOOK", source="psd2",
+        balancing_account_id=ledger.category("Spese"), external_id=external,
+    ))
+    return txn_id
+
+
+def paperless(paperless_id: int, created: str, amount: str, correspondent: str = "Dolomiti Energia",
+              title: str = "Bolletta Dolomiti") -> dict:
+    return {"paperless_id": paperless_id, "title": title, "created": created,
+            "kind": "Bolletta", "correspondent": correspondent, "amount": amount}
+
+
+def test_the_window_is_read_as_a_sentence_not_two_numbers():
+    from amonhen.core.documents import window_text
+
+    assert window_text(0, 0) == "lo stesso giorno del documento"
+    assert window_text(0, 20) == "entro 20 giorni dal documento"
+    assert window_text(40, 0) == "fino a 40 giorni prima del documento"
+    assert window_text(40, 20) == "da 40 giorni prima a 20 giorni dopo il documento"
+
+
+def test_a_rule_links_the_document_to_its_only_payment(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
+    txn = spend(ledger, "2026-11-09", "-173.30", "PAG. 3100616684", "d1")
+    links = ledger.link_documents_by_rules([paperless(7, "2026-10-20", "173.30")], now="2026-11-26")
+    assert links.linked == 1
+    assert [(row["paperless_id"], row["by_rule"]) for row in ledger.documents_of(txn)] == [(7, 1)]
+
+
+def test_a_payment_outside_the_window_is_not_taken(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=10, created_at="2026-11-26")
+    spend(ledger, "2026-11-09", "-173.30", "PAG. 3100616684", "d1")
+    links = ledger.link_documents_by_rules([paperless(7, "2026-10-20", "173.30")], now="2026-11-26")
+    assert links.linked == 0
+
+
+def test_a_window_may_look_backwards_for_a_payment_made_in_advance(ledger):
+    ledger.set_document_rule("Gabriele Lenti", before_days=120, after_days=10, created_at="2026-11-26")
+    txn = spend(ledger, "2025-10-24", "-204.00", "To Gabriele Lenti", "d1")
+    links = ledger.link_documents_by_rules(
+        [paperless(9, "2025-10-31", "204.00", correspondent="Gabriele Lenti",
+                   title="Ricevuta Lenti - 31/10/2025")], now="2026-11-26")
+    assert links.linked == 1
+    assert [row["paperless_id"] for row in ledger.documents_of(txn)] == [9]
+
+
+def test_two_candidates_are_a_choice_and_a_choice_is_a_person_s(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
+    spend(ledger, "2026-11-05", "-33.09", "PAG. uno", "d1")
+    spend(ledger, "2026-11-08", "-33.09", "PAG. due", "d2")
+    links = ledger.link_documents_by_rules([paperless(7, "2026-10-20", "33.09")], now="2026-11-26")
+    assert links.linked == 0
+    assert links.ambiguous == (7,)
+    assert ledger.conn.execute("SELECT COUNT(*) AS c FROM transaction_documents").fetchone()["c"] == 0
+
+
+def test_the_amount_must_be_exact_to_the_cent(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
+    spend(ledger, "2026-11-09", "-173.31", "PAG.", "d1")
+    assert ledger.link_documents_by_rules([paperless(7, "2026-10-20", "173.30")], now="now").linked == 0
+
+
+def test_a_rule_never_takes_a_leg_of_a_transfer(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
+    first = spend(ledger, "2026-11-09", "-173.30", "giroconto", "d1")
+    second = spend(ledger, "2026-11-09", "173.30", "giroconto", "d2")
+    with ledger.conn:
+        ledger.conn.execute(
+            "INSERT INTO transfer_links (leg_a, leg_b, confidence, method) VALUES (?, ?, 'alta', 'manuale')",
+            (first, second))
+    assert ledger.link_documents_by_rules([paperless(7, "2026-10-20", "173.30")], now="now").linked == 0
+
+
+def test_a_rule_can_ask_for_the_description_to_confirm_the_issuer(ledger):
+    ledger.set_document_rule("Eni Plenitude", before_days=0, after_days=40, match_text="eni",
+                             created_at="2026-11-26")
+    txn = spend(ledger, "2026-06-03", "-127.42", "Eni Spa - Regolamento Monetario", "d1")
+    links = ledger.link_documents_by_rules(
+        [paperless(11, "2026-05-09", "127.42", correspondent="Eni Plenitude")], now="now")
+    assert links.linked == 1
+    assert [row["paperless_id"] for row in ledger.documents_of(txn)] == [11]
+
+
+def test_a_person_unlinking_keeps_the_rule_from_putting_it_back(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
+    txn = spend(ledger, "2026-11-09", "-173.30", "PAG.", "d1")
+    document = paperless(7, "2026-10-20", "173.30")
+    assert ledger.link_documents_by_rules([document], now="now").linked == 1
+    ledger.unlink_document(txn, 7)
+    again = ledger.link_documents_by_rules([document], now="now")
+    assert again.linked == 0
+    assert ledger.documents_of(txn) == []
+
+
+def test_a_movement_a_person_linked_is_not_a_candidate(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
+    txn = spend(ledger, "2026-11-09", "-173.30", "PAG.", "d1")
+    ledger.link_document(txn, 5, title="altra bolletta", created="2026-10-20", kind="Bolletta",
+                         linked_at="2026-11-26", by_rule=False)
+    assert ledger.link_documents_by_rules([paperless(7, "2026-10-20", "173.30")], now="now").linked == 0
+    assert [row["paperless_id"] for row in ledger.documents_of(txn)] == [5]
+
+
+def test_a_document_without_an_amount_is_left_alone(ledger):
+    ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
+    spend(ledger, "2026-11-09", "-173.30", "PAG.", "d1")
+    assert ledger.link_documents_by_rules([paperless(7, "2026-10-20", None)], now="now").linked == 0
+
+
+def test_without_a_rule_nothing_links_itself(ledger):
+    spend(ledger, "2026-11-09", "-173.30", "PAG.", "d1")
+    assert ledger.link_documents_by_rules([paperless(7, "2026-10-20", "173.30")], now="now").linked == 0
+
+
+def test_a_rule_window_is_written_and_replaced(ledger):
+    ledger.set_document_rule("Iliad", before_days=0, after_days=20, created_at="2026-11-26")
+    ledger.set_document_rule("Iliad", before_days=0, after_days=25, created_at="2026-11-26")
+    rules = ledger.document_rules()
+    assert [(row["correspondent"], row["after_days"]) for row in rules] == [("Iliad", 25)]
+    ledger.remove_document_rule("Iliad")
+    assert ledger.document_rules() == []
+
+
+def test_a_negative_window_is_refused(ledger):
+    with pytest.raises(ValueError):
+        ledger.set_document_rule("Iliad", before_days=-1, after_days=10, created_at="now")
+
+
+def test_the_api_writes_a_rule_and_links_what_it_can_decide(api):
+    from amonhen.db import connect
+    from amonhen.ledger import Ledger
+
+    conn = connect(api.db_path)
+    txn = movement(Ledger(conn))
+    conn.close()
+
+    written = api.put("/api/document-rules/Gabriele%20Lenti",
+                      json={"before_days": 120, "after_days": 10})
+    assert written.status_code == 200, written.text
+    assert written.json()["window"] == "da 120 giorni prima a 10 giorni dopo il documento"
+
+    listed = api.get("/api/document-rules").json()["rules"]
+    assert [row["correspondent"] for row in listed] == ["Gabriele Lenti"]
+
+    linked = api.post("/api/documents/link")
+    assert linked.status_code == 200, linked.text
+    assert linked.json() == {"linked": 1, "ambiguous": [], "skipped": 0}
+
+    again = api.post("/api/documents/link").json()
+    assert again["linked"] == 0 and again["skipped"] == 1
+
+    document = api.get(f"/api/transactions/{txn}").json()["documents"]
+    assert [item["paperless_id"] for item in document] == [42]
+
+    assert api.delete("/api/document-rules/Gabriele%20Lenti").status_code == 200
+    assert api.get("/api/document-rules").json()["rules"] == []
+
+
+def test_a_rule_needs_a_non_negative_window(api):
+    refused = api.put("/api/document-rules/Iliad", json={"before_days": -5, "after_days": 10})
+    assert refused.status_code == 422

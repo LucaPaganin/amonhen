@@ -368,7 +368,24 @@ CREATE TABLE IF NOT EXISTS transaction_documents (
     created TEXT,
     kind TEXT,
     linked_at TEXT NOT NULL,
+    -- 1 when a rule of the ledger made the link, 0 when a person did: a rule
+    -- never undoes a person's choice, a person may undo the rule's.
+    by_rule INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (transaction_id, paperless_id)
+);
+
+-- Desiderata 5.16-bis: how far from a document's own date a movement may sit to
+-- pay it, per issuer. `before_days` looks back (a receipt issued after the
+-- payment), `after_days` forward (a bill and its direct debit).
+CREATE TABLE IF NOT EXISTS document_rules (
+    correspondent TEXT PRIMARY KEY,
+    before_days INTEGER NOT NULL DEFAULT 0,
+    after_days INTEGER NOT NULL DEFAULT 0,
+    -- The text the movement's description must carry to confirm the issuer;
+    -- NULL rules on the amount alone.
+    match_text TEXT,
+    created_at TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1
 );
 
 -- Proposals are never applied on their own: a classifier or an LLM writes a
@@ -476,6 +493,7 @@ _ADDED_COLUMNS = (
     # What a payment's description must carry to belong to a service, and how
     # far that service's calendar is read: both are per service, not per ledger.
     ("services", "match_text", "TEXT"),
+    ("transaction_documents", "by_rule", "INTEGER NOT NULL DEFAULT 0"),
     ("services", "lookback_days", "INTEGER"),
     ("services", "ahead_days", "INTEGER"),
     # A service may charge by the hour, where the event's own length is the

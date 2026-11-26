@@ -220,6 +220,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("services", help="the tracked services and their balances (desiderata 5.17)")
     sub.add_parser("services-sync", help="read the calendars of the tracked services, then link payments")
+    sub.add_parser("documents-link", help="link the documents Paperless holds to the movements that pay them")
+    sub.add_parser("document-rules", help="the rules that link a document to its payment, one per issuer")
+
+    document = sub.add_parser("document-rule-add", help="write how far from a document its payment may sit")
+    document.add_argument("correspondent", help="the issuer as Paperless names it")
+    document.add_argument("--before", type=int, default=0, metavar="GIORNI",
+                          help="how many days before the document the payment may be (default 0)")
+    document.add_argument("--after", type=int, default=0, metavar="GIORNI",
+                          help="how many days after the document the payment may be (default 0)")
+    document.add_argument("--match", default=None, metavar="TESTO",
+                          help="text the movement's description must carry to confirm the issuer")
+    document.add_argument("--off", action="store_true", help="keep the rule and switch it off")
+
+    removal = sub.add_parser("document-rule-remove", help="forget the rule of one issuer")
+    removal.add_argument("correspondent")
 
     return parser
 
@@ -987,6 +1002,67 @@ def cmd_services_sync(ledger: Ledger, args) -> int:
     return 1 if result.errors else 0
 
 
+def cmd_documents_link(ledger: Ledger, args) -> int:
+    """Read the documents Paperless holds and link the ones a rule leaves with one payment."""
+    from amonhen.composition import invoice_source
+    from amonhen.services.documents import link_documents
+
+    try:
+        source = invoice_source()
+    except ValueError as exc:
+        print(f"cannot read Paperless: {exc}", file=sys.stderr)
+        return 2
+    if source is None:
+        print("documenti: Paperless non configurato (AMONHEN_PAPERLESS_URL, AMONHEN_PAPERLESS_TOKEN)")
+        return 0
+    links = link_documents(ledger, source, now=args.clock.now().isoformat(timespec="seconds"))
+    print(f"documenti collegati: {links.linked}, ambigui: {len(links.ambiguous)}, "
+          f"già a posto: {links.skipped}")
+    for paperless_id in links.ambiguous:
+        print(f"  ambiguo, da scegliere a mano: documento {paperless_id}")
+    return 0
+
+
+def cmd_document_rules(ledger: Ledger, args) -> int:
+    """The window of each issuer, as a person would say it."""
+    from amonhen.core.documents import window_text
+
+    rules = ledger.document_rules()
+    if not rules:
+        print("nessuna regola: i documenti si collegano solo a mano")
+        return 0
+    for rule in rules:
+        state = "" if rule["active"] else " (spenta)"
+        match = f", descrizione contiene «{rule['match_text']}»" if rule["match_text"] else ""
+        print(f"{rule['correspondent']}{state}: {window_text(rule['before_days'], rule['after_days'])}{match}")
+    return 0
+
+
+def cmd_document_rule_add(ledger: Ledger, args) -> int:
+    """Write how far from a document its payment may sit."""
+    from amonhen.core.documents import window_text
+
+    try:
+        ledger.set_document_rule(
+            args.correspondent, before_days=args.before, after_days=args.after,
+            match_text=args.match, active=not args.off,
+            created_at=args.clock.now().isoformat(timespec="seconds"),
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    state = "" if not args.off else " (spenta)"
+    print(f"{args.correspondent}: {window_text(args.before, args.after)}{state}")
+    return 0
+
+
+def cmd_document_rule_remove(ledger: Ledger, args) -> int:
+    """Forget one issuer's rule: from now on its documents link by hand only."""
+    ledger.remove_document_rule(args.correspondent)
+    print(f"{args.correspondent}: regola rimossa")
+    return 0
+
+
 HANDLERS = {
     "sync": cmd_sync,
     "daemon": cmd_daemon,
@@ -1022,6 +1098,10 @@ HANDLERS = {
     "portfolio-sync": cmd_portfolio_sync,
     "services": cmd_services,
     "services-sync": cmd_services_sync,
+    "documents-link": cmd_documents_link,
+    "document-rules": cmd_document_rules,
+    "document-rule-add": cmd_document_rule_add,
+    "document-rule-remove": cmd_document_rule_remove,
 }
 
 

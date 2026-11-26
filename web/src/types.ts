@@ -454,6 +454,24 @@ export interface Invoice extends PaperlessHit {
   movements: InvoiceMovement[];
 }
 
+/** How far from a document its payment may sit, in days on each side (5.16-bis). */
+export interface DocumentRule {
+  correspondent: string;
+  before_days: number;
+  after_days: number;
+  /** The window as a sentence: «da 40 giorni prima a 20 giorni dopo il documento». */
+  window: string;
+  match_text: string | null;
+  active: boolean;
+}
+
+/** What one pass of the rules did, and what it left to a person. */
+export interface DocumentLinkResult {
+  linked: number;
+  ambiguous: number[];
+  skipped: number;
+}
+
 export interface InvoiceMovement {
   id: number;
   date: string;

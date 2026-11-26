@@ -44,7 +44,8 @@ Commands: `sync`, `daemon`, `serve`, `import`, `accounts`, `account-add`,
 `spend`, `balances`, `anchor`, `balance-check`, `categorize`, `rules`,
 `rule-add`, `rule-remove`, `category-add`, `category-rename`, `metrics`, `category-flags`, `account-flags`,
 `split`, `set`, `budget`, `budgets`, `anomalies`, `suggest`, `llm-suggest`,
-`validate`, `backup`, `instrument-add`, `position-open`, `prices-load`, `portfolio-sync`, `services`, `services-sync`.
+`validate`, `backup`, `instrument-add`, `position-open`, `prices-load`, `portfolio-sync`, `services`,
+`services-sync`, `documents-link`, `document-rules`, `document-rule-add`, `document-rule-remove`.
 
 ## Architecture in one line
 
@@ -327,7 +328,8 @@ by construction.
 |`pension_contributions`|12|A line of the fund's money: `trattenuto` from a payslip until a statement shows its value date, unit value and units, then `investito`; a payment straight to the fund is born `investito` with no payslip|
 |`prices`|4|One value per instrument and day, with its source; a missing month is said, never borrowed|
 |`portfolio_snapshots`|5|Units, value and net paid-in of an instrument at a month end|
-|`transaction_documents`|6|Which Paperless documents justify a movement — a fattura, a ricevuta, a bolletta — with the title and date snapshotted at link time, so the movement shows its paperwork without asking Paperless again. A deleted movement takes its links with it|
+|`transaction_documents`|6|Which Paperless documents justify a movement — a fattura, a ricevuta, a bolletta — with the title and date snapshotted at link time, so the movement shows its paperwork without asking Paperless again. `by_rule` says a rule made the link: a rule never undoes a person's link, a person may undo the rule's. A deleted movement takes its links with it|
+|`document_rules`|1|Desiderata 5.16-bis: one row per issuer, the window in days before and after the document's own date where its payment may sit, and the optional text that confirms the issuer in the movement's description. Empty table: every document links by hand|
 |`documents`|6|A document read from Paperless, once: its Paperless id, kind, when, `outcome` (`importato` / `errore`), the layout and the error. A document here is never read again unless a failed one is retried|
 |`services`|9|Desiderata 5.17: a service with an agreed price — `kind` is `lezione`, `seduta` or `altro`, `direction` `entrata` or `uscita`; `rate` per session or per hour (`billing` `sessione` / `ora`, `default_hours` for an hourly event with no end); the `calendar_id` and `title_pattern` (text the event title carries, or `/an expression/`) its sessions match; `match_text` is the text a movement's description carries to pay it, or `/an expression/` searched in it (case aside, `\\d+` for a month's count); `lookback_days` / `ahead_days` are how far its calendar is read (empty: the ledger's 90 and 90)|
 |`service_sessions`|7|One calendar event a service matched, keyed by Google's `event_id`: `start`, `end`, `summary`, `hours` (the length the calendar gave, null when it gave none), `amount` (the rate, or the rate times the hours; `amount_by_hand` keeps a correction through a change of length), `status` `valida` / `annullata`. Which sessions are paid is computed, FIFO, never stored|

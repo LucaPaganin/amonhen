@@ -74,3 +74,11 @@ export function lastMonths(months: number): { from: string; to: string } {
   const month = currentMonth();
   return { from: monthBounds(shiftMonth(month, -(months - 1))).from, to: monthBounds(month).to };
 }
+
+/** The window of a document rule as a person would say it, not two signed numbers. */
+export function windowText(beforeDays: number, afterDays: number): string {
+  if (beforeDays <= 0 && afterDays <= 0) return "lo stesso giorno del documento";
+  if (beforeDays <= 0) return `entro ${afterDays} giorni dal documento`;
+  if (afterDays <= 0) return `fino a ${beforeDays} giorni prima del documento`;
+  return `da ${beforeDays} giorni prima a ${afterDays} giorni dopo il documento`;
+}

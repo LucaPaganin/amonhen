@@ -16,6 +16,15 @@ class NotesRequest(BaseModel):
     notes: str | None = None
 
 
+class DocumentRuleRequest(BaseModel):
+    """How far from a document its payment may sit, in days on each side."""
+
+    before_days: int = 0
+    after_days: int = 0
+    match_text: str | None = None
+    active: bool = True
+
+
 class ReviewRequest(BaseModel):
     decision: Literal["confirm", "reject"]
 

@@ -20,6 +20,20 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   rule write runs it once per action. Without `postings_transaction` and
   `transfer_links_leg_b` each of its subqueries read the whole table, and saving a
   rule took twelve seconds with 2,600 movements, on the PC and on the NAS alike.
+- **A document's rule is a window, not a text.** Desiderata 5.16-bis: `document_rules`
+  holds one row per issuer with two day counts, and a document links to a movement
+  only when the amount matches to the cent and exactly one candidate sits in the
+  window. The window counts from the document's own date, backwards for what is
+  paid in advance (a receipt issued after the payment) and forwards for a direct
+  debit; the UI writes it as a sentence, never as two signed numbers. The link is
+  stored in `transaction_documents` with `by_rule = 1`, so a person's unlink is
+  final: it is recorded in `settings` as `documents:unlinked:<paperless_id>` and a
+  later pass skips the document. A movement already linked — by hand or by a rule
+  — is not a candidate again; two candidates mean a choice, and the pass leaves it
+  to a person. The pass needs Paperless, so it is a button in **Fatture** and
+  `documents-link` on the command line, never a step of the bank sync: a Paperless
+  that is down must not make the ledger's own write fail.
+
 - **Rebuilding the queue is the server's job.** The review hook removes a row
   optimistically and then refetches `/api/review`; it never adjusts the totals
   itself, because the same `categorize` function is used from the Movements

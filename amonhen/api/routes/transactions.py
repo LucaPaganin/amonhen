@@ -11,6 +11,7 @@ from amonhen.api.schemas import (
     BatchCategoryRequest,
     BatchTagRequest,
     CategoryRequest,
+    DocumentRuleRequest,
     NotesRequest,
     SplitsRequest,
     TagsRequest,
@@ -273,5 +274,75 @@ def build(ctx: AppContext) -> APIRouter:
                 )
             ledger.set_category(transaction_id, ledger.category(body.category))
             return _transaction(queries.transaction(ledger, transaction_id), ledger)
+
+    # -- the rules that link a document to its payment (desiderata 5.16-bis) ----
+
+    @router.get("/api/document-rules")
+    def document_rules() -> dict:
+        """One rule per issuer, each window written as a person would say it."""
+        from amonhen.core.documents import window_text
+
+        with ledger_scope() as ledger:
+            return {"rules": [
+                {
+                    "correspondent": row["correspondent"],
+                    "before_days": row["before_days"],
+                    "after_days": row["after_days"],
+                    "window": window_text(row["before_days"], row["after_days"]),
+                    "match_text": row["match_text"],
+                    "active": bool(row["active"]),
+                }
+                for row in ledger.document_rules()
+            ]}
+
+    @router.put("/api/document-rules/{correspondent}")
+    def put_document_rule(correspondent: str, body: DocumentRuleRequest) -> dict:
+        """Write how far from a document its payment may sit, for one issuer."""
+        from amonhen.core.documents import window_text
+
+        with ledger_scope() as ledger:
+            try:
+                ledger.set_document_rule(
+                    correspondent, before_days=body.before_days, after_days=body.after_days,
+                    match_text=body.match_text, active=body.active,
+                    created_at=ctx.clock.now().isoformat(timespec="seconds"),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            row = ledger.document_rule(correspondent)
+            return {
+                "correspondent": row["correspondent"],
+                "before_days": row["before_days"],
+                "after_days": row["after_days"],
+                "window": window_text(row["before_days"], row["after_days"]),
+                "match_text": row["match_text"],
+                "active": bool(row["active"]),
+            }
+
+    @router.delete("/api/document-rules/{correspondent}")
+    def delete_document_rule(correspondent: str) -> dict:
+        """Forget one issuer's rule: its documents go back to linking by hand."""
+        with ledger_scope() as ledger:
+            ledger.remove_document_rule(correspondent)
+            return {"removed": correspondent}
+
+    @router.post("/api/documents/link")
+    def link_documents() -> dict:
+        """Run the rules over what Paperless holds, and say what they could not decide."""
+        from amonhen.services.documents import link_documents as run
+
+        try:
+            source = invoice_source()
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if source is None:
+            raise HTTPException(status_code=503, detail="Paperless non configurato")
+        try:
+            with ledger_scope() as ledger:
+                links = run(ledger, source, now=ctx.clock.now().isoformat(timespec="seconds"))
+                return {"linked": links.linked, "ambiguous": list(links.ambiguous),
+                        "skipped": links.skipped}
+        except SourceUnavailable as exc:
+            raise HTTPException(status_code=502, detail=f"Paperless non risponde: {exc}") from exc
 
     return router
