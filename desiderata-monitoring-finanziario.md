@@ -433,6 +433,10 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 *Fatto quando*: davanti alla domanda "quanto verso nel fondo e quanto nel PAC l'anno prossimo" l'app mostra, per ogni obiettivo, le conseguenze di due ripartizioni con i parametri fiscali dell'anno e le ipotesi scritte, e dice se i parametri dell'anno mancano; il patrimonio complessivo di fine mese si compone senza dichiarazioni a mano finché le fonti rispondono, salvo l'apertura che i documenti poi spiegano, ogni riconciliazione dice cosa non torna, e il fondo mostra quanto è ancora in transito.
 
+### 5.16-bis Il documento dietro un movimento *(costruita)*
+
+Ogni movimento può avere la sua carta: la fattura, la ricevuta, la bolletta che sta su Paperless. Il collegamento si fa a mano e per scelta — si cerca in Paperless per emittente, importo o mese, e si prende il documento giusto — perché un'automazione che sbaglia accoppiata è peggio di nessuna accoppiata. Il legame conserva titolo e data del documento com'erano al momento del collegamento, così il movimento mostra la sua carta anche quando Paperless non risponde; il documento resta di Paperless, che è l'unico a possederlo, e scollegarlo non lo tocca. Un movimento cancellato porta via i suoi collegamenti.
+
 ### 5.17 Servizi a prezzo concordato *(costruita, da provare sul NAS)*
 
 Lezioni private date, lezioni prese, sedute: un servizio ha una controparte, un prezzo per sessione e sessioni che stanno già su Google Calendar. I pagamenti arrivano a blocchi, con un bonifico, quindi sono già movimenti del ledger. La sezione mette accanto le due cose e dice quanto resta: chi deve ancora quanto, o quanto si deve.

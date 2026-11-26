@@ -358,6 +358,19 @@ CREATE TABLE IF NOT EXISTS documents (
     error TEXT
 );
 
+-- A movement and the document that justifies it (fattura, ricevuta, bolletta)
+-- read from Paperless: the id is Paperless's, the rest is a snapshot so the
+-- movement can show its paperwork without asking Paperless again.
+CREATE TABLE IF NOT EXISTS transaction_documents (
+    transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    paperless_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    created TEXT,
+    kind TEXT,
+    linked_at TEXT NOT NULL,
+    PRIMARY KEY (transaction_id, paperless_id)
+);
+
 -- Proposals are never applied on their own: a classifier or an LLM writes a
 -- merchant -> category pair here and a human accepts or dismisses it.
 CREATE TABLE IF NOT EXISTS merchant_suggestions (

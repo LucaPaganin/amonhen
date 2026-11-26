@@ -5,6 +5,7 @@ import { errorMessage } from "../api";
 import type { SplitInput } from "../api";
 import type { Category, Transaction } from "../types";
 import { SplitEditor } from "./SplitEditor";
+import { TransactionDocuments } from "./TransactionDocuments";
 import { TagEditor } from "./TagEditor";
 import { categoryText } from "../category";
 
@@ -26,6 +27,8 @@ interface CategoryPickerProps {
   onSaveTags?: (tags: string[]) => Promise<void>;
   /** Takes the movement out of the ledger; the caller closes and reports it. */
   onDelete?: () => Promise<void>;
+  /** The movement changed on its own (a document linked): the caller refreshes it. */
+  onDocumentsChanged?: (transaction: Transaction) => void;
   /** Opens the transfer panel: this row may be money moved between own accounts. */
   onTransfer?: () => void;
 }
@@ -45,6 +48,7 @@ export function CategoryPicker({
   onSaveNotes,
   onSaveTags,
   onDelete,
+  onDocumentsChanged,
   onTransfer,
 }: CategoryPickerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -208,6 +212,10 @@ export function CategoryPicker({
 
             {transaction !== null && onSaveTags !== undefined ? (
               <TagEditor current={transaction.tags} onSave={onSaveTags} />
+            ) : null}
+
+            {transaction !== null && onDocumentsChanged !== undefined ? (
+              <TransactionDocuments transaction={transaction} onChanged={onDocumentsChanged} />
             ) : null}
 
             {canSplit ? (

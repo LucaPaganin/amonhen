@@ -643,4 +643,10 @@ def _transaction(row: sqlite3.Row, ledger: Ledger) -> dict:
         # so what is here was written by hand and stays.
         "notes": row["notes"],
         "tags": ledger.tags_of(row["id"]),
+        # The paperwork behind the movement: what Paperless holds for it.
+        "documents": [
+            {"paperless_id": document["paperless_id"], "title": document["title"],
+             "created": document["created"], "kind": document["kind"]}
+            for document in ledger.documents_of(row["id"])
+        ],
     }

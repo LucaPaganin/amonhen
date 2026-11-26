@@ -659,6 +659,10 @@ export function MovementsScreen({
           setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
           setPickerFor(updated);
         }}
+        onDocumentsChanged={(updated) => {
+          setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+          setPickerFor(updated);
+        }}
         onSaveTags={async (names) => {
           const transaction = pickerFor;
           if (!transaction) return;

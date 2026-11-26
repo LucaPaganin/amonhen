@@ -17,6 +17,8 @@ from amonhen.api.schemas import (
     TransactionIdsRequest,
 )
 from amonhen.models import parse_decimal
+from amonhen.composition import invoice_source
+from amonhen.ports.portfolio import SourceUnavailable
 
 
 def build(ctx: AppContext) -> APIRouter:
@@ -164,6 +166,49 @@ def build(ctx: AppContext) -> APIRouter:
         with ledger_scope() as ledger:
             row = _require_transaction(ledger, transaction_id)
             ledger.set_tags(row["id"], body.tags)
+            return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
+    @router.get("/api/documents/search")
+    def search_documents(q: str = "") -> dict:
+        """What Paperless holds for this search: the paperwork behind a movement."""
+        try:
+            source = invoice_source()
+        except ValueError as exc:  # a misconfigured URL or token
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if source is None:
+            return {"configured": False, "items": []}
+        try:
+            return {"configured": True, "items": source.search(q)}
+        except SourceUnavailable as exc:
+            raise HTTPException(status_code=502, detail=f"Paperless non risponde: {exc}") from exc
+
+    @router.put("/api/transactions/{transaction_id}/documents/{paperless_id}")
+    def link_document(transaction_id: int, paperless_id: int) -> dict:
+        """Attach a Paperless document to the movement, keeping its title as it was."""
+        try:
+            source = invoice_source()
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if source is None:
+            raise HTTPException(status_code=503, detail="Paperless non configurato")
+        try:
+            document = source.one(paperless_id)
+        except SourceUnavailable as exc:
+            raise HTTPException(status_code=502, detail=f"Paperless non risponde: {exc}") from exc
+        with ledger_scope() as ledger:
+            _require_transaction(ledger, transaction_id)
+            ledger.link_document(
+                transaction_id, paperless_id, title=document["title"], created=document["created"],
+                kind=document["kind"], linked_at=ctx.clock.now().isoformat(timespec="seconds"),
+            )
+            return _transaction(_require_transaction(ledger, transaction_id), ledger)
+
+    @router.delete("/api/transactions/{transaction_id}/documents/{paperless_id}")
+    def unlink_document(transaction_id: int, paperless_id: int) -> dict:
+        """The document is not this movement's: the link goes, the document stays in Paperless."""
+        with ledger_scope() as ledger:
+            _require_transaction(ledger, transaction_id)
+            ledger.unlink_document(transaction_id, paperless_id)
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
 
     @router.put("/api/transactions/{transaction_id}/notes")

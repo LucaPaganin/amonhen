@@ -275,6 +275,8 @@ export interface Transaction {
   /** The note a person wrote on this movement; the only field they may write. */
   notes: string | null;
   tags: string[];
+  /** The paperwork behind the movement, as Paperless holds it. */
+  documents: TransactionDocument[];
   /** Queue only: what the automatic passes already made of this row. */
   review_state?: ReviewState;
   /** Queue only: the category a pending proposal suggests, if any. */
@@ -435,6 +437,19 @@ export interface MonthReading {
 }
 
 /** A free label on a movement; its two flags mean what a category's mean. */
+/** A document of Paperless linked to a movement, with the title it had when linked. */
+export interface TransactionDocument {
+  paperless_id: number;
+  title: string;
+  created: string | null;
+  kind: string | null;
+}
+
+/** One hit of a Paperless search: the document plus who issued it. */
+export interface PaperlessHit extends TransactionDocument {
+  correspondent: string | null;
+}
+
 export interface Tag extends Category {
   movements: number;
 }

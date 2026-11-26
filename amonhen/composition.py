@@ -63,6 +63,16 @@ def document_source() -> DocumentSource | None:
         "busta_paga": settings.PAPERLESS_PAYSLIP_TYPE, "prospetto": settings.PAPERLESS_STATEMENT_TYPE})
 
 
+def invoice_source():
+    """Paperless, to find the document behind a movement; None when it is not configured."""
+    from amonhen import settings
+    from amonhen.adapters.paperless_invoices import PaperlessInvoices
+
+    if not (settings.PAPERLESS_URL and settings.PAPERLESS_TOKEN):
+        return None
+    return PaperlessInvoices(settings.PAPERLESS_URL, settings.PAPERLESS_TOKEN)
+
+
 def nav_source() -> NavSource:
     """The fund's unit value from the public page of its class."""
     from amonhen.adapters.borsa_italiana import BorsaItalianaNav

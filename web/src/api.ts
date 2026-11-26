@@ -38,6 +38,7 @@ import type {
   ServiceList,
   ServiceDetail,
   ServiceDraft,
+  PaperlessHit,
   PaymentCandidatePage,
   CalendarOutcome,
   CalendarWindow,
@@ -254,6 +255,14 @@ export const api = {
     send<Transaction>("PUT", `/transactions/${transactionId}/splits`, { splits }),
   // A note is the one field of a movement the app writes: everything else is
   // the bank's own statement.
+  searchDocuments: (query: string) =>
+    get<{ configured: boolean; items: PaperlessHit[] }>(
+      `/documents/search?q=${encodeURIComponent(query)}`,
+    ),
+  linkDocument: (transactionId: number, paperlessId: number) =>
+    send<Transaction>("PUT", `/transactions/${transactionId}/documents/${paperlessId}`, {}),
+  unlinkDocument: (transactionId: number, paperlessId: number) =>
+    send<Transaction>("DELETE", `/transactions/${transactionId}/documents/${paperlessId}`, {}),
   setNotes: (transactionId: number, notes: string) =>
     send<Transaction>("PUT", `/transactions/${transactionId}/notes`, { notes }),
   setTags: (transactionId: number, tags: string[]) =>
