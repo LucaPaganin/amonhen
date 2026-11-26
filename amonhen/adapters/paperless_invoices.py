@@ -28,14 +28,32 @@ class PaperlessInvoices:
         self._names: dict[str, dict[int, str]] = {}
 
     def search(self, query: str, limit: int = SEARCH_LIMIT) -> list[dict]:
-        params = {
-            "query": query.strip(),
-            "page_size": limit,
-            "ordering": "-created",
-            "fields": "id,title,created,document_type,correspondent",
-        }
-        page = self._get(f"{self.base}/api/documents/", params)
-        return [self._document(row) for row in page.get("results", [])]
+        """The documents whose title or text carries the words, newest first.
+
+        Not Paperless's own `query=` search: that one answers nothing for a
+        reader who is not the owner of the documents — its full-text index is
+        filtered as if the reader owned none — while the two `icontains` filters
+        see exactly what the permissions allow. Two questions, one answer: the
+        title and the text, merged by document.
+
+        An empty search is the archive's latest documents, which is what a person
+        who does not know what to type needs to see.
+        """
+        text = query.strip()
+        fields = "id,title,created,document_type,correspondent"
+        if not text:
+            page = self._get(f"{self.base}/api/documents/",
+                             {"page_size": limit, "ordering": "-created", "fields": fields})
+            return [self._document(row) for row in page.get("results", [])]
+
+        found: dict[int, dict] = {}
+        for param in ("title__icontains", "content__icontains"):
+            page = self._get(f"{self.base}/api/documents/",
+                             {param: text, "page_size": limit, "ordering": "-created", "fields": fields})
+            for row in page.get("results", []):
+                found.setdefault(row["id"], row)
+        newest = sorted(found.values(), key=lambda row: row.get("created") or "", reverse=True)
+        return [self._document(row) for row in newest[:limit]]
 
     def one(self, paperless_id: int) -> dict:
         """The document as it will be snapshotted on the movement."""

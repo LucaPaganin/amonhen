@@ -127,10 +127,12 @@ def test_the_invoice_search_names_the_type_and_the_issuer():
 
     base = "http://paperless:8000"
     with responses.RequestsMock() as mock:
-        mock.get(f"{base}/api/documents/", json={"results": [{
+        page = {"results": [{
             "id": 42, "title": "Ricevuta Lenti - 02/11/2026", "created": "2026-11-02",
             "document_type": 6, "correspondent": 11,
-        }]})
+        }]}
+        mock.get(f"{base}/api/documents/", json=page)
+        mock.get(f"{base}/api/documents/", json=page)
         mock.get(f"{base}/api/document_types/", json={"results": [{"id": 6, "name": "Ricevuta sanitaria"}]})
         mock.get(f"{base}/api/correspondents/", json={"results": [{"id": 11, "name": "Gabriele Lenti"}]})
         source = PaperlessInvoices(base, "token")
