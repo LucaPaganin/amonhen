@@ -15,6 +15,7 @@ export type TabId =
   | "plan"
   | "portfolio"
   | "services"
+  | "invoices"
   | "setup"
   | "guide";
 
@@ -119,6 +120,14 @@ const SECTIONS: Section[] = [
     hint: "Lezioni e sedute dal calendario, e quanto resta da pagare",
     inBar: false,
     Icon: ServicesIcon,
+  },
+  {
+    id: "invoices",
+    label: "Fatture",
+    short: "Fatture",
+    hint: "Le fatture e le ricevute di Paperless, e il pagamento che le salda",
+    inBar: false,
+    Icon: InvoicesIcon,
   },
   {
     id: "setup",
@@ -262,6 +271,24 @@ function PlanIcon() {
     >
       <path d="M5 21V4" />
       <path d="M5 4h12l-2.5 4L17 12H5" />
+    </svg>
+  );
+}
+
+function InvoicesIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 3h9l3 3v15l-3-2-3 2-3-2-3 2V3Z" />
+      <path d="M9 8h6M9 12h6M9 16h3" />
     </svg>
   );
 }

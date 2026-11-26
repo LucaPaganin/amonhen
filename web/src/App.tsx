@@ -17,6 +17,7 @@ import { ReviewQueueScreen } from "./screens/ReviewQueue";
 import { CategoryRulesScreen } from "./screens/CategoryRules";
 import { PlanScreen } from "./screens/Plan";
 import { PortfolioScreen } from "./screens/Portfolio";
+import { InvoicesScreen } from "./screens/Invoices";
 import { ServicesScreen } from "./screens/Services";
 import { StatisticsScreen } from "./screens/Statistics";
 import { SetupScreen, setupStartStep } from "./screens/Setup";
@@ -274,6 +275,7 @@ export default function App() {
         {tab === "plan" ? <PlanScreen /> : null}
         {tab === "portfolio" ? <PortfolioScreen refreshToken={syncedAt} /> : null}
         {tab === "services" ? <ServicesScreen refreshToken={syncedAt} /> : null}
+        {tab === "invoices" ? <InvoicesScreen refreshToken={syncedAt} /> : null}
         {tab === "categories" ? (
           <CategoryRulesScreen
             rules={rules}

@@ -38,6 +38,7 @@ import type {
   ServiceList,
   ServiceDetail,
   ServiceDraft,
+  InvoicePage,
   PaperlessHit,
   PaymentCandidatePage,
   CalendarOutcome,
@@ -255,6 +256,8 @@ export const api = {
     send<Transaction>("PUT", `/transactions/${transactionId}/splits`, { splits }),
   // A note is the one field of a movement the app writes: everything else is
   // the bank's own statement.
+  invoices: (query: string, offset: number) =>
+    get<InvoicePage>(`/invoices?q=${encodeURIComponent(query)}&offset=${offset}`),
   searchDocuments: (query: string) =>
     get<{ configured: boolean; items: PaperlessHit[] }>(
       `/documents/search?q=${encodeURIComponent(query)}`,

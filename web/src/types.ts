@@ -445,6 +445,28 @@ export interface TransactionDocument {
   kind: string | null;
 }
 
+/** One document of the archive that justifies a payment, with what pays it. */
+export interface Invoice extends PaperlessHit {
+  /** The total the document states, when Paperless has the field. */
+  amount: string | null;
+  movements: InvoiceMovement[];
+}
+
+export interface InvoiceMovement {
+  id: number;
+  date: string;
+  amount: string;
+  description: string;
+}
+
+export interface InvoicePage {
+  configured: boolean;
+  total: number;
+  limit: number;
+  offset: number;
+  items: Invoice[];
+}
+
 /** One hit of a Paperless search: the document plus who issued it. */
 export interface PaperlessHit extends TransactionDocument {
   correspondent: string | null;

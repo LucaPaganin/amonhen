@@ -168,6 +168,43 @@ def build(ctx: AppContext) -> APIRouter:
             ledger.set_tags(row["id"], body.tags)
             return _transaction(_require_transaction(ledger, transaction_id), ledger)
 
+    @router.get("/api/invoices")
+    def invoices(
+        q: str = "",
+        limit: int = Query(20, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict:
+        """The documents that justify a payment, and which movements already pay them."""
+        try:
+            source = invoice_source()
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if source is None:
+            return {"configured": False, "items": [], "total": 0, "limit": limit, "offset": offset}
+        try:
+            found, total = source.invoices(q, offset, limit)
+        except SourceUnavailable as exc:
+            raise HTTPException(status_code=502, detail=f"Paperless non risponde: {exc}") from exc
+        with ledger_scope() as ledger:
+            links = ledger.movements_of_documents([item["paperless_id"] for item in found])
+        return {
+            "configured": True,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "items": [
+                {
+                    **item,
+                    "movements": [
+                        {"id": row["id"], "date": row["date"], "amount": row["amount"],
+                         "description": row["description"]}
+                        for row in links.get(item["paperless_id"], [])
+                    ],
+                }
+                for item in found
+            ],
+        }
+
     @router.get("/api/documents/search")
     def search_documents(q: str = "") -> dict:
         """What Paperless holds for this search: the paperwork behind a movement."""

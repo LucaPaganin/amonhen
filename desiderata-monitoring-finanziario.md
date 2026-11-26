@@ -435,7 +435,7 @@ Il resto del sistema dice com'è andata. Questa sezione serve a una decisione ch
 
 ### 5.16-bis Il documento dietro un movimento *(costruita)*
 
-Ogni movimento può avere la sua carta: la fattura, la ricevuta, la bolletta che sta su Paperless. Il collegamento si fa a mano e per scelta — si cerca in Paperless per emittente, importo o mese, e si prende il documento giusto — perché un'automazione che sbaglia accoppiata è peggio di nessuna accoppiata. Il legame conserva titolo e data del documento com'erano al momento del collegamento, così il movimento mostra la sua carta anche quando Paperless non risponde; il documento resta di Paperless, che è l'unico a possederlo, e scollegarlo non lo tocca. Un movimento cancellato porta via i suoi collegamenti.
+Ogni movimento può avere la sua carta: la fattura, la ricevuta, la bolletta che sta su Paperless. Il collegamento si fa a mano e per scelta — si cerca in Paperless per emittente, importo o mese, e si prende il documento giusto — perché un'automazione che sbaglia accoppiata è peggio di nessuna accoppiata. Il legame conserva titolo e data del documento com'erano al momento del collegamento, così il movimento mostra la sua carta anche quando Paperless non risponde; il documento resta di Paperless, che è l'unico a possederlo, e scollegarlo non lo tocca. Un movimento cancellato porta via i suoi collegamenti. Il giro si fa anche dall'altra parte, che è quella che serve quando la carta arriva prima del pagamento: la sezione **Fatture** elenca fatture, ricevute e bollette che Paperless ha, con l'importo che il documento dichiara, e accanto il movimento che le salda o la ricerca che lo trova.
 
 ### 5.17 Servizi a prezzo concordato *(costruita, da provare sul NAS)*
 

@@ -19,6 +19,22 @@ class DocumentsMixin:
             (transaction_id,),
         ).fetchall()
 
+    def movements_of_documents(self, paperless_ids: list[int]) -> dict[int, list[sqlite3.Row]]:
+        """Which movements already pay each document, one query for the whole page."""
+        if not paperless_ids:
+            return {}
+        marks = ", ".join("?" * len(paperless_ids))
+        rows = self.conn.execute(
+            f"""SELECT d.paperless_id, t.id, t.date, t.amount, t.description
+                FROM transaction_documents d JOIN transactions t ON t.id = d.transaction_id
+                WHERE d.paperless_id IN ({marks}) ORDER BY t.date, t.id""",
+            paperless_ids,
+        ).fetchall()
+        grouped: dict[int, list[sqlite3.Row]] = {}
+        for row in rows:
+            grouped.setdefault(row["paperless_id"], []).append(row)
+        return grouped
+
     def link_document(
         self, transaction_id: int, paperless_id: int, *, title: str, created: str | None,
         kind: str | None, linked_at: str,

@@ -15,6 +15,13 @@ from amonhen.ports.portfolio import SourceUnavailable
 # few enough to stay a choice instead of a wall.
 SEARCH_LIMIT = 15
 
+# The documents that justify a payment. A referto or a contract is not one, and
+# without this list the view would be a dump of the whole archive.
+INVOICE_TYPES = ("Fattura", "Ricevuta sanitaria", "Bolletta")
+
+# The custom field the household writes the total into, when it is there.
+AMOUNT_FIELD = "Importo"
+
 
 class PaperlessInvoices:
     """The documents Paperless holds, found by a search and read one by one."""
@@ -55,6 +62,30 @@ class PaperlessInvoices:
         newest = sorted(found.values(), key=lambda row: row.get("created") or "", reverse=True)
         return [self._document(row) for row in newest[:limit]]
 
+    def invoices(self, query: str = "", offset: int = 0, limit: int = 20) -> tuple[list[dict], int]:
+        """The documents that justify a payment, the newest first, and how many there are.
+
+        The search looks at the title: here the titles say who sent it and when
+        ("Fattura Lenti - giugno/luglio 2026"), which is what a person types. The
+        amount is on the row, to be read rather than searched.
+        """
+        types = [identifier for identifier in
+                 (self._id_of("document_types", name) for name in INVOICE_TYPES)
+                 if identifier is not None]
+        params = {
+            "page": offset // limit + 1,
+            "page_size": limit,
+            "ordering": "-created",
+            "fields": "id,title,created,document_type,correspondent,custom_fields",
+        }
+        if types:
+            params["document_type__id__in"] = ",".join(str(identifier) for identifier in types)
+        text = query.strip()
+        if text:
+            params["title__icontains"] = text
+        page = self._get(f"{self.base}/api/documents/", params)
+        return ([self._invoiced(row) for row in page.get("results", [])], int(page.get("count") or 0))
+
     def one(self, paperless_id: int) -> dict:
         """The document as it will be snapshotted on the movement."""
         return self._document(self._get(f"{self.base}/api/documents/{paperless_id}/"))
@@ -69,6 +100,24 @@ class PaperlessInvoices:
             "kind": self._name("document_types", row.get("document_type")),
             "correspondent": self._name("correspondents", row.get("correspondent")),
         }
+
+    def _invoiced(self, row: dict) -> dict:
+        document = self._document(row)
+        document["amount"] = self._amount(row.get("custom_fields") or [])
+        return document
+
+    def _amount(self, fields: list[dict]) -> str | None:
+        """The total the document states, when the archive has the field."""
+        for item in fields:
+            if self._name("custom_fields", item.get("field")) == AMOUNT_FIELD and item.get("value"):
+                return str(item["value"])
+        return None
+
+    def _id_of(self, resource: str, name: str) -> int | None:
+        for identifier, found in self._names_of(resource).items():
+            if found == name:
+                return identifier
+        return None
 
     def _name(self, resource: str, identifier: int | None) -> str | None:
         return None if identifier is None else self._names_of(resource).get(identifier)

@@ -67,6 +67,14 @@ class FakePaperless:
     def one(self, paperless_id: int) -> dict:
         return next(document for document in self.documents if document["paperless_id"] == paperless_id)
 
+    def invoices(self, query: str = "", offset: int = 0, limit: int = 20) -> tuple[list[dict], int]:
+        found = [
+            {**document, "amount": "51.00"}
+            for document in self.documents
+            if query.lower() in document["title"].lower()
+        ]
+        return found, len(found)
+
 
 @pytest.fixture
 def api(tmp_path, monkeypatch):
@@ -140,3 +148,50 @@ def test_the_invoice_search_names_the_type_and_the_issuer():
             "paperless_id": 42, "title": "Ricevuta Lenti - 02/11/2026", "created": "2026-11-02",
             "kind": "Ricevuta sanitaria", "correspondent": "Gabriele Lenti",
         }]
+
+
+def test_the_api_lists_the_documents_and_what_pays_them(api):
+    from amonhen.db import connect
+    from amonhen.ledger import Ledger
+
+    listing = api.get("/api/invoices").json()
+    assert listing["configured"] is True
+    assert listing["total"] == 1
+    assert listing["items"][0]["amount"] == "51.00"
+    assert listing["items"][0]["movements"] == []
+
+    conn = connect(api.db_path)
+    txn = movement(Ledger(conn))
+    conn.close()
+    api.put(f"/api/transactions/{txn}/documents/42")
+
+    linked = api.get("/api/invoices").json()["items"][0]["movements"]
+    assert [(row["id"], row["amount"]) for row in linked] == [(txn, "-51.00")]
+
+
+def test_the_invoice_list_asks_paperless_for_the_three_kinds_and_their_totals():
+    import responses
+
+    from amonhen.adapters.paperless_invoices import PaperlessInvoices
+
+    base = "http://paperless:8000"
+    with responses.RequestsMock() as mock:
+        mock.get(f"{base}/api/document_types/", json={"results": [
+            {"id": 6, "name": "Fattura"}, {"id": 8, "name": "Referto medico"},
+        ]})
+        mock.get(f"{base}/api/correspondents/", json={"results": [{"id": 11, "name": "Gabriele Lenti"}]})
+        mock.get(f"{base}/api/custom_fields/", json={"results": [{"id": 3, "name": "Importo"}]})
+        mock.get(f"{base}/api/documents/", json={"count": 1, "results": [{
+            "id": 42, "title": "Fattura Lenti - giugno 2026", "created": "2026-09-26",
+            "document_type": 6, "correspondent": 11,
+            "custom_fields": [{"field": 3, "value": "255.00"}],
+        }]})
+        source = PaperlessInvoices(base, "token")
+        items, total = source.invoices(limit=20)
+        assert total == 1
+        assert items == [{
+            "paperless_id": 42, "title": "Fattura Lenti - giugno 2026", "created": "2026-09-26",
+            "kind": "Fattura", "correspondent": "Gabriele Lenti", "amount": "255.00",
+        }]
+        asked = next(c for c in mock.calls if "/api/documents/" in c.request.url).request.url
+        assert "document_type__id__in=6" in asked  # the referto is not an invoice
