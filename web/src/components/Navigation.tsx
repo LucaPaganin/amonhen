@@ -16,6 +16,7 @@ export type TabId =
   | "portfolio"
   | "services"
   | "invoices"
+  | "offline"
   | "setup"
   | "guide";
 
@@ -128,6 +129,14 @@ const SECTIONS: Section[] = [
     hint: "Le fatture e le ricevute di Paperless, e il pagamento che le salda",
     inBar: false,
     Icon: InvoicesIcon,
+  },
+  {
+    id: "offline",
+    label: "Offline",
+    short: "Offline",
+    hint: "La copia sul telefono e le modifiche da inviare",
+    inBar: false,
+    Icon: OfflineIcon,
   },
   {
     id: "setup",
@@ -366,6 +375,24 @@ function ClipboardIcon() {
       <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1Z" />
       <path d="M16 5h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2" />
       <path d="m9 13 2 2 4-4" />
+    </svg>
+  );
+}
+
+function OfflineIcon() {
+  return (
+    <svg
+      className="navicon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 4v10m0 0-4-4m4 4 4-4M5 19h14" />
     </svg>
   );
 }

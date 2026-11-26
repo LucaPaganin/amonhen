@@ -21,7 +21,7 @@ from amonhen.api.version import API_VERSION
 from amonhen.config import load_config
 from amonhen.ledger import Ledger
 from amonhen.services import offline
-from amonhen.settings import CREDITS_REVIEW_FROM
+from amonhen.settings import CREDITS_REVIEW_FROM, UNCATEGORIZED
 from amonhen.transfers import pair_candidates
 
 # One query takes at most this many ids: SQLite caps the number of variables of a
@@ -87,6 +87,9 @@ def build(ctx: AppContext) -> APIRouter:
                 "created_at": clock.now().isoformat(timespec="seconds"),
                 "from": first.isoformat(),
                 "to": last.isoformat(),
+                # The name the review bucket has: a movement is in the queue while its
+                # category is this one, and the phone has to know it with no server to ask.
+                "uncategorized": UNCATEGORIZED,
                 "accounts": [
                     _account_payload(ledger, row["id"], clock.today())
                     for row in queries.real_account_ids(ledger)

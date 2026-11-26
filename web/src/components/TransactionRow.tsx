@@ -81,6 +81,7 @@ export function TransactionRow({
                 {flag.label}
               </span>
             ) : null}
+            {transaction.pending_offline ? <span className="chip chip--warning">Da inviare</span> : null}
             {selected ? <span className="chip chip--selected">Selezionato</span> : null}
           </span>
         </span>

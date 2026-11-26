@@ -1,3 +1,6 @@
+import { ApiError } from "./apiError";
+import { offlineApi } from "./offline/api";
+import { isOffline, whenReady } from "./offline/session";
 import type { CategoryFlags } from "./useCategories";
 import type {
   Account,
@@ -61,15 +64,7 @@ import type {
   VirtualAccount,
 } from "./types";
 
-export class ApiError extends Error {
-  readonly status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
+export { ApiError };
 
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
@@ -215,7 +210,7 @@ function budgetQuery(month: string, months: number): string {
   return `month=${encodeURIComponent(month)}&months=${months}`;
 }
 
-export const api = {
+export const onlineApi = {
   health: (signal?: AbortSignal) => get<Health>("/health", signal),
   // Synchronous on purpose: the button asked for this run, and the answer is
   // what the run wrote. A second one while it is going answers 409.
@@ -438,3 +433,24 @@ export const api = {
   removeConfiguredAccount: (accountUid: string) =>
     drop<SetupState>(`/setup/accounts/${encodeURIComponent(accountUid)}`),
 };
+
+type Api = typeof onlineApi;
+
+/**
+ * What the screens call. Online it is the server; offline, a method the copy can answer
+ * is answered from it and every other one says that it needs the network. The choice is
+ * made at each call, after the copy has been read from the phone's storage, so a screen
+ * never has to know which of the two it is talking to.
+ */
+export const api: Api = new Proxy(onlineApi, {
+  get(target, name: string) {
+    const online = target[name as keyof Api] as (...args: unknown[]) => Promise<unknown>;
+    const offline = (offlineApi as Record<string, ((...args: unknown[]) => Promise<unknown>) | undefined>)[name];
+    return async (...args: unknown[]) => {
+      await whenReady();
+      if (!isOffline()) return online(...args);
+      if (offline) return offline(...args);
+      throw new ApiError(0, "serve la rete");
+    };
+  },
+});

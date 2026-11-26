@@ -1,3 +1,6 @@
+import { OfflineBanner } from "./components/OfflineBanner";
+import { useOfflineState } from "./offline/session";
+import { OfflineScreen } from "./screens/Offline";
 import { useCallback, useEffect, useState } from "react";
 
 import { api, errorMessage } from "./api";
@@ -61,6 +64,12 @@ export default function App() {
   } = useCategories();
   // Writing a rule changes what the queue has left to decide, so refresh it.
   const rules = useRules(review.reload);
+  // What the queue lists comes from the server or from the copy: when that changes, read it again.
+  const offlineState = useOfflineState();
+  useEffect(() => {
+    review.reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offlineState.forced, offlineState.online, offlineState.bundle]);
   const reviewCount = review.proposalsTotal + review.transfersTotal + review.creditsTotal;
 
   useEffect(() => {
@@ -69,7 +78,9 @@ export default function App() {
       .health(controller.signal)
       .then((health) => {
         // A failed check is not a verdict: the screens report their own errors.
-        if ((health.api_version ?? 0) < REQUIRED_API_VERSION) setStaleServer(true);
+        if (health.status !== "offline" && (health.api_version ?? 0) < REQUIRED_API_VERSION) {
+          setStaleServer(true);
+        }
         setServerVersion(health.version ?? null);
         rememberBucket(health.uncategorized);
       })
@@ -226,6 +237,7 @@ export default function App() {
       />
 
       <main className="app__main">
+        <OfflineBanner onOpen={() => changeTab("offline")} />
         <HelpContext.Provider value={openGuide}>
         {tab === "setup" ? (
           <SetupScreen
@@ -285,6 +297,7 @@ export default function App() {
             updateCategoryFlags={updateCategoryFlags}
           />
         ) : null}
+        {tab === "offline" ? <OfflineScreen onChanged={noteWrote} /> : null}
         {tab === "guide" ? <GuideScreen topic={guideTopic} /> : null}
         </HelpContext.Provider>
       </main>

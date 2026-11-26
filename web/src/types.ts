@@ -277,6 +277,8 @@ export interface Transaction {
   tags: string[];
   /** The paperwork behind the movement, as Paperless holds it. */
   documents: TransactionDocument[];
+  /** Offline only: a change made on the phone and not sent yet touches this movement. */
+  pending_offline?: boolean;
   /** Queue only: what the automatic passes already made of this row. */
   review_state?: ReviewState;
   /** Queue only: the category a pending proposal suggests, if any. */

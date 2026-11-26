@@ -36,7 +36,8 @@ export type GuideTopic =
   | "mwr"
   | "accrual"
   | "service"
-  | "coverage";
+  | "coverage"
+  | "offline";
 
 interface Card {
   id: GuideTopic;
@@ -65,6 +66,16 @@ const CARDS: Card[] = [
       "Il mese prima si legge due volte: fino allo stesso giorno, per confrontare gli stessi giorni, e intero. Le spese rare ci sono. I contributi contati sono quelli che hanno coperto qualcosa: su ogni conto al massimo quanto quel conto ha speso, così spesa lorda meno contributi fa la cifra a tuo carico. Le entrate sono quelle del grafico Entrate e uscite, senza giroconti, rimborsi e contributi. Il netto dipende dal giorno in cui arriva un contributo: per questo la spesa lorda resta accanto.",
     changes:
       "Dove sono finiti elenca le categorie con una spesa in questo mese, dalla più alta, ognuna con la distanza dal suo solito: la mediana dei 6 mesi completi precedenti tagliati allo stesso giorno, senza spese rare e senza contributi. Un tocco apre i suoi movimenti.",
+  },
+  {
+    id: "offline",
+    title: "Uso senza rete",
+    means:
+      "Scarichi una copia dei movimenti sul telefono quando vuoi e la usi senza rete: Movimenti, Da confermare e il cruscotto funzionano. Le modifiche fatte lì (categoria e divisione, tag, nota, cancellare, abbinare un giroconto) restano in coda finché non le invii tu.",
+    computed:
+      "Ogni modifica ricorda il valore che la copia aveva quando l'hai fatta. All'invio il server lo confronta con quello che ha adesso: se è uguale la modifica si applica, se è cambiato è un conflitto. Prima si vede l'anteprima di cosa succederebbe, senza scrivere niente; poi si conferma, e l'invio è tutto o niente. Il cruscotto offline è una foto del momento del download, con l'ora scritta.",
+    changes:
+      "Un conflitto lo decidi sempre tu: tieni la tua o quella del server, vedendo tutte e due. Un conflitto senza risposta non viene scritto e resta in coda. Cancella dati offline è rifiutato finché ci sono modifiche da inviare, perché quelle non si possono riscaricare.",
   },
   {
     id: "statistics",

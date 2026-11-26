@@ -4340,3 +4340,75 @@ button.txn:active {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
+
+/* Fase 14: uso senza rete */
+
+.offline-banner {
+  margin-bottom: 12px;
+}
+
+.offline-banner__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.offline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.offline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.offline-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--fill-1);
+}
+
+.offline-item[data-state="conflitto"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.offline-item__what {
+  margin: 0;
+  font-weight: 600;
+}
+
+.offline-item__state,
+.offline-conflict dl {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.offline-conflict dt {
+  opacity: 0.7;
+}
+
+.offline-conflict dd {
+  margin: 0 0 6px;
+}
+
+.offline-report {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--fill-1);
+  font-size: var(--text-sm);
+}

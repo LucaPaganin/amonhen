@@ -1,9 +1,10 @@
 ---
 id: TASK-101
 title: L'app si usa senza rete
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-26T06:28:44Z'
+updated_date: '2026-11-26T06:59:13Z'
 labels: []
 dependencies: []
 references:

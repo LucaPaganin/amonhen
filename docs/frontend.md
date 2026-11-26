@@ -24,12 +24,27 @@ Part of what `CLAUDE.md` says before changing code. A rule that changes changes 
   context has no `.git`), which becomes `VITE_APP_VERSION` in the bundle and
   `AMONHEN_VERSION` for the server; `settings.VERSION` falls back to `git describe
   --tags --always --dirty` in a checkout, and a bundle built there says `dev`.
-- **The document is never cached; the assets always are.** The API serves `index.html`
-  with `Cache-Control: no-cache` and `web/public/sw.js` caches only `/assets/*`, whose
-  names come from their content. A cached document points at files a rebuild has
-  replaced: the page loads a 404 script and comes up blank, which is also the one way
-  an update can look like it never happened. `API_VERSION` catches the other
-  direction — a stale bundle against a newer server.
+- **The document is network-first with a stored fallback; the assets are cache-first.**
+  The API serves `index.html` with `Cache-Control: no-cache`, and `web/public/sw.js`
+  asks the network for the document and falls back to the last one it stored when the
+  network fails or does not answer in `DOCUMENT_WAIT_MS`. It is never cache-first: a
+  cached document served while the network is up points at files a rebuild has replaced,
+  and the page comes up blank. The assets under `/assets/` are cache-first because their
+  names come from their content, and the stored document and the assets it names were
+  fetched together. The very first load of a browser is not stored (the worker takes
+  control after it): a second visit is. `API_VERSION` catches the other direction — a
+  stale bundle against a newer server.
+- **Offline (desiderata 5.18) lives in `web/src/offline/`, and the screens do not know.**
+  `api` in `api.ts` is a Proxy over `onlineApi`: each call awaits the phone's storage,
+  then goes to the server, or — when `navigator.onLine` is false or *Lavora offline* is
+  on — to `offlineApi` (`offline/api.ts`), and a method that has no offline version
+  throws `ApiError(0, "serve la rete")`. `queue.ts` and `view.ts` are pure (the queue's
+  coalescing, the copy with the operations applied, the filters of Movimenti and the
+  queue over the copy) and have `vitest` tests (`npm --prefix web test`); `store.ts` is
+  IndexedDB, `session.ts` the module-level state (`useOfflineState`), `send.ts` the
+  preview/commit calls. Download and send bypass the proxy on purpose. The operation
+  format (`OPERATION_FORMAT`) moves with `services.offline.FORMAT`, not with
+  `API_VERSION`.
 - **A colour is named once, in `web/src/styles.css`.** The `:root` block holds the field's
   three glows, the three fill levels, the palette, the type scale, the radii and the two
   motion curves; a component reads a token. Nothing in the interface draws a line: a panel
