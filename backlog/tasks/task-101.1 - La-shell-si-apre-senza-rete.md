@@ -1,9 +1,11 @@
 ---
 id: TASK-101.1
 title: La shell si apre senza rete
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-26T06:28:49Z'
+updated_date: '2026-11-26T06:36:43Z'
 labels: []
 dependencies: []
 references:
@@ -27,3 +29,12 @@ Prima fetta della sezione 5.18. Oggi web/public/sw.js non mette in cache il docu
 - [ ] #3 Le sezioni che non hanno dati offline dicono che serve la rete invece di restare vuote o in errore
 - [ ] #4 docs/frontend.md e il commento di sw.js dicono la regola nuova
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. sw.js: documento network-first con ultima copia come riserva, asset invariati, CACHE v2
+2. App: banner "senza rete" e sezioni che servono la rete lo dicono
+3. docs/frontend.md e commento di sw.js
+4. Build e prova nel browser con rete tagliata
+<!-- SECTION:PLAN:END -->

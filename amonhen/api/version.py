@@ -67,4 +67,7 @@ from __future__ import annotations
 # `/api/portfolio` gained `nav_missing`, and `POST /api/portfolio/nav` is new.
 # 47 is the tracked services (desiderata 5.17): `/api/services` and the routes under
 # it, and a sync answers with `calendars`, what each calendar of a service did.
-API_VERSION = 47
+# 48 is the offline copy (desiderata 5.18): `/api/offline/bundle`, `/api/offline/preview` and
+# `/api/offline/commit`. The operations they read have a format of their own,
+# `services.offline.FORMAT`, which does not move with this number.
+API_VERSION = 48

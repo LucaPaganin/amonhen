@@ -549,6 +549,16 @@ def _money(value) -> str | None:
     return format_decimal(value) if value is not None else None
 
 
+def _tag_payload(row) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "episodic": bool(row["episodic"]),
+        "essential": bool(row["essential"]),
+        "movements": row["movements"],
+    }
+
+
 def _category_payload(row) -> dict:
     return {
         "id": row["id"],

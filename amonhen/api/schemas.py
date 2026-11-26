@@ -327,3 +327,30 @@ class PaymentLinkRequest(BaseModel):
     """The service a movement pays, or None to take it out of every service."""
 
     service_id: int | None = None
+
+
+class OfflineOperationRequest(BaseModel):
+    """One thing done on the phone without a network, with the value the phone saw
+    (its `base`): desiderata 5.18. `value` and `base` are read per `kind` by
+    `services.offline`, which refuses a malformed one."""
+
+    id: str
+    kind: str
+    transaction_id: int
+    value: dict = Field(default_factory=dict)
+    base: dict = Field(default_factory=dict)
+
+
+class OfflineResolutionRequest(BaseModel):
+    """The answer to a conflict: keep the phone's value or the server's. `seen` names
+    the server value the person looked at, from the preview."""
+
+    id: str
+    choice: Literal["mine", "server"]
+    seen: str | None = None
+
+
+class OfflineQueueRequest(BaseModel):
+    format: int
+    operations: list[OfflineOperationRequest]
+    resolutions: list[OfflineResolutionRequest] = Field(default_factory=list)

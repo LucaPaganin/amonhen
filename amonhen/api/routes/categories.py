@@ -5,7 +5,13 @@ from fastapi import APIRouter, HTTPException
 
 from amonhen import queries
 from amonhen.api.context import AppContext
-from amonhen.api.payloads import _category_payload, _rule_fields, _rule_payload, _rule_target
+from amonhen.api.payloads import (
+    _category_payload,
+    _rule_fields,
+    _rule_payload,
+    _rule_target,
+    _tag_payload,
+)
 from amonhen.api.schemas import (
     CategoryFlagsRequest,
     CategoryNameRequest,
@@ -28,16 +34,7 @@ def build(ctx: AppContext) -> APIRouter:
     @router.get("/api/tags")
     def tags() -> list[dict]:
         with ledger_scope() as ledger:
-            return [
-                {
-                    "id": row["id"],
-                    "name": row["name"],
-                    "episodic": bool(row["episodic"]),
-                    "essential": bool(row["essential"]),
-                    "movements": row["movements"],
-                }
-                for row in ledger.tags()
-            ]
+            return [_tag_payload(row) for row in ledger.tags()]
 
     @router.post("/api/tags", status_code=201)
     def add_tag(body: CategoryNameRequest) -> dict:
