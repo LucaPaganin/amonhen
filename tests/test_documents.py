@@ -288,6 +288,15 @@ def test_a_rule_can_ask_for_the_description_to_confirm_the_issuer(ledger):
     assert [row["paperless_id"] for row in ledger.documents_of(txn)] == [11]
 
 
+def test_the_confirming_text_may_be_an_expression_between_slashes(ledger):
+    ledger.set_document_rule("ASL", before_days=40, after_days=20, match_text="/asl|pago/",
+                             created_at="2026-11-26")
+    txn = spend(ledger, "2026-01-15", "-40.28", "pagoPA", "d1")
+    assert ledger.link_documents_by_rules(
+        [paperless(21, "2026-01-14", "40.28", correspondent="ASL")], now="now").linked == 1
+    assert [row["paperless_id"] for row in ledger.documents_of(txn)] == [21]
+
+
 def test_a_person_unlinking_keeps_the_rule_from_putting_it_back(ledger):
     ledger.set_document_rule("Dolomiti Energia", before_days=0, after_days=30, created_at="2026-11-26")
     txn = spend(ledger, "2026-11-09", "-173.30", "PAG.", "d1")

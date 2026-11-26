@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from amonhen.core.documents import in_window
+from amonhen.core.tracking import description_matches
 
 
 @dataclass(frozen=True)
@@ -166,13 +167,13 @@ class DocumentsMixin:
             if self._document_is_linked(paperless_id) or self._unlinked(paperless_id):
                 skipped += 1
                 continue
-            text = (rule["match_text"] or "").strip().lower()
+            text = (rule["match_text"] or "").strip()
             found = [
                 row for row in candidates
                 if row["id"] not in taken
                 and abs(_cents(row["amount"]) or 0) == amount
                 and in_window(day, _date(row["date"]) or day, rule["before_days"], rule["after_days"])
-                and (not text or text in (row["description"] or "").lower())
+                and (not text or description_matches(text, row["description"] or ""))
             ]
             if len(found) > 1:
                 ambiguous.append(paperless_id)
