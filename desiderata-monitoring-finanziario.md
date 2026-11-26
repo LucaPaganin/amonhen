@@ -1,6 +1,6 @@
 # Desiderata — AmonHen, sistema di monitoring finanziario personale
 
-Versione 1.53 — novembre 2026
+Versione 1.54 — novembre 2026
 
 *1.28 · la coda chiede anche gli accrediti: dall'agosto 2026 un accredito senza categoria sta in
 *Accrediti da chiarire*, e si dichiara entrata, rimborso o contributo.
@@ -93,7 +93,11 @@ c'è già, scritto a mano o dall'apertura, `portfolio-sync` non lo rilegge.
 altro, con le sessioni lette da Google Calendar e i pagamenti che sono già movimenti del ledger.
 Per ogni servizio un saldo e le sessioni coperte, in ordine di data. Il non-obiettivo sui crediti
 verso terzi (sezione 3) si restringe alle spese anticipate per altri: un servizio ha un prezzo
-scritto e sessioni datate, quindi quanto è dovuto si calcola invece di stimarsi.*
+scritto e sessioni datate, quindi quanto è dovuto si calcola invece di stimarsi.
+1.54 · l'app si usa senza rete (sezione 5.18): un pacchetto scaricato a richiesta, le modifiche
+fatte offline come operazioni con la loro base, e un invio con anteprima in cui un conflitto
+aspetta sempre la scelta di una persona. Il service worker serve l'ultimo documento quando la
+rete non risponde.*
 
 La storia completa è in `docs/storia-desiderata.md`.
 
@@ -453,6 +457,30 @@ Lezioni private date, lezioni prese, sedute: un servizio ha una controparte, un 
 
 *Fatto quando*: dopo una lezione segnata sul calendario e un bonifico arrivato, la sezione dice senza nessun inserimento a mano quanto resta da pagare e quali lezioni lo compongono, e leggerla due volte dà lo stesso numero.
 
+### 5.18 Uso senza rete *(da costruire)*
+
+In treno la rete va e viene a ogni galleria, e Tailscale con lei: l'app che parla col NAS a ogni tocco non si usa. La sezione porta sul telefono una copia di ciò che serve per lavorare sui movimenti, la lascia modificare senza rete e rimanda le modifiche al server solo quando una persona lo chiede, mostrando prima cosa succederà.
+
+**La shell si apre anche senza rete.** È la stessa PWA, non un'app nativa né una seconda app (sezione 3). Il service worker chiede il documento alla rete e, se la rete non risponde, serve l'ultima copia che ha; gli asset con il nome dal contenuto restano in cache come oggi. Con la rete il documento è quindi sempre quello nuovo, e resta vero che una build vecchia non punta a file che non ci sono più; senza rete si apre l'ultima build vista, con i suoi asset. Senza rete l'app mostra **Movimenti**, **Da confermare**, il **Cruscotto** e **Da inviare**; le altre sezioni dicono che servono la rete.
+
+**Il pacchetto si scarica a richiesta, mai da solo.** *Scarica per l'uso offline* chiede un periodo e scarica i movimenti di quel periodo più l'intera coda da confermare: per ogni movimento i postings, i tag, la nota, se è una gamba di giroconto o uno split, e per uno non abbinato i candidati che il server propone (sezione 5.3), così il telefono non ricalcola nessun abbinamento. Con loro arrivano le categorie, i tag e le risposte del cruscotto per quel periodo. Il pacchetto sta nel telefono (IndexedDB, con lo spazio chiesto come persistente) insieme all'ora in cui è stato scaricato. Un nuovo download sostituisce il vecchio solo se non resta niente da inviare: altrimenti chiede prima di inviare o di scartare. *Cancella i dati offline* lo toglie. La copia sta su un dispositivo della persona e non passa da terzi, quindi il vincolo sui dati bancari (sezione 4) resta rispettato.
+
+**Il cruscotto offline è congelato e lo dice.** Mostra le risposte scaricate con la loro ora e non si ricalcola con le modifiche fatte offline: le metriche restano del backend (sezione 5.6), e il telefono non ne ha una seconda versione.
+
+**Una modifica offline è un'operazione con la sua base.** Si può cambiare la categoria o lo split, aggiungere o togliere un tag, scrivere la nota, cancellare un movimento, abbinare un giroconto a uno dei candidati scaricati, confermare o rifiutare un abbinamento proposto. Ogni operazione entra in **Da inviare** e porta con sé il valore che il pacchetto aveva quando è stata fatta: i postings per categoria e split, la nota, il movimento com'era per una cancellazione, lo stato dell'abbinamento per un giroconto. I tag si mandano come aggiunte e rimozioni, non come insieme. Più operazioni sullo stesso campo dello stesso movimento ne fanno una sola, l'ultima, con la base della prima; una cancellazione assorbe le altre operazioni sullo stesso movimento. Il telefono mostra il pacchetto con le operazioni applicate, e una riga modificata si riconosce. Una categoria decisa offline è una decisione di una persona come online: non crea regole (sezione 5.5). Categorie e tag nuovi non si creano offline.
+
+**L'invio è in due tempi, e niente si applica senza una scelta.** *Invia* manda la coda per un'anteprima che non scrive niente, e ogni operazione torna con un esito:
+
+- *applicabile*: il server ha ancora la base;
+- *già così*: il server ha già il valore nuovo — un secondo invio della stessa coda non cambia niente;
+- *conflitto*: il server è cambiato dopo il download, e la riga mostra la base, la versione del telefono e quella del server;
+- *sparita*: il movimento non c'è più, cancellato o reimportato con un altro id; non si cerca un sostituto;
+- *non più valida*: l'operazione non ha più senso — il movimento è diventato una gamba di giroconto, il candidato è stato abbinato ad altro, la categoria o il tag non esistono più.
+
+Un conflitto non ha una scelta predefinita: resta fermo finché una persona sceglie *tieni la mia* o *tieni quella del server*, e una nota si può anche riscrivere lì. La conferma applica le operazioni scelte in una sola transazione, con le stesse funzioni del ledger che usa l'app online, quindi tombstone, giroconti e verifica della sezione 5.4 seguono le loro regole; il server ricontrolla ogni base, e un'operazione la cui base è cambiata fra anteprima e conferma torna in conflitto invece di applicarsi. Le operazioni applicate o scartate escono dalla coda, le altre restano. Il conflitto si riconosce confrontando la base con il valore attuale: nessuna colonna di versione si aggiunge al ledger. Le operazioni hanno un formato loro, con una versione separata da `API_VERSION` e che cambia solo apposta: un server che non lo conosce lo dice, e la coda resta sul telefono.
+
+*Fatto quando*: in treno, senza rete, si apre l'app, si categorizza la coda scaricata la sera prima e si scrive una nota; tornata la rete, l'anteprima dice cosa succederà a ciascuna modifica, un movimento cambiato apposta sul server nel frattempo compare come conflitto e non si applica senza una scelta, e inviare due volte la stessa coda lascia il ledger com'era dopo il primo invio.
+
 ## 6. Modello dati minimo
 
 ```
@@ -596,6 +624,7 @@ Ogni fase è deployabile e usabile da sola. Nessuna fase richiede che la success
   5. le proiezioni per scenari verso ciascun obiettivo, con Coast FI *(fatta: dentro **Piano**)*;
   6. la distribuzione dai rendimenti storici.
 - **Fase 13 — i servizi a prezzo concordato.** *(costruita, da provare sul NAS)* La sezione 5.17: i servizi, il sync del calendario, il collegamento dei pagamenti per testo nella descrizione e a mano, il saldo con la copertura, la sezione nell'app.
+- **Fase 14 — si lavora anche senza rete.** *(da costruire)* La sezione 5.18, a fette usabili da sole: la shell che si apre offline; il pacchetto scaricato a richiesta e le sezioni in sola lettura; le modifiche offline nella coda **Da inviare**; l'invio con anteprima, conflitti e conferma.
 
 **Stato (ottobre 2026).** Fasi 0-9 consegnate, più il cruscotto con i grafici e la rinomina in AmonHen, la sezione Categorie e regole nell'app, le regole sul testo contenuto nella descrizione o su un'espressione fra barre, la gestione dei giroconti e la loro prova per IBAN, i filtri del cruscotto e la sezione Conti e budget con creazione dei conti e dichiarazione dei saldi. La fase 6 ha aggiunto il pulsante di sync nell'app, la nota locale di un movimento, la cancellazione con il suo tombstone, la flag di reimport per conto e il cestino che ripristina, e la sezione 5.4 che spiega la differenza lasciata da una cancellazione a mano. La fase 7 ha aggiunto il setup guidato della sezione 5.10 e la configurazione che l'app scrive da sé, con la cartella di configurazione montata al posto dei due file. L'immagine la costruisce la CI: un tag `v*` fa girare i test e la build del bundle, poi pubblica su GHCR (`linux/amd64`), e il NAS tira l'immagine con il suo `AMONHEN_TAG` invece di costruire dal sorgente — il NAS non ha bisogno del repository. L'immagine e pubblicata: il tag `v1.3.0` ha fatto girare test e build del bundle, poi la CI l'ha costruita per linux/amd64 e messa su GHCR. La fase 8 ha aggiunto la copia che non c'era — snapshot datati e consistenti del ledger e della configurazione, con la ritenzione, il ripristino e il cron che li comanda (sezione 5.11) — e la prova locale in container dell'intero primo avvio: la banca finta che risponde dalle fixture, il wizard percorso davvero, lo snapshot e il ritorno dallo snapshot, così il primo avvio e il ripristino non si provano la prima volta sul NAS. Accettare una proposta decide i movimenti e basta: una regola nasce solo se la casella la chiede, e con il testo che si scrive nel dialogo. La fase 9 ha dato al budget una sezione sua e la pianificazione della sezione 5.12. Un conto collegato si sincronizza anche su un periodo scelto, passato compreso, con l'esito per finestra e i probabili doppioni dell'import tenuti da parte finché una persona decide (sezione 5.1). Le metriche si chiamano con parole che dicono cosa misurano invece che burn e runway. Una regola può cancellare o registrare un giroconto, ristretta a un conto e a un intervallo di importi; un conto si elimina dall'app, e i movimenti si cancellano o si categorizzano in blocco. Una regola di giroconto verso un conto creato a mano gli scrive l'altra gamba, e quel conto può contare nel patrimonio per il saldo calcolato dai movimenti (sezioni 5.5 e 5.8): è come si tiene il conto deposito di Revolut, che Enable Banking non espone. Lavoro aperto, tracciato nel backlog: il primo deploy sul NAS di quell'immagine e il consenso di Fineco da rinnovare.
 
