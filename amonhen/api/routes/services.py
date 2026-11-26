@@ -37,7 +37,10 @@ def build(ctx: AppContext) -> APIRouter:
     @router.post("/api/services")
     def create_service(body: ServiceRequest) -> dict:
         with ledger_scope() as ledger:
-            service_id = ledger.save_service(None, **body.model_dump())
+            try:
+                service_id = ledger.save_service(None, **body.model_dump())
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             ledger.link_payments_by_text()
             return tracking.detail(ledger, service_id, ctx.clock.today())
 
@@ -50,7 +53,10 @@ def build(ctx: AppContext) -> APIRouter:
     def update_service(service_id: int, body: ServiceRequest) -> dict:
         with ledger_scope() as ledger:
             _detail_or_404(ledger, service_id, ctx.clock.today())
-            ledger.save_service(service_id, **body.model_dump())
+            try:
+                ledger.save_service(service_id, **body.model_dump())
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             ledger.link_payments_by_text()
             return tracking.detail(ledger, service_id, ctx.clock.today())
 

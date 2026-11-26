@@ -75,6 +75,36 @@ def title_matches(pattern: str, summary: str) -> bool:
     return bool(wanted) and wanted in _text_key(summary)
 
 
+def description_matches(pattern: str, description: str) -> bool:
+    """The same rule a title follows, on the text of a movement.
+
+    `/an expression/` is searched in the description — "Saldo 12 sedute" is the
+    same service's month whatever the count — and anything else is a text the
+    description must carry, spaces and case aside.
+    """
+    typed = pattern.strip()
+    if len(typed) > 2 and typed.startswith("/") and typed.endswith("/"):
+        return re.search(typed[1:-1], description, re.IGNORECASE) is not None
+    wanted = _text_key(typed)
+    return bool(wanted) and wanted in _text_key(description)
+
+
+def expression_problem(pattern: str) -> str | None:
+    """Why ``/an expression/`` would not compile, or None when it is fine.
+
+    A rule that cannot compile is refused where it is written: at the sync it
+    would fail silently, leaving the payments unlinked with no visible reason.
+    """
+    typed = pattern.strip()
+    if not (len(typed) > 2 and typed.startswith("/") and typed.endswith("/")):
+        return None
+    try:
+        re.compile(typed[1:-1])
+    except re.error as exc:
+        return f"espressione non valida: {exc}"
+    return None
+
+
 def session_day(start: str) -> dt.date:
     """The local day of a session: the calendar's text begins with it."""
     return dt.date.fromisoformat(start[:10])

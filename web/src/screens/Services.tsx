@@ -642,10 +642,12 @@ function ServiceSheet({
         <div className="field">
           <label htmlFor={`${fieldId}-match`}>Testo nella descrizione dei movimenti</label>
           <input id={`${fieldId}-match`} className="input" value={draft.match_text ?? ""}
-            placeholder="es. Carla Spallarossa: i movimenti che lo contengono si collegano da soli"
+            placeholder="Carla Spallarossa, oppure /^Saldo \\d+ sedute/"
             onChange={(event) => set("match_text", event.target.value)} />
           <p className="hint">
-            Contiene, maiuscole a parte. Vuoto: i pagamenti si collegano solo a mano.
+            Contiene, maiuscole a parte. Fra barre è un&apos;espressione regolare, come per i
+            titoli: <code>/^Saldo \\d+ sedute/</code> prende «Saldo 12 sedute». Vuoto: i pagamenti
+            si collegano solo a mano.
           </p>
         </div>
         <div className="field">

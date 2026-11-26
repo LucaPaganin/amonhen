@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from amonhen.core.tracking import Session, coverage, title_matches
+from amonhen.core.tracking import Session, coverage, description_matches, expression_problem, title_matches
 from amonhen.models import Account, IncomingTransaction
 from amonhen.ports.calendar import (
     CalendarChanges,
@@ -360,6 +360,40 @@ def test_payments_link_by_the_text_of_the_description_in_the_service_direction(l
     assert view["balance"] == "25.00"
     assert [s["state"] for s in view["sessions"]] == ["pagata", "pagata", "da_pagare"]
     assert [payment["by_rule"] for payment in view["payments"]] == [True]
+
+
+def test_an_expression_in_the_text_links_the_month_whatever_the_count(ledger):
+    service = lesson(ledger, direction="uscita", match_text="/^Saldo \\d+ sedute/")
+    bank = ledger.ensure_account(Account(name="Banca", type="real"))
+    with_debit = lambda day, amount, text: ledger.record(IncomingTransaction(  # noqa: E731
+        account_id=bank, date=dt.date.fromisoformat(day), amount=Decimal(amount), description=text,
+        status="BOOK", source="psd2", balancing_account_id=ledger.category("Ripetizioni"),
+        external_id=text,
+    ))
+    with_debit("2026-11-02", "-30", "Saldo 2 sedute - Lenti")
+    with_debit("2026-11-05", "-15", "saldo 1 sedute - lenti")
+    with_debit("2026-11-06", "-20", "Saldo sedute varie")  # no count: not the service's month
+    with_debit("2026-11-07", "30", "Saldo 2 sedute - Lenti")  # the wrong way
+    assert ledger.link_payments_by_text() == 2
+    assert [row["description"] for row in ledger.payments_of(service)] == [
+        "Saldo 2 sedute - Lenti", "saldo 1 sedute - lenti",
+    ]
+
+
+def test_a_description_rule_follows_the_same_shapes_as_a_title():
+    assert description_matches("Carla Spallarossa", "Bonifico | Ordinante: CARLA SPALLAROSSA")
+    assert description_matches("/^Saldo \\d+ sedute/", "Saldo 12 sedute - novembre")
+    assert not description_matches("/^Saldo \\d+ sedute/", "Saldo sedute")
+    assert expression_problem("/[unclosed/") is not None
+    assert expression_problem("/^Saldo \\d+/") is None
+    assert expression_problem("Carla Spallarossa") is None
+
+
+def test_a_rule_that_cannot_compile_is_refused_where_it_is_written(ledger):
+    with pytest.raises(ValueError):
+        lesson(ledger, match_text="/(sedute/")
+    with pytest.raises(ValueError):
+        lesson(ledger, title_pattern="/[lezione/")
 
 
 def test_the_service_text_is_a_text_and_not_a_pattern(ledger):

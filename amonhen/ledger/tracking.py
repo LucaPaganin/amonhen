@@ -9,7 +9,16 @@ import datetime as dt
 import sqlite3
 from decimal import Decimal
 
-from amonhen.core.tracking import BILLING, CANCELLED, DIRECTIONS, KINDS, VALID, session_amount
+from amonhen.core.tracking import (
+    BILLING,
+    CANCELLED,
+    DIRECTIONS,
+    KINDS,
+    VALID,
+    description_matches,
+    expression_problem,
+    session_amount,
+)
 from amonhen.models import format_decimal, parse_decimal
 
 # A payment moves money the service's way: a credit for a service given, a debit
@@ -63,6 +72,9 @@ class TrackingMixin:
             raise ValueError(f"tipo sconosciuto: {kind}")
         if direction not in DIRECTIONS:
             raise ValueError(f"verso sconosciuto: {direction}")
+        complaint = expression_problem(title_pattern) or expression_problem(match_text or "")
+        if complaint is not None:
+            raise ValueError(complaint)
         if billing not in BILLING:
             raise ValueError(f"modo di pagare sconosciuto: {billing}")
         hours = parse_decimal(default_hours or "1")
@@ -312,23 +324,36 @@ class TrackingMixin:
         one given, a debit for one received. Movements already linked, by hand or
         by another service, and movements a person unlinked are left as they are.
         Returns how many were linked.
+
+        The text matches in Python because it may be `/an expression/`, and SQL
+        has no regex to give it: the rows of one direction in one ledger are a few
+        thousand, and reading their descriptions costs less than the branch that
+        would keep two ways of matching in step.
         """
         linked = 0
-        with self.conn:
-            for service in self.services(active_only=True):
-                text = (service["match_text"] or "").strip()
-                if not text:
-                    continue
-                cursor = self.conn.execute(
-                    f"""INSERT INTO service_payments (transaction_id, service_id, by_rule)
-                        SELECT t.id, ?, 1 FROM transactions t
-                        WHERE t.description LIKE ? ESCAPE '\\'
-                          AND {_PAYMENT_SIGN_SQL[service["direction"]]}
-                          AND t.id NOT IN (SELECT transaction_id FROM service_payments)
-                          AND 'tracking:unlinked:' || t.id NOT IN (SELECT key FROM settings)""",
-                    (service["id"], _contains(text)),
+        for service in self.services(active_only=True):
+            pattern = (service["match_text"] or "").strip()
+            if not pattern:
+                continue
+            rows = self.conn.execute(
+                f"""SELECT t.id, t.description FROM transactions t
+                    WHERE {_PAYMENT_SIGN_SQL[service["direction"]]}
+                      AND t.id NOT IN (SELECT transaction_id FROM service_payments)
+                      AND 'tracking:unlinked:' || t.id NOT IN (SELECT key FROM settings)"""
+            ).fetchall()
+            wanted = [
+                (row["id"], service["id"])
+                for row in rows
+                if description_matches(pattern, row["description"] or "")
+            ]
+            if not wanted:
+                continue
+            with self.conn:
+                self.conn.executemany(
+                    "INSERT INTO service_payments (transaction_id, service_id, by_rule) VALUES (?, ?, 1)",
+                    wanted,
                 )
-                linked += cursor.rowcount
+            linked += len(wanted)
         return linked
 
 
@@ -391,11 +416,4 @@ def _days(value: int | None) -> int | None:
     return int(value)
 
 
-def _contains(text: str) -> str:
-    """The text as a `LIKE` pattern that means exactly "contains this".
 
-    The wildcards a person may type are escapes, not wildcards: searching for
-    "50%" or "a_b" must not quietly match everything.
-    """
-    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
