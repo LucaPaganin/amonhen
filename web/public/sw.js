@@ -19,13 +19,16 @@
 // to the bank and back, so they are left alone too.
 //
 // Bump CACHE to drop everything on the next activation.
-const CACHE = "amonhen-shell-v2";
+const CACHE = "amonhen-shell-v3";
 const DOCUMENT_KEY = "/";
 const DOCUMENT_WAIT_MS = 4000;
 const SERVER_ROUTES = ["/api/", "/connect", "/callback"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+  // La prima visita deve bastare: chi installa l'app e la riapre in treno senza
+  // averla ricaricata non deve trovare il nulla. Il documento e gli asset che
+  // nomina si scaricano qui, una volta, e da lì la shell si apre anche senza rete.
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -55,6 +58,24 @@ self.addEventListener("fetch", (event) => {
   }
   // Everything else — the manifest, the icons, the API — goes to the network.
 });
+
+// Il documento e gli asset che nomina, presi insieme: una shell senza i suoi
+// script sarebbe una pagina bianca. Se qui la rete manca non è un problema —
+// la prima navigazione che riesce riempie la cache come sempre.
+async function precache() {
+  try {
+    const response = await fetch(new Request(DOCUMENT_KEY, { cache: "reload" }));
+    if (!response.ok) return;
+    const cache = await caches.open(CACHE);
+    const copy = response.clone();
+    const html = await response.text();
+    await cache.put(DOCUMENT_KEY, copy);
+    const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(([, path]) => path);
+    await Promise.all(assets.map((path) => cache.add(path)));
+  } catch {
+    // Installata senza rete: la shell arriverà alla prima navigazione che riesce.
+  }
+}
 
 function assetFor(request) {
   return caches.match(request).then(
